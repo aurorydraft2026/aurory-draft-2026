@@ -196,6 +196,7 @@ const Mode1Draft = ({
                                 onMouseLeave={handlers.handleCardMouseLeave}
                                 style={canPick ? handlers.getCardTransform(amiko.id) : {}}
                             >
+                                {/*}
                                 {amiko.element && (
                                     <div className="amiko-element-badge">
                                         <utils.ElementBadge element={amiko.element} size="small" />
@@ -206,7 +207,7 @@ const Mode1Draft = ({
                                     <div className="amiko-rank-stars">
                                         <utils.RankStars rank={amiko.seekerRank} size="small" />
                                     </div>
-                                )}
+                                )}*/}
 
                                 <img src={amiko.image} alt={amiko.name} />
                                 <span className="amiko-name">{amiko.name}</span>

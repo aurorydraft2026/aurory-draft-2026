@@ -32,9 +32,7 @@ const Mode3Draft = ({
     const {
         getTeamDisplayName,
         getTeamLeader,
-        copyToClipboard,
-        ElementBadge,
-        RankStars
+        copyToClipboard
     } = utils;
 
     const renderPlayerSection = (team, picks) => {
@@ -260,6 +258,7 @@ const Mode3Draft = ({
                                 onMouseLeave={handleCardMouseLeave}
                                 style={canPick ? getCardTransform(amiko.id) : {}}
                             >
+                                {/*}
                                 {amiko.element && (
                                     <div className="amiko-element-badge">
                                         <ElementBadge element={amiko.element} size="small" />
@@ -270,7 +269,7 @@ const Mode3Draft = ({
                                     <div className="amiko-rank-stars">
                                         <RankStars rank={amiko.seekerRank} size="small" />
                                     </div>
-                                )}
+                                )}*/}
 
                                 <img src={amiko.image} alt={amiko.name} />
                                 <span className="amiko-name">{amiko.name}</span>
