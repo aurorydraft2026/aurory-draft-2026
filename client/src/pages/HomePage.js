@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db, discordProvider } from '../firebase';
 import { signInWithPopup, getAdditionalUserInfo, signOut, onAuthStateChanged } from 'firebase/auth';
@@ -124,132 +124,102 @@ function HomePage() {
     setRulesCurrentSlide((prev) => (prev - 1 + totalRulesPages) % totalRulesPages);
   };
 
-  // Banner Dragging State
-  const [isDraggingBanner, setIsDraggingBanner] = useState(false);
-  const [dragStartX, setDragStartX] = useState(0);
-  const [dragOffset, setDragOffset] = useState(0);
-  const bannerRef = React.useRef(null);
+  // Banner swipe state (original)
+  const [touchStart, setTouchStart] = useState(null);
+  const [touchEnd, setTouchEnd] = useState(null);
 
+  // Minimum swipe distance (in px)
+  const minSwipeDistance = 50;
 
   const onTouchStart = (e) => {
-    setIsDraggingBanner(true);
-    setDragStartX(e.targetTouches[0].clientX);
-    setDragOffset(0);
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
   };
 
   const onTouchMove = (e) => {
-    if (!isDraggingBanner) return;
-    const currentX = e.targetTouches[0].clientX;
-    setDragOffset(currentX - dragStartX);
+    setTouchEnd(e.targetTouches[0].clientX);
   };
 
   const onTouchEnd = () => {
-    if (!isDraggingBanner) return;
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
 
-    const bannerWidth = bannerRef.current?.offsetWidth || 0;
-    const threshold = bannerWidth * 0.2;
+    if (isLeftSwipe) {
+      setCurrentSlide((prev) => (prev + 1) % announcementSlides.length);
+    } else if (isRightSwipe) {
+      setCurrentSlide((prev) => (prev - 1 + announcementSlides.length) % announcementSlides.length);
+    }
+    setTouchStart(null);
+    setTouchEnd(null);
+  };
 
-    if (Math.abs(dragOffset) > threshold) {
-      if (dragOffset > 0) {
-        // Dragged right -> prev slide
-        setCurrentSlide((prev) => (prev - 1 + announcementSlides.length) % announcementSlides.length);
-      } else {
-        // Dragged left -> next slide
-        setCurrentSlide((prev) => (prev + 1) % announcementSlides.length);
-      }
+  // Rules position-based drag state (KEEP THIS)
+  const rulesRef = useRef(null);
+  const [rulesDrag, setRulesDrag] = useState({
+    isDragging: false,
+    startX: 0,
+    currentX: 0,
+    offset: 0
+  });
+
+  // Rules drag handlers (KEEP THIS)
+  const handleRulesStart = (e) => {
+    const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+    setRulesDrag({
+      isDragging: true,
+      startX: clientX,
+      currentX: clientX,
+      offset: -rulesCurrentSlide * 100
+    });
+  };
+
+  const handleRulesMove = (e) => {
+    if (!rulesDrag.isDragging) return;
+    const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+    setRulesDrag(prev => ({ ...prev, currentX: clientX }));
+  };
+
+  const handleRulesEnd = () => {
+    if (!rulesDrag.isDragging) return;
+
+    const diff = rulesDrag.currentX - rulesDrag.startX;
+    const threshold = 50;
+
+    if (diff > threshold && rulesCurrentSlide > 0) {
+      prevRules();
+    } else if (diff < -threshold && rulesCurrentSlide < totalRulesPages - 1) {
+      nextRules();
     }
 
-    setIsDraggingBanner(false);
-    setDragOffset(0);
+    setRulesDrag({
+      isDragging: false,
+      startX: 0,
+      currentX: 0,
+      offset: 0
+    });
   };
 
-  // Desktop Mouse Drag Handlers
-  const handleMouseDown = (e) => {
-    // Prevent dragging on links/buttons
-    if (e.target.closest('a') || e.target.closest('button')) return;
-
-    setIsDraggingBanner(true);
-    setDragStartX(e.clientX);
-    setDragOffset(0);
-
-    // Disable transitions during drag
-    const track = bannerRef.current?.querySelector('.banner-track');
-    if (track) track.style.transition = 'none';
-  };
-
-  const handleMouseMove = (e) => {
-    if (!isDraggingBanner) return;
-    setDragOffset(e.clientX - dragStartX);
-  };
-
-  const handleMouseUp = () => {
-    if (!isDraggingBanner) return;
-
-    const bannerWidth = bannerRef.current?.offsetWidth || 0;
-    const threshold = bannerWidth * 0.2;
-
-    // Re-enable transitions
-    const track = bannerRef.current?.querySelector('.banner-track');
-    if (track) track.style.transition = '';
-
-    if (Math.abs(dragOffset) > threshold) {
-      if (dragOffset > 0) {
-        setCurrentSlide((prev) => (prev - 1 + announcementSlides.length) % announcementSlides.length);
-      } else {
-        setCurrentSlide((prev) => (prev + 1) % announcementSlides.length);
-      }
+  // Calculate rules transform (KEEP THIS)
+  const getRulesTransform = () => {
+    if (!rulesDrag.isDragging) {
+      return `translateX(-${rulesCurrentSlide * 100}%)`;
     }
-
-    setIsDraggingBanner(false);
-    setDragOffset(0);
+    const diff = rulesDrag.currentX - rulesDrag.startX;
+    const containerWidth = rulesRef.current?.offsetWidth || 1;
+    const percentDiff = (diff / containerWidth) * 100;
+    const newOffset = rulesDrag.offset + percentDiff;
+    return `translateX(${newOffset}%)`;
   };
-
-  // Rules Carousel Dragging State
-  const [rulesDragOffset, setRulesDragOffset] = useState(0);
-  const [isRulesDragging, setIsRulesDragging] = useState(false);
-  const [rulesDragStartX, setRulesDragStartX] = useState(0);
-  const rulesRef = React.useRef(null);
-
-  const onRulesStart = (clientX) => {
-    setRulesDragStartX(clientX);
-    setIsRulesDragging(true);
-    setRulesDragOffset(0);
-  };
-
-  const onRulesMove = (clientX) => {
-    if (!isRulesDragging) return;
-    setRulesDragOffset(clientX - rulesDragStartX);
-  };
-
-  const onRulesEnd = () => {
-    if (!isRulesDragging) return;
-
-    const viewportWidth = rulesRef.current?.offsetWidth || 0;
-    const threshold = viewportWidth * 0.2;
-
-    if (Math.abs(rulesDragOffset) > threshold) {
-      if (rulesDragOffset > 0) {
-        prevRules();
-      } else {
-        nextRules();
-      }
-    }
-
-    setRulesDragOffset(0);
-    setIsRulesDragging(false);
-  };
-
-
 
   // Auto-rotate banner slides
   useEffect(() => {
-    if (isDraggingBanner) return; // Pause auto-rotate during drag
-
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % announcementSlides.length);
     }, 8000);
     return () => clearInterval(timer);
-  }, [announcementSlides.length, isDraggingBanner]);
+  }, [announcementSlides.length]);
 
   const [currentTime, setCurrentTime] = useState(Date.now());
 
@@ -1550,75 +1520,60 @@ function HomePage() {
               <div className="main-column-inner">
                 {/* Announcement Banner */}
                 <div
-                  ref={bannerRef}
-                  className={`announcement-banner ${isDraggingBanner ? 'dragging' : ''}`}
+                  className="announcement-banner"
                   onTouchStart={onTouchStart}
                   onTouchMove={onTouchMove}
                   onTouchEnd={onTouchEnd}
-                  onMouseDown={handleMouseDown}
-                  onMouseMove={handleMouseMove}
-                  onMouseUp={handleMouseUp}
-                  onMouseLeave={handleMouseUp}
                 >
-                  <div
-                    className="banner-track"
-                    style={{
-                      transform: `translateX(calc(-${currentSlide * 100}% + ${dragOffset}px))`,
-                      transition: isDraggingBanner ? 'none' : 'transform 0.6s cubic-bezier(0.23, 1, 0.32, 1)'
-                    }}
-                  >
-                    {announcementSlides.map((slide, index) => (
-                      <div
-                        key={slide.id}
-                        className={`banner-slide ${index === currentSlide ? 'active' : ''} ${slide.link ? 'clickable' : ''} ${slide.video ? 'has-video' : ''}`}
-                        style={!slide.video ? { backgroundImage: `url(${slide.image})` } : {}}
-                        onClick={(e) => {
-                          // Prevent click if we were dragging
-                          if (Math.abs(dragOffset) > 5) return;
-                          // If it's the static banner, we don't want a slide-wide link
-                          if (slide.isStatic) return;
-                          if (slide.link) window.open(slide.link, '_blank');
-                        }}
-                      >
-                        {slide.video && (
-                          <video className="banner-video-base" autoPlay muted loop playsInline>
-                            <source src={slide.video} type="video/mp4" />
-                          </video>
-                        )}
-                        <div className="slide-overlay"></div>
-                        <div className="banner-content">
-                          {slide.isStatic && (
-                            <div className="static-banner-logo-wrapper">
-                              <img src={slide.image} alt="Logo" className="banner-static-logo" />
-                            </div>
-                          )}
-                          <div className="banner-meta">
-                            <span className={`banner-tag ${slide.tag === 'Amiko Legends' ? 'amiko-legends' : ''}`}>{slide.tag}</span>
-                            {slide.date && <span className="banner-date">📅 {slide.date}</span>}
+                  {announcementSlides.map((slide, index) => (
+                    <div
+                      key={slide.id}
+                      className={`banner-slide ${index === currentSlide ? 'active' : ''} ${slide.link ? 'clickable' : ''} ${slide.video ? 'has-video' : ''}`}
+                      style={!slide.video ? { backgroundImage: `url(${slide.image})` } : {}}
+                      onClick={(e) => {
+                        // If it's the static banner, we don't want a slide-wide link
+                        if (slide.isStatic) return;
+                        if (slide.link) window.open(slide.link, '_blank');
+                      }}
+                    >
+                      {slide.video && (
+                        <video className="banner-video-base" autoPlay muted loop playsInline>
+                          <source src={slide.video} type="video/mp4" />
+                        </video>
+                      )}
+                      <div className="slide-overlay"></div>
+                      <div className="banner-content">
+                        {slide.isStatic && (
+                          <div className="static-banner-logo-wrapper">
+                            <img src={slide.image} alt="Logo" className="banner-static-logo" />
                           </div>
-                          <h3 className="banner-title">{slide.title}</h3>
-                          <p className="banner-text">{slide.text}</p>
-                          {slide.isStatic && (
-                            <div className="banner-store-links" onClick={(e) => e.stopPropagation()}>
-                              <a href="https://store.epicgames.com/en-US/p/amiko-legends-a5986d" target="_blank" rel="noopener noreferrer" className="banner-store-btn epic">
-                                <img src="https://upload.wikimedia.org/wikipedia/commons/3/31/Epic_Games_logo.svg" alt="Epic Store" />
-                                <div className="btn-label">
-                                  <small>Available on</small>
-                                  <span>Epic Store</span>
-                                </div>
-                              </a>
-                              <a href="https://play.google.com/store/apps/details?id=io.aurory.seekersoftokane&pcampaignid=web_share" target="_blank" rel="noopener noreferrer" className="banner-store-btn play">
-                                <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play" className="play-badge" />
-                              </a>
-                              <a href="https://testflight.apple.com/join/FuaxsScP" target="_blank" rel="noopener noreferrer" className="banner-store-btn ios">
-                                <img src="https://upload.wikimedia.org/wikipedia/commons/3/3c/Download_on_the_App_Store_Badge.svg" alt="App Store" className="app-badge" />
-                              </a>
-                            </div>
-                          )}
+                        )}
+                        <div className="banner-meta">
+                          <span className={`banner-tag ${slide.tag === 'Amiko Legends' ? 'amiko-legends' : ''}`}>{slide.tag}</span>
+                          {slide.date && <span className="banner-date">📅 {slide.date}</span>}
                         </div>
+                        <h3 className="banner-title">{slide.title}</h3>
+                        <p className="banner-text">{slide.text}</p>
+                        {slide.isStatic && (
+                          <div className="banner-store-links" onClick={(e) => e.stopPropagation()}>
+                            <a href="https://store.epicgames.com/en-US/p/amiko-legends-a5986d" target="_blank" rel="noopener noreferrer" className="banner-store-btn epic">
+                              <img src="https://upload.wikimedia.org/wikipedia/commons/3/31/Epic_Games_logo.svg" alt="Epic Store" />
+                              <div className="btn-label">
+                                <small>Available on</small>
+                                <span>Epic Store</span>
+                              </div>
+                            </a>
+                            <a href="https://play.google.com/store/apps/details?id=io.aurory.seekersoftokane&pcampaignid=web_share" target="_blank" rel="noopener noreferrer" className="banner-store-btn play">
+                              <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play" className="play-badge" />
+                            </a>
+                            <a href="https://testflight.apple.com/join/FuaxsScP" target="_blank" rel="noopener noreferrer" className="banner-store-btn ios">
+                              <img src="https://upload.wikimedia.org/wikipedia/commons/3/3c/Download_on_the_App_Store_Badge.svg" alt="App Store" className="app-badge" />
+                            </a>
+                          </div>
+                        )}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
 
                   <div className="banner-indicators">
                     {announcementSlides.map((_, index) => (
@@ -2133,22 +2088,23 @@ function HomePage() {
 
           <div className="rules-carousel-wrapper">
             <div
+              className="rules-carousel-viewport"
               ref={rulesRef}
-              className={`rules-carousel-viewport ${isRulesDragging ? 'dragging' : ''}`}
-              onTouchStart={(e) => onRulesStart(e.targetTouches[0].clientX)}
-              onTouchMove={(e) => onRulesMove(e.targetTouches[0].clientX)}
-              onTouchEnd={onRulesEnd}
-              onMouseDown={(e) => onRulesStart(e.clientX)}
-              onMouseMove={(e) => onRulesMove(e.clientX)}
-              onMouseUp={onRulesEnd}
-              onMouseLeave={() => isRulesDragging && onRulesEnd()}
-              style={{ cursor: isRulesDragging ? 'grabbing' : 'grab' }}
+              onMouseDown={handleRulesStart}
+              onMouseMove={handleRulesMove}
+              onMouseUp={handleRulesEnd}
+              onMouseLeave={handleRulesEnd}
+              onTouchStart={handleRulesStart}
+              onTouchMove={handleRulesMove}
+              onTouchEnd={handleRulesEnd}
+              style={{ cursor: rulesDrag.isDragging ? 'grabbing' : 'grab' }}
             >
               <div
                 className="rules-carousel-content"
                 style={{
-                  transform: `translateX(calc(-${rulesCurrentSlide * 100}% + ${rulesDragOffset}px))`,
-                  transition: isRulesDragging ? 'none' : 'transform 0.5s cubic-bezier(0.23, 1, 0.32, 1)'
+                  transform: getRulesTransform(),
+                  transition: rulesDrag.isDragging ? 'none' : 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+                  willChange: 'transform'
                 }}
               >
                 {rules.map((rule, index) => (

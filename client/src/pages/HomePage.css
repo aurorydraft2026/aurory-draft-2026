@@ -534,39 +534,23 @@
   box-shadow: var(--shadow-card);
   user-select: none;
   touch-action: pan-y;
-  cursor: grab;
-}
-
-.announcement-banner.dragging {
-  cursor: grabbing;
-}
-
-.banner-track {
-  display: flex;
-  height: 100%;
-  width: 100%;
-  will-change: transform;
 }
 
 .banner-slide {
-  flex: 0 0 100%;
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: 0;
   background-size: cover;
   background-position: center;
-  position: relative;
-  /* Remove absolute positioning */
-  transition: opacity 0.4s ease;
-  /* Fade for content clarity, not for slide movement */
-}
-
-.banner-slide:not(.active) {
-  opacity: 0.6;
-  /* Dim inactive slides during drag */
+  opacity: 0;
+  transition: opacity 1s cubic-bezier(0.4, 0, 0.2, 1), transform 1s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateX(30px);
+  pointer-events: none;
 }
 
 .banner-slide.active {
   opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
 }
 
 .banner-slide.clickable {
@@ -629,7 +613,7 @@
 .slide-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(6, 10, 20, 0.94) 0%, rgba(6, 10, 20, 0.8) 40%, rgba(6, 10, 20, 0.3) 100%);
+  background: linear-gradient(45deg, rgba(6, 10, 20, 0.94) 0%, rgba(6, 10, 20, 0.8) 20%, rgba(6, 10, 20, 0.3) 100%);
   z-index: 2;
 }
 
@@ -2069,7 +2053,7 @@
 
 .rules-carousel-content {
   display: flex;
-  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Transition now handled via inline styles in JS */
 }
 
 .rules-carousel-item {
