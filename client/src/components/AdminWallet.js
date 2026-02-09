@@ -1,0 +1,1753 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { db, auth } from '../firebase';
+import {
+  collection,
+  onSnapshot,
+  doc,
+  updateDoc,
+  query,
+  where,
+  orderBy,
+  getDocs,
+  addDoc,
+  serverTimestamp,
+  runTransaction,
+} from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
+import { isSuperAdmin } from '../config/admins';
+import { createNotification } from '../services/notifications';
+import './AdminWallet.css';
+
+// Helper to get user email
+const getUserEmail = (user) => {
+  if (!user) return null;
+  if (user.email) return user.email;
+  if (user.providerData && user.providerData.length > 0) {
+    return user.providerData[0].email;
+  }
+  return null;
+};
+
+// Format AURY amount (9 decimals)
+const formatAuryAmount = (amount) => {
+  return (amount / 1e9).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4
+  });
+};
+
+function AdminWallet() {
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('credit');
+  const [pendingWithdrawals, setPendingWithdrawals] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [processingId, setProcessingId] = useState(null);
+
+  // Online visitors state
+  const [onlineVisitors, setOnlineVisitors] = useState([]);
+
+  // Users tab search
+  const [usersSearchQuery, setUsersSearchQuery] = useState('');
+
+  const [depositNotifications, setDepositNotifications] = useState([]);
+  const [depositError, setDepositError] = useState(null);
+
+  // Credit form
+  const [selectedCreditUsers, setSelectedCreditUsers] = useState([]);
+  const [isSelectingCreditUser, setIsSelectingCreditUser] = useState(false);
+  const [creditUserSearch, setCreditUserSearch] = useState('');
+  const [creditAmount, setCreditAmount] = useState('');
+  const [creditReason, setCreditReason] = useState('');
+
+  // Deduction form
+  const [selectedDeductUsers, setSelectedDeductUsers] = useState([]);
+  const [isSelectingDeductUser, setIsSelectingDeductUser] = useState(false);
+  const [deductUserSearch, setDeductUserSearch] = useState('');
+  const [deductAmount, setDeductAmount] = useState('');
+  const [deductReason, setDeductReason] = useState('');
+
+  // Announcements form
+  const [selectedNotifyUsers, setSelectedNotifyUsers] = useState([]);
+  const [isSelectingNotifyUser, setIsSelectingNotifyUser] = useState(false);
+  const [notifyUserSearch, setNotifyUserSearch] = useState('');
+  const [notifyTitle, setNotifyTitle] = useState('');
+  const [notifyMessage, setNotifyMessage] = useState('');
+
+  // Withdrawal approval form
+  const [approvalTxSignature, setApprovalTxSignature] = useState({});
+
+  // Banners state
+  const [banners, setBanners] = useState([]);
+  const [bannerTitle, setBannerTitle] = useState('');
+  const [bannerText, setBannerText] = useState('');
+  const [bannerImage, setBannerImage] = useState('');
+  const [bannerLink, setBannerLink] = useState('');
+  const [bannerTag, setBannerTag] = useState('');
+  const [bannerOrder, setBannerOrder] = useState(0);
+  const [bannerDate, setBannerDate] = useState('');
+  const [editingBannerId, setEditingBannerId] = useState(null);
+
+  // Handle image upload to Base64
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 1024 * 1024) { // 1MB limit for Firestore
+        alert('Image too large. Please use an image under 1MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setBannerImage(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Listen for auth state changes
+  useEffect(() => {
+    let unsubscribeUserDoc = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser && !currentUser.isAnonymous) {
+        let userEmail = currentUser.email;
+        if (!userEmail && currentUser.providerData && currentUser.providerData.length > 0) {
+          userEmail = currentUser.providerData[0].email;
+        }
+
+        // Set initial user data
+        setUser({
+          ...currentUser,
+          email: userEmail || ''
+        });
+
+        // Fetch additional user data (like role) from Firestore
+        const userRef = doc(db, 'users', currentUser.uid);
+        unsubscribeUserDoc = onSnapshot(userRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setUser(prev => ({
+              ...prev,
+              ...docSnap.data()
+            }));
+          }
+        });
+      } else {
+        setUser(null);
+        if (unsubscribeUserDoc) unsubscribeUserDoc();
+      }
+      setAuthLoading(false);
+    });
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeUserDoc) unsubscribeUserDoc();
+    };
+  }, []);
+
+  // Check if current user is admin/super admin
+  const isSuperAdminUser = user && isSuperAdmin(getUserEmail(user));
+  const isAdminUser = user && (isSuperAdminUser || user.role === 'admin');
+  const isAdmin = isAdminUser; // Keep for existing checks in the file
+
+
+  // Fetch pending withdrawals
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const withdrawalsRef = collection(db, 'withdrawals');
+    const q = query(
+      withdrawalsRef,
+      where('status', '==', 'pending'),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q,
+      (snapshot) => {
+        const withdrawals = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setPendingWithdrawals(withdrawals);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error fetching withdrawals:', error);
+        alert('Error loading withdrawals. Check console and Firestore indexes.');
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [isAdmin]);
+
+  // Fetch pending deposit notifications - FIXED VERSION
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    console.log('Setting up deposit notifications listener...');
+    console.log('Admin email:', getUserEmail(user));
+    console.log('Is super admin:', isSuperAdmin(getUserEmail(user)));
+
+    const notificationsRef = collection(db, 'depositNotifications');
+
+    // TRY TWO APPROACHES:
+    // Approach 1: With orderBy (requires composite index)
+    const qWithOrder = query(
+      notificationsRef,
+      where('status', '==', 'pending'),
+      orderBy('createdAt', 'desc')
+    );
+
+    // Approach 2: Without orderBy (fallback if index doesn't exist)
+    const qWithoutOrder = query(
+      notificationsRef,
+      where('status', '==', 'pending')
+    );
+
+    // Try the query with orderBy first
+    const unsubscribe = onSnapshot(
+      qWithOrder,
+      (snapshot) => {
+        console.log('✅ Deposit notifications loaded:', snapshot.docs.length);
+        const notifications = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        // Sort manually by createdAt if needed
+        notifications.sort((a, b) => {
+          const dateA = a.createdAt?.toDate?.() || new Date(0);
+          const dateB = b.createdAt?.toDate?.() || new Date(0);
+          return dateB - dateA;
+        });
+        setDepositNotifications(notifications);
+        setDepositError(null);
+      },
+      (error) => {
+        console.error('❌ Error with orderBy query, trying without orderBy:', error);
+        setDepositError(error.message);
+
+        // Fallback: Try without orderBy
+        const fallbackUnsubscribe = onSnapshot(
+          qWithoutOrder,
+          (snapshot) => {
+            console.log('✅ Deposit notifications loaded (fallback):', snapshot.docs.length);
+            const notifications = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            // Sort manually by createdAt
+            notifications.sort((a, b) => {
+              const dateA = a.createdAt?.toDate?.() || new Date(0);
+              const dateB = b.createdAt?.toDate?.() || new Date(0);
+              return dateB - dateA;
+            });
+            setDepositNotifications(notifications);
+            setDepositError('⚠️ Using fallback query. Create Firestore index for better performance.');
+          },
+          (fallbackError) => {
+            console.error('❌ Error with fallback query:', fallbackError);
+            setDepositError(`Error loading deposit notifications: ${fallbackError.message}`);
+          }
+        );
+
+        return fallbackUnsubscribe;
+      }
+    );
+
+    return () => unsubscribe();
+  }, [isAdmin, user]);
+
+  // Fetch all users and their balances
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const fetchData = async () => {
+      try {
+        // Fetch users
+        const usersRef = collection(db, 'users');
+        const usersSnapshot = await getDocs(usersRef);
+
+        // Fetch wallets for balances
+        const walletsRef = collection(db, 'wallets');
+        const walletsSnapshot = await getDocs(walletsRef);
+
+        // Create a map of balances for easy lookup
+        const balanceMap = {};
+        walletsSnapshot.forEach(doc => {
+          balanceMap[doc.id] = doc.data().balance || 0;
+        });
+
+        const users = usersSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          balance: balanceMap[doc.id] || 0
+        })).filter(u => u.email);
+
+        setAllUsers(users);
+      } catch (error) {
+        console.error('Error fetching users and balances:', error);
+      }
+    };
+
+    fetchData();
+  }, [isAdmin]);
+
+  // Track online visitors (super admin only)
+  useEffect(() => {
+    if (!isSuperAdminUser) return;
+
+    const usersRef = collection(db, 'users');
+    const unsubscribe = onSnapshot(usersRef, (snapshot) => {
+      const now = Date.now();
+      const fiveMinutesAgo = now - (5 * 60 * 1000); // 5 minutes threshold
+
+      const visitors = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter(user => {
+          // Consider user online if they have recent activity
+          const lastSeen = user.lastSeen?.toMillis?.() || user.lastSeen || 0;
+          return lastSeen > fiveMinutesAgo;
+        })
+        .sort((a, b) => {
+          // Sort by most recent activity
+          const aTime = a.lastSeen?.toMillis?.() || a.lastSeen || 0;
+          const bTime = b.lastSeen?.toMillis?.() || b.lastSeen || 0;
+          return bTime - aTime;
+        });
+
+      setOnlineVisitors(visitors);
+    });
+
+    return () => unsubscribe();
+  }, [isSuperAdminUser]);
+
+  // Fetch banners
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const bannersRef = collection(db, 'banners');
+    const q = query(bannersRef, orderBy('order', 'asc'), orderBy('createdAt', 'desc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const bannerData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setBanners(bannerData);
+    });
+
+    return () => unsubscribe();
+  }, [isAdmin]);
+
+  const handleSaveBanner = async () => {
+    if (!bannerTitle) return alert('Banner title is required');
+    if (!bannerText) return alert('Banner description is required');
+    if (!bannerImage) return alert('Banner image is required (URL or Upload)');
+
+    setProcessingId('banner');
+    try {
+      const bannerData = {
+        title: bannerTitle,
+        text: bannerText,
+        image: bannerImage,
+        link: bannerLink || '',
+        tag: bannerTag || '',
+        date: bannerDate || '',
+        order: parseInt(bannerOrder) || 0,
+        updatedAt: serverTimestamp()
+      };
+
+      if (editingBannerId) {
+        const bannerRef = doc(db, 'banners', editingBannerId);
+        await updateDoc(bannerRef, bannerData);
+        alert('Banner updated successfully!');
+      } else {
+        await addDoc(collection(db, 'banners'), {
+          ...bannerData,
+          createdAt: serverTimestamp()
+        });
+        alert('Banner added successfully!');
+      }
+
+      // Reset form
+      resetBannerForm();
+    } catch (error) {
+      console.error('Error saving banner:', error);
+      alert('Error saving banner: ' + error.message);
+    }
+    setProcessingId(null);
+  };
+
+  const resetBannerForm = () => {
+    setBannerTitle('');
+    setBannerText('');
+    setBannerImage('');
+    setBannerLink('');
+    setBannerTag('');
+    setBannerDate('');
+    setBannerOrder(0);
+    setEditingBannerId(null);
+  };
+
+  const handleEditBanner = (banner) => {
+    setBannerTitle(banner.title || '');
+    setBannerText(banner.text || '');
+    setBannerImage(banner.image || '');
+    setBannerLink(banner.link || '');
+    setBannerTag(banner.tag || '');
+    setBannerDate(banner.date || '');
+    setBannerOrder(banner.order || 0);
+    setEditingBannerId(banner.id);
+
+    // Scroll to form
+    const formElement = document.querySelector('.banner-form-card');
+    if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleDeleteBanner = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this banner?')) return;
+
+    try {
+      const { deleteDoc } = await import('firebase/firestore');
+      await deleteDoc(doc(db, 'banners', id));
+      alert('Banner deleted!');
+    } catch (error) {
+      console.error('Error deleting banner:', error);
+      alert('Error deleting banner: ' + error.message);
+    }
+  };
+
+  // Process withdrawal (approve/reject)
+  const processWithdrawal = async (withdrawalId, action) => {
+    const txSig = approvalTxSignature[withdrawalId] || '';
+
+    if (action === 'approve' && !txSig) {
+      alert('Please enter the transaction signature after sending AURY');
+      return;
+    }
+
+    setProcessingId(withdrawalId);
+
+    try {
+      const withdrawal = pendingWithdrawals.find(w => w.id === withdrawalId);
+      if (!withdrawal) return;
+
+      const withdrawalRef = doc(db, 'withdrawals', withdrawalId);
+      const walletRef = doc(db, 'wallets', withdrawal.userId);
+
+      if (action === 'approve') {
+        // APPROVE: Just update withdrawal status (balance already deducted)
+        await updateDoc(withdrawalRef, {
+          status: 'completed',
+          txSignature: txSig,
+          processedBy: user.email,
+          processedAt: serverTimestamp()
+        });
+
+        // Update transaction history to completed
+        const txRef = collection(db, 'wallets', withdrawal.userId, 'transactions');
+        await addDoc(txRef, {
+          type: 'withdrawal',
+          amount: withdrawal.amount,
+          walletAddress: withdrawal.walletAddress,
+          txSignature: txSig,
+          timestamp: serverTimestamp(),
+          status: 'completed'
+        });
+
+        setApprovalTxSignature(prev => ({ ...prev, [withdrawalId]: '' }));
+        alert('Withdrawal approved and processed!');
+
+        // Notify User
+        await createNotification(withdrawal.userId, {
+          type: 'withdrawal',
+          title: 'Withdrawal Approved',
+          message: `Your withdrawal of ${formatAuryAmount(withdrawal.amount)} AURY has been approved.`,
+          link: '#'
+        });
+
+      } else {
+        // REJECT: Refund the balance to the user
+        await runTransaction(db, async (transaction) => {
+          const walletDoc = await transaction.get(walletRef);
+
+          if (!walletDoc.exists()) {
+            throw new Error('User wallet not found');
+          }
+
+          const currentBalance = walletDoc.data().balance || 0;
+
+          // Refund the withdrawal amount
+          transaction.update(walletRef, {
+            balance: currentBalance + withdrawal.amount,
+            updatedAt: serverTimestamp()
+          });
+
+          // Update withdrawal status
+          transaction.update(withdrawalRef, {
+            status: 'rejected',
+            processedBy: user.email,
+            processedAt: serverTimestamp()
+          });
+        });
+
+        // Add refund transaction to history
+        const txRef = collection(db, 'wallets', withdrawal.userId, 'transactions');
+        await addDoc(txRef, {
+          type: 'withdrawal_rejected_refund',
+          amount: withdrawal.amount,
+          walletAddress: withdrawal.walletAddress,
+          reason: 'Rejected by admin - balance refunded',
+          timestamp: serverTimestamp()
+        });
+
+        alert('Withdrawal rejected and refunded to user.');
+
+        // Notify User
+        await createNotification(withdrawal.userId, {
+          type: 'withdrawal',
+          title: 'Withdrawal Rejected',
+          message: `Your withdrawal of ${formatAuryAmount(withdrawal.amount)} AURY was rejected. Balance has been refunded.`,
+          link: '#'
+        });
+      }
+
+    } catch (error) {
+      console.error('Process withdrawal error:', error);
+      alert('Error processing withdrawal: ' + error.message);
+    }
+
+    setProcessingId(null);
+  };
+
+  // Process deposit notification (credit user balance)
+  const processDepositNotification = async (notificationId, userId, amountAury) => {
+    setProcessingId(notificationId);
+
+    try {
+      // Convert AURY to smallest unit (9 decimals)
+      const amountInSmallestUnit = Math.floor(parseFloat(amountAury) * 1e9);
+
+      if (isNaN(amountInSmallestUnit) || amountInSmallestUnit <= 0) {
+        alert('Invalid amount');
+        return;
+      }
+
+      const walletRef = doc(db, 'wallets', userId);
+      const notificationRef = doc(db, 'depositNotifications', notificationId);
+
+      // Use transaction to atomically update wallet and notification
+      await runTransaction(db, async (transaction) => {
+        const walletDoc = await transaction.get(walletRef);
+
+        let currentBalance = 0;
+        if (walletDoc.exists()) {
+          currentBalance = walletDoc.data().balance || 0;
+        }
+
+        // Update or create wallet with new balance
+        transaction.set(walletRef, {
+          balance: currentBalance + amountInSmallestUnit,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        // Mark notification as processed
+        transaction.update(notificationRef, {
+          status: 'processed',
+          processedBy: user.email,
+          processedAt: serverTimestamp()
+        });
+      });
+
+      // Add deposit transaction to user's history
+      const txRef = collection(db, 'wallets', userId, 'transactions');
+      await addDoc(txRef, {
+        type: 'deposit',
+        amount: amountInSmallestUnit,
+        timestamp: serverTimestamp(),
+        processedBy: user.email
+      });
+
+      alert(`✅ Successfully credited ${amountAury} AURY to user!`);
+
+      // Notify User
+      await createNotification(userId, {
+        type: 'deposit',
+        title: 'Deposit Credited',
+        message: `Your deposit of ${amountAury} AURY has been verified and credited!`,
+        link: '#'
+      });
+
+    } catch (error) {
+      console.error('Process deposit notification error:', error);
+      alert('Error processing deposit: ' + error.message);
+    }
+
+    setProcessingId(null);
+  };
+
+  // Dismiss deposit notification without crediting
+  const dismissDepositNotification = async (notificationId) => {
+    if (!window.confirm('Are you sure you want to dismiss this notification without crediting?')) {
+      return;
+    }
+
+    setProcessingId(notificationId);
+
+    try {
+      const notificationRef = doc(db, 'depositNotifications', notificationId);
+      await updateDoc(notificationRef, {
+        status: 'dismissed',
+        processedBy: user.email,
+        processedAt: serverTimestamp()
+      });
+
+      alert('Notification dismissed.');
+    } catch (error) {
+      console.error('Dismiss notification error:', error);
+      alert('Error dismissing notification: ' + error.message);
+    }
+
+    setProcessingId(null);
+  };
+
+  // Handle credit (BULK)
+  const handleManualCredit = async () => {
+    const amount = parseFloat(creditAmount);
+    if (isNaN(amount) || amount <= 0) {
+      alert('Please enter a valid amount');
+      return;
+    }
+
+    if (selectedCreditUsers.length === 0) {
+      alert('Please select at least one user');
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to credit ${amount} AURY to ${selectedCreditUsers.length} users?`)) {
+      return;
+    }
+
+    setProcessingId('credit');
+
+    try {
+      // Convert to smallest unit (9 decimals)
+      const amountInSmallestUnit = Math.floor(amount * 1e9);
+
+      // Process each user
+      const results = await Promise.allSettled(selectedCreditUsers.map(async (selectedUser) => {
+        const walletRef = doc(db, 'wallets', selectedUser.id);
+
+        await runTransaction(db, async (transaction) => {
+          const walletDoc = await transaction.get(walletRef);
+
+          let currentBalance = 0;
+          if (walletDoc.exists()) {
+            currentBalance = walletDoc.data().balance || 0;
+          }
+
+          transaction.set(walletRef, {
+            balance: currentBalance + amountInSmallestUnit,
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+        });
+
+        // Add transaction to user's history
+        const txRef = collection(db, 'wallets', selectedUser.id, 'transactions');
+        await addDoc(txRef, {
+          type: 'deposit',
+          amount: amountInSmallestUnit,
+          reason: creditReason || 'Credit by admin',
+          timestamp: serverTimestamp(),
+          processedBy: user.email
+        });
+
+        // Notify User
+        await createNotification(selectedUser.id, {
+          type: 'deposit',
+          title: 'Balance Notification',
+          message: `${amount} credits has been added to your account.`,
+          link: '#'
+        });
+      }));
+
+      const succeeded = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+
+      if (failed === 0) {
+        alert(`✅ Successfully credited ${amount} AURY to ${succeeded} users!`);
+      } else {
+        alert(`⚠️ Processed with some issues: ${succeeded} succeeded, ${failed} failed. Check console.`);
+      }
+
+      setSelectedCreditUsers([]);
+      setCreditAmount('');
+      setCreditReason('');
+      setIsSelectingCreditUser(false);
+
+    } catch (error) {
+      console.error('Bulk credit error:', error);
+      alert('Error crediting balance: ' + error.message);
+    }
+
+    setProcessingId(null);
+  };
+
+  // Handle deduction (BULK)
+  const handleManualDeduct = async () => {
+    const amount = parseFloat(deductAmount);
+    if (isNaN(amount) || amount <= 0) {
+      alert('Please enter a valid amount');
+      return;
+    }
+
+    if (selectedDeductUsers.length === 0) {
+      alert('Please select at least one user');
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to deduct ${amount} AURY from ${selectedDeductUsers.length} users?`)) {
+      return;
+    }
+
+    setProcessingId('deduct');
+
+    try {
+      // Convert to smallest unit (9 decimals)
+      const amountInSmallestUnit = Math.floor(amount * 1e9);
+
+      // Process each user
+      const results = await Promise.allSettled(selectedDeductUsers.map(async (selectedUser) => {
+        const walletRef = doc(db, 'wallets', selectedUser.id);
+
+        await runTransaction(db, async (transaction) => {
+          const walletDoc = await transaction.get(walletRef);
+
+          if (!walletDoc.exists()) {
+            throw new Error('User wallet not found');
+          }
+
+          const currentBalance = walletDoc.data().balance || 0;
+
+          // Optional: Prevent negative balance
+          if (currentBalance < amountInSmallestUnit) {
+            if (!window.confirm(`${selectedUser.displayName || selectedUser.email} only has ${formatAuryAmount(currentBalance)} AURY. Deducting this will result in a negative balance. Proceed?`)) {
+              throw new Error('Operation cancelled by admin due to insufficient funds.');
+            }
+          }
+
+          transaction.update(walletRef, {
+            balance: currentBalance - amountInSmallestUnit,
+            updatedAt: serverTimestamp()
+          });
+        });
+
+        // Add transaction to user's history
+        const txRef = collection(db, 'wallets', selectedUser.id, 'transactions');
+        await addDoc(txRef, {
+          type: 'withdrawal',
+          amount: amountInSmallestUnit,
+          reason: deductReason || 'Balance Adjustment by Admin',
+          timestamp: serverTimestamp(),
+          processedBy: user.email,
+          status: 'completed'
+        });
+
+        // Notify User
+        await createNotification(selectedUser.id, {
+          type: 'withdrawal',
+          title: 'Balance Notification',
+          message: 'Your account balance has been adjusted.',
+          link: '#'
+        });
+      }));
+
+      const succeeded = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+
+      if (failed === 0) {
+        alert(`✅ Successfully deducted ${amount} AURY from ${succeeded} users!`);
+      } else {
+        alert(`⚠️ Processed with some issues: ${succeeded} succeeded, ${failed} failed. Check console.`);
+      }
+
+      setSelectedDeductUsers([]);
+      setDeductAmount('');
+      setDeductReason('');
+      setIsSelectingDeductUser(false);
+
+    } catch (error) {
+      console.error('Bulk deduction error:', error);
+      if (error.message !== 'Operation cancelled by admin due to insufficient funds.') {
+        alert('Error deducting balance: ' + error.message);
+      }
+    }
+
+    setProcessingId(null);
+  };
+
+  // Handle broadcast notification
+  const handleSendBroadcast = async () => {
+    if (!notifyTitle || !notifyMessage) {
+      alert('Please enter both a title and a message');
+      return;
+    }
+
+    if (selectedNotifyUsers.length === 0) {
+      alert('Please select at least one user');
+      return;
+    }
+
+    if (!window.confirm(`Send this notification to ${selectedNotifyUsers.length} users?`)) {
+      return;
+    }
+
+    setProcessingId('broadcast');
+
+    try {
+      // Process each user
+      const results = await Promise.allSettled(selectedNotifyUsers.map(async (selectedUser) => {
+        await createNotification(selectedUser.id, {
+          type: 'announcement',
+          title: notifyTitle,
+          message: notifyMessage,
+          link: '#'
+        });
+      }));
+
+      const succeeded = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+
+      if (failed === 0) {
+        alert(`✅ Successfully sent notification to ${succeeded} users!`);
+      } else {
+        alert(`⚠️ Processed with some issues: ${succeeded} succeeded, ${failed} failed.`);
+      }
+
+      setSelectedNotifyUsers([]);
+      setNotifyTitle('');
+      setNotifyMessage('');
+      setIsSelectingNotifyUser(false);
+
+    } catch (error) {
+      console.error('Broadcast error:', error);
+      alert('Error sending notification: ' + error.message);
+    }
+
+    setProcessingId(null);
+  };
+
+  // Format timestamp
+  const formatTime = (timestamp) => {
+    if (!timestamp) return 'N/A';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  if (authLoading) {
+    return <div className="loading">Loading...</div>;
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="admin-wallet-denied">
+        <h2>🚫 Access Denied</h2>
+        <p>You don't have permission to access this page.</p>
+        <button className="back-btn" onClick={() => navigate('/')}>
+          ← Back to Home
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="admin-wallet">
+      <div className="admin-wallet-header">
+        <button className="back-btn" onClick={() => navigate('/')}>
+          ← Back
+        </button>
+        <h1>💼 Admin Wallet Management</h1>
+      </div>
+
+      <div className="admin-tabs">
+        {isSuperAdminUser && (
+          <>
+            <button
+              className={`admin-tab ${activeTab === 'credit' ? 'active' : ''}`}
+              onClick={() => setActiveTab('credit')}
+            >
+              💰 Manual Credit
+            </button>
+            <button
+              className={`admin-tab ${activeTab === 'deduct' ? 'active' : ''}`}
+              onClick={() => setActiveTab('deduct')}
+            >
+              📉 Deductions
+            </button>
+          </>
+        )}
+        <button
+          className={`admin-tab ${activeTab === 'notify' ? 'active' : ''}`}
+          onClick={() => setActiveTab('notify')}
+        >
+          📢 Notifications
+        </button>
+        <button
+          className={`admin-tab ${activeTab === 'deposits' ? 'active' : ''}`}
+          onClick={() => setActiveTab('deposits')}
+        >
+          📬 Deposit Notifications {depositNotifications.length > 0 && `(${depositNotifications.length})`}
+        </button>
+        <button
+          className={`admin-tab ${activeTab === 'withdrawals' ? 'active' : ''}`}
+          onClick={() => setActiveTab('withdrawals')}
+        >
+          📤 Pending Withdrawals {pendingWithdrawals.length > 0 && `(${pendingWithdrawals.length})`}
+        </button>
+        {isSuperAdminUser && (
+          <button
+            className={`admin-tab ${activeTab === 'users' ? 'active' : ''}`}
+            onClick={() => setActiveTab('users')}
+          >
+            👥 Assign Users
+          </button>
+        )}
+        {isAdmin && (
+          <button
+            className={`admin-tab ${activeTab === 'banners' ? 'active' : ''}`}
+            onClick={() => setActiveTab('banners')}
+          >
+            🖼️ Homepage Banners
+          </button>
+        )}
+        {isSuperAdminUser && (
+          <button
+            className={`admin-tab ${activeTab === 'visitors' ? 'active' : ''}`}
+            onClick={() => setActiveTab('visitors')}
+          >
+            🌐 Online Visitors {onlineVisitors.length > 0 && `(${onlineVisitors.length})`}
+          </button>
+        )}
+      </div>
+
+
+      <div className="admin-content">
+        {activeTab === 'banners' && (
+          <div className="banners-management">
+            <h2>🖼️ Homepage Banner Management</h2>
+
+            <div className={`banner-form-card card ${editingBannerId ? 'editing-mode' : ''}`}>
+              <h3>{editingBannerId ? 'Edit Banner' : 'Add New Banner'}</h3>
+              <div className="banner-form">
+                <div className="form-group">
+                  <label>Title</label>
+                  <input
+                    type="text"
+                    value={bannerTitle}
+                    onChange={(e) => setBannerTitle(e.target.value)}
+                    placeholder="e.g., New Season: Crystal Caves"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Description</label>
+                  <textarea
+                    value={bannerText}
+                    onChange={(e) => setBannerText(e.target.value)}
+                    placeholder="Short description for the banner"
+                    className="form-textarea"
+                  />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Tag (e.g., Updated, Event)</label>
+                    <input
+                      type="text"
+                      value={bannerTag}
+                      onChange={(e) => setBannerTag(e.target.value)}
+                      placeholder="e.g., Updated"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Event Date (Optional)</label>
+                    <input
+                      type="text"
+                      value={bannerDate}
+                      onChange={(e) => setBannerDate(e.target.value)}
+                      placeholder="e.g., Feb 10th - 15th"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Order</label>
+                    <input
+                      type="number"
+                      value={bannerOrder}
+                      onChange={(e) => setBannerOrder(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Image (URL or Upload)</label>
+                  <div className="image-input-container">
+                    <input
+                      type="text"
+                      value={bannerImage}
+                      onChange={(e) => setBannerImage(e.target.value)}
+                      placeholder="/amikos/ghouliath.png or external link"
+                      className="flex-1"
+                    />
+                    <div className="file-upload-wrapper">
+                      <label className="upload-btn">
+                        Upload Image
+                        <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
+                      </label>
+                    </div>
+                  </div>
+                  {bannerImage && bannerImage.startsWith('data:') && (
+                    <div className="image-preview-mini">
+                      <img src={bannerImage} alt="Uploaded preview" />
+                      <button onClick={() => setBannerImage('')} type="button">Remove</button>
+                    </div>
+                  )}
+                </div>
+                <div className="form-group">
+                  <label>External Link (Optional)</label>
+                  <input
+                    type="text"
+                    value={bannerLink}
+                    onChange={(e) => setBannerLink(e.target.value)}
+                    placeholder="https://..."
+                  />
+                </div>
+                <div className="form-actions">
+                  <button
+                    className={`save-banner-btn ${editingBannerId ? 'update-btn' : ''}`}
+                    onClick={handleSaveBanner}
+                    disabled={processingId === 'banner'}
+                  >
+                    {processingId === 'banner' ? 'Saving...' : editingBannerId ? 'Update Banner' : 'Add Banner'}
+                  </button>
+                  {editingBannerId && (
+                    <button className="cancel-edit-btn" onClick={resetBannerForm}>
+                      Cancel Edit
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="banners-list-card card">
+              <h3>Existing Banners</h3>
+              <div className="banners-grid">
+                {banners.length === 0 ? (
+                  <p>No dynamic banners found. Using defaults.</p>
+                ) : (
+                  banners.map(banner => (
+                    <div key={banner.id} className={`banner-admin-item ${editingBannerId === banner.id ? 'being-edited' : ''}`}>
+                      <div className="banner-preview" style={{ backgroundImage: `url(${banner.image})` }}>
+                        <div className="banner-preview-overlay">
+                          <span className="tag">{banner.tag}</span>
+                          <h4>{banner.title}</h4>
+                        </div>
+                      </div>
+                      <div className="banner-admin-info">
+                        <p>{banner.text}</p>
+                        {banner.date && <span className="date-tag">📅 {banner.date}</span>}
+                        {banner.link && <span className="link-tag">🔗 {banner.link}</span>}
+                        <div className="banner-admin-actions">
+                          <button
+                            className="edit-banner-btn"
+                            onClick={() => handleEditBanner(banner)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="delete-banner-btn"
+                            onClick={() => handleDeleteBanner(banner.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'withdrawals' && (
+          <div className="withdrawals-section">
+            <div className="section-info">
+              <p>📤 Approve or reject withdrawal requests. Send AURY to the user's wallet, then enter the TX signature.</p>
+            </div>
+
+            {loading ? (
+              <div className="loading">Loading...</div>
+            ) : pendingWithdrawals.length === 0 ? (
+              <div className="empty-state">
+                <p>✅ No pending withdrawals</p>
+              </div>
+            ) : (
+              <div className="withdrawal-list">
+                {pendingWithdrawals.map(withdrawal => (
+                  <div key={withdrawal.id} className="withdrawal-card">
+                    <div className="withdrawal-header">
+                      <span className="user-name">{withdrawal.userName || 'Unknown User'}</span>
+                      <span className="user-email">{withdrawal.userEmail}</span>
+                    </div>
+
+                    <div className="withdrawal-details">
+                      <div className="detail-row">
+                        <span className="label">Amount:</span>
+                        <span className="value amount">{formatAuryAmount(withdrawal.amount)} AURY</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="label">Send to:</span>
+                        <span className="value mono">{withdrawal.walletAddress}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="label">Requested:</span>
+                        <span className="value">{formatTime(withdrawal.createdAt)}</span>
+                      </div>
+                    </div>
+
+                    <div className="withdrawal-actions">
+                      <input
+                        type="text"
+                        placeholder="Enter TX signature after sending AURY..."
+                        value={approvalTxSignature[withdrawal.id] || ''}
+                        onChange={(e) => setApprovalTxSignature(prev => ({
+                          ...prev,
+                          [withdrawal.id]: e.target.value
+                        }))}
+                        className="tx-input"
+                      />
+                      <div className="action-buttons">
+                        <button
+                          className="approve-btn"
+                          onClick={() => processWithdrawal(withdrawal.id, 'approve')}
+                          disabled={processingId === withdrawal.id}
+                        >
+                          {processingId === withdrawal.id ? '...' : '✅ Approve'}
+                        </button>
+                        <button
+                          className="reject-btn"
+                          onClick={() => processWithdrawal(withdrawal.id, 'reject')}
+                          disabled={processingId === withdrawal.id}
+                        >
+                          ❌ Reject
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'deposits' && (
+          <div className="deposits-section">
+            <div className="section-info">
+              <p>📬 Users notify you when they've sent deposits. Verify the transaction on-chain, then credit their balance.</p>
+            </div>
+
+            {depositError && (
+              <div className="error-message" style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '8px',
+                padding: '12px',
+                marginBottom: '16px',
+                color: '#ef4444'
+              }}>
+                <strong>⚠️ Error:</strong> {depositError}
+                {depositError.includes('index') && (
+                  <div style={{ marginTop: '8px', fontSize: '13px' }}>
+                    <strong>To fix:</strong> Go to Firebase Console → Firestore Database → Indexes →
+                    Create composite index for collection "depositNotifications" with fields: status (Ascending) and createdAt (Descending)
+                  </div>
+                )}
+              </div>
+            )}
+
+            {loading ? (
+              <div className="loading">Loading...</div>
+            ) : depositNotifications.length === 0 ? (
+              <div className="empty-state">
+                <p>✅ No pending deposit notifications</p>
+              </div>
+            ) : (
+              <div className="deposit-list">
+                {depositNotifications.map(notification => (
+                  <div key={notification.id} className="deposit-card">
+                    <div className="withdrawal-header">
+                      <div>
+                        <span className="user-name">{notification.userName || 'Unknown User'}</span>
+                        <span className="user-email">{notification.userEmail}</span>
+                      </div>
+                    </div>
+
+                    <div className="deposit-details">
+                      <div className="detail-row">
+                        <span className="label">User's Memo:</span>
+                        <span className="value mono">{notification.userMemo}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="label">Amount Claimed:</span>
+                        <span className="value amount">{notification.amount} AURY</span>
+                      </div>
+                      {notification.txSignature && (
+                        <div className="detail-row">
+                          <span className="label">TX Signature:</span>
+                          <span className="value mono">
+                            <a
+                              href={`https://solscan.io/tx/${notification.txSignature}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="tx-link"
+                            >
+                              {notification.txSignature.slice(0, 20)}...
+                            </a>
+                          </span>
+                        </div>
+                      )}
+                      {notification.note && (
+                        <div className="detail-row">
+                          <span className="label">Note:</span>
+                          <span className="value">{notification.note}</span>
+                        </div>
+                      )}
+                      <div className="detail-row">
+                        <span className="label">Submitted:</span>
+                        <span className="value">{formatTime(notification.createdAt)}</span>
+                      </div>
+                    </div>
+
+                    <div className="withdrawal-actions">
+                      <div className="deposit-warning" style={{ marginBottom: '12px', padding: '10px' }}>
+                        ⚠️ <strong>Verify on blockchain:</strong> Check that the transaction matches the memo <code>{notification.userMemo}</code> before crediting.
+                      </div>
+
+                      <div className="action-buttons">
+                        <button
+                          className="approve-btn"
+                          onClick={() => processDepositNotification(
+                            notification.id,
+                            notification.userId,
+                            notification.amount
+                          )}
+                          disabled={processingId === notification.id}
+                        >
+                          {processingId === notification.id ? '...' : '✅ Credit Balance'}
+                        </button>
+                        <button
+                          className="reject-btn"
+                          onClick={() => dismissDepositNotification(notification.id)}
+                          disabled={processingId === notification.id}
+                        >
+                          🗑️ Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'credit' && (
+          <div className="credit-section">
+            <div className="section-info">
+              <p>📥 Select multiple players to credit AURY simultaneously.</p>
+            </div>
+
+            <div className="credit-form">
+              <div className="form-group bulk-selection-group">
+                <label>Select Users ({selectedCreditUsers.length})</label>
+                <div className="selected-users-list">
+                  {selectedCreditUsers.map(u => (
+                    <div key={u.id} className="selected-user-tag">
+                      <img src={u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
+                      <span>{u.displayName || 'Unknown'}</span>
+                      <button
+                        onClick={() => setSelectedCreditUsers(prev => prev.filter(user => user.id !== u.id))}
+                        className="remove-tag"
+                      >✕</button>
+                    </div>
+                  ))}
+                  <button
+                    className="add-user-btn"
+                    onClick={() => setIsSelectingCreditUser(!isSelectingCreditUser)}
+                  >
+                    {isSelectingCreditUser ? '✕ Close' : '+ Add User'}
+                  </button>
+                </div>
+
+                {isSelectingCreditUser && (
+                  <div className="user-selection-dropdown-inline">
+                    <input
+                      type="text"
+                      placeholder="Search by name or email..."
+                      value={creditUserSearch}
+                      onChange={(e) => setCreditUserSearch(e.target.value)}
+                      className="search-input"
+                      autoFocus
+                    />
+                    <div className="participants-list">
+                      {allUsers
+                        .filter(u =>
+                          (u.displayName?.toLowerCase().includes(creditUserSearch.toLowerCase()) ||
+                            u.email?.toLowerCase().includes(creditUserSearch.toLowerCase())) &&
+                          !selectedCreditUsers.find(selected => selected.id === u.id)
+                        )
+                        .slice(0, 10)
+                        .map(u => (
+                          <div
+                            key={u.id}
+                            className="participant-item"
+                            onClick={() => {
+                              setSelectedCreditUsers(prev => [...prev, u]);
+                              setCreditUserSearch('');
+                            }}
+                          >
+                            <img src={u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
+                            <div className="participant-info">
+                              <span className="participant-name">{u.displayName || 'Unknown'}</span>
+                              <span className="participant-email">{u.email}</span>
+                            </div>
+                            <div className="participant-balance">
+                              {formatAuryAmount(u.balance)} AURY
+                            </div>
+                          </div>
+                        ))
+                      }
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label>Amount (AURY) - Will be sent to EACH user</label>
+                <input
+                  type="number"
+                  placeholder="Enter amount to send to each selected user..."
+                  value={creditAmount}
+                  onChange={(e) => setCreditAmount(e.target.value)}
+                  onWheel={(e) => e.target.blur()}
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Note (optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Prize for tournament, special event..."
+                  value={creditReason}
+                  onChange={(e) => setCreditReason(e.target.value)}
+                />
+              </div>
+
+              <button
+                className="credit-btn"
+                onClick={handleManualCredit}
+                disabled={processingId === 'credit' || selectedCreditUsers.length === 0 || !creditAmount}
+              >
+                {processingId === 'credit' ? 'Processing...' : `💰 Send Credit to ${selectedCreditUsers.length} Users`}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'deduct' && (
+          <div className="credit-section deduct-section">
+            <div className="section-info deduct-info">
+              <p>📉 Subtract balance from users for corrections or adjustments.</p>
+            </div>
+
+            <div className="credit-form">
+              <div className="form-group bulk-selection-group">
+                <label>Select Users ({selectedDeductUsers.length})</label>
+                <div className="selected-users-list">
+                  {selectedDeductUsers.map(u => (
+                    <div key={u.id} className="selected-user-tag">
+                      <img src={u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
+                      <span>{u.displayName || 'Unknown'}</span>
+                      <button
+                        onClick={() => setSelectedDeductUsers(prev => prev.filter(user => user.id !== u.id))}
+                        className="remove-tag"
+                      >✕</button>
+                    </div>
+                  ))}
+                  <button
+                    className="add-user-btn"
+                    onClick={() => setIsSelectingDeductUser(!isSelectingDeductUser)}
+                  >
+                    {isSelectingDeductUser ? '✕ Close' : '+ Add User'}
+                  </button>
+                </div>
+
+                {isSelectingDeductUser && (
+                  <div className="user-selection-dropdown-inline">
+                    <input
+                      type="text"
+                      placeholder="Search by name or email..."
+                      value={deductUserSearch}
+                      onChange={(e) => setDeductUserSearch(e.target.value)}
+                      className="search-input"
+                      autoFocus
+                    />
+                    <div className="participants-list">
+                      {allUsers
+                        .filter(u =>
+                          (u.displayName?.toLowerCase().includes(deductUserSearch.toLowerCase()) ||
+                            u.email?.toLowerCase().includes(deductUserSearch.toLowerCase())) &&
+                          !selectedDeductUsers.find(selected => selected.id === u.id)
+                        )
+                        .slice(0, 10)
+                        .map(u => (
+                          <div
+                            key={u.id}
+                            className="participant-item"
+                            onClick={() => {
+                              setSelectedDeductUsers(prev => [...prev, u]);
+                              setDeductUserSearch('');
+                            }}
+                          >
+                            <img src={u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
+                            <div className="participant-info">
+                              <span className="participant-name">{u.displayName || 'Unknown'}</span>
+                              <span className="participant-email">{u.email}</span>
+                            </div>
+                            <div className="participant-balance">
+                              {formatAuryAmount(u.balance)} AURY
+                            </div>
+                          </div>
+                        ))
+                      }
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label>Amount (AURY) - Will be deducted from EACH user</label>
+                <input
+                  type="number"
+                  placeholder="Enter amount to deduct from each selected user..."
+                  value={deductAmount}
+                  onChange={(e) => setDeductAmount(e.target.value)}
+                  onWheel={(e) => e.target.blur()}
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Reason (optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Balance correction, penalty..."
+                  value={deductReason}
+                  onChange={(e) => setDeductReason(e.target.value)}
+                />
+              </div>
+
+              <button
+                className="deduct-btn"
+                onClick={handleManualDeduct}
+                disabled={processingId === 'deduct' || selectedDeductUsers.length === 0 || !deductAmount}
+              >
+                {processingId === 'deduct' ? 'Processing...' : `📉 Deduct balance from ${selectedDeductUsers.length} Users`}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'notify' && (
+          <div className="credit-section notify-section">
+            <div className="section-info">
+              <p>📢 Send custom notifications/announcements to users.</p>
+            </div>
+
+            <div className="credit-form">
+              <div className="form-group bulk-selection-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label>Recipient Users ({selectedNotifyUsers.length})</label>
+                  <button
+                    className="select-all-btn"
+                    onClick={() => {
+                      if (selectedNotifyUsers.length === allUsers.length) {
+                        setSelectedNotifyUsers([]);
+                      } else {
+                        setSelectedNotifyUsers([...allUsers]);
+                      }
+                    }}
+                  >
+                    {selectedNotifyUsers.length === allUsers.length ? 'Deselect All' : 'Select All Users'}
+                  </button>
+                </div>
+
+                <div className="selected-users-list">
+                  {selectedNotifyUsers.length === allUsers.length ? (
+                    <div className="selected-user-tag all-tag">
+                      <span>📢 ALL USERS SELECTED</span>
+                    </div>
+                  ) : (
+                    <>
+                      {selectedNotifyUsers.map(u => (
+                        <div key={u.id} className="selected-user-tag">
+                          <img src={u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
+                          <span>{u.displayName || 'Unknown'}</span>
+                          <button
+                            onClick={() => setSelectedNotifyUsers(prev => prev.filter(user => user.id !== u.id))}
+                            className="remove-tag"
+                          >✕</button>
+                        </div>
+                      ))}
+                      <button
+                        className="add-user-btn"
+                        onClick={() => setIsSelectingNotifyUser(!isSelectingNotifyUser)}
+                      >
+                        {isSelectingNotifyUser ? '✕ Close' : '+ Add User'}
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {isSelectingNotifyUser && selectedNotifyUsers.length !== allUsers.length && (
+                  <div className="user-selection-dropdown-inline">
+                    <input
+                      type="text"
+                      placeholder="Search by name or email..."
+                      value={notifyUserSearch}
+                      onChange={(e) => setNotifyUserSearch(e.target.value)}
+                      className="search-input"
+                      autoFocus
+                    />
+                    <div className="participants-list">
+                      {allUsers
+                        .filter(u =>
+                          (u.displayName?.toLowerCase().includes(notifyUserSearch.toLowerCase()) ||
+                            u.email?.toLowerCase().includes(notifyUserSearch.toLowerCase())) &&
+                          !selectedNotifyUsers.find(selected => selected.id === u.id)
+                        )
+                        .slice(0, 10)
+                        .map(u => (
+                          <div
+                            key={u.id}
+                            className="participant-item"
+                            onClick={() => {
+                              setSelectedNotifyUsers(prev => [...prev, u]);
+                              setNotifyUserSearch('');
+                            }}
+                          >
+                            <img src={u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
+                            <div className="participant-info">
+                              <span className="participant-name">{u.displayName || 'Unknown'}</span>
+                              <span className="participant-email">{u.email}</span>
+                            </div>
+                          </div>
+                        ))
+                      }
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label>Title</label>
+                <input
+                  type="text"
+                  placeholder="Enter notification title..."
+                  value={notifyTitle}
+                  onChange={(e) => setNotifyTitle(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Message</label>
+                <textarea
+                  placeholder="Enter message content..."
+                  value={notifyMessage}
+                  onChange={(e) => setNotifyMessage(e.target.value)}
+                  style={{ minHeight: '120px', resize: 'vertical' }}
+                  className="form-input"
+                />
+              </div>
+
+              <button
+                className="notify-admin-btn"
+                onClick={handleSendBroadcast}
+                disabled={processingId === 'broadcast' || selectedNotifyUsers.length === 0 || !notifyTitle || !notifyMessage}
+              >
+                {processingId === 'broadcast' ? 'Broadcasting...' : `📢 Send Notification to ${selectedNotifyUsers.length} Users`}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'users' && isSuperAdminUser && (
+          <div className="users-assignment-section">
+            <div className="section-info">
+              <p>👥 Manage user roles. Admins can process deposits and withdrawals but cannot manually credit/deduct balance.</p>
+            </div>
+
+            {/* Search Bar */}
+            <div className="search-bar" style={{ marginBottom: '20px' }}>
+              <input
+                type="text"
+                placeholder="🔍 Search users by name or email..."
+                value={usersSearchQuery}
+                onChange={(e) => setUsersSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  fontSize: '14px',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '8px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  color: 'white'
+                }}
+              />
+            </div>
+
+            <div className="admin-user-list">
+              <div className="user-list-header">
+                <div className="col-user">User</div>
+                <div className="col-email">Email</div>
+                <div className="col-role">Role</div>
+              </div>
+              <div className="user-list-body">
+                {allUsers
+                  .filter(u => {
+                    if (!usersSearchQuery) return true;
+                    const query = usersSearchQuery.toLowerCase();
+                    const name = (u.displayName || '').toLowerCase();
+                    const email = (u.email || '').toLowerCase();
+                    return name.includes(query) || email.includes(query);
+                  })
+                  .sort((a, b) => (isSuperAdmin(getUserEmail(a)) ? -1 : isSuperAdmin(getUserEmail(b)) ? 1 : 0))
+                  .map(u => {
+                    const userIsSuper = isSuperAdmin(getUserEmail(u));
+                    return (
+                      <div key={u.id} className={`user-list-item ${userIsSuper ? 'super-admin' : ''}`}>
+                        <div className="col-user">
+                          <img src={u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
+                          <span>{u.displayName || 'Unknown'}</span>
+                        </div>
+                        <div className="col-email">{u.email}</div>
+                        <div className="col-role">
+                          {userIsSuper ? (
+                            <span className="badge-super">Super Admin</span>
+                          ) : (
+                            <select
+                              value={u.role || 'user'}
+                              onChange={async (e) => {
+                                const newRole = e.target.value;
+                                try {
+                                  setProcessingId(`role-${u.id}`);
+                                  const userRef = doc(db, 'users', u.id);
+                                  await updateDoc(userRef, {
+                                    role: newRole === 'user' ? null : newRole
+                                  });
+                                  // Update local state
+                                  setAllUsers(prev => prev.map(user =>
+                                    user.id === u.id ? { ...user, role: newRole === 'user' ? null : newRole } : user
+                                  ));
+                                  alert(`✅ Role updated for ${u.displayName || u.email}`);
+                                } catch (error) {
+                                  console.error('Error updating role:', error);
+                                  alert('Error updating role: ' + error.message);
+                                } finally {
+                                  setProcessingId(null);
+                                }
+                              }}
+                              disabled={processingId === `role-${u.id}`}
+                              className="role-select"
+                            >
+                              <option value="user">User</option>
+                              <option value="admin">Admin</option>
+                            </select>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'visitors' && isSuperAdminUser && (
+          <div className="visitors-section">
+            <div className="section-info">
+              <p>🌐 Users who visited the website in the last 5 minutes.</p>
+            </div>
+
+            {onlineVisitors.length === 0 ? (
+              <div className="empty-state">
+                <p>👻 No visitors online right now</p>
+              </div>
+            ) : (
+              <div className="visitors-list">
+                <div className="visitor-list-header">
+                  <div className="col-user">User</div>
+                  <div className="col-email">Email</div>
+                  <div className="col-last-seen">Last Seen</div>
+                  <div className="col-status">Status</div>
+                </div>
+                <div className="visitor-list-body">
+                  {onlineVisitors.map(visitor => {
+                    const lastSeenTime = visitor.lastSeen?.toMillis?.() || visitor.lastSeen || 0;
+                    const minutesAgo = Math.floor((Date.now() - lastSeenTime) / 60000);
+                    const isVeryRecent = minutesAgo < 1;
+
+                    return (
+                      <div key={visitor.id} className="visitor-list-item">
+                        <div className="col-user">
+                          <img
+                            src={visitor.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                            alt=""
+                            style={{ width: '32px', height: '32px', borderRadius: '50%', marginRight: '8px' }}
+                          />
+                          <span>{visitor.displayName || 'Unknown'}</span>
+                        </div>
+                        <div className="col-email">{visitor.email || 'No email'}</div>
+                        <div className="col-last-seen">
+                          {isVeryRecent ? 'Just now' : `${minutesAgo} min ago`}
+                        </div>
+                        <div className="col-status">
+                          <span className={`status-badge ${isVeryRecent ? 'online' : 'recent'}`}>
+                            {isVeryRecent ? '🟢 Online' : '🟡 Recent'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+}
+
+export default AdminWallet;

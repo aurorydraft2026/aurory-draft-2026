@@ -1,0 +1,326 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // ADMIN CONFIGURATION
+    // ============================================
+    // STEP 1: Login to your app with aurorydraft@gmail.com
+    // STEP 2: Go to Firebase Console > Authentication > Users
+    // STEP 3: Copy your UID from the list
+    // STEP 4: Replace 'YOUR_ADMIN_UID_HERE' below with your actual UID
+    // STEP 5: Publish these rules
+    // ============================================
+    
+    // Helper function to check if user is super admin BY UID
+    // This is more reliable than email-based checks with OAuth providers
+    function isSuperAdminByUid() {
+      return request.auth != null && 
+             request.auth.uid in [
+               'fWp7xeLNvuTD9axrPtJpp4afC1g2',  // Replace with your actual UID!
+               // Add more admin UIDs here if needed, comma-separated
+             ];
+    }
+    
+    // Fallback: Check by email (may not work with all OAuth providers)
+    function isSuperAdminByEmail() {
+      return request.auth != null && 
+             (request.auth.token.email == 'aurorydraft@gmail.com' || 
+              request.auth.token.email.lower() == 'aurorydraft@gmail.com');
+    }
+
+    
+    // Combined check - try both methods
+    function isSuperAdmin() {
+      return isSuperAdminByUid() || isSuperAdminByEmail();
+    }
+    
+    // Check if user has staff privileges (Super Admin OR assigned Admin role)
+    function isAdmin() {
+      return isSuperAdmin() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the resource
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // Helper function to get user role in a draft safely
+    function getRole(draftId) {
+      let draft = get(/databases/$(database)/documents/drafts/$(draftId)).data;
+      return (draft.permissions != null && request.auth.uid in draft.permissions) 
+             ? draft.permissions[request.auth.uid] 
+             : 'spectator';
+    }
+
+    // Helper function to check if user is truly logged in (not anonymous)
+    function isRealUser() {
+      return request.auth != null && 
+             (!('anonymous' in request.auth.token) || request.auth.token.anonymous == false);
+    }
+    
+    // =============================================
+    // DRAFTS / TOURNAMENTS
+    // =============================================
+    match /drafts/{draftId} {
+      // Anyone can read drafts (public)
+      allow read: if true;
+      
+      // Authenticated users can create drafts
+      allow create: if isAuthenticated();
+      
+      // Authenticated users can update drafts
+      allow update: if isAuthenticated();
+      
+      // Only admins can delete drafts
+      allow delete: if isSuperAdmin() || resource.data.permissions[request.auth.uid] == 'admin';
+      
+      // -----------------------------------------
+      // TEAM A CHAT SUBCOLLECTION
+      // -----------------------------------------
+      match /chatA/{messageId} {
+        // Only Team A members can read Team A chat, but admins can read all
+        allow read: if isAuthenticated() && 
+                       (getRole(draftId) in ['A', 'admin'] || isSuperAdmin());
+        
+        // Members of Team A or Admins can send messages
+        allow create: if isAuthenticated() && 
+                         (getRole(draftId) in ['A', 'admin'] || isSuperAdmin()) &&
+                         request.resource.data.senderUid == request.auth.uid;
+        
+        // Members of Team A or Admins can update messages (for reactions)
+        allow update: if isAuthenticated() && 
+                         (getRole(draftId) in ['A', 'admin'] || isSuperAdmin());
+        
+        // Admins can delete messages
+        allow delete: if isSuperAdmin() || getRole(draftId) == 'admin';
+      }
+      
+      // -----------------------------------------
+      // TEAM B CHAT SUBCOLLECTION
+      // -----------------------------------------
+      match /chatB/{messageId} {
+        // Only Team B members can read Team B chat, but admins can read all
+        allow read: if isAuthenticated() && 
+                       (getRole(draftId) in ['B', 'admin'] || isSuperAdmin());
+        
+        // Members of Team B or Admins can send messages
+        allow create: if isAuthenticated() && 
+                         (getRole(draftId) in ['B', 'admin'] || isSuperAdmin()) &&
+                         request.resource.data.senderUid == request.auth.uid;
+        
+        // Members of Team B or Admins can update messages (for reactions)
+        allow update: if isAuthenticated() && 
+                         (getRole(draftId) in ['B', 'admin'] || isSuperAdmin());
+        
+        // Admins can delete messages
+        allow delete: if isSuperAdmin() || getRole(draftId) == 'admin';
+      }
+      
+      match /chatAll/{messageId} {
+        // Only participants (A, B, admin) can read
+        allow read: if isAuthenticated() && 
+                       (getRole(draftId) in ['A', 'B', 'admin'] || isSuperAdmin());
+        
+        // Only participants can send messages
+        allow create: if isAuthenticated() && 
+                         (getRole(draftId) in ['A', 'B', 'admin'] || isSuperAdmin()) &&
+                         request.resource.data.senderUid == request.auth.uid;
+        
+        // Participants can update messages (for reactions)
+        allow update: if isAuthenticated() && 
+                         (getRole(draftId) in ['A', 'B', 'admin'] || isSuperAdmin());
+        
+        // Admins can delete messages
+        allow delete: if isSuperAdmin() || getRole(draftId) == 'admin';
+      }
+
+      // -----------------------------------------
+      // SPECTATOR CHAT SUBCOLLECTION (Free For All)
+      // -----------------------------------------
+      match /chatSpectators/{messageId} {
+        // Only spectators and admins can read, participants are specifically blocked
+        allow read: if isAuthenticated() && 
+                       (!(getRole(draftId) in ['A', 'B']) || isSuperAdmin());
+        
+        // Only real logged-in users (non-anonymous) and admins can send messages
+        allow create: if isRealUser() &&
+                         (!(getRole(draftId) in ['A', 'B']) || isSuperAdmin()) &&
+                         request.resource.data.senderUid == request.auth.uid;
+        
+        // Spectators/Admins can update messages (for reactions)
+        allow update: if isAuthenticated() && 
+                         (!(getRole(draftId) in ['A', 'B']) || isSuperAdmin());
+        
+        // Admins can delete messages
+        allow delete: if isSuperAdmin() || getRole(draftId) == 'admin';
+      }
+      
+      // -----------------------------------------
+      // TYPING INDICATOR SUBCOLLECTIONS
+      // -----------------------------------------
+      match /typingA/{odId} {
+        allow read: if isAuthenticated() && 
+                       (getRole(draftId) in ['A', 'admin'] || isSuperAdmin());
+        allow write: if isAuthenticated() && 
+                        (getRole(draftId) in ['A', 'admin'] || isSuperAdmin());
+        allow delete: if isSuperAdmin() || getRole(draftId) == 'admin';
+      }
+      
+      match /typingB/{odId} {
+        allow read: if isAuthenticated() && 
+                       (getRole(draftId) in ['B', 'admin'] || isSuperAdmin());
+        allow write: if isAuthenticated() && 
+                        (getRole(draftId) in ['B', 'admin'] || isSuperAdmin());
+        allow delete: if isSuperAdmin() || getRole(draftId) == 'admin';
+      }
+      
+      match /typingAll/{odId} {
+        allow read: if isAuthenticated() && 
+                       (getRole(draftId) in ['A', 'B', 'admin'] || isSuperAdmin());
+        allow write: if isAuthenticated() && 
+                        (getRole(draftId) in ['A', 'B', 'admin'] || isSuperAdmin());
+        allow delete: if isSuperAdmin() || getRole(draftId) == 'admin';
+      }
+
+      match /typingSpectators/{odId} {
+        allow read: if isAuthenticated() && 
+                       (!(getRole(draftId) in ['A', 'B']) || isSuperAdmin());
+        allow write: if isRealUser() &&
+                        (!(getRole(draftId) in ['A', 'B']) || isSuperAdmin());
+        allow delete: if isSuperAdmin() || getRole(draftId) == 'admin';
+      }
+    }
+    
+    // =============================================
+    // USERS COLLECTION
+    // =============================================
+    match /users/{userId} {
+      // Public read (to show participants in tournaments)
+      allow read: if true;
+      
+      // Users can create and update their own data
+      // Protect the 'role' field: users cannot change their own role
+      // Only Super Admins can update the role field
+      allow create: if isOwner(userId) && !('role' in request.resource.data);
+      allow update: if (isOwner(userId) && (
+                         !('role' in request.resource.data) || 
+                         (request.resource.data.role == resource.data.role)
+                       )) || isSuperAdmin();
+
+      
+      // No one can delete users
+      allow delete: if false;
+    }
+
+    // Notifications subcollection (Dedicated match for clarity)
+    match /users/{userId}/notifications/{notifId} {
+      // Users can read, update (mark as read), and delete their own notifications
+      allow read, update, delete: if isOwner(userId) || isAdmin();
+
+      
+      // Allow any logged-in user to create notifications 
+      // This is necessary so admins can invite other users
+      allow create: if isAuthenticated();
+    }
+    
+    // =============================================
+    // WALLETS
+    // =============================================
+    match /wallets/{walletId} {
+      // Users can read their own wallet, admins can read all
+      allow read: if isOwner(walletId) || isAdmin();
+
+      // Users can create their own wallet
+      allow create: if isOwner(walletId);
+
+      // Users can update their own wallet ONLY if balance is decreasing or staying same
+      // This allows withdrawals but prevents balance manipulation
+      allow update: if isOwner(walletId) && 
+                       request.resource.data.balance <= resource.data.balance;
+
+      // Admins can update any wallet (for deposits, refunds, etc.)
+      // Restricted to Super Admins for manual credit/deduction
+      allow update: if isAdmin();
+
+
+      // No one can delete wallets
+      allow delete: if false;
+
+      // Subcollection: Transactions
+      match /transactions/{transactionId} {
+        // Users can read their own transactions, admins can read all
+        allow read: if isOwner(walletId) || isAdmin();
+
+        // Users and admins can create transactions
+        allow create: if isOwner(walletId) || isAdmin();
+
+
+        // Transactions are immutable
+        allow update, delete: if false;
+      }
+    }
+    
+    // =============================================
+    // WITHDRAWALS
+    // =============================================
+    match /withdrawals/{withdrawalId} {
+      // Admins can read all withdrawals
+      allow read: if isAdmin();
+      
+      // Users can also read their own withdrawals
+      allow read: if isAuthenticated() && 
+                     resource.data.userId == request.auth.uid;
+      
+      // Authenticated users can create withdrawal requests
+      allow create: if isAuthenticated() && 
+                      request.resource.data.userId == request.auth.uid;
+      
+      // Only admins can update withdrawal status
+      allow update: if isAdmin();
+      
+      // Only admins can delete withdrawals
+      allow delete: if isAdmin();
+
+    }
+    
+    // =============================================
+    // DEPOSIT NOTIFICATIONS (THE CRITICAL ONE!)
+    // =============================================
+    match /depositNotifications/{notificationId} {
+      // ADMINS CAN READ ALL NOTIFICATIONS
+      allow read: if isAdmin();
+      
+      // Users can read their own notifications
+      allow read: if isAuthenticated() && 
+                     resource.data.userId == request.auth.uid;
+      
+      // Authenticated users can create deposit notifications
+      allow create: if isAuthenticated() && 
+                      request.resource.data.userId == request.auth.uid;
+      
+      // Only admins can update notifications (mark as processed)
+      allow update: if isAdmin();
+      
+      // Only admins can delete notifications
+      allow delete: if isAdmin();
+    }
+
+    // =============================================
+    // BANNERS
+    // =============================================
+    match /banners/{bannerId} {
+      // Anyone can read banners
+      allow read: if true;
+      
+      // Only admins can manage banners
+      allow write: if isAdmin();
+    }
+  }
+}
