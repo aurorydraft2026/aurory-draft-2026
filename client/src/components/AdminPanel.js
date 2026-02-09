@@ -907,7 +907,7 @@ function AdminPanel() {
         <button className="back-btn" onClick={() => navigate('/')}>
           ← Back
         </button>
-        <h1>Admin Management</h1>
+        <h1>Admin Panel</h1>
       </div>
 
       <div className="admin-tabs">
