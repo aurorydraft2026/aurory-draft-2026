@@ -6,7 +6,7 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import HomePage from './pages/HomePage';
 import TournamentPage from './pages/TournamentPage';
 import './App.css';
-import AdminWallet from './components/AdminWallet';
+import AdminPanel from './components/AdminPanel';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -58,7 +58,7 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/tournament/:tournamentId" element={<TournamentPage />} />
-          <Route path="/admin/wallet" element={<AdminWallet />} />
+          <Route path="/admin/panel" element={<AdminPanel />} />
         </Routes>
       </div>
     </Router>

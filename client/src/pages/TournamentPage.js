@@ -3740,9 +3740,11 @@ function TournamentPage() {
                 {user && userPermission === draftState.currentTeam && (
                   <div className="your-turn-badge">🎯 YOUR TURN!</div>
                 )}
-                <div className="timer-team-indicator">
-                  {draftState.teamColors?.[draftState.currentTeam === 'A' ? 'teamA' : 'teamB'] === 'blue' ? '🔵' : '🔴'} {getTeamDisplayName(draftState.currentTeam)}'s Turn
-                </div>
+                {draftState.draftType !== 'mode3' && (
+                  <div className="timer-team-indicator">
+                    {draftState.teamColors?.[draftState.currentTeam === 'A' ? 'teamA' : 'teamB'] === 'blue' ? '🔵' : '🔴'} {getTeamDisplayName(draftState.currentTeam)}'s Turn
+                  </div>
+                )}
                 <div className="timer-countdown">
                   {currentTimerDisplay}
                 </div>
