@@ -4286,17 +4286,28 @@
   }
 
   .tournaments-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 16px;
+    padding: 10px 0 20px;
+    margin: 0 -14px;
+    padding-left: 14px;
+    padding-right: 14px;
+    scrollbar-width: none;
+    /* Hide scrollbar for cleaner look */
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
   }
 
-  .show-more-btn {
-    font-size: 0.75rem;
-    padding: 9px 16px;
+  .tournaments-grid::-webkit-scrollbar {
+    display: none;
   }
 
   /* Compact cards on mobile */
   .tournament-card {
+    flex: 0 0 80%;
+    scroll-snap-align: center;
     border-radius: 10px;
   }
 
@@ -4502,8 +4513,26 @@
   }
 
   .tournaments-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 12px;
+    padding: 10px 0 20px;
+    margin: 0 -14px;
+    padding-left: 14px;
+    padding-right: 14px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tournaments-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tournament-card {
+    flex: 0 0 80%;
+    scroll-snap-align: center;
   }
 
   .tournament-header h4 {
