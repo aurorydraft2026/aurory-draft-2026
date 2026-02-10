@@ -1532,13 +1532,15 @@ function HomePage() {
                       <div
                         key={slide.id}
                         className={`banner-slide ${index === currentSlide ? 'active' : ''} ${slide.link ? 'clickable' : ''} ${videoSrc ? 'has-video' : ''}`}
-                        style={!videoSrc ? { backgroundImage: `url(${slide.image})` } : {}}
                         onClick={(e) => {
                           // If it's the static banner, we don't want a slide-wide link
                           if (slide.isStatic) return;
                           if (slide.link) window.open(slide.link, '_blank');
                         }}
                       >
+                        {!videoSrc && (
+                          <img src={slide.image} alt="" className="banner-image-base" />
+                        )}
                         {videoSrc && (
                           <video className="banner-video-base" autoPlay muted loop playsInline>
                             <source src={videoSrc} type="video/mp4" />

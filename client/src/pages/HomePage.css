@@ -5,6 +5,13 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700&display=swap');
 
+/* Global box-sizing reset — prevents padding from causing overflow */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 /* ============================================================
    CSS VARIABLES
    ============================================================ */
@@ -54,6 +61,8 @@
    ============================================================ */
 .homepage {
   min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
   background: var(--bg-deepest);
   background-image:
     radial-gradient(ellipse 80% 50% at 50% 0%, rgba(15, 25, 60, 0.8) 0%, transparent 60%),
@@ -585,7 +594,8 @@
   transform: translateX(5px);
 }
 
-/* Banner Video Background */
+/* Banner Media (Image/Video) Background */
+.banner-image-base,
 .banner-video-base {
   position: absolute;
   top: 0;
@@ -2084,6 +2094,7 @@
 .rules-section {
   margin-top: 20px;
   padding: 0 0 40px 0;
+  overflow: hidden;
 }
 
 .rules-header {
@@ -2245,27 +2256,7 @@
   margin: 0;
 }
 
-@media (max-width: 1200px) {
-  .rules-carousel-wrapper {
-    padding: 0 20px;
-  }
-}
 
-@media (max-width: 768px) {
-  .rules-nav {
-    display: none;
-    /* Swipe on mobile */
-  }
-
-  .rules-carousel-wrapper {
-    padding: 0;
-  }
-
-  .rules-carousel-viewport {
-    overflow: visible;
-    /* Allow seeing next card partially if desired, or keep as hidden */
-  }
-}
 
 /* ============================================================
    MODALS
@@ -4265,91 +4256,164 @@
    RESPONSIVE
    ============================================================ */
 @media (max-width: 1024px) {
-  .content-wrapper {
-    flex-direction: column;
-  }
-
-  .right-sidebar {
-    width: 100%;
-    position: static;
-  }
-
-  .top-players-list {
-    height: auto;
-    min-height: 200px;
-  }
-
-  .match-history-list {
-    height: auto;
-    min-height: 200px;
-  }
-
-  .tournaments-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .promo-desktop-only {
-    display: none !important;
-  }
-
-  .promo-mobile-only {
-    display: flex !important;
-  }
-}
-
-@media (max-width: 768px) {
   .header {
     padding: 0 12px;
   }
 
+  .content-wrapper {
+    flex-direction: column;
+    overflow: hidden;
+    width: 100%;
+  }
+
+  .main-column {
+    width: 100%;
+    margin: 0;
+    box-sizing: border-box;
+  }
+
   .main-content {
-    padding: 12px 0 60px;
+    padding: 12px 14px 60px;
+    overflow-x: hidden;
   }
 
   .hero-section {
-    padding: 30px 14px;
+    padding: 30px 0;
+    text-align: left;
   }
 
   .hero-section>h2 {
     font-size: 1.5rem;
   }
 
-  /* Banner width matched to other sections on mobile */
+  /* Banner width matched to other sections on mobile/tablet */
   .main-column-inner {
-    margin-left: 14px;
-    margin-right: 14px;
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    margin-bottom: 24px;
+    box-sizing: border-box;
+    /* Removed overflow: hidden to prevent edge clipping */
   }
 
   .announcement-banner {
+    width: 100%;
+    min-height: 380px;
+    height: auto;
     border-radius: var(--radius-xl);
     border: 1px solid var(--border-subtle);
-    height: 240px;
+    overflow: hidden;
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
   }
 
-  .banner-title {
-    font-size: 1.3rem;
+  .banner-slide {
+    position: relative;
+    /* Changed from absolute to allow auto-height */
+    width: 100%;
+    min-height: 380px;
+    display: none;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    transform: none !important;
+    /* Prevent horizontal shifts on mobile */
+  }
+
+  .banner-slide.active {
+    display: flex;
+    opacity: 1;
+    flex-direction: column;
   }
 
   .banner-content {
-    padding: 20px;
+    padding: 30px 20px;
+    justify-content: center;
+    height: auto;
+    min-height: 380px;
+    box-sizing: border-box;
+  }
+
+  .banner-static-logo {
+    height: 40px;
+  }
+
+  .static-banner-logo-wrapper {
+    margin-bottom: 12px;
+  }
+
+  .banner-title {
+    font-size: 1.4rem;
+    margin-bottom: 4px;
+  }
+
+  .banner-text {
+    font-size: 0.8rem;
+    max-width: 100%;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .banner-indicators {
-    left: 20px;
-    bottom: 14px;
+    bottom: 12px;
+    right: 15px;
+    left: auto;
+  }
+
+  .banner-store-links {
+    gap: 6px;
+    margin-top: 12px;
+  }
+
+  .banner-store-btn {
+    padding: 4px 10px;
+    height: 36px;
+  }
+
+  .banner-store-btn img {
+    height: 16px;
+  }
+
+  .banner-store-btn.play .play-badge,
+  .banner-store-btn.ios .app-badge {
+    height: 20px;
+  }
+
+  .btn-label span {
+    font-size: 0.8rem;
   }
 
   .tournaments-section {
-    padding: 0 14px;
+    padding: 0;
+    overflow: hidden;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .tournament-filters {
+    max-width: 100%;
+    overflow: visible;
+    margin-bottom: 12px;
   }
 
   .filter-tabs-row {
-    gap: 5px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-width: 100%;
+    margin-bottom: 8px;
   }
 
   .filter-tab {
     padding: 6px 10px;
     font-size: 0.7rem;
+    flex-shrink: 0;
   }
 
   .filter-tab-icon {
@@ -4360,30 +4424,32 @@
     padding: 6px 24px 6px 10px;
     font-size: 0.7rem;
     margin-left: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    flex-shrink: 0;
   }
 
   .tournaments-grid {
     display: flex;
     overflow-x: auto;
     scroll-snap-type: x mandatory;
-    gap: 16px;
+    gap: 12px;
     padding: 10px 0 20px;
-    margin: 0 -14px;
-    padding-left: 14px;
-    padding-right: 14px;
     scrollbar-width: none;
-    /* Hide scrollbar for cleaner look */
     -ms-overflow-style: none;
     -webkit-overflow-scrolling: touch;
+    width: 100%;
+    margin-left: 0;
   }
 
   .tournaments-grid::-webkit-scrollbar {
     display: none;
   }
 
-  /* Compact cards on mobile */
+  /* Compact cards on mobile/tablet */
   .tournament-card {
-    flex: 0 0 80%;
+    flex: 0 0 85%;
+    max-width: 85%;
     scroll-snap-align: center;
     border-radius: 10px;
   }
@@ -4399,7 +4465,6 @@
   .tournament-header h4 {
     font-size: 0.78rem;
     -webkit-line-clamp: 1;
-    /* Force 1 line truncation in 2-column view */
     line-clamp: 1;
   }
 
@@ -4497,11 +4562,38 @@
   }
 
   .rules-section {
-    padding: 0 14px;
+    padding: 0;
+  }
+
+  .rules-nav {
+    display: none;
+  }
+
+  .rules-carousel-wrapper {
+    padding: 0;
+  }
+
+  .rules-carousel-viewport {
+    overflow: visible;
   }
 
   .rules-grid {
     grid-template-columns: 1fr;
+  }
+
+  .right-sidebar {
+    width: 100%;
+    position: static;
+    padding: 0;
+    overflow: hidden;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .top-players-list,
+  .match-history-list {
+    height: auto;
+    min-height: 200px;
   }
 
   .teams-container {
@@ -4521,10 +4613,7 @@
     font-size: 0.7rem;
   }
 
-  .profile-names {
-    display: none;
-  }
-
+  .profile-names,
   .menu-arrow {
     display: none;
   }
@@ -4533,8 +4622,33 @@
     padding: 4px;
   }
 
-  .right-sidebar {
-    padding: 0 14px;
+  .footer-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 24px;
+  }
+
+  .footer-links-wrapper {
+    align-items: center;
+    width: 100%;
+  }
+
+  .footer-links-container {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .footer-msg {
+    font-size: 0.85rem;
+  }
+
+  .footer-tagline {
+    font-size: 0.75rem;
+  }
+
+  .footer-discord-link {
+    width: 100%;
+    justify-content: center;
   }
 
   /* Modal responsive */
@@ -4563,15 +4677,48 @@
   .modal-footer {
     padding: 12px 16px;
   }
+
+  .promo-desktop-only {
+    display: none !important;
+  }
+
+  .promo-mobile-only {
+    display: flex !important;
+  }
 }
 
 @media (max-width: 480px) {
   .hero-section>h2 {
+    font-size: 1.25rem;
+  }
+
+  .announcement-banner {
+    min-height: 320px;
+  }
+
+  .banner-content {
+    min-height: 320px;
+    padding: 24px 16px;
+  }
+
+  .banner-title {
     font-size: 1.2rem;
+  }
+
+  .banner-text {
+    font-size: 0.75rem;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+  }
+
+  .banner-meta {
+    gap: 8px;
+    margin-bottom: 8px;
   }
 
   .banner-indicators {
     left: 16px;
+    right: auto;
   }
 
   .filter-tab-label {
@@ -4585,19 +4732,17 @@
   .mode-filter-dropdown {
     width: 100%;
     margin-left: 0;
-    margin-top: 4px;
+    margin-top: 8px;
     font-size: 0.72rem;
+    box-sizing: border-box;
   }
 
   .tournaments-grid {
     display: flex;
     overflow-x: auto;
     scroll-snap-type: x mandatory;
-    gap: 12px;
+    gap: 10px;
     padding: 10px 0 20px;
-    margin: 0 -14px;
-    padding-left: 14px;
-    padding-right: 14px;
     scrollbar-width: none;
     -ms-overflow-style: none;
     -webkit-overflow-scrolling: touch;
@@ -4608,7 +4753,8 @@
   }
 
   .tournament-card {
-    flex: 0 0 80%;
+    flex: 0 0 88%;
+    max-width: 88%;
     scroll-snap-align: center;
   }
 
@@ -4797,36 +4943,7 @@ input[type="file"] {
   transform: scale(1.1) rotate(-5deg);
 }
 
-@media (max-width: 768px) {
-  .footer-content {
-    flex-direction: column;
-    text-align: center;
-    gap: 24px;
-  }
 
-  .footer-links-wrapper {
-    align-items: center;
-    width: 100%;
-  }
-
-  .footer-links-container {
-    justify-content: center;
-    width: 100%;
-  }
-
-  .footer-msg {
-    font-size: 0.85rem;
-  }
-
-  .footer-tagline {
-    font-size: 0.75rem;
-  }
-
-  .footer-discord-link {
-    width: 100%;
-    justify-content: center;
-  }
-}
 
 /* Banner Store Links Integration */
 .banner-store-links {
@@ -4886,71 +5003,4 @@ input[type="file"] {
   font-size: 0.95rem;
   font-weight: 700;
   color: white;
-}
-
-@media (max-width: 768px) {
-  .announcement-banner {
-    height: 400px;
-    /* Slightly taller for mobile content */
-  }
-
-  .banner-content {
-    padding: 20px;
-    justify-content: flex-end;
-    padding-bottom: 50px;
-  }
-
-  .banner-static-logo {
-    height: 40px;
-  }
-
-  .static-banner-logo-wrapper {
-    margin-bottom: 12px;
-  }
-
-  .banner-title {
-    font-size: 1.4rem;
-    margin-bottom: 4px;
-  }
-
-  .banner-text {
-    font-size: 0.8rem;
-    max-width: 100%;
-    line-height: 1.4;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .banner-store-links {
-    gap: 6px;
-    margin-top: 12px;
-  }
-
-  .banner-store-btn {
-    padding: 4px 10px;
-    height: 36px;
-  }
-
-  .banner-store-btn img {
-    height: 16px;
-  }
-
-  .banner-store-btn.play .play-badge,
-  .banner-store-btn.ios .app-badge {
-    height: 20px;
-  }
-
-  .btn-label span {
-    font-size: 0.8rem;
-  }
-
-  .banner-indicators {
-    bottom: 12px;
-    right: 15px;
-    left: auto;
-    /* Reset left to ensure right alignment works */
-  }
 }
