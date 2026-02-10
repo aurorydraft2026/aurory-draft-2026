@@ -22,8 +22,6 @@ const CORS_PROXY = 'https://corsproxy.io/?';
  */
 export async function fetchMatchByBattleCode(battleCode) {
   const params = new URLSearchParams({
-    event: 'PRIVATE_MATCH',
-    game_mode: 'pvp',
     battle_code: battleCode
   });
 
@@ -131,8 +129,8 @@ export async function verifySingleBattle(battleConfig) {
   const usedAmikosB = playerBData?.nefties?.map(n => n.collection_id) || [];
 
   // 4. Verify lineups (order-independent)
-  const lineupAValid = verifyLineup(draftedAmikosA, usedAmikosA);
-  const lineupBValid = verifyLineup(draftedAmikosB, usedAmikosB);
+  const lineupAValid = verifyLineup(draftedAmikosA, usedAmikosA, playerAName);
+  const lineupBValid = verifyLineup(draftedAmikosB, usedAmikosB, playerBName);
 
   // 5. Determine outcome based on lineup validity
   const playerAOutcome = match.match_players?.find(mp => mp.player_id === playerAId)?.outcome;
@@ -203,14 +201,24 @@ function normalizeAmikoId(id) {
 /**
  * Compare two amiko lineups (order-independent, normalized).
  */
-function verifyLineup(drafted, actual) {
+function verifyLineup(drafted, actual, playerName) {
   if (!drafted || !actual) return false;
   if (drafted.length === 0) return true; // Skip if no draft data
   if (drafted.length !== actual.length) return false;
 
   const sortedDrafted = [...drafted].map(normalizeAmikoId).sort();
   const sortedActual = [...actual].map(normalizeAmikoId).sort();
-  return sortedDrafted.every((val, idx) => val === sortedActual[idx]);
+  const isValid = sortedDrafted.every((val, idx) => val === sortedActual[idx]);
+
+  if (!isValid) {
+    console.warn(`[VERIFICATION DEBUG] Lineup mismatch for ${playerName || 'player'}:`);
+    console.warn('Drafted:', sortedDrafted);
+    console.warn('Actual:', sortedActual);
+  } else {
+    console.log(`[VERIFICATION DEBUG] Lineup valid for ${playerName || 'player'}`);
+  }
+
+  return isValid;
 }
 
 // ============================================================================

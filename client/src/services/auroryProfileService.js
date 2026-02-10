@@ -815,12 +815,115 @@ export async function getCachedMatchHistory(playerIdOrWallet, forceRefresh = fal
   return matches;
 }
 
+// ============================================================================
+// EGG HATCHES API
+// ============================================================================
+
+const eggHatchCache = new Map();
+
+/**
+ * Fetch egg hatches for a player from Aurory API
+ * Endpoint: /v1/egg-hatches?player_id=p-XXXXX
+ * @param {string} playerId - Player ID (p-XXX format)
+ * @param {number} page - Page number for pagination
+ * @returns {Promise<Object>} Egg hatch data
+ */
+export async function fetchEggHatches(playerId, page = 0) {
+  const params = new URLSearchParams({
+    player_id: playerId
+  });
+  if (page > 0) params.append('page', page.toString());
+
+  const apiUrl = `${AURORY_API_BASE}/v1/egg-hatches?${params}`;
+  const proxyUrl = `${CORS_PROXY}${encodeURIComponent(apiUrl)}`;
+
+  try {
+    console.log(`🥚 Fetching egg hatches for ${playerId}...`);
+    const response = await fetch(proxyUrl, {
+      headers: { 'accept': 'application/json' }
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return { data: [], total: 0 };
+      }
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log(`✅ Found ${result.data?.length || 0} egg hatches`);
+    return result;
+  } catch (error) {
+    console.error('Error fetching egg hatches:', error);
+    return { data: [], total: 0, error: error.message };
+  }
+}
+
+/**
+ * Get all egg hatches for a player (handles pagination)
+ * @param {string} playerId - Player ID
+ * @param {number} maxHatches - Maximum hatches to return
+ * @returns {Promise<Array>} Array of processed egg hatch data
+ */
+export async function getAllEggHatches(playerId, maxHatches = 100) {
+  const allHatches = [];
+  let currentPage = 0;
+  const maxPages = 20;
+
+  while (allHatches.length < maxHatches && currentPage < maxPages) {
+    const result = await fetchEggHatches(playerId, currentPage);
+
+    if (result.error || !result.data || result.data.length === 0) break;
+
+    for (const hatch of result.data) {
+      allHatches.push({
+        id: hatch.id || `hatch-${currentPage}-${allHatches.length}`,
+        timestamp: hatch.created_at || hatch.timestamp,
+        eggType: hatch.egg_type || hatch.eggType || 'Unknown',
+        neftieName: hatch.neftie_type || hatch.neftie?.type || hatch.collection_id || 'Unknown',
+        neftieId: hatch.neftie_id || hatch.neftie?.id,
+        element: hatch.neftie?.element || hatch.element,
+        rarity: hatch.neftie?.seeker_rank || hatch.rarity,
+        playerId: hatch.player_id
+      });
+      if (allHatches.length >= maxHatches) break;
+    }
+
+    const totalPages = result.total_pages || 1;
+    currentPage++;
+    if (currentPage >= totalPages) break;
+  }
+
+  return allHatches.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+}
+
+/**
+ * Get cached or fresh egg hatches
+ * @param {string} playerId - Player ID
+ * @param {boolean} forceRefresh - Force API call
+ * @returns {Promise<Array>} Egg hatch history
+ */
+export async function getCachedEggHatches(playerId, forceRefresh = false) {
+  const cacheKey = `eggs-${playerId}`;
+  const cached = eggHatchCache.get(cacheKey);
+
+  if (!forceRefresh && cached && (Date.now() - cached.timestamp < CACHE_DURATION)) {
+    return cached.data;
+  }
+
+  const hatches = await getAllEggHatches(playerId, 100);
+  eggHatchCache.set(cacheKey, { data: hatches, timestamp: Date.now() });
+
+  return hatches;
+}
+
 /**
  * Clear cache for a player
  * @param {string} playerIdOrWallet - Player ID or wallet
  */
 export function clearCache(playerIdOrWallet) {
   matchCache.delete(playerIdOrWallet);
+  eggHatchCache.delete(`eggs-${playerIdOrWallet}`);
 }
 
 const auroryProfileService = {
@@ -834,6 +937,7 @@ const auroryProfileService = {
   unlinkAuroryAccount,
   getLinkedAuroryAccount,
   getCachedMatchHistory,
+  getCachedEggHatches,
   clearCache
 };
 

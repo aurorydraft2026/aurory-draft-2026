@@ -9,6 +9,7 @@ import {
   unlinkAuroryAccount,
   getLinkedAuroryAccount,
   getCachedMatchHistory,
+  getCachedEggHatches,
   calculateAmikoStats,
   calculateOverallStats,
   clearCache
@@ -31,10 +32,12 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
   const [matches, setMatches] = useState([]);
   const [amikoStats, setAmikoStats] = useState([]);
   const [overallStats, setOverallStats] = useState(null);
+  const [eggHatches, setEggHatches] = useState([]);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [eggsLoading, setEggsLoading] = useState(false);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'matches', 'amikos'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'matches', 'amikos', 'eggs'
   const [scanProgress, setScanProgress] = useState(null);
 
   const loadStats = async (playerId, forceRefresh = false) => {
@@ -55,6 +58,18 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
     }
   };
 
+  const loadEggHatches = async (playerId, forceRefresh = false) => {
+    setEggsLoading(true);
+    try {
+      const hatches = await getCachedEggHatches(playerId, forceRefresh);
+      setEggHatches(hatches);
+    } catch (err) {
+      console.error('Error loading egg hatches:', err);
+    } finally {
+      setEggsLoading(false);
+    }
+  };
+
   const loadLinkedAccount = useCallback(async () => {
     if (!user) return;
 
@@ -65,6 +80,7 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
 
       if (account) {
         loadStats(account.playerId);
+        loadEggHatches(account.playerId);
       }
     } catch (err) {
       console.error('Error loading linked account:', err);
@@ -116,6 +132,7 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
         });
         setSearchInput('');
         loadStats(validation.playerId);
+        loadEggHatches(validation.playerId);
       } else {
         setError(result.error || 'Failed to link account');
       }
@@ -142,6 +159,7 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
         setMatches([]);
         setAmikoStats([]);
         setOverallStats(null);
+        setEggHatches([]);
       }
     } catch (err) {
       setError(err.message);
@@ -152,6 +170,7 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
     if (linkedAccount?.playerId) {
       clearCache(linkedAccount.playerId);
       loadStats(linkedAccount.playerId, true);
+      loadEggHatches(linkedAccount.playerId, true);
     }
   };
 
@@ -213,6 +232,12 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
               >
                 Amiko Stats
               </button>
+              <button
+                className={`tab ${activeTab === 'eggs' ? 'active' : ''}`}
+                onClick={() => setActiveTab('eggs')}
+              >
+                Egg Hatches
+              </button>
             </div>
 
             {/* Tab Content */}
@@ -225,6 +250,9 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
               )}
               {activeTab === 'amikos' && (
                 <AmikosTab stats={amikoStats} loading={statsLoading} />
+              )}
+              {activeTab === 'eggs' && (
+                <EggHatchesTab hatches={eggHatches} loading={eggsLoading} />
               )}
             </div>
           </div>
@@ -424,6 +452,57 @@ function AmikosTab({ stats, loading }) {
                 className="win-fill"
                 style={{ width: `${stat.winRate}%` }}
               ></div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function EggHatchesTab({ hatches, loading }) {
+  if (loading) {
+    return <div className="tab-loading"><div className="spinner"></div></div>;
+  }
+
+  if (!hatches.length) {
+    return <div className="tab-empty">No egg hatches found</div>;
+  }
+
+  return (
+    <div className="egg-hatches-list">
+      {hatches.map((hatch, index) => {
+        const amiko = getAmikoByName(hatch.neftieName);
+        const element = amiko?.element || hatch.element;
+        const elementConfig = element ? ELEMENTS[element.toLowerCase()] : null;
+
+        return (
+          <div key={index} className="egg-hatch-row">
+            <div className="egg-icon">🥚</div>
+            <div className="hatch-arrow">→</div>
+            <div className="hatched-amiko">
+              {amiko ? (
+                <img src={amiko.image} alt={hatch.neftieName} className="amiko-img" />
+              ) : (
+                <div className="amiko-placeholder">{hatch.neftieName.charAt(0)}</div>
+              )}
+              <div className="amiko-details">
+                <span className="amiko-name">{hatch.neftieName}</span>
+                {elementConfig && (
+                  <span className="amiko-element" style={{ color: elementConfig.color }}>
+                    {elementConfig.icon} {element}
+                  </span>
+                )}
+                {hatch.rarity && (
+                  <span className="hatch-rarity">{hatch.rarity}</span>
+                )}
+              </div>
+            </div>
+            <div className="hatch-meta">
+              <span className="hatch-date">{formatDate(hatch.timestamp)}</span>
+              {hatch.eggType && hatch.eggType !== 'Unknown' && (
+                <span className="egg-type">{hatch.eggType}</span>
+              )}
             </div>
           </div>
         );
@@ -1026,6 +1105,109 @@ const auroryModalStyles = `
   height: 100%;
   background: linear-gradient(90deg, #10b981 0%, #6ee7b7 100%);
   transition: width 0.3s ease;
+}
+
+/* Egg Hatches Tab */
+.egg-hatches-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.egg-hatch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  border-left: 3px solid #fbbf24;
+}
+
+.egg-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.hatch-arrow {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.hatched-amiko {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.hatched-amiko .amiko-img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.hatched-amiko .amiko-placeholder {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: #1a1a2e;
+  flex-shrink: 0;
+}
+
+.hatched-amiko .amiko-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hatched-amiko .amiko-name {
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hatched-amiko .amiko-element {
+  font-size: 0.75rem;
+}
+
+.hatch-rarity {
+  font-size: 0.7rem;
+  color: #fbbf24;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.hatch-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.hatch-date {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.egg-type {
+  font-size: 0.65rem;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 /* Responsive */
