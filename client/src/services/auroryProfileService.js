@@ -1,5 +1,5 @@
 // auroryProfileService.js
-// Service for connecting to Aurory API via CORS proxy
+// Service for connecting to Aurory API via Cloud Functions proxy
 // Includes match history, Amiko usage stats, and account linking
 
 import {
@@ -7,15 +7,7 @@ import {
   collection, query, where, getDocs
 } from 'firebase/firestore';
 import { db } from '../firebase';
-
-const AURORY_API_BASE = 'https://aggregator-api.live.aurory.io';
-
-// Use a CORS proxy for browser requests
-// Options: 
-// 1. https://corsproxy.io/?
-// 2. https://api.allorigins.win/raw?url=
-// 3. Your own proxy
-const CORS_PROXY = 'https://corsproxy.io/?';
+import { auroryFetch } from './auroryProxyClient';
 
 // ============================================================================
 // API FUNCTIONS
@@ -29,22 +21,9 @@ const CORS_PROXY = 'https://corsproxy.io/?';
  * @returns {Promise<Object>} Player profile data
  */
 export async function fetchPlayerProfile(playerId) {
-  const apiUrl = `${AURORY_API_BASE}/v2/players?player_ids=${encodeURIComponent(playerId)}`;
-  const proxyUrl = `${CORS_PROXY}${encodeURIComponent(apiUrl)}`;
-
   try {
-    const response = await fetch(proxyUrl, {
-      headers: { 'accept': 'application/json' }
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        return { error: 'Player not found', status: 404 };
-      }
-      throw new Error(`API error: ${response.status}`);
-    }
-
-    const result = await response.json();
+    const params = `player_ids=${encodeURIComponent(playerId)}`;
+    const result = await auroryFetch('/v2/players', params);
 
     if (result.data && result.data.length > 0) {
       const player = result.data[0];
@@ -88,22 +67,8 @@ export async function fetchPlayerMatches(playerIdOrWallet, options = {}) {
   if (battleCode) params.append('battle_code', battleCode);
   if (page > 0) params.append('page', page.toString());
 
-  const apiUrl = `${AURORY_API_BASE}/v1/player-matches?${params}`;
-  const proxyUrl = `${CORS_PROXY}${encodeURIComponent(apiUrl)}`;
-
   try {
-    const response = await fetch(proxyUrl, {
-      headers: { 'accept': 'application/json' }
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        return { error: 'Player not found', status: 404 };
-      }
-      throw new Error(`API error: ${response.status}`);
-    }
-
-    return await response.json();
+    return await auroryFetch('/v1/player-matches', params.toString());
   } catch (error) {
     console.error('Error fetching player matches:', error);
     throw error;
@@ -214,19 +179,15 @@ export async function getPrivateMatchHistory(playerIdOrWallet, maxMatches = 50, 
       // Batch resolve player names via /v2/players (supports comma-separated IDs)
       const ids = [...unresolvedIds];
       try {
-        const apiUrl = `${AURORY_API_BASE}/v2/players?player_ids=${ids.map(id => encodeURIComponent(id)).join(',')}`;
-        const proxyUrl = `${CORS_PROXY}${encodeURIComponent(apiUrl)}`;
-        const resp = await fetch(proxyUrl, { headers: { 'accept': 'application/json' } });
-        if (resp.ok) {
-          const result = await resp.json();
-          const nameMap = {};
-          for (const p of (result.data || [])) {
-            nameMap[p.player_id] = p.player_name;
-          }
-          for (const match of allMatches) {
-            if (match.opponent?.id && nameMap[match.opponent.id]) {
-              match.opponent.name = nameMap[match.opponent.id];
-            }
+        const params = `player_ids=${ids.map(id => encodeURIComponent(id)).join(',')}`;
+        const result = await auroryFetch('/v2/players', params);
+        const nameMap = {};
+        for (const p of (result.data || [])) {
+          nameMap[p.player_id] = p.player_name;
+        }
+        for (const match of allMatches) {
+          if (match.opponent?.id && nameMap[match.opponent.id]) {
+            match.opponent.name = nameMap[match.opponent.id];
           }
         }
       } catch (e) {
@@ -381,19 +342,8 @@ async function fetchGlobalMatches(options = {}) {
   if (battleCode) params.append('battle_code', battleCode);
   if (page > 0) params.append('page', page.toString());
 
-  const apiUrl = `${AURORY_API_BASE}/v1/matches?${params}`;
-  const proxyUrl = `${CORS_PROXY}${encodeURIComponent(apiUrl)}`;
-
   try {
-    const response = await fetch(proxyUrl, {
-      headers: { 'accept': 'application/json' }
-    });
-
-    if (!response.ok) {
-      return { error: `API error: ${response.status}` };
-    }
-
-    return await response.json();
+    return await auroryFetch('/v1/matches', params.toString());
   } catch (error) {
     console.error('Error fetching global matches:', error);
     return { error: error.message };
@@ -834,23 +784,9 @@ export async function fetchEggHatches(playerId, page = 0) {
   });
   if (page > 0) params.append('page', page.toString());
 
-  const apiUrl = `${AURORY_API_BASE}/v1/egg-hatches?${params}`;
-  const proxyUrl = `${CORS_PROXY}${encodeURIComponent(apiUrl)}`;
-
   try {
     console.log(`🥚 Fetching egg hatches for ${playerId}...`);
-    const response = await fetch(proxyUrl, {
-      headers: { 'accept': 'application/json' }
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        return { data: [], total: 0 };
-      }
-      throw new Error(`API error: ${response.status}`);
-    }
-
-    const result = await response.json();
+    const result = await auroryFetch('/v1/egg-hatches', params.toString());
     console.log(`✅ Found ${result.data?.length || 0} egg hatches`);
     return result;
   } catch (error) {

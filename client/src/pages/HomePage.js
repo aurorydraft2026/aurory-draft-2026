@@ -348,18 +348,7 @@ function HomePage() {
     return () => unsubscribe();
   }, []);
 
-  // Auto-switch to "Completed" filter if no active drafts exist on load
-  useEffect(() => {
-    if (tournaments.length > 0 && tournamentFilter === 'active') {
-      const activeDrafts = tournaments.filter(t =>
-        t.status === 'active' || t.status === 'coinFlip' || t.status === 'poolShuffle' || t.status === 'assignment' || t.status === 'waiting'
-      );
-
-      if (activeDrafts.length === 0) {
-        setTournamentFilter('completed');
-      }
-    }
-  }, [tournaments, tournamentFilter]);
+  // (Removed: auto-switch to "Completed" filter - active filter now shows create card when empty)
 
   // Update current time every second for live timer display
   useEffect(() => {
@@ -1704,20 +1693,34 @@ function HomePage() {
               </div>
 
               {filteredTournaments.length === 0 ? (
-                <div className="no-tournaments">
-                  {tournaments.length === 0 ? (
-                    <>
-                      <p>🎮 No drafts available</p>
-                      {isAdmin ? (
-                        <p className="hint">Click "⚡ Create" to start one!</p>
-                      ) : (
-                        <p className="hint">Check back later for upcoming drafts</p>
-                      )}
-                    </>
-                  ) : (
-                    <p>No drafts match this filter</p>
-                  )}
-                </div>
+                tournamentFilter === 'active' && isAdmin ? (
+                  <div className="tournaments-grid">
+                    <div
+                      className="tournament-card create-card"
+                      onClick={() => setShowCreateModal(true)}
+                    >
+                      <div className="create-card-content">
+                        <span className="create-card-icon">+</span>
+                        <span className="create-card-label">Create Draft</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="no-tournaments">
+                    {tournaments.length === 0 ? (
+                      <>
+                        <p>🎮 No drafts available</p>
+                        {isAdmin ? (
+                          <p className="hint">Click "⚡ Create" to start one!</p>
+                        ) : (
+                          <p className="hint">Check back later for upcoming drafts</p>
+                        )}
+                      </>
+                    ) : (
+                      <p>No drafts match this filter</p>
+                    )}
+                  </div>
+                )
               ) : (
                 <>
                   <div className="tournaments-grid">

@@ -303,9 +303,9 @@ function AdminPanel() {
     fetchData();
   }, [isAdmin]);
 
-  // Track online visitors (super admin only)
+  // Track online visitors (admin and super admin)
   useEffect(() => {
-    if (!isSuperAdminUser) return;
+    if (!isAdminUser) return;
 
     const usersRef = collection(db, 'users');
     const unsubscribe = onSnapshot(usersRef, (snapshot) => {
@@ -333,7 +333,7 @@ function AdminPanel() {
     });
 
     return () => unsubscribe();
-  }, [isSuperAdminUser]);
+  }, [isAdminUser]);
 
   // Fetch banners
   useEffect(() => {
@@ -961,7 +961,7 @@ function AdminPanel() {
             🖼️ Homepage Banners
           </button>
         )}
-        {isSuperAdminUser && (
+        {isAdminUser && (
           <button
             className={`admin-tab ${activeTab === 'visitors' ? 'active' : ''}`}
             onClick={() => setActiveTab('visitors')}
@@ -1841,7 +1841,7 @@ function AdminPanel() {
           </div>
         )}
 
-        {activeTab === 'visitors' && isSuperAdminUser && (
+        {activeTab === 'visitors' && isAdminUser && (
           <div className="visitors-section">
             <div className="section-info">
               <p>🌐 Users who visited the website in the last 5 minutes.</p>

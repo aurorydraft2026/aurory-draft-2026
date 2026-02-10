@@ -1056,6 +1056,66 @@
   opacity: 1;
 }
 
+/* Create Draft Card (empty state placeholder) */
+.tournament-card.create-card {
+  border: 2px dashed var(--border-subtle);
+  background: transparent;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tournament-card.create-card::before {
+  display: none;
+}
+
+.tournament-card.create-card:hover {
+  border-color: var(--accent-cyan);
+  background: rgba(0, 200, 255, 0.03);
+  box-shadow: none;
+}
+
+.create-card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.create-card-icon {
+  font-size: 2.5rem;
+  font-weight: 300;
+  color: var(--text-muted);
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px dashed var(--border-subtle);
+  transition: all 0.3s ease;
+}
+
+.tournament-card.create-card:hover .create-card-icon {
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  background: rgba(0, 200, 255, 0.06);
+}
+
+.create-card-label {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+  transition: color 0.3s ease;
+}
+
+.tournament-card.create-card:hover .create-card-label {
+  color: var(--accent-cyan);
+}
+
 .tournament-card.active-turn {
   border-color: var(--accent-cyan);
   box-shadow: var(--shadow-glow-cyan);

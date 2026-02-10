@@ -546,67 +546,9 @@ function TournamentPage() {
     }
   };
 
-  // Auto-verification polling: check every 60 seconds after draft completes
-  const draftStateRef = useRef(draftState);
-  draftStateRef.current = draftState;
-
-  useEffect(() => {
-    // Only poll if:
-    // 1. Draft is completed (status === 'completed')
-    // 2. Has private codes (battle codes exist)
-    // 3. Not fully verified yet
-    // 4. Has final assignments with aurory-linked players
-    const shouldPoll =
-      draftState.status === 'completed' &&
-      (draftState.privateCode || draftState.privateCodes) &&
-      draftState.verificationStatus !== 'complete' &&
-      (draftState.finalAssignments?.length > 0 || draftState.matchPlayers?.length > 0);
-
-    if (!shouldPoll) return;
-
-    // Check if draft is too old (stop polling after 48 hours)
-    const draftAge = draftState.lastVerificationCheck
-      ? Date.now() - (draftState.lastVerificationCheck?.toMillis?.() || draftState.lastVerificationCheck || 0)
-      : 0;
-    const maxAge = 48 * 60 * 60 * 1000; // 48 hours
-
-    if (draftAge > maxAge && draftState.lastVerificationCheck) return;
-
-    const runVerification = async () => {
-      try {
-        const currentDraft = draftStateRef.current;
-        const currentUsers = registeredUsersRef.current;
-        const verificationData = await verifyDraftBattles(currentDraft, currentUsers);
-        if (verificationData.results && verificationData.results.length > 0) {
-          // Only save if we got at least one result that's not 'not_found'
-          const hasResults = verificationData.results.some(r => r.status !== 'not_found' && r.status !== 'error');
-          if (hasResults || verificationData.allVerified) {
-            await saveVerificationResults(DRAFT_ID, verificationData);
-          }
-        }
-      } catch (err) {
-        console.error('Auto-verification error:', err);
-      }
-    };
-
-    // Run immediately on mount, then every 60 seconds
-    const timer = setTimeout(runVerification, 5000); // Initial delay 5s
-    const interval = setInterval(runVerification, 60000); // Then every 60s
-
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-    };
-  }, [
-    draftState.status,
-    draftState.privateCode,
-    draftState.privateCodes,
-    draftState.verificationStatus,
-    draftState.finalAssignments,
-    draftState.matchPlayers,
-    draftState.lastVerificationCheck,
-    DRAFT_ID
-  ]);
+  // ─── AUTO-VERIFICATION ───
+  // Handled server-side by Cloud Function (verifyMatches) every 2 minutes.
+  // Manual verification via handleVerifyMatch button is still available.
 
   // Initialize draft - now starts coin flip phase for pre-assigned teams
   const initializeDraft = async () => {
@@ -721,6 +663,7 @@ function TournamentPage() {
         coinFlip.phase = 'spinning';
         coinFlip.result = result;
         coinFlip.winner = winner;
+        coinFlip.phaseChangedAt = Date.now();
 
         await updateDoc(draftRef, { coinFlip });
         // Animation will be handled by UI based on phase change
@@ -753,13 +696,15 @@ function TournamentPage() {
   const showCoinResult = async () => {
     const draftRef = doc(db, 'drafts', DRAFT_ID);
     await updateDoc(draftRef, {
-      'coinFlip.phase': 'result'
+      'coinFlip.phase': 'result',
+      'coinFlip.phaseChangedAt': Date.now()
     });
 
     // After 2 seconds showing result, move to turn choice
     setTimeout(async () => {
       await updateDoc(draftRef, {
-        'coinFlip.phase': 'turnChoice'
+        'coinFlip.phase': 'turnChoice',
+        'coinFlip.phaseChangedAt': Date.now()
       });
     }, 2000);
   };
@@ -778,7 +723,8 @@ function TournamentPage() {
     const draftRef = doc(db, 'drafts', DRAFT_ID);
     await updateDoc(draftRef, {
       'coinFlip.winnerTurnChoice': turnChoice,
-      'coinFlip.phase': 'done'
+      'coinFlip.phase': 'done',
+      'coinFlip.phaseChangedAt': Date.now()
     });
 
     // Continue to draft after a delay to show the summary
@@ -848,6 +794,7 @@ function TournamentPage() {
     const draftRef = doc(db, 'drafts', DRAFT_ID);
     await updateDoc(draftRef, {
       status: 'assignment',
+      assignmentStartedAt: Date.now(),
       finalAssignments: finalAssignments,
       assignmentLeaders: {
         teamALeader: teamASource.leader,
@@ -917,6 +864,7 @@ function TournamentPage() {
     const draftRef = doc(db, 'drafts', DRAFT_ID);
     await updateDoc(draftRef, {
       status: 'assignment',
+      assignmentStartedAt: Date.now(),
       finalAssignments: finalAssignments,
       assignmentLeaders: fallbackLeaders
     });
@@ -1571,12 +1519,15 @@ function TournamentPage() {
         setRoulettePhase('done');
         await new Promise(resolve => setTimeout(resolve, 1500));
 
-        // Finalize draft ONLY if admin or super admin
-        // This ensures only one client performs the final Firestore update
+        // Finalize draft: admin, super admin, or Team A leader can trigger this
+        // This ensures the draft starts even if the admin is not viewing
+        // finalizeDraft reads current Firestore state first, so duplicate calls are safe
         const userEmail = getUserEmail(user);
         const isAdmin = userPermission === 'admin' || isSuperAdmin(userEmail);
+        const isTeamALeader = user.uid === draftState.assignmentLeaders?.teamALeader;
+        const isTeamBLeader = user.uid === draftState.assignmentLeaders?.teamBLeader;
 
-        if (isAdmin) {
+        if (isAdmin || isTeamALeader || isTeamBLeader) {
           const timerMs = draftState.timerDuration || 24 * 60 * 60 * 1000;
           await finalizeDraft(timerMs, draftState.finalAssignments, draftState.assignmentLeaders);
         }
@@ -2046,7 +1997,8 @@ function TournamentPage() {
         awaitingLockConfirmation: false,
         lockedPhases: newLockedPhases,
         // Set a flag indicating we're in preparation phase
-        inPreparation: true
+        inPreparation: true,
+        preparationStartedAt: Date.now()
       };
 
       await updateDoc(draftRef, updates);
@@ -2117,205 +2069,10 @@ function TournamentPage() {
     });
   };
 
-  // Auto-pick all remaining picks when timer expires and auto-lock
-  // Auto-pick all remaining picks when timer expires and auto-lock
-  const autoPickAmiko = useCallback(async () => {
-    // Don't auto-pick if waiting for lock confirmation
-    if (draftState.awaitingLockConfirmation) return;
-
-    const draftRef = doc(db, 'drafts', DRAFT_ID);
-
-    // MODE 3: 1v1 Simultaneous Auto-pick
-    if (draftState.draftType === 'mode3') {
-      const updates = {};
-
-      // Check Team A
-      if (draftState.teamA?.length < 3) {
-        const available = draftState.playerAPool.filter(id => !draftState.teamA.includes(id));
-        if (available.length > 0) {
-          const needed = 3 - draftState.teamA.length;
-          const toPick = available.sort(() => 0.5 - Math.random()).slice(0, needed);
-          updates.teamA = [...draftState.teamA, ...toPick];
-        }
-      }
-
-      // Check Team B
-      if (draftState.teamB?.length < 3) {
-        const available = draftState.playerBPool.filter(id => !draftState.teamB.includes(id));
-        if (available.length > 0) {
-          const needed = 3 - draftState.teamB.length;
-          const toPick = available.sort(() => 0.5 - Math.random()).slice(0, needed);
-          updates.teamB = [...draftState.teamB, ...toPick];
-        }
-      }
-
-      // Automatically lock BOTH teams in Mode 3 when timer expires
-      updates.lockedTeams = ['A', 'B'];
-      updates.status = 'completed';
-
-      await updateDoc(draftRef, updates);
-      console.log("1v1 Auto-locked both teams for timeout");
-      return;
-    }
-
-    // Standard Modes (mode1/mode2)
-    const currentPhaseConfig = getPICK_ORDER(draftState.draftType)[draftState.currentPhase];
-    const remainingPicks = currentPhaseConfig.count - draftState.picksInPhase;
-
-    if (remainingPicks <= 0) return;
-
-    const allPicked = [...draftState.teamA, ...draftState.teamB];
-    const available = AMIKOS.filter(a => !allPicked.includes(a.id));
-
-    if (available.length === 0) return;
-
-    // Pick random amikos for all remaining picks
-    const teamKey = draftState.currentTeam === 'A' ? 'teamA' : 'teamB';
-    const newTeamPicks = [...draftState[teamKey]];
-    let currentAvailable = [...available];
-
-    for (let i = 0; i < remainingPicks && currentAvailable.length > 0; i++) {
-      const randomIndex = Math.floor(Math.random() * currentAvailable.length);
-      const randomAmiko = currentAvailable[randomIndex];
-      newTeamPicks.push(randomAmiko.id);
-      currentAvailable.splice(randomIndex, 1); // Remove from available
-    }
-
-    // Now lock and advance to next phase
-    let nextPhase = draftState.currentPhase + 1;
-    let nextTeam = draftState.currentTeam;
-    let newStatus = draftState.status;
-    let updates = {};
-
-    const newLockedPhases = [...(draftState.lockedPhases || []), draftState.currentPhase];
-
-    if (nextPhase >= getPICK_ORDER(draftState.draftType).length) {
-      // Draft completed - no preparation needed
-      newStatus = 'completed';
-      updates = {
-        [teamKey]: newTeamPicks,
-        picksInPhase: currentPhaseConfig.count,
-        status: newStatus,
-        awaitingLockConfirmation: false,
-        lockedPhases: newLockedPhases
-      };
-      await updateDoc(draftRef, updates);
-    } else {
-      // Advance to next phase - but don't start timer yet (preparation phase)
-      nextTeam = getPICK_ORDER(draftState.draftType)[nextPhase].team;
-
-      updates = {
-        [teamKey]: newTeamPicks,
-        picksInPhase: 0,
-        currentPhase: nextPhase,
-        currentTeam: nextTeam,
-        awaitingLockConfirmation: false,
-        lockedPhases: newLockedPhases,
-        inPreparation: true
-      };
-
-      await updateDoc(draftRef, updates);
-
-      // Start the 1.5-second preparation countdown
-      setNextTeamAfterPrep(nextTeam);
-      setPreparationCountdown(1.5);
-      setShowPreparation(true);
-    }
-  }, [draftState, DRAFT_ID]);
-
-  const checkAndUpdateTimer = useCallback(async () => {
-    // Don't check timer if manual start is enabled but timer hasn't started
-    if (draftState.manualTimerStart && !draftState.timerStarted) {
-      return;
-    }
-
-    // Don't check timer during preparation phase
-    if (draftState.inPreparation || showPreparation) {
-      return;
-    }
-
-    const now = Date.now();
-    const timerDuration = draftState.timerDuration || 24 * 60 * 60 * 1000;
-
-    let timerExpired = false;
-
-    if (draftState.draftType === 'mode3' && draftState.sharedTimer) {
-      const elapsed = now - draftState.sharedTimer;
-      const remaining = timerDuration - elapsed;
-      timerExpired = remaining <= 0;
-    } else if (draftState.currentTeam === 'A' && draftState.timerStartA) {
-      const elapsed = now - draftState.timerStartA;
-      const remaining = timerDuration - elapsed;
-      timerExpired = remaining <= 0;
-    } else if (draftState.currentTeam === 'B' && draftState.timerStartB) {
-      const elapsed = now - draftState.timerStartB;
-      const remaining = timerDuration - elapsed;
-      timerExpired = remaining <= 0;
-    }
-
-    if (timerExpired) {
-      const currentPhaseConfig = getPICK_ORDER(draftState.draftType)[draftState.currentPhase];
-      const phaseComplete = currentPhaseConfig && draftState.picksInPhase >= currentPhaseConfig.count;
-
-      if (draftState.awaitingLockConfirmation || phaseComplete) {
-        // Timer expired while:
-        // 1. Confirmation modal is open, OR
-        // 2. Phase is complete but user clicked "Go Back & Change Picks"
-        // In both cases, force lock current picks
-        const draftRef = doc(db, 'drafts', DRAFT_ID);
-
-        let nextPhase = draftState.currentPhase + 1;
-        let nextTeam = draftState.currentTeam;
-        let newStatus = draftState.status;
-        let updates = {};
-
-        const newLockedPhases = [...(draftState.lockedPhases || []), draftState.currentPhase];
-
-        if (nextPhase >= getPICK_ORDER(draftState.draftType).length) {
-          newStatus = 'completed';
-          updates = {
-            status: newStatus,
-            awaitingLockConfirmation: false,
-            lockedPhases: newLockedPhases
-          };
-          await updateDoc(draftRef, updates);
-          setShowLockConfirmation(false);
-        } else {
-          nextTeam = getPICK_ORDER(draftState.draftType)[nextPhase].team;
-
-          updates = {
-            currentPhase: nextPhase,
-            currentTeam: nextTeam,
-            picksInPhase: 0,
-            awaitingLockConfirmation: false,
-            lockedPhases: newLockedPhases,
-            inPreparation: true
-          };
-
-          await updateDoc(draftRef, updates);
-          setShowLockConfirmation(false);
-
-          // Start the 1.5-second preparation countdown
-          setNextTeamAfterPrep(nextTeam);
-          setPreparationCountdown(1.5);
-          setShowPreparation(true);
-        }
-      } else {
-        // Timer expired normally - auto-pick remaining and lock
-        await autoPickAmiko();
-      }
-    }
-  }, [draftState, autoPickAmiko, DRAFT_ID, showPreparation]);
-
-  useEffect(() => {
-    if (draftState.status !== 'active') return;
-
-    const interval = setInterval(() => {
-      checkAndUpdateTimer();
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [draftState.status, checkAndUpdateTimer]);
+  // ─── TIMER EXPIRY & AUTO-PICK ───
+  // Handled server-side by Cloud Function (checkTimers).
+  // The server checks every ~15s for expired timers, auto-picks, and advances phases.
+  // Client only displays the countdown (see getCurrentTimer below).
 
 
   // Toggle participant selection

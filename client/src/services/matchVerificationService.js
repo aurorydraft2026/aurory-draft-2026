@@ -1,14 +1,12 @@
 // matchVerificationService.js
 // Automatic match verification for Aurory Draft tournaments
-// Uses /v1/matches global endpoint to verify in-game battles match drafted lineups
+// Uses Cloud Functions proxy to call /v1/matches global endpoint
 
 import {
   doc, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs
 } from 'firebase/firestore';
 import { db } from '../firebase';
-
-const AURORY_API_BASE = 'https://aggregator-api.live.aurory.io';
-const CORS_PROXY = 'https://corsproxy.io/?';
+import { auroryFetch } from './auroryProxyClient';
 
 // ============================================================================
 // API: Fetch match by battle code from global /v1/matches endpoint
@@ -21,23 +19,10 @@ const CORS_PROXY = 'https://corsproxy.io/?';
  * @returns {Promise<Array>} Array of match objects
  */
 export async function fetchMatchByBattleCode(battleCode) {
-  const params = new URLSearchParams({
-    battle_code: battleCode
-  });
-
-  const apiUrl = `${AURORY_API_BASE}/v1/matches?${params}`;
-  const proxyUrl = `${CORS_PROXY}${encodeURIComponent(apiUrl)}`;
+  const params = `battle_code=${encodeURIComponent(battleCode)}`;
 
   try {
-    const response = await fetch(proxyUrl, {
-      headers: { 'accept': 'application/json' }
-    });
-
-    if (!response.ok) {
-      return { error: `API error: ${response.status}`, matches: [] };
-    }
-
-    const result = await response.json();
+    const result = await auroryFetch('/v1/matches', params);
     return { matches: result.data || [], error: null };
   } catch (error) {
     console.error('Error fetching match by battle code:', error);
@@ -556,72 +541,14 @@ async function backfillMatchPlayers(draftId, draftData) {
  * someone to visit each tournament page.
  * @returns {Promise<number>} Number of drafts newly verified
  */
+/**
+ * @deprecated Verification scanning is now handled server-side by the verifyMatches Cloud Function.
+ * This function is kept for backwards compatibility but returns 0 immediately.
+ * The server runs every 2 minutes and verifies completed drafts automatically.
+ */
 export async function scanAndVerifyCompletedDrafts() {
-  try {
-    const draftsRef = collection(db, 'drafts');
-
-    // Find completed drafts that haven't been fully verified
-    const q = query(
-      draftsRef,
-      where('status', '==', 'completed')
-    );
-
-    const snapshot = await getDocs(q);
-    let newlyVerified = 0;
-
-    for (const docSnap of snapshot.docs) {
-      const data = docSnap.data();
-      const draftId = docSnap.id;
-
-      // Skip if already fully verified (but re-check if all results were DQ - may be false positive from case mismatch)
-      if (data.verificationStatus === 'complete') {
-        const hasRealDQ = (data.matchResults || []).some(r =>
-          r.status === 'both_disqualified' || r.status === 'disqualified_A' || r.status === 'disqualified_B'
-        );
-        if (!hasRealDQ) continue; // Legitimate verification, skip
-        // Otherwise re-verify to fix potential case mismatch false positives
-      }
-
-      // Skip if no battle codes exist
-      if (!data.privateCode && !data.privateCodes) continue;
-
-      // Backfill: If no matchPlayers or finalAssignments, try to reconstruct from permissions
-      if (!data.matchPlayers?.length && !data.finalAssignments?.length) {
-        const backfilled = await backfillMatchPlayers(draftId, data);
-        if (!backfilled) continue; // Can't reconstruct, skip
-        data.matchPlayers = backfilled;
-      }
-
-      // Check if we've checked recently (throttle to every 2 minutes per draft)
-      const lastCheck = data.lastVerificationCheck?.toMillis?.() || data.lastVerificationCheck || 0;
-      if (lastCheck && (Date.now() - lastCheck) < 120000) continue;
-
-      try {
-        const verificationData = await verifyDraftBattles(data, []);
-
-        if (verificationData.results && verificationData.results.length > 0) {
-          const hasResults = verificationData.results.some(
-            r => r.status !== 'not_found' && r.status !== 'error'
-          );
-          if (hasResults || verificationData.allVerified) {
-            await saveVerificationResults(draftId, verificationData);
-            newlyVerified++;
-          } else {
-            // Still update the check timestamp to throttle retries
-            const draftRef = doc(db, 'drafts', draftId);
-            await updateDoc(draftRef, { lastVerificationCheck: serverTimestamp() });
-          }
-        }
-      } catch (err) {
-        console.error(`Error verifying draft ${draftId}:`, err);
-      }
-    }
-
-    return newlyVerified;
-  } catch (error) {
-    console.error('Error scanning completed drafts:', error);
-    return 0;
-  }
+  console.log('scanAndVerifyCompletedDrafts: Now handled by Cloud Function (verifyMatches). Skipping client-side scan.');
+  return 0;
 }
 
 const matchVerificationService = {
@@ -630,7 +557,8 @@ const matchVerificationService = {
   verifyDraftBattles,
   saveVerificationResults,
   fetchVerifiedMatches,
-  scanAndVerifyCompletedDrafts
+  scanAndVerifyCompletedDrafts,
+  backfillMatchPlayers
 };
 
 export default matchVerificationService;
