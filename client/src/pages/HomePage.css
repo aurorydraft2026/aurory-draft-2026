@@ -799,22 +799,45 @@
    DRAFTS SECTION
    ============================================================ */
 .tournaments-section {
+  margin-top: 50px;
   margin-bottom: 40px;
+  position: relative;
 }
 
 .tournaments-header {
-  margin-bottom: 8px;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tournaments-header::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 80px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+  box-shadow: 0 0 10px var(--accent-cyan-glow);
 }
 
 .tournaments-header>h3,
 .tournaments-section>h3 {
   font-family: 'Exo 2', sans-serif;
-  font-weight: 700;
-  font-size: 1.15rem;
+  font-weight: 800;
+  font-size: 1.3rem;
   color: var(--text-bright);
   margin: 0;
+  padding-left: 12px;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 2px;
+  border-left: 3px solid var(--accent-cyan);
+  background: radial-gradient(circle at left, rgba(0, 200, 255, 0.08) 0%, transparent 60%);
+  line-height: 1.2;
 }
 
 /* Tournament Filter Tabs */
@@ -4358,6 +4381,23 @@
     line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  .banner-social-buttons {
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .banner-social-btn {
+    padding: 0;
+    width: 36px;
+    height: 36px;
+    justify-content: center;
+    border-radius: 50%;
+  }
+
+  .social-btn-label {
+    display: none;
   }
 
   .banner-indicators {
