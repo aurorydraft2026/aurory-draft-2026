@@ -17,7 +17,7 @@
  *   - /v2/players                (player profiles)
  */
 
-
+import fetch from 'node-fetch';
 
 const AURORY_LIVE = 'https://aggregator-api.live.aurory.io';
 const AURORY_DEV = 'https://aggregator-api.dev.aurory.io';
@@ -77,7 +77,8 @@ export async function handleAuroryProxy(req: any, res: any): Promise<void> {
     console.log(`🔄 Proxying: ${endpoint}${params ? '?' + params : ''} (${env})`);
 
     const response = await fetch(url, {
-      headers: { 'accept': 'application/json' }
+      headers: { 'accept': 'application/json' },
+      timeout: 15000 // 15 second timeout
     });
 
     const data = await response.json();

@@ -16,6 +16,8 @@ import {
   limit,
   runTransaction,
   deleteField,
+  arrayUnion,
+  increment,
   where,
   documentId,
   startAt,
@@ -1708,101 +1710,38 @@ function TournamentPage() {
     return false;
   };
 
-  // Execute the pick (autoLock = true bypasses confirmation, used for timer expiry)
-  const executePick = useCallback(async (amikoId, autoLock = false) => {
+  // Execute the pick — fast write using arrayUnion + increment (no transaction needed)
+  const executePick = useCallback(async (amikoId) => {
     const draftRef = doc(db, 'drafts', DRAFT_ID);
+    const teamKey = draftState.currentTeam === 'A' ? 'teamA' : 'teamB';
+
+    // Client-side duplicate check (server-safe via arrayUnion which won't add dupes)
+    const allPicked = [...(draftState.teamA || []), ...(draftState.teamB || [])];
+    if (allPicked.includes(amikoId)) {
+      showAlert('Already Picked', 'This Amiko has already been picked!');
+      return;
+    }
+
+    const currentPhaseConfig = getPICK_ORDER(draftState.draftType || 'mode1')[draftState.currentPhase || 0];
+    const newPicksInPhase = (draftState.picksInPhase || 0) + 1;
+
+    const updateData = {
+      [teamKey]: arrayUnion(amikoId),
+      picksInPhase: increment(1)
+    };
+
+    // If this pick completes the phase, set awaitingLockConfirmation
+    if (newPicksInPhase >= currentPhaseConfig.count) {
+      updateData.awaitingLockConfirmation = true;
+    }
 
     try {
-      await runTransaction(db, async (transaction) => {
-        // Read the current state from server (not local state)
-        const draftDoc = await transaction.get(draftRef);
-        if (!draftDoc.exists()) {
-          throw new Error('Draft not found');
-        }
-
-        const serverData = draftDoc.data();
-        const serverTeamA = serverData.teamA || [];
-        const serverTeamB = serverData.teamB || [];
-
-        // SERVER-SIDE VALIDATION: Check if amiko is already picked
-        if ([...serverTeamA, ...serverTeamB].includes(amikoId)) {
-          throw new Error('ALREADY_PICKED');
-        }
-
-        const currentPhaseConfig = getPICK_ORDER(serverData.draftType || 'mode1')[serverData.currentPhase || 0];
-        const teamKey = serverData.currentTeam === 'A' ? 'teamA' : 'teamB';
-        const currentTeamPicks = serverData[teamKey] || [];
-        const newTeamPicks = [...currentTeamPicks, amikoId];
-        const newPicksInPhase = (serverData.picksInPhase || 0) + 1;
-
-        // Check if this completes the current phase
-        if (newPicksInPhase >= currentPhaseConfig.count) {
-          if (autoLock) {
-            // Auto-lock: directly lock and advance without confirmation
-            let nextPhase = (serverData.currentPhase || 0) + 1;
-            let nextTeam = serverData.currentTeam;
-            let newStatus = serverData.status;
-            let updates = {};
-
-            const newLockedPhases = [...(serverData.lockedPhases || []), serverData.currentPhase];
-
-            if (nextPhase >= getPICK_ORDER(serverData.draftType || 'mode1').length) {
-              // Draft completed
-              newStatus = 'completed';
-              updates = {
-                [teamKey]: newTeamPicks,
-                picksInPhase: newPicksInPhase,
-                status: newStatus,
-                awaitingLockConfirmation: false,
-                lockedPhases: newLockedPhases
-              };
-            } else {
-              // Advance to next phase
-              nextTeam = getPICK_ORDER(serverData.draftType || 'mode1')[nextPhase].team;
-
-              updates = {
-                [teamKey]: newTeamPicks,
-                picksInPhase: 0,
-                currentPhase: nextPhase,
-                currentTeam: nextTeam,
-                awaitingLockConfirmation: false,
-                lockedPhases: newLockedPhases
-              };
-
-              // Reset timer for next team
-              if (nextTeam === 'A') {
-                updates.timerStartA = Date.now();
-              } else {
-                updates.timerStartB = Date.now();
-              }
-            }
-
-            transaction.update(draftRef, updates);
-          } else {
-            // Manual pick: show confirmation modal
-            transaction.update(draftRef, {
-              [teamKey]: newTeamPicks,
-              picksInPhase: newPicksInPhase,
-              awaitingLockConfirmation: true
-            });
-          }
-        } else {
-          // Normal pick - just update
-          transaction.update(draftRef, {
-            [teamKey]: newTeamPicks,
-            picksInPhase: newPicksInPhase
-          });
-        }
-      });
+      await updateDoc(draftRef, updateData);
     } catch (error) {
-      if (error.message === 'ALREADY_PICKED') {
-        showAlert('Already Picked', 'This Amiko was just picked by someone else!');
-      } else {
-        console.error('Error executing pick:', error);
-        showAlert('Error', 'Failed to pick Amiko. Please try again.');
-      }
+      console.error('Error executing pick:', error);
+      showAlert('Error', 'Failed to pick Amiko. Please try again.');
     }
-  }, [DRAFT_ID, showAlert]);
+  }, [DRAFT_ID, draftState, showAlert]);
 
   // Send a chat message
   const sendChatMessage = async (e) => {
@@ -2282,12 +2221,6 @@ function TournamentPage() {
       return;
     }
 
-    // Don't allow removal while waiting for lock confirmation (picks are being finalized)
-    if (draftState.awaitingLockConfirmation) {
-      showAlert('Confirming Picks', 'Cannot remove picks while confirming. Please confirm or go back to edit.');
-      return;
-    }
-
     const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
     if (userPermission !== team && !isAdmin) return;
 
@@ -2306,13 +2239,16 @@ function TournamentPage() {
 
     currentTeamPicks.splice(index, 1);
 
-    // Also decrement the picksInPhase counter
+    // Decrement picksInPhase and clear awaitingLockConfirmation so user can re-pick
     const newPicksInPhase = Math.max(0, draftState.picksInPhase - 1);
 
     await updateDoc(draftRef, {
       [teamKey]: currentTeamPicks,
-      picksInPhase: newPicksInPhase
+      picksInPhase: newPicksInPhase,
+      awaitingLockConfirmation: false
     });
+
+    setShowLockConfirmation(false);
 
     // Play remove sound effect
     playRemoveSound();

@@ -714,6 +714,7 @@ export async function getLinkedAuroryAccount(userId) {
       playerName: data.auroryPlayerName,
       wallet: data.auroryWallet,
       profilePicture: data.auroryProfilePicture,
+      isAurorian: data.isAurorian || false,
       linkedAt: data.auroryLinkedAt?.toDate?.() || data.auroryLinkedAt,
       lastSync: data.auroryLastSync?.toDate?.() || data.auroryLastSync
     };
