@@ -32,6 +32,8 @@ import { createNotification } from '../services/notifications';
 import Mode1Draft from '../components/drafts/Mode1Draft';
 import Mode2Draft from '../components/drafts/Mode2Draft';
 import Mode3Draft from '../components/drafts/Mode3Draft';
+import Mode4Draft from '../components/drafts/Mode4Draft';
+import '../components/drafts/Mode4Draft.css';
 import { verifyDraftBattles, saveVerificationResults } from '../services/matchVerificationService';
 import './TournamentPage.css';
 
@@ -369,6 +371,17 @@ function TournamentPage() {
       }
     }
 
+    // Handle 1v1 Ban Draft mode (mode4) - turn-based with standard timer
+    if (existingDraft?.draftType === 'mode4') {
+      updateData.teamABans = [];
+      updateData.teamBBans = [];
+      updateData.bannedAmikos = [];
+
+      if (!existingDraft?.privateCode && !updateData.privateCode) {
+        updateData.privateCode = Math.floor(10000 + Math.random() * 90000).toString();
+      }
+    }
+
     // NEW: Handle 3v3 Battle Codes (mode1, mode2)
     if (existingDraft?.draftType === 'mode1' || existingDraft?.draftType === 'mode2') {
       if (!existingDraft?.privateCodes && !updateData.privateCodes) {
@@ -390,7 +403,7 @@ function TournamentPage() {
       const tournamentTitle = existingDraft?.title || 'Tournament';
       const tournamentLink = `/tournament/${DRAFT_ID}`;
 
-      if (existingDraft?.draftType === 'mode3') {
+      if (existingDraft?.draftType === 'mode3' || existingDraft?.draftType === 'mode4') {
         const p1 = assignments.find(a => a.team === 'A')?.participant;
         const p2 = assignments.find(a => a.team === 'B')?.participant;
         const code = updateData.privateCode || existingDraft?.privateCode;
@@ -823,8 +836,8 @@ function TournamentPage() {
     const teamAUsers = [];
     const teamBUsers = [];
 
-    if (draftState.draftType === 'mode3') {
-      // MODE 3: 1v1 Single Draft - Auto-select FIRST 2 registered users
+    if (draftState.draftType === 'mode3' || draftState.draftType === 'mode4') {
+      // MODE 3/4: 1v1 Modes - Auto-select FIRST 2 registered users
       // We assume registeredUsers matches the display order (registration order)
       // Filter to find valid participants (those who have permission or are in the list)
       const validParticipants = registeredUsers.filter(u => participants.includes(u.uid || u.id));
@@ -876,11 +889,12 @@ function TournamentPage() {
   useEffect(() => {
     if (tempPick) {
       const teamPicks = tempPick.team === 'A' ? draftState.teamA : draftState.teamB;
-      if (teamPicks.includes(tempPick.id)) {
+      const teamBans = tempPick.team === 'A' ? (draftState.teamABans || []) : (draftState.teamBBans || []);
+      if (teamPicks.includes(tempPick.id) || teamBans.includes(tempPick.id)) {
         setTempPick(null);
       }
     }
-  }, [draftState.teamA, draftState.teamB, tempPick]);
+  }, [draftState.teamA, draftState.teamB, draftState.teamABans, draftState.teamBBans, tempPick]);
 
   // Derived state including temp pick (for flicker-free rendering)
   const displayTeamA = [...draftState.teamA];
@@ -891,6 +905,21 @@ function TournamentPage() {
   const displayTeamB = [...draftState.teamB];
   if (tempPick && tempPick.team === 'B' && !displayTeamB.includes(tempPick.id)) {
     displayTeamB.push(tempPick.id);
+  }
+
+  // Mode4: Derived ban display including temp pick during ban phases
+  const displayTeamABans = [...(draftState.teamABans || [])];
+  const displayTeamBBans = [...(draftState.teamBBans || [])];
+  if (tempPick && draftState.draftType === 'mode4') {
+    const currentPhaseConfig = getPICK_ORDER('mode4')[draftState.currentPhase || 0];
+    if (currentPhaseConfig?.isBan) {
+      if (tempPick.team === 'A' && !displayTeamABans.includes(tempPick.id)) {
+        displayTeamABans.push(tempPick.id);
+      }
+      if (tempPick.team === 'B' && !displayTeamBBans.includes(tempPick.id)) {
+        displayTeamBBans.push(tempPick.id);
+      }
+    }
   }
 
   // Helper: can this user see private battle codes?
@@ -989,7 +1018,11 @@ function TournamentPage() {
           verificationStatus: data.verificationStatus || null,
           overallWinner: data.overallWinner || null,
           lastVerificationCheck: data.lastVerificationCheck || null,
-          matchPlayers: data.matchPlayers || null
+          matchPlayers: data.matchPlayers || null,
+          // Mode 4 - Ban Draft fields
+          teamABans: data.teamABans || [],
+          teamBBans: data.teamBBans || [],
+          bannedAmikos: data.bannedAmikos || []
         };
 
         setDraftState(normalizedData);
@@ -1144,7 +1177,7 @@ function TournamentPage() {
     const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
     if (userPermission === 'spectator') {
       setChatTab('spectator');
-    } else if (draftState.draftType === 'mode3') {
+    } else if (draftState.draftType === 'mode3' || draftState.draftType === 'mode4') {
       setChatTab('freeforall');
     } else if (isAdmin) {
       setChatTab('freeforall'); // Admins likely want to see the participants chat by default
@@ -1623,12 +1656,26 @@ function TournamentPage() {
   // Helper function to check if a specific pick index is locked
   const isPickLocked = (team, pickIndex) => {
     if (!draftState.lockedPhases || draftState.lockedPhases.length === 0) {
-      if (draftState.draftType !== 'mode3') return false;
+      if (draftState.draftType !== 'mode3' && draftState.draftType !== 'mode4') return false;
     }
 
     // Mode 3 Logic - 1v1 Single Draft
     if (draftState.draftType === 'mode3') {
       return isTeamLocked(team);
+    }
+
+    // Mode 4 Logic - Ban Draft pick phase mapping
+    if (draftState.draftType === 'mode4') {
+      // Pick phases: B-1(ph4), A-2(ph5), B-2(ph6), A-1(ph7)
+      if (team === 'A') {
+        // Team A: indices 0-1 → phase 5, index 2 → phase 7
+        if (pickIndex <= 1) return draftState.lockedPhases.includes(5);
+        return draftState.lockedPhases.includes(7);
+      } else {
+        // Team B: index 0 → phase 4, indices 1-2 → phase 6
+        if (pickIndex === 0) return draftState.lockedPhases.includes(4);
+        return draftState.lockedPhases.includes(6);
+      }
     }
 
     // MODE 1 Logic - Map pick indices to phases
@@ -1683,6 +1730,11 @@ function TournamentPage() {
       return userPermission === team;
     }
 
+    // Mode 4: NOT blind — all picks visible to everyone
+    if (draftState.draftType === 'mode4') {
+      return true;
+    }
+
     // Admins and owners can see their own team's picks
     if (userPermission === 'admin' || isSuperAdmin(getUserEmail(user)) || userPermission === team) {
       return true;
@@ -1715,11 +1767,21 @@ function TournamentPage() {
     const draftRef = doc(db, 'drafts', DRAFT_ID);
     const teamKey = draftState.currentTeam === 'A' ? 'teamA' : 'teamB';
 
-    // Client-side duplicate check (server-safe via arrayUnion which won't add dupes)
-    const allPicked = [...(draftState.teamA || []), ...(draftState.teamB || [])];
-    if (allPicked.includes(amikoId)) {
-      showAlert('Already Picked', 'This Amiko has already been picked!');
-      return;
+    // Client-side duplicate check
+    // Mode4: only check own team (opponent CAN pick same amiko)
+    // Other modes: check both teams (exclusive picks)
+    if (draftState.draftType === 'mode4') {
+      const myPicks = draftState[teamKey] || [];
+      if (myPicks.includes(amikoId)) {
+        showAlert('Already Picked', 'You have already picked this Amiko!');
+        return;
+      }
+    } else {
+      const allPicked = [...(draftState.teamA || []), ...(draftState.teamB || [])];
+      if (allPicked.includes(amikoId)) {
+        showAlert('Already Picked', 'This Amiko has already been picked!');
+        return;
+      }
     }
 
     const currentPhaseConfig = getPICK_ORDER(draftState.draftType || 'mode1')[draftState.currentPhase || 0];
@@ -2074,6 +2136,88 @@ function TournamentPage() {
     playLockSound();
   }, [DRAFT_ID, draftState, playLockSound]);
 
+  // ─── MODE 4: BAN DRAFT FUNCTIONS ───
+
+  // Check if a ban is locked (mode4 ban phase mapping)
+  const isBanLocked = useCallback((team, banIndex) => {
+    if (!draftState.lockedPhases || draftState.lockedPhases.length === 0) return false;
+    // Ban phases: A-1(ph0), B-2(ph1), A-2(ph2), B-1(ph3)
+    if (team === 'A') {
+      // Team A: index 0 → phase 0, indices 1-2 → phase 2
+      if (banIndex === 0) return draftState.lockedPhases.includes(0);
+      return draftState.lockedPhases.includes(2);
+    } else {
+      // Team B: indices 0-1 → phase 1, index 2 → phase 3
+      if (banIndex <= 1) return draftState.lockedPhases.includes(1);
+      return draftState.lockedPhases.includes(3);
+    }
+  }, [draftState.lockedPhases]);
+
+  // Execute a ban (mode4 ban phases) — same pattern as executePick but writes to ban arrays
+  const executeBan = useCallback(async (amikoId) => {
+    const draftRef = doc(db, 'drafts', DRAFT_ID);
+    const teamKey = draftState.currentTeam === 'A' ? 'teamABans' : 'teamBBans';
+
+    const currentPhaseConfig = getPICK_ORDER(draftState.draftType || 'mode4')[draftState.currentPhase || 0];
+    const newPicksInPhase = (draftState.picksInPhase || 0) + 1;
+
+    const updateData = {
+      [teamKey]: arrayUnion(amikoId),
+      bannedAmikos: arrayUnion(amikoId),
+      picksInPhase: increment(1)
+    };
+
+    if (newPicksInPhase >= currentPhaseConfig.count) {
+      updateData.awaitingLockConfirmation = true;
+    }
+
+    try {
+      await updateDoc(draftRef, updateData);
+    } catch (error) {
+      console.error('Error executing ban:', error);
+      showAlert('Error', 'Failed to ban Amiko. Please try again.');
+    }
+  }, [DRAFT_ID, draftState, showAlert]);
+
+  // Remove a ban (mode4 ban phases)
+  const removeBan = useCallback(async (team, index) => {
+    if (!user || draftState.status !== 'active') return;
+    if (isBanLocked(team, index)) {
+      showAlert('Ban Locked', 'This ban is locked and cannot be changed!');
+      return;
+    }
+
+    const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
+    if (userPermission !== team && !isAdmin) return;
+
+    const isTeamLeader = (team === 'A' && user.uid === draftState.teamALeader) ||
+      (team === 'B' && user.uid === draftState.teamBLeader);
+    if (!isTeamLeader && !isAdmin) return;
+
+    const draftRef = doc(db, 'drafts', DRAFT_ID);
+    const banKey = team === 'A' ? 'teamABans' : 'teamBBans';
+    const currentBans = [...(draftState[banKey] || [])];
+    const removedId = currentBans[index];
+    currentBans.splice(index, 1);
+
+    // Also remove from bannedAmikos
+    const currentBanned = [...(draftState.bannedAmikos || [])];
+    const bannedIdx = currentBanned.indexOf(removedId);
+    if (bannedIdx !== -1) currentBanned.splice(bannedIdx, 1);
+
+    const newPicksInPhase = Math.max(0, draftState.picksInPhase - 1);
+
+    await updateDoc(draftRef, {
+      [banKey]: currentBans,
+      bannedAmikos: currentBanned,
+      picksInPhase: newPicksInPhase,
+      awaitingLockConfirmation: false
+    });
+
+    setShowLockConfirmation(false);
+    playRemoveSound();
+  }, [DRAFT_ID, draftState, user, userPermission, playRemoveSound, showAlert, isBanLocked]);
+
   // Pick an Amiko
   const pickAmiko = useCallback(async (amikoId) => {
     if (!user) {
@@ -2102,6 +2246,99 @@ function TournamentPage() {
 
     // Determine which team the current user is on
     const userTeam = userPermission === 'A' ? 'A' : userPermission === 'B' ? 'B' : null;
+
+    // Handle 1v1 Ban Draft mode (mode4) - turn-based ban + pick phases
+    if (draftState.draftType === 'mode4') {
+      if (!userTeam && !isAdmin) {
+        showAlert('Not a Participant', 'Only the two draft participants can pick!');
+        return;
+      }
+
+      // LEADER-ONLY check
+      const isTeamLeader = (userTeam === 'A' && user.uid === draftState.teamALeader) ||
+        (userTeam === 'B' && user.uid === draftState.teamBLeader);
+      if (!isTeamLeader && !isAdmin) {
+        showAlert('Captain Only', 'Only the team captain can make selections.');
+        return;
+      }
+
+      // Check if it's this team's turn
+      if (userTeam !== draftState.currentTeam && !isAdmin) {
+        showAlert('Not Your Turn', `It's ${draftState.currentTeam === 'A' ? 'Player 1' : 'Player 2'}'s turn!`);
+        return;
+      }
+
+      const currentPhaseConfig = getPICK_ORDER('mode4')[draftState.currentPhase || 0];
+      const isBanPhase = currentPhaseConfig?.isBan;
+
+      if (isBanPhase) {
+        // BAN PHASE — check against banned amikos
+        const bannedAmikos = draftState.bannedAmikos || [];
+        if (bannedAmikos.includes(amikoId)) {
+          showAlert('Already Banned', 'This Amiko has already been banned!');
+          return;
+        }
+
+        // Element diversity constraint — each player's 3 bans must be different elements
+        const myBans = userTeam === 'A' ? (draftState.teamABans || []) : (draftState.teamBBans || []);
+        const banAmiko = AMIKOS.find(a => a.id === amikoId);
+        if (banAmiko?.element) {
+          const myBannedElements = myBans.map(banId => {
+            const a = AMIKOS.find(x => x.id === banId);
+            return a?.element;
+          }).filter(Boolean);
+          if (myBannedElements.includes(banAmiko.element)) {
+            showAlert('Same Element', `You already banned a ${banAmiko.element} type! Your 3 bans must be different elements.`);
+            return;
+          }
+        }
+
+        if (isPickingRef.current) return;
+        isPickingRef.current = true;
+
+        setTempPick({ id: amikoId, team: userTeam });
+        playPickSound();
+
+        try {
+          await executeBan(amikoId);
+        } catch (error) {
+          setTempPick(null);
+          console.log('Ban failed:', error);
+        } finally {
+          isPickingRef.current = false;
+        }
+      } else {
+        // PICK PHASE — check against banned + already picked by OWN team
+        const bannedAmikos = draftState.bannedAmikos || [];
+        if (bannedAmikos.includes(amikoId)) {
+          showAlert('Banned', 'This Amiko has been banned and cannot be picked!');
+          return;
+        }
+
+        // Only check own team — opponent CAN pick the same amiko
+        const myPicks = userTeam === 'A' ? (draftState.teamA || []) : (draftState.teamB || []);
+        if (myPicks.includes(amikoId)) {
+          showAlert('Already Picked', 'You have already picked this Amiko!');
+          return;
+        }
+
+        if (isPickingRef.current) return;
+        isPickingRef.current = true;
+
+        setTempPick({ id: amikoId, team: userTeam });
+        playPickSound();
+
+        try {
+          await executePick(amikoId);
+        } catch (error) {
+          setTempPick(null);
+          console.log('Pick failed:', error);
+        } finally {
+          isPickingRef.current = false;
+        }
+      }
+      return;
+    }
 
     // Handle 1v1 Single Draft mode (mode3) - simultaneous picking
     if (draftState.simultaneousPicking || draftState.draftType === 'mode3') {
@@ -2208,7 +2445,7 @@ function TournamentPage() {
     } finally {
       isPickingRef.current = false;
     }
-  }, [user, draftState, userPermission, execute1v1Pick, executePick, isTeamLocked, showAlert, tempPick, playPickSound]);
+  }, [user, draftState, userPermission, execute1v1Pick, executePick, executeBan, isTeamLocked, showAlert, tempPick, playPickSound]);
 
 
   // Remove an Amiko
@@ -2308,7 +2545,11 @@ function TournamentPage() {
           playerAPool: [],
           playerBPool: [],
           simultaneousPicking: false,
-          sharedTimer: null
+          sharedTimer: null,
+          // Mode4 ban state cleanup
+          teamABans: [],
+          teamBBans: [],
+          bannedAmikos: []
         });
 
         // Reset participant selection
@@ -2776,7 +3017,7 @@ function TournamentPage() {
 
   // Helper to get consistent team display name based on identity mapping
   const getTeamDisplayName = (team) => {
-    if (draftState.draftType === 'mode3') {
+    if (draftState.draftType === 'mode3' || draftState.draftType === 'mode4') {
       return getTeamLeader(team)?.displayName || (team === 'A' ? 'Player 1' : 'Player 2');
     }
     const color = team === 'A' ? draftState.teamColors?.teamA : draftState.teamColors?.teamB;
@@ -2825,19 +3066,24 @@ function TournamentPage() {
   const getCurrentPhasePicks = () => {
     const currentPhaseConfig = getPICK_ORDER(draftState.draftType)[draftState.currentPhase];
     const team = currentPhaseConfig.team;
-    const teamPicks = team === 'A' ? draftState.teamA : draftState.teamB;
 
-    // Calculate how many picks were made before this phase by this team
+    // Mode4 ban phases: pull from ban arrays instead of team arrays
+    const isBan = currentPhaseConfig.isBan;
+    const teamPicks = isBan
+      ? (team === 'A' ? (draftState.teamABans || []) : (draftState.teamBBans || []))
+      : (team === 'A' ? draftState.teamA : draftState.teamB);
+
+    // Calculate how many items were made before this phase by this team (same type only)
     const pickOrder = getPICK_ORDER(draftState.draftType);
     let picksBefore = 0;
 
     for (let i = 0; i < draftState.currentPhase; i++) {
-      if (pickOrder[i].team === team) {
+      if (pickOrder[i].team === team && !!pickOrder[i].isBan === !!isBan) {
         picksBefore += pickOrder[i].count;
       }
     }
 
-    // Return only the picks made in the current phase
+    // Return only the picks/bans made in the current phase
     const picksInCurrentPhase = currentPhaseConfig.count;
     return teamPicks.slice(picksBefore, picksBefore + picksInCurrentPhase);
   };
@@ -2915,7 +3161,10 @@ function TournamentPage() {
     isSuperAdmin,
     getUserEmail,
     getPICK_ORDER,
-    shuffleHighlights
+    shuffleHighlights,
+    // Mode4 ban handlers
+    removeBan,
+    isBanLocked
   };
 
   const draftUtils = {
@@ -2975,8 +3224,8 @@ function TournamentPage() {
           showLockConfirmation && (
             <div className="modal-overlay">
               <div className="lock-confirmation-modal">
-                <h3>🔒 Confirm Your Picks</h3>
-                <p>You have completed your picks for this phase. Please review and confirm to lock them.</p>
+                <h3>{getPICK_ORDER(draftState.draftType)[draftState.currentPhase]?.isBan ? '🚫 Confirm Your Bans' : '🔒 Confirm Your Picks'}</h3>
+                <p>You have completed your {getPICK_ORDER(draftState.draftType)[draftState.currentPhase]?.isBan ? 'bans' : 'picks'} for this phase. Please review and confirm to lock them.</p>
 
                 <div className={`modal-timer ${currentTimerDisplay === '00:00:00' ? 'expired' : ''}`}>
                   ⏱️ Time remaining: <strong>{currentTimerDisplay === '00:00:00' ? 'EXPIRED' : currentTimerDisplay}</strong>
@@ -2989,9 +3238,16 @@ function TournamentPage() {
                 )}
 
                 <div className="phase-picks-preview">
-                  <h4>Your picks for {getPICK_ORDER(draftState.draftType)[draftState.currentPhase]?.label}:</h4>
+                  <h4>Your {getPICK_ORDER(draftState.draftType)[draftState.currentPhase]?.isBan ? 'bans' : 'picks'} for {getPICK_ORDER(draftState.draftType)[draftState.currentPhase]?.label}:</h4>
                   <div className="picks-grid">
                     {getCurrentPhasePicks().map((amikoId, index) => {
+                      if (amikoId === 'no_ban') {
+                        return (
+                          <div key={index} className="preview-pick no-ban-preview">
+                            <span>No Ban</span>
+                          </div>
+                        );
+                      }
                       const amiko = AMIKOS.find(a => a.id === amikoId);
                       return (
                         <div key={index} className="preview-pick">
@@ -3011,11 +3267,11 @@ function TournamentPage() {
                 {currentTimerDisplay !== '00:00:00' && (
                   <>
                     <div className="modal-warning">
-                      ⚠️ Once locked, these picks <strong>cannot be changed</strong>.
+                      ⚠️ Once locked, these selections <strong>cannot be changed</strong>.
                     </div>
 
                     <div className="modal-auto-lock-notice">
-                      🔄 Picks will auto-lock when timer expires
+                      🔄 Selections will auto-lock when timer expires
                     </div>
                   </>
                 )}
@@ -3026,14 +3282,14 @@ function TournamentPage() {
                     className={`confirm-lock-btn ${currentTimerDisplay === '00:00:00' ? 'disabled' : ''}`}
                     disabled={currentTimerDisplay === '00:00:00'}
                   >
-                    ✓ Confirm & Lock Picks
+                    ✓ Confirm & Lock
                   </button>
                   <button
                     onClick={cancelLockConfirmation}
                     className={`cancel-lock-btn ${currentTimerDisplay === '00:00:00' ? 'disabled' : ''}`}
                     disabled={currentTimerDisplay === '00:00:00'}
                   >
-                    ← Go Back & Change Picks
+                    ← Go Back & Change {getPICK_ORDER(draftState.draftType)[draftState.currentPhase]?.isBan ? 'Bans' : 'Picks'}
                   </button>
                 </div>
               </div>
@@ -3227,13 +3483,13 @@ function TournamentPage() {
                               className="turn-choice-btn first-pick"
                               onClick={() => selectTurnOrder('first')}
                             >
-                              1️⃣ 1st Pick
+                              {draftState.draftType === 'mode4' ? '1️⃣ 1st Ban' : '1️⃣ 1st Pick'}
                             </button>
                             <button
                               className="turn-choice-btn second-pick"
                               onClick={() => selectTurnOrder('second')}
                             >
-                              2️⃣ 2nd Pick
+                              {draftState.draftType === 'mode4' ? '2️⃣ 1st Pick' : '2️⃣ 2nd Pick'}
                             </button>
                           </div>
                         )}
@@ -3274,7 +3530,9 @@ function TournamentPage() {
                         const winner = draftState.coinFlip.winner;
                         const winnerName = winner === 1 ? (draftState.teamNames?.team1 || 'Team 1') : (draftState.teamNames?.team2 || 'Team 2');
                         const winnerBanner = winner === 1 ? draftState.teamBanners?.team1 : draftState.teamBanners?.team2;
-                        const choice = draftState.coinFlip.winnerTurnChoice === 'first' ? '1st Pick' : '2nd Pick';
+                        const choice = draftState.draftType === 'mode4'
+                          ? (draftState.coinFlip.winnerTurnChoice === 'first' ? '1st Ban' : '1st Pick')
+                          : (draftState.coinFlip.winnerTurnChoice === 'first' ? '1st Pick' : '2nd Pick');
 
                         return (
                           <>
@@ -3448,7 +3706,7 @@ function TournamentPage() {
 
               {draftState.awaitingLockConfirmation ? (
                 <p className="lock-pending">
-                  🔒 {getTeamDisplayName(draftState.currentTeam)} is confirming their picks...
+                  🔒 {getTeamDisplayName(draftState.currentTeam)} is confirming their {getPICK_ORDER(draftState.draftType)[draftState.currentPhase]?.isBan ? 'bans' : 'picks'}...
                 </p>
               ) : (
                 <>
@@ -3457,16 +3715,17 @@ function TournamentPage() {
                     const phaseComplete = currentPhaseConfig && draftState.picksInPhase >= currentPhaseConfig.count;
 
                     if (phaseComplete && user && userPermission === draftState.currentTeam) {
+                      const isBan = currentPhaseConfig?.isBan;
                       return (
                         <>
                           <p className="edit-picks-message">
-                            ✏️ Remove a pick to make changes, or confirm when ready
+                            ✏️ Remove a {isBan ? 'ban' : 'pick'} to make changes, or confirm when ready
                           </p>
                           <p className="auto-lock-warning">
-                            🔄 Picks will auto-lock when timer expires
+                            🔄 Selections will auto-lock when timer expires
                           </p>
                           <button onClick={triggerLockConfirmation} className="ready-to-lock-btn">
-                            🔒 Ready to Lock Picks
+                            {isBan ? '🚫 Ready to Lock Bans' : '🔒 Ready to Lock Picks'}
                           </button>
                         </>
                       );
@@ -3476,13 +3735,13 @@ function TournamentPage() {
                       <>
                         {user && userPermission === draftState.currentTeam && (
                           <p className="pick-instruction">
-                            👉 Select your {getOrdinalSuffix(getCurrentPickNumber())} Amiko
+                            👉 {currentPhaseConfig?.isBan ? 'Ban' : 'Select'} your {getOrdinalSuffix(getCurrentPickNumber())} Amiko
                           </p>
                         )}
 
                         {user && userPermission && userPermission !== draftState.currentTeam && userPermission !== 'admin' && userPermission !== 'spectator' && (
                           <p className="waiting-message">
-                            ⏳ Waiting for {getTeamDisplayName(draftState.currentTeam)} to finish picking...
+                            ⏳ Waiting for {getTeamDisplayName(draftState.currentTeam)} to finish {currentPhaseConfig?.isBan ? 'banning' : 'picking'}...
                           </p>
                         )}
                       </>
@@ -3535,7 +3794,7 @@ function TournamentPage() {
                     <div key={idx} className={`battle-result-card ${result.status}`}>
                       <div className="battle-result-header">
                         <span className="battle-label">
-                          {draftState.draftType === 'mode3' ? 'Match' : `Battle ${idx + 1}`}
+                          {(draftState.draftType === 'mode3' || draftState.draftType === 'mode4') ? 'Match' : `Battle ${idx + 1}`}
                         </span>
                         {isParticipantOrAdmin && (
                           <span className="battle-code">Code: {result.battleCode}</span>
@@ -3610,7 +3869,20 @@ function TournamentPage() {
 
         {/* Main Draft Area */}
         <div className="draft-container">
-          {draftState.draftType === 'mode3' ? (
+          {draftState.draftType === 'mode4' ? (
+            <Mode4Draft
+              draftState={draftState}
+              user={user}
+              userPermission={userPermission}
+              displayTeamA={displayTeamA}
+              displayTeamB={displayTeamB}
+              displayTeamABans={displayTeamABans}
+              displayTeamBBans={displayTeamBBans}
+              tempPick={tempPick}
+              handlers={draftHandlers}
+              utils={draftUtils}
+            />
+          ) : draftState.draftType === 'mode3' ? (
             <Mode3Draft
               draftState={draftState}
               user={user}
@@ -3679,7 +3951,7 @@ function TournamentPage() {
                 <div className="chat-panel">
                   {/* Chat Tabs */}
                   <div className="chat-tabs">
-                    {(userPermission === 'A' || userPermission === 'B' || userPermission === 'admin') && draftState.draftType !== 'mode3' && (
+                    {(userPermission === 'A' || userPermission === 'B' || userPermission === 'admin') && (!['mode3', 'mode4'].includes(draftState.draftType)) && (
                       <button
                         className={`chat-tab ${chatTab === 'team' ? 'active' : ''}`}
                         onClick={() => setChatTab('team')}
@@ -4211,7 +4483,7 @@ function TournamentPage() {
                   {/* Top VS Section */}
                   <div className="lineup-top-header">
                     <div className="vs-badge">VS</div>
-                    {draftState.draftType === 'mode3' && draftState.privateCode && isParticipantOrAdmin && (
+                    {(draftState.draftType === 'mode3' || draftState.draftType === 'mode4') && draftState.privateCode && isParticipantOrAdmin && (
                       <div
                         className="private-code-top copyable"
                         onClick={() => copyToClipboard(draftState.privateCode, 'Private Code')}
@@ -4227,13 +4499,13 @@ function TournamentPage() {
                   {/* Team Column Headers */}
                   <div className="lineup-team-headers">
                     <div className={`team-header team-${draftState.teamColors?.teamA || 'blue'}`}>
-                      {draftState.draftType === 'mode3'
+                      {(draftState.draftType === 'mode3' || draftState.draftType === 'mode4')
                         ? <>{getTeamLeader('A')?.displayName || 'Player 1'}{getTeamLeader('A')?.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}</>
                         : (draftState.teamColors?.teamA === 'blue' ? (draftState.teamNames?.team1 || 'Team 1') : (draftState.teamNames?.team2 || 'Team 2'))}
                     </div>
                     <div className="spacer"></div>
                     <div className={`team-header team-${draftState.teamColors?.teamB || 'red'}`}>
-                      {draftState.draftType === 'mode3'
+                      {(draftState.draftType === 'mode3' || draftState.draftType === 'mode4')
                         ? <>{getTeamLeader('B')?.displayName || 'Player 2'}{getTeamLeader('B')?.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}</>
                         : (draftState.teamColors?.teamB === 'blue' ? (draftState.teamNames?.team1 || 'Team 1') : (draftState.teamNames?.team2 || 'Team 2'))}
                     </div>
@@ -4241,12 +4513,12 @@ function TournamentPage() {
 
                   {/* Player Rows with Aligned Codes */}
                   <div className="lineup-rows-container">
-                    {(draftState.draftType === 'mode3' ? [0] : [0, 1, 2]).map(playerIndex => (
+                    {((draftState.draftType === 'mode3' || draftState.draftType === 'mode4') ? [0] : [0, 1, 2]).map(playerIndex => (
                       <div key={`row-${playerIndex}`} className="lineup-match-row">
                         {/* Team A Player */}
                         <div className="lineup-player-column">
                           <div className="lineup-player">
-                            {draftState.draftType !== 'mode3' && <span className="player-number">P{playerIndex + 1}</span>}
+                            {draftState.draftType !== 'mode3' && draftState.draftType !== 'mode4' && <span className="player-number">P{playerIndex + 1}</span>}
                             <div className="player-amikos">
                               {draftState.teamA.slice(playerIndex * 3, playerIndex * 3 + 3).map((amikoId, idx) => {
                                 const amiko = AMIKOS.find(a => a.id === amikoId);
@@ -4285,7 +4557,7 @@ function TournamentPage() {
                         {/* Team B Player */}
                         <div className="lineup-player-column">
                           <div className="lineup-player">
-                            {draftState.draftType !== 'mode3' && <span className="player-number">P{playerIndex + 1}</span>}
+                            {draftState.draftType !== 'mode3' && draftState.draftType !== 'mode4' && <span className="player-number">P{playerIndex + 1}</span>}
                             <div className="player-amikos">
                               {draftState.teamB.slice(playerIndex * 3, playerIndex * 3 + 3).map((amikoId, idx) => {
                                 const amiko = AMIKOS.find(a => a.id === amikoId);

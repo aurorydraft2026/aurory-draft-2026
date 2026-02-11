@@ -1,0 +1,406 @@
+/* ============================================
+   MODE 4 - BAN DRAFT (TURN-BASED) STYLES
+   ============================================ */
+
+/* ─── ZONES ─── */
+.mode4-zone {
+  margin: 10px 0;
+  padding: 10px;
+  border-radius: 10px;
+  transition: opacity 0.3s;
+}
+
+.mode4-zone.zone-dimmed {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.mode4-ban-zone {
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+}
+
+.mode4-pick-zone {
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+}
+
+.mode4-zone-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.mode4-ban-zone .mode4-zone-label {
+  color: #f87171;
+}
+
+.mode4-pick-zone .mode4-zone-label {
+  color: #60a5fa;
+}
+
+/* ─── BAN SLOTS ─── */
+.mode4-ban-slots,
+.mode4-pick-slots {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.mode4-ban-slot,
+.mode4-pick-slot {
+  width: 65px;
+  height: 80px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s;
+}
+
+/* Empty ban slot */
+.mode4-ban-slot.empty {
+  border: 2px dashed rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.04);
+}
+
+.mode4-ban-slot.empty.awaiting {
+  border-color: rgba(239, 68, 68, 0.5);
+  animation: pulse-ban-slot 2s infinite;
+}
+
+@keyframes pulse-ban-slot {
+
+  0%,
+  100% {
+    background: rgba(239, 68, 68, 0.04);
+  }
+
+  50% {
+    background: rgba(239, 68, 68, 0.12);
+  }
+}
+
+.ban-slot-icon {
+  font-size: 1.2rem;
+  opacity: 0.3;
+}
+
+/* Filled ban slot */
+.mode4-ban-slot.filled {
+  border: 2px solid rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.mode4-ban-slot.filled img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  filter: saturate(0.3) brightness(0.7);
+}
+
+.ban-x-mark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -60%);
+  font-size: 1.8rem;
+  color: rgba(239, 68, 68, 0.7);
+  font-weight: 900;
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.ban-slot-name {
+  font-size: 0.55rem;
+  color: rgba(255, 255, 255, 0.45);
+  text-align: center;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60px;
+}
+
+.ban-element-tag {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 0.65rem;
+}
+
+/* Removable ban */
+.mode4-ban-slot.removable {
+  cursor: pointer;
+}
+
+.mode4-ban-slot.removable:hover {
+  border-color: rgba(251, 191, 36, 0.6);
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.mode4-ban-slot.removable:hover .ban-x-mark {
+  display: none;
+}
+
+.ban-undo-icon {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -60%);
+  font-size: 1.3rem;
+  color: #fbbf24;
+}
+
+.mode4-ban-slot.removable:hover .ban-undo-icon {
+  display: block;
+}
+
+/* Locked ban */
+.mode4-ban-slot.locked {
+  opacity: 0.65;
+}
+
+/* No ban placeholder (timer expired without banning) */
+.mode4-ban-slot.no-ban-slot {
+  border: 2px dashed rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.03);
+  opacity: 0.5;
+}
+
+.no-ban-text {
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
+  text-align: center;
+}
+
+.ban-lock-icon {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  font-size: 0.6rem;
+}
+
+/* ─── PICK SLOTS ─── */
+.mode4-pick-slot.empty {
+  border: 2px dashed rgba(59, 130, 246, 0.25);
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.mode4-pick-slot.empty.awaiting {
+  border-color: rgba(59, 130, 246, 0.5);
+  animation: pulse-pick-slot 2s infinite;
+}
+
+@keyframes pulse-pick-slot {
+
+  0%,
+  100% {
+    background: rgba(59, 130, 246, 0.04);
+  }
+
+  50% {
+    background: rgba(59, 130, 246, 0.12);
+  }
+}
+
+.pick-slot-icon {
+  font-size: 1.4rem;
+  color: rgba(59, 130, 246, 0.3);
+}
+
+.mode4-pick-slot.filled {
+  border: 2px solid rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.mode4-pick-slot.filled img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+
+.pick-slot-name {
+  font-size: 0.55rem;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60px;
+}
+
+.pick-element-icon {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 0.65rem;
+}
+
+.mode4-pick-slot.removable {
+  cursor: pointer;
+}
+
+.mode4-pick-slot.removable:hover {
+  border-color: rgba(251, 191, 36, 0.6);
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.pick-remove-icon {
+  display: none;
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 0.8rem;
+  color: #fbbf24;
+}
+
+.mode4-pick-slot.removable:hover .pick-remove-icon {
+  display: block;
+}
+
+.pick-lock-icon {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  font-size: 0.6rem;
+}
+
+.mode4-pick-slot.locked {
+  opacity: 0.65;
+}
+
+/* ─── ACTIVE TURN INDICATOR ─── */
+.team-panel.active-turn {
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.08);
+}
+
+/* ─── GRID CARD STATES ─── */
+.amiko-card.mode4-banned {
+  opacity: 0.2;
+  filter: grayscale(1);
+  pointer-events: none;
+}
+
+.amiko-card.mode4-banned .ban-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(239, 68, 68, 0.45);
+  font-size: 1.5rem;
+}
+
+.amiko-card.mode4-element-blocked {
+  opacity: 0.35;
+  filter: saturate(0.3);
+  pointer-events: none;
+  position: relative;
+}
+
+.amiko-card.mode4-picked-by-me {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.amiko-card.mode4-picked-by-opponent {
+  position: relative;
+}
+
+/* Subtle indicator that opponent picked this — still available to you */
+.amiko-card.mode4-picked-by-opponent::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+.opponent-pick {
+  background: rgba(239, 68, 68, 0.3) !important;
+}
+
+/* ─── BANNED SUMMARY BAR ─── */
+.mode4-banned-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.banned-bar-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #f87171;
+  white-space: nowrap;
+}
+
+.banned-bar-icons {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.banned-bar-item {
+  position: relative;
+  width: 32px;
+  height: 32px;
+}
+
+.banned-bar-item img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  border-radius: 5px;
+  filter: grayscale(1) brightness(0.5);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.banned-bar-item .banned-bar-x {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(239, 68, 68, 0.85);
+  font-size: 1.1rem;
+  font-weight: 900;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
+}
+
+/* ─── MOBILE ─── */
+@media (max-width: 768px) {
+
+  .mode4-ban-slot,
+  .mode4-pick-slot {
+    width: 55px;
+    height: 70px;
+  }
+
+  .mode4-ban-slot.filled img,
+  .mode4-pick-slot.filled img {
+    width: 36px;
+    height: 36px;
+  }
+
+  .mode4-zone {
+    padding: 8px;
+    margin: 6px 0;
+  }
+}

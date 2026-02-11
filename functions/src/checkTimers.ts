@@ -235,6 +235,8 @@ function handleForceLock(
 
 /**
  * Auto-pick random amikos for remaining picks, then lock + advance
+ * Mode4 ban phases: fill remaining with 'no_ban' placeholder
+ * Mode4 pick phases: auto-pick from available (not banned, not picked by own team)
  */
 function handleAutoPick(
   tx: admin.firestore.Transaction,
@@ -247,17 +249,48 @@ function handleAutoPick(
 
   if (remaining <= 0) return false;
 
-  const teamKey = data.currentTeam === 'A' ? 'teamA' : 'teamB';
-  const teamPicks: string[] = [...(data[teamKey] || [])];
-  const allPicked = [...(data.teamA || []), ...(data.teamB || [])];
+  const updates: any = {};
 
-  // Get available amikos (not picked by either team)
-  const available = AMIKO_IDS.filter(id => !allPicked.includes(id));
-  const shuffled = shuffleArray(available);
-  const autoPicked = shuffled.slice(0, Math.min(remaining, shuffled.length));
+  if (currentPhaseConfig.isBan) {
+    // ─── MODE 4 BAN PHASE: Fill remaining with 'no_ban' placeholder ───
+    const banKey = data.currentTeam === 'A' ? 'teamABans' : 'teamBBans';
+    const currentBans: string[] = [...(data[banKey] || [])];
 
-  const newTeamPicks = [...teamPicks, ...autoPicked];
-  console.log(`  → Auto-picked ${autoPicked.length} amikos for Team ${data.currentTeam}: ${autoPicked.join(', ')}`);
+    for (let i = 0; i < remaining; i++) {
+      currentBans.push('no_ban');
+    }
+
+    updates[banKey] = currentBans;
+    // 'no_ban' entries do NOT go into bannedAmikos (they're not real bans)
+    console.log(`  → Auto-filled ${remaining} 'no_ban' placeholders for Team ${data.currentTeam}`);
+  } else if (data.draftType === 'mode4') {
+    // ─── MODE 4 PICK PHASE: Auto-pick from non-banned, not in own team ───
+    const teamKey = data.currentTeam === 'A' ? 'teamA' : 'teamB';
+    const teamPicks: string[] = [...(data[teamKey] || [])];
+    const bannedAmikos: string[] = data.bannedAmikos || [];
+
+    // Mode4: only exclude own team picks + banned (opponent CAN have same)
+    const available = AMIKO_IDS.filter(id =>
+      !teamPicks.includes(id) && !bannedAmikos.includes(id) && id !== 'no_ban'
+    );
+    const shuffled = shuffleArray(available);
+    const autoPicked = shuffled.slice(0, Math.min(remaining, shuffled.length));
+
+    updates[teamKey] = [...teamPicks, ...autoPicked];
+    console.log(`  → Auto-picked ${autoPicked.length} amikos for Team ${data.currentTeam} (mode4): ${autoPicked.join(', ')}`);
+  } else {
+    // ─── MODE 1/2: Standard auto-pick (exclusive) ───
+    const teamKey = data.currentTeam === 'A' ? 'teamA' : 'teamB';
+    const teamPicks: string[] = [...(data[teamKey] || [])];
+    const allPicked = [...(data.teamA || []), ...(data.teamB || [])];
+
+    const available = AMIKO_IDS.filter(id => !allPicked.includes(id));
+    const shuffled = shuffleArray(available);
+    const autoPicked = shuffled.slice(0, Math.min(remaining, shuffled.length));
+
+    updates[teamKey] = [...teamPicks, ...autoPicked];
+    console.log(`  → Auto-picked ${autoPicked.length} amikos for Team ${data.currentTeam}: ${autoPicked.join(', ')}`);
+  }
 
   // Lock current phase and advance
   const newLockedPhases = [...(data.lockedPhases || []), data.currentPhase];
@@ -266,7 +299,7 @@ function handleAutoPick(
   if (nextPhase >= PICK_ORDER.length) {
     // Draft complete
     tx.update(draftRef, {
-      [teamKey]: newTeamPicks,
+      ...updates,
       picksInPhase: currentPhaseConfig.count,
       status: 'completed',
       awaitingLockConfirmation: false,
@@ -278,7 +311,7 @@ function handleAutoPick(
     // Advance to next phase with preparation
     const nextTeam = PICK_ORDER[nextPhase].team;
     tx.update(draftRef, {
-      [teamKey]: newTeamPicks,
+      ...updates,
       picksInPhase: 0,
       currentPhase: nextPhase,
       currentTeam: nextTeam,
@@ -288,7 +321,7 @@ function handleAutoPick(
       preparationStartedAt: Date.now(),
       timerExpiredBy: 'server'
     });
-    console.log(`  → Auto-picked + advancing to phase ${nextPhase} (Team ${nextTeam})`);
+    console.log(`  → Auto-filled + advancing to phase ${nextPhase} (Team ${nextTeam})`);
   }
 
   return true;

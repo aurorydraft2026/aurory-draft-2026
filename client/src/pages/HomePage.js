@@ -348,7 +348,18 @@ function HomePage() {
     return () => unsubscribe();
   }, []);
 
-  // (Removed: auto-switch to "Completed" filter - active filter now shows create card when empty)
+  // Auto-switch to "Completed" filter if no active drafts exist on load
+  useEffect(() => {
+    if (tournaments.length > 0 && tournamentFilter === 'active') {
+      const activeDrafts = tournaments.filter(t =>
+        t.status === 'active' || t.status === 'coinFlip' || t.status === 'poolShuffle' || t.status === 'assignment' || t.status === 'waiting'
+      );
+
+      if (activeDrafts.length === 0) {
+        setTournamentFilter('completed');
+      }
+    }
+  }, [tournaments, tournamentFilter]);
 
   // Update current time every second for live timer display
   useEffect(() => {
@@ -982,7 +993,7 @@ function HomePage() {
 
   // Check if both teams are complete (all 6 slots filled)
   const areTeamsComplete = () => {
-    if (newTournament.draftType === 'mode3') {
+    if (newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') {
       return team1.leader && team2.leader;
     }
     return team1.leader && team1.member1 && team1.member2 &&
@@ -1152,7 +1163,7 @@ function HomePage() {
 
     // If not using manual timer start, participants are required (6 for normal, 2 for 1v1)
     if (!newTournament.manualTimerStart && !areTeamsComplete()) {
-      const required = newTournament.draftType === 'mode3' ? 2 : 6;
+      const required = (newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? 2 : 6;
       alert(`Please assign all ${required} participants, or check "Start timer manually" to add participants later.`);
       return;
     }
@@ -1226,7 +1237,7 @@ function HomePage() {
       };
 
       // Generate private code for 1v1 mode
-      if (newTournament.draftType === 'mode3') {
+      if (newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') {
         tournamentData.privateCode = Math.floor(10000 + Math.random() * 90000).toString();
       }
 
@@ -1688,39 +1699,26 @@ function HomePage() {
                     <option value="mode1">Triad Format 3-6-3</option>
                     <option value="mode2">Triad Format 1-2-1</option>
                     <option value="mode3">Deathmatch 3-3</option>
+                    <option value="mode4">Ban Draft 3-3</option>
                   </select>
                 </div>
               </div>
 
               {filteredTournaments.length === 0 ? (
-                tournamentFilter === 'active' && isAdmin ? (
-                  <div className="tournaments-grid">
-                    <div
-                      className="tournament-card create-card"
-                      onClick={() => setShowCreateModal(true)}
-                    >
-                      <div className="create-card-content">
-                        <span className="create-card-icon">+</span>
-                        <span className="create-card-label">Create Draft</span>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="no-tournaments">
-                    {tournaments.length === 0 ? (
-                      <>
-                        <p>🎮 No drafts available</p>
-                        {isAdmin ? (
-                          <p className="hint">Click "⚡ Create" to start one!</p>
-                        ) : (
-                          <p className="hint">Check back later for upcoming drafts</p>
-                        )}
-                      </>
-                    ) : (
-                      <p>No drafts match this filter</p>
-                    )}
-                  </div>
-                )
+                <div className="no-tournaments">
+                  {tournaments.length === 0 ? (
+                    <>
+                      <p>🎮 No drafts available</p>
+                      {isAdmin ? (
+                        <p className="hint">Click "⚡ Create" to start one!</p>
+                      ) : (
+                        <p className="hint">Check back later for upcoming drafts</p>
+                      )}
+                    </>
+                  ) : (
+                    <p>No drafts match this filter</p>
+                  )}
+                </div>
               ) : (
                 <>
                   <div className="tournaments-grid">
@@ -1786,7 +1784,7 @@ function HomePage() {
                               <h4>{tournament.title || 'Untitled Draft'}</h4>
                               <div className="card-badges">
                                 <span className={`mode-badge mode-${tournament.draftType || 'mode1'}`}>
-                                  {tournament.draftType === 'mode3' ? 'DM 3-3' : tournament.draftType === 'mode2' ? 'Triad 1-2-1' : 'Triad 3-6-3'}
+                                  {tournament.draftType === 'mode4' ? 'Ban 3-3' : tournament.draftType === 'mode3' ? 'DM 3-3' : tournament.draftType === 'mode2' ? 'Triad 1-2-1' : 'Triad 3-6-3'}
                                 </span>
                                 <span className={`status-badge ${getStatusColor(tournament.status)}`}>
                                   {getStatusText(tournament.status)}
@@ -1900,6 +1898,7 @@ function HomePage() {
                   <option value="mode1">Triad Format 3-6-3</option>
                   <option value="mode2">Triad Format 1-2-1</option>
                   <option value="mode3">Deathmatch 3-3</option>
+                  <option value="mode4">Ban Draft 3-3</option>
                 </select>
               </div>
 
@@ -1936,7 +1935,7 @@ function HomePage() {
                       }
                       const teamAColor = match.teamColors?.teamA || 'blue';
                       const teamBColor = match.teamColors?.teamB || 'red';
-                      const modeLabels = { mode1: 'Triad 3-6-3', mode2: 'Triad 1-2-1', mode3: 'DM 3-3' };
+                      const modeLabels = { mode1: 'Triad 3-6-3', mode2: 'Triad 1-2-1', mode3: 'DM 3-3', mode4: 'Ban 3-3' };
 
                       // For 3v3: show team names; For 1v1: show player names
                       let teamADisplay, teamBDisplay;
@@ -2016,7 +2015,7 @@ function HomePage() {
                               {(match.matchResults || []).map((result, idx) => (
                                 <div key={idx} className={`match-detail-battle status-${result.status}`}>
                                   <div className="battle-detail-header">
-                                    <span>{match.draftType === 'mode3' ? 'Match' : `Battle ${idx + 1}`}</span>
+                                    <span>{(match.draftType === 'mode3' || match.draftType === 'mode4') ? 'Match' : `Battle ${idx + 1}`}</span>
                                     <span className={`status-badge status-${result.status}`}>
                                       {result.status === 'verified' && '✅'}
                                       {(result.status === 'disqualified_A' || result.status === 'disqualified_B') && '⛔ DQ'}
@@ -2249,13 +2248,16 @@ function HomePage() {
                     <option value="mode1">Triad Format 3-6-3</option>
                     <option value="mode2">Triad Format 1-2-1</option>
                     <option value="mode3">Deathmatch 3-3</option>
+                    <option value="mode4">Ban Draft 3-3</option>
                   </select>
                   <span className="input-hint">
                     {newTournament.draftType === 'mode1'
                       ? 'Triad Format 3-6-3: A picks 3, B picks 6, A picks 6, B picks 3'
                       : newTournament.draftType === 'mode2'
                         ? 'Triad Format 1-2-1: 10 phases with smaller alternating picks'
-                        : 'Deathmatch 3-3: Simultaneous picks from random pools (3 picks each)'}
+                        : newTournament.draftType === 'mode4'
+                          ? 'Ban Draft 3-3: Turn-based bans (1-2-2-1), then picks (1-2-2-1) with coin flip'
+                          : 'Deathmatch 3-3: Simultaneous picks from random pools (3 picks each)'}
                   </span>
                 </div>
 
@@ -2321,11 +2323,11 @@ function HomePage() {
                 {/* Team Assignment Section */}
                 <div className="form-group team-assignment-section">
                   <label>
-                    Assign Teams ({getAssignedCount()}/{newTournament.draftType === 'mode3' ? 2 : 6} assigned)
+                    Assign Teams ({getAssignedCount()}/{(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? 2 : 6} assigned)
                     {!newTournament.manualTimerStart && <span className="required-text"> *</span>}
                   </label>
                   {!newTournament.manualTimerStart && !areTeamsComplete() && (
-                    <p className="field-hint">All {newTournament.draftType === 'mode3' ? 2 : 6} participants required, or enable "Start timer manually"</p>
+                    <p className="field-hint">All {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? 2 : 6} participants required, or enable "Start timer manually"</p>
                   )}
 
                   <div className="teams-container">
@@ -2333,7 +2335,7 @@ function HomePage() {
                     <div className="team-assignment-panel team-1">
                       <div className="team-header-editable">
                         <span className="team-color-badge blue">🔵</span>
-                        {newTournament.draftType !== 'mode3' && (
+                        {(newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') && (
                           <input
                             type="text"
                             className="team-name-input"
@@ -2342,13 +2344,13 @@ function HomePage() {
                             onChange={(e) => setTeam1Name(e.target.value)}
                           />
                         )}
-                        {newTournament.draftType === 'mode3' && (
+                        {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') && (
                           <span className="team-name-static">Player 1</span>
                         )}
                       </div>
 
                       {/* Banner Upload */}
-                      {newTournament.draftType !== 'mode3' && (
+                      {(newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') && (
                         <div className="team-banner-upload">
                           <label className="banner-upload-label">
                             {team1Banner ? (
@@ -2376,7 +2378,7 @@ function HomePage() {
                         </div>
                       )}
 
-                      {newTournament.draftType !== 'mode3' && (
+                      {(newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') && (
                         <p className="team-hint">Will be shuffled to Team A or B</p>
                       )}
 
@@ -2403,7 +2405,7 @@ function HomePage() {
                         )}
                       </div>
 
-                      {newTournament.draftType !== 'mode3' && (
+                      {(newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') && (
                         <div className="assignment-slot members-slot">
                           <span className="slot-label">👤 Members (2)</span>
                           {team1.member1 && team1.member2 ? (
@@ -2442,7 +2444,7 @@ function HomePage() {
                     <div className="team-assignment-panel team-2">
                       <div className="team-header-editable">
                         <span className="team-color-badge red">🔴</span>
-                        {newTournament.draftType !== 'mode3' && (
+                        {(newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') && (
                           <input
                             type="text"
                             className="team-name-input"
@@ -2451,13 +2453,13 @@ function HomePage() {
                             onChange={(e) => setTeam2Name(e.target.value)}
                           />
                         )}
-                        {newTournament.draftType === 'mode3' && (
+                        {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') && (
                           <span className="team-name-static">Player 2</span>
                         )}
                       </div>
 
                       {/* Banner Upload */}
-                      {newTournament.draftType !== 'mode3' && (
+                      {(newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') && (
                         <div className="team-banner-upload">
                           <label className="banner-upload-label">
                             {team2Banner ? (
@@ -2485,7 +2487,7 @@ function HomePage() {
                         </div>
                       )}
 
-                      {newTournament.draftType !== 'mode3' && (
+                      {(newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') && (
                         <p className="team-hint">Will be shuffled to Team A or B</p>
                       )}
 
@@ -2512,7 +2514,7 @@ function HomePage() {
                         )}
                       </div>
 
-                      {newTournament.draftType !== 'mode3' && (
+                      {(newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') && (
                         <div className="assignment-slot members-slot">
                           <span className="slot-label">👤 Members (2)</span>
                           {team2.member1 && team2.member2 ? (

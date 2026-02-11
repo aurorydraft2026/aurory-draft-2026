@@ -618,10 +618,25 @@ export const PICK_ORDER_MODE_3 = [
   }
 ];
 
+// Mode 4 - 1v1 Ban Draft (Turn-based ban + pick phases)
+export const PICK_ORDER_MODE_4 = [
+  // Ban phases (0-3): A bans 1, B bans 2, A bans 2, B bans 1
+  { team: 'A', count: 1, label: 'Ban Phase 1: Player 1 — Ban 1 Amiko', isBan: true },
+  { team: 'B', count: 2, label: 'Ban Phase 2: Player 2 — Ban 2 Amikos', isBan: true },
+  { team: 'A', count: 2, label: 'Ban Phase 3: Player 1 — Ban 2 Amikos', isBan: true },
+  { team: 'B', count: 1, label: 'Ban Phase 4: Player 2 — Ban 1 Amiko', isBan: true },
+  // Pick phases (4-7): B picks 1, A picks 2, B picks 2, A picks 1
+  { team: 'B', count: 1, label: 'Pick Phase 1: Player 2 — Pick 1 Amiko' },
+  { team: 'A', count: 2, label: 'Pick Phase 2: Player 1 — Pick 2 Amikos' },
+  { team: 'B', count: 2, label: 'Pick Phase 3: Player 2 — Pick 2 Amikos' },
+  { team: 'A', count: 1, label: 'Pick Phase 4: Player 1 — Pick 1 Amiko' }
+];
+
 /**
  * Get pick order for draft type
  */
 export const getPICK_ORDER = (draftType) => {
+  if (draftType === 'mode4') return PICK_ORDER_MODE_4;
   if (draftType === 'mode3') return PICK_ORDER_MODE_3;
   if (draftType === 'mode2') return PICK_ORDER_MODE_2;
   return PICK_ORDER_MODE_1;
