@@ -35,6 +35,7 @@ import Mode3Draft from '../components/drafts/Mode3Draft';
 import Mode4Draft from '../components/drafts/Mode4Draft';
 import '../components/drafts/Mode4Draft.css';
 import { verifyDraftBattles, saveVerificationResults } from '../services/matchVerificationService';
+import { logActivity } from '../services/activityService';
 import './TournamentPage.css';
 
 // Helper function to get user email
@@ -558,6 +559,17 @@ function TournamentPage() {
       // Save to Firestore
       await saveVerificationResults(DRAFT_ID, verificationData);
 
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'verify_match',
+        metadata: {
+          draftId: DRAFT_ID,
+          allVerified: verificationData.allVerified,
+          winner: verificationData.overallWinner
+        }
+      });
+
       if (verificationData.allVerified) {
         const winnerLabel = verificationData.overallWinner === 'A'
           ? getTeamDisplayName('A')
@@ -829,6 +841,16 @@ function TournamentPage() {
           await runTransaction(db, async (transaction) => {
             const draftSnap = await transaction.get(draftRef);
             if (!draftSnap.exists()) throw new Error('Draft not found');
+
+            logActivity({
+              user,
+              type: 'DRAFT',
+              action: 'join_draft',
+              metadata: {
+                draftId: DRAFT_ID,
+                entryFee: entryFee
+              }
+            });
 
             const data = draftSnap.data();
             if (!data.joinable || data.status !== 'waiting') throw new Error('Match is no longer joinable');
@@ -2066,6 +2088,17 @@ function TournamentPage() {
 
     try {
       await updateDoc(draftRef, updateData);
+
+      logActivity({
+        user,
+        type: 'DRAFT',
+        action: 'pick_amiko',
+        metadata: {
+          draftId: DRAFT_ID,
+          amikoId: amikoId,
+          team: draftState.currentTeam
+        }
+      });
     } catch (error) {
       console.error('Error executing pick:', error);
       showAlert('Error', 'Failed to pick Amiko. Please try again.');
@@ -2254,6 +2287,17 @@ function TournamentPage() {
       };
       await updateDoc(draftRef, updates);
       setShowLockConfirmation(false);
+
+      logActivity({
+        user,
+        type: 'DRAFT',
+        action: 'lock_picks',
+        metadata: {
+          draftId: DRAFT_ID,
+          phase: draftState.currentPhase,
+          status: newStatus
+        }
+      });
     } else {
       // Advance to next phase - but don't start timer yet
       nextTeam = getPICK_ORDER(draftState.draftType)[nextPhase].team;
@@ -2374,6 +2418,17 @@ function TournamentPage() {
 
     // REMOVED AUTO-COMPLETION LOGIC: 1v1 mode must be manually locked
     await updateDoc(draftRef, updateData);
+
+    logActivity({
+      user,
+      type: 'DRAFT',
+      action: 'pick_1v1_amiko',
+      metadata: {
+        draftId: DRAFT_ID,
+        amikoId: amikoId,
+        team: team
+      }
+    });
   }, [DRAFT_ID, draftState]);
 
   // Lock picks in 1v1 mode
@@ -2400,6 +2455,17 @@ function TournamentPage() {
     }
 
     await updateDoc(draftRef, updateData);
+
+    logActivity({
+      user,
+      type: 'DRAFT',
+      action: 'lock_1v1_picks',
+      metadata: {
+        draftId: DRAFT_ID,
+        team: team
+      }
+    });
+
     playLockSound();
   }, [DRAFT_ID, draftState, playLockSound]);
 
@@ -2440,6 +2506,17 @@ function TournamentPage() {
 
     try {
       await updateDoc(draftRef, updateData);
+
+      logActivity({
+        user,
+        type: 'DRAFT',
+        action: 'ban_amiko',
+        metadata: {
+          draftId: DRAFT_ID,
+          amikoId: amikoId,
+          team: draftState.currentTeam
+        }
+      });
     } catch (error) {
       console.error('Error executing ban:', error);
       showAlert('Error', 'Failed to ban Amiko. Please try again.');

@@ -322,5 +322,22 @@ service cloud.firestore {
       // Only admins can manage banners
       allow write: if isAdmin();
     }
+
+    // =============================================
+    // ACTIVITY LOGS
+    // =============================================
+    match /activity_logs/{logId} {
+      // Admins can read all logs
+      allow read: if isAdmin();
+      
+      // Authenticated users can create logs (for tracking)
+      allow create: if isAuthenticated();
+      
+      // Only super admins can delete/clear logs
+      allow delete: if isSuperAdmin();
+      
+      // Logs are immutable
+      allow update: if false;
+    }
   }
 }

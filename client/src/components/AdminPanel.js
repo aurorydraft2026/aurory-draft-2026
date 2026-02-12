@@ -13,10 +13,14 @@ import {
   addDoc,
   serverTimestamp,
   runTransaction,
+  limit,
+  writeBatch,
+  deleteDoc,
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { isSuperAdmin } from '../config/admins';
 import { createNotification } from '../services/notifications';
+import { logActivity } from '../services/activityService';
 import './AdminPanel.css';
 
 // Helper to get user email
@@ -96,6 +100,13 @@ function AdminPanel() {
   const [bannerOrder, setBannerOrder] = useState(0);
   const [bannerDate, setBannerDate] = useState('');
   const [editingBannerId, setEditingBannerId] = useState(null);
+
+  // Activity Logs state
+  const [globalLogs, setGlobalLogs] = useState([]);
+  const [userLogs, setUserLogs] = useState([]); // Per-user logs
+  const [selectedUserForLogs, setSelectedUserForLogs] = useState(null);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsError, setLogsError] = useState(null);
 
   // Banner social links (max 3 displayed)
   const [bannerDiscord, setBannerDiscord] = useState('');
@@ -433,6 +444,13 @@ function AdminPanel() {
         const bannerRef = doc(db, 'banners', editingBannerId);
         await updateDoc(bannerRef, bannerData);
         alert('Banner updated successfully!');
+
+        logActivity({
+          user,
+          type: 'ADMIN',
+          action: 'update_banner',
+          metadata: { bannerId: editingBannerId, title: bannerTitle }
+        });
       } else {
         await addDoc(collection(db, 'banners'), {
           ...bannerData,
@@ -440,6 +458,13 @@ function AdminPanel() {
           createdAt: serverTimestamp()
         });
         alert('Banner added successfully!');
+
+        logActivity({
+          user,
+          type: 'ADMIN',
+          action: 'create_banner',
+          metadata: { title: bannerTitle }
+        });
       }
 
       // Reset form
@@ -495,7 +520,6 @@ function AdminPanel() {
     if (!window.confirm('Are you sure you want to delete this banner?')) return;
 
     try {
-      const { deleteDoc } = await import('firebase/firestore');
       await deleteDoc(doc(db, 'banners', id));
       alert('Banner deleted!');
     } catch (error) {
@@ -599,6 +623,13 @@ function AdminPanel() {
         });
       }
 
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: `withdrawal_${action}`,
+        metadata: { withdrawalId, amount: withdrawal.amount, userId: withdrawal.userId }
+      });
+
     } catch (error) {
       console.error('Process withdrawal error:', error);
       alert('Error processing withdrawal: ' + error.message);
@@ -665,6 +696,13 @@ function AdminPanel() {
         link: '#'
       });
 
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'deposit_approve',
+        metadata: { notificationId, userId, amount: amountAury }
+      });
+
     } catch (error) {
       console.error('Process deposit notification error:', error);
       alert('Error processing deposit: ' + error.message);
@@ -687,6 +725,13 @@ function AdminPanel() {
         status: 'dismissed',
         processedBy: getUserEmail(user) || user.displayName || user.uid,
         processedAt: serverTimestamp()
+      });
+
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'deposit_reject',
+        metadata: { notificationId }
       });
 
       alert('Notification dismissed.');
@@ -766,6 +811,17 @@ function AdminPanel() {
       } else {
         alert(`⚠️ Processed with some issues: ${succeeded} succeeded, ${failed} failed. Check console.`);
       }
+
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'manual_credit',
+        metadata: {
+          amount,
+          userCount: selectedCreditUsers.length,
+          reason: creditReason
+        }
+      });
 
       setSelectedCreditUsers([]);
       setCreditAmount('');
@@ -858,6 +914,17 @@ function AdminPanel() {
         alert(`⚠️ Processed with some issues: ${succeeded} succeeded, ${failed} failed. Check console.`);
       }
 
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'manual_deduct',
+        metadata: {
+          amount,
+          userCount: selectedDeductUsers.length,
+          reason: deductReason
+        }
+      });
+
       setSelectedDeductUsers([]);
       setDeductAmount('');
       setDeductReason('');
@@ -911,6 +978,17 @@ function AdminPanel() {
         alert(`⚠️ Processed with some issues: ${succeeded} succeeded, ${failed} failed.`);
       }
 
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'broadcast_notification',
+        metadata: {
+          title: notifyTitle,
+          message: notifyMessage,
+          userCount: selectedNotifyUsers.length
+        }
+      });
+
       setSelectedNotifyUsers([]);
       setNotifyTitle('');
       setNotifyMessage('');
@@ -922,6 +1000,94 @@ function AdminPanel() {
     }
 
     setProcessingId(null);
+  };
+
+  // Fetch global activity logs
+  const fetchGlobalLogs = async () => {
+    if (!isSuperAdminUser) return;
+    setLogsLoading(true);
+    setLogsError(null);
+    try {
+      const logsRef = collection(db, 'activity_logs');
+      const q = query(logsRef, orderBy('timestamp', 'desc'), limit(100)); // Limit to most recent 100
+      const snapshot = await getDocs(q);
+      const logs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setGlobalLogs(logs);
+    } catch (error) {
+      console.error('Error fetching global logs:', error);
+      setLogsError('Error fetching logs: ' + error.message);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  // Fetch per-user activity logs
+  const fetchUserLogs = async (userId) => {
+    if (!isSuperAdminUser) return;
+    setLogsLoading(true);
+    setLogsError(null);
+    try {
+      const logsRef = collection(db, 'activity_logs');
+      const q = query(
+        logsRef,
+        where('userId', '==', userId),
+        orderBy('timestamp', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      const logs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setUserLogs(logs);
+    } catch (error) {
+      console.error('Error fetching user logs:', error);
+      setLogsError('Error fetching user logs: ' + error.message);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  // Clear all activity logs (Super Admin only)
+  const clearActivityLogs = async () => {
+    if (!isSuperAdminUser) return;
+    if (!window.confirm('CRITICAL: Are you sure you want to permanently delete ALL activity logs? This cannot be undone.')) {
+      return;
+    }
+
+    setProcessingId('clear_logs');
+    try {
+      const logsRef = collection(db, 'activity_logs');
+      const snapshot = await getDocs(logsRef);
+
+      if (snapshot.empty) {
+        alert('No logs to clear.');
+        return;
+      }
+
+      const batch = writeBatch(db);
+      snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+      setGlobalLogs([]);
+      alert('✅ All activity logs cleared successfully.');
+
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'clear_all_logs',
+        metadata: { count: snapshot.docs.length }
+      });
+    } catch (error) {
+      console.error('Error clearing logs:', error);
+      alert('Error clearing logs: ' + error.message);
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   // Format timestamp
@@ -1067,6 +1233,17 @@ function AdminPanel() {
                   onClick={() => setActiveTab('visitors')}
                 >
                   🌐 Online Visitors {onlineVisitors.length > 0 && <span className="tab-badge inline">{onlineVisitors.length}</span>}
+                </button>
+              )}
+              {isSuperAdminUser && (
+                <button
+                  className={`admin-tab ${activeTab === 'activity' ? 'active' : ''}`}
+                  onClick={() => {
+                    setActiveTab('activity');
+                    fetchGlobalLogs();
+                  }}
+                >
+                  📊 Activity Logs
                 </button>
               )}
             </div>
@@ -1904,34 +2081,45 @@ function AdminPanel() {
                             {userIsSuper ? (
                               <span className="badge-super">Super Admin</span>
                             ) : (
-                              <select
-                                value={u.role || 'user'}
-                                onChange={async (e) => {
-                                  const newRole = e.target.value;
-                                  try {
-                                    setProcessingId(`role-${u.id}`);
-                                    const userRef = doc(db, 'users', u.id);
-                                    await updateDoc(userRef, {
-                                      role: newRole === 'user' ? null : newRole
-                                    });
-                                    // Update local state
-                                    setAllUsers(prev => prev.map(user =>
-                                      user.id === u.id ? { ...user, role: newRole === 'user' ? null : newRole } : user
-                                    ));
-                                    alert(`✅ Role updated for ${u.displayName || u.email}`);
-                                  } catch (error) {
-                                    console.error('Error updating role:', error);
-                                    alert('Error updating role: ' + error.message);
-                                  } finally {
-                                    setProcessingId(null);
-                                  }
-                                }}
-                                disabled={processingId === `role-${u.id}`}
-                                className="role-select"
-                              >
-                                <option value="user">User</option>
-                                <option value="admin">Admin</option>
-                              </select>
+                              <div className="role-actions">
+                                <select
+                                  value={u.role || 'user'}
+                                  onChange={async (e) => {
+                                    const newRole = e.target.value;
+                                    try {
+                                      setProcessingId(`role-${u.id}`);
+                                      const userRef = doc(db, 'users', u.id);
+                                      await updateDoc(userRef, {
+                                        role: newRole === 'user' ? null : newRole
+                                      });
+                                      // Update local state
+                                      setAllUsers(prev => prev.map(user =>
+                                        user.id === u.id ? { ...user, role: newRole === 'user' ? null : newRole } : user
+                                      ));
+                                      alert(`✅ Role updated for ${u.displayName || u.email}`);
+                                    } catch (error) {
+                                      console.error('Error updating role:', error);
+                                      alert('Error updating role: ' + error.message);
+                                    } finally {
+                                      setProcessingId(null);
+                                    }
+                                  }}
+                                  disabled={processingId === `role-${u.id}`}
+                                  className="role-select"
+                                >
+                                  <option value="user">User</option>
+                                  <option value="admin">Admin</option>
+                                </select>
+                                <button
+                                  className="manage-btn"
+                                  onClick={() => {
+                                    setSelectedUserForLogs(u);
+                                    fetchUserLogs(u.id);
+                                  }}
+                                >
+                                  📊 Logs
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -2094,8 +2282,131 @@ function AdminPanel() {
               )}
             </div>
           )}
+
+          {activeTab === 'activity' && isSuperAdminUser && (
+            <div className="activity-section">
+              <div className="section-header">
+                <h2>📊 Activity Logs</h2>
+                <div className="header-actions">
+                  <button className="refresh-btn" onClick={fetchGlobalLogs} disabled={logsLoading}>
+                    🔄 Refresh
+                  </button>
+                  <button className="clear-btn-admin" onClick={clearActivityLogs} disabled={processingId === 'clear_logs'}>
+                    🗑️ Clear All Logs
+                  </button>
+                </div>
+              </div>
+
+              {logsLoading ? (
+                <div className="loading">Loading logs...</div>
+              ) : logsError ? (
+                <div className="error-message">{logsError}</div>
+              ) : globalLogs.length === 0 ? (
+                <div className="empty-state">
+                  <p>📭 No activity logs found</p>
+                </div>
+              ) : (
+                <div className="logs-table-container">
+                  <table className="logs-table">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>User</th>
+                        <th>Type</th>
+                        <th>Action</th>
+                        <th>Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {globalLogs.map(log => (
+                        <tr key={log.id}>
+                          <td className="log-time">{formatTime(log.timestamp)}</td>
+                          <td className="log-user">
+                            <span className="user-id">
+                              {log.userName || log.userId?.slice(0, 8)}
+                              {log.isAnonymous && ' (Guest)'}
+                            </span>
+                          </td>
+                          <td className="log-type">
+                            <span className={`type-tag tag-${log.type?.toLowerCase()}`}>
+                              {log.type}
+                            </span>
+                          </td>
+                          <td className="log-action">{log.action?.replace(/_/g, ' ')}</td>
+                          <td className="log-details">
+                            <pre className="details-json">
+                              {JSON.stringify(log.metadata, null, 1)}
+                            </pre>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Per-User Logs Modal */}
+      {selectedUserForLogs && (
+        <div className="admin-modal-overlay activity-modal">
+          <div className="admin-modal">
+            <div className="modal-header">
+              <h2>Activity Log: {selectedUserForLogs.displayName || selectedUserForLogs.email}</h2>
+              <button className="close-btn" onClick={() => setSelectedUserForLogs(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              {logsLoading ? (
+                <div className="loading">Loading logs...</div>
+              ) : logsError ? (
+                <div className="error-message">{logsError}</div>
+              ) : userLogs.length === 0 ? (
+                <div className="empty-state">
+                  <p>📭 No activity logs found for this user.</p>
+                </div>
+              ) : (
+                <div className="logs-table-container">
+                  <table className="logs-table">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Type</th>
+                        <th>Action</th>
+                        <th>Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {userLogs.map(log => (
+                        <tr key={log.id}>
+                          <td className="log-time">{formatTime(log.timestamp)}</td>
+                          <td className="log-type">
+                            <span className={`type-tag tag-${log.type?.toLowerCase()}`}>
+                              {log.type}
+                            </span>
+                          </td>
+                          <td className="log-action">{log.action?.replace(/_/g, ' ')}</td>
+                          <td className="log-details short">
+                            <pre className="details-json">
+                              {JSON.stringify(log.metadata, null, 1)}
+                            </pre>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="secondary-btn" onClick={() => setSelectedUserForLogs(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

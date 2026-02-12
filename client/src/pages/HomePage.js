@@ -15,6 +15,7 @@ import {
 } from '../services/auroryProfileService';
 import { fetchVerifiedMatches, scanAndVerifyCompletedDrafts } from '../services/matchVerificationService';
 import { AMIKOS } from '../data/amikos';
+import { logActivity } from '../services/activityService';
 import './HomePage.css';
 
 // Your AURY deposit wallet address (replace with your actual address)
@@ -580,6 +581,11 @@ function HomePage() {
       }
 
       setUser(enhancedUser);
+      logActivity({
+        user: enhancedUser,
+        type: 'AUTH',
+        action: 'login_discord'
+      });
     } catch (error) {
       console.error('Login error:', error);
       alert('Login failed: ' + error.message);
@@ -617,6 +623,11 @@ function HomePage() {
       }
 
       setUser(enhancedUser);
+      logActivity({
+        user: enhancedUser,
+        type: 'AUTH',
+        action: 'login_google'
+      });
     } catch (error) {
       console.error('Google login error:', error);
       alert('Google login failed: ' + error.message);
@@ -626,6 +637,11 @@ function HomePage() {
   // Handle Logout
   const handleLogout = async () => {
     try {
+      logActivity({
+        user,
+        type: 'AUTH',
+        action: 'logout'
+      });
       await signOut(auth);
       setUser(null);
     } catch (error) {
@@ -661,6 +677,16 @@ function HomePage() {
       alert('Please enter a valid amount');
       return;
     }
+
+    logActivity({
+      user,
+      type: 'WALLET',
+      action: 'withdraw_request',
+      metadata: {
+        amount: amount,
+        address: withdrawAddress
+      }
+    });
 
     // Convert to smallest unit (9 decimals)
     const amountInSmallestUnit = Math.floor(amount * 1e9);
@@ -751,6 +777,17 @@ function HomePage() {
       alert('Please enter a valid amount');
       return;
     }
+
+    logActivity({
+      user,
+      type: 'WALLET',
+      action: 'deposit_notify',
+      metadata: {
+        amount: amount,
+        signature: depositTxSignature,
+        note: depositNote
+      }
+    });
 
     setWalletLoading(true);
     try {
@@ -1357,6 +1394,18 @@ function HomePage() {
       }
 
       await setDoc(draftRef, tournamentData);
+
+      logActivity({
+        user,
+        type: 'DRAFT',
+        action: 'create_draft',
+        metadata: {
+          draftId: tournamentId,
+          title: tournamentData.title,
+          draftType: tournamentData.draftType,
+          prizePool: tournamentData.prizePool
+        }
+      });
 
       // Reset form and close modal
       setNewTournament({
@@ -3018,6 +3067,8 @@ function HomePage() {
                       >
                         {walletLoading ? 'Sending...' : '📨 Notify Admin About Deposit'}
                       </button>
+
+                      {/* Logic inside submitDepositNotification is handled elsewhere, let's look for the function actual definition if this is JSX */}
                     </div>
                   </div>
                 )}
