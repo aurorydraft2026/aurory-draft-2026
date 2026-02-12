@@ -145,6 +145,35 @@
   box-shadow: 0 4px 20px rgba(88, 101, 242, 0.4);
 }
 
+.login-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.google-login-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  background: white;
+  color: #1f2937;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-md);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.google-login-btn:hover {
+  background: #f9fafb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
 .user-info {
   display: flex;
   align-items: center;
@@ -5127,4 +5156,111 @@ input[type="file"] {
 
 .pool-amount-input {
   flex: 1;
+}
+
+/* Tournament Grid UI Updates */
+.header-title-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.inline-create-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 200, 255, 0.1);
+  border: 1px solid rgba(0, 200, 255, 0.3);
+  color: var(--accent-cyan);
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.inline-create-btn:hover {
+  background: var(--accent-cyan);
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 200, 255, 0.3);
+}
+
+.create-placeholder-card {
+  aspect-ratio: 16 / 9;
+  background: rgba(255, 255, 255, 0.02);
+  border: 2px dashed var(--border-subtle);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.create-placeholder-card:hover {
+  background: rgba(0, 200, 255, 0.04);
+  border-color: var(--accent-cyan);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2), 0 0 15px rgba(0, 200, 255, 0.1);
+}
+
+.placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 24px;
+}
+
+.plus-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-subtle);
+  transition: all 0.3s ease;
+}
+
+.create-placeholder-card:hover .plus-circle {
+  background: var(--accent-cyan);
+  border-color: transparent;
+  transform: scale(1.1);
+}
+
+.plus-circle .plus-icon {
+  font-size: 24px;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+.create-placeholder-card:hover .plus-icon {
+  color: white;
+}
+
+.placeholder-content h4 {
+  margin: 0;
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+
+.placeholder-content p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.no-tournaments-container {
+  width: 100%;
 }

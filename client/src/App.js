@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { auth, db } from './firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import HomePage from './pages/HomePage';
 import TournamentPage from './pages/TournamentPage';
 import './App.css';
@@ -14,11 +14,13 @@ function App() {
   // Listen for authentication state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      // Ignore anonymous users
-      if (currentUser && currentUser.isAnonymous) {
-        setUser(null);
-      } else {
+      if (currentUser) {
         setUser(currentUser);
+      } else {
+        // Automatically sign in anonymously if not logged in
+        signInAnonymously(auth).catch((error) => {
+          console.error("Error signing in anonymously:", error);
+        });
       }
     });
 
@@ -27,17 +29,29 @@ function App() {
 
   // Track user's last seen timestamp for online visitor tracking
   useEffect(() => {
-    // Only track for logged-in, non-anonymous users
-    if (!user || user.isAnonymous) return;
+    // Track for all users (logged-in or anonymous)
+    if (!user) return;
 
     const updateLastSeen = async () => {
       try {
         const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, {
-          lastSeen: serverTimestamp()
-        });
+
+        // Use setDoc with merge for anonymous users to ensure doc exists
+        if (user.isAnonymous) {
+          await setDoc(userRef, {
+            id: user.uid,
+            lastSeen: serverTimestamp(),
+            isAnonymous: true,
+            displayName: 'Guest',
+            createdAt: serverTimestamp() // Only sets if doc is new
+          }, { merge: true });
+        } else {
+          // For registered users, just update lastSeen
+          await updateDoc(userRef, {
+            lastSeen: serverTimestamp()
+          });
+        }
       } catch (error) {
-        // Silently fail if user doc doesn't exist yet
         console.error('Error updating lastSeen:', error);
       }
     };

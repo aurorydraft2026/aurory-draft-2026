@@ -315,7 +315,7 @@ function AdminPanel() {
     const usersRef = collection(db, 'users');
     const unsubscribe = onSnapshot(usersRef, (snapshot) => {
       const now = Date.now();
-      const fiveMinutesAgo = now - (5 * 60 * 1000); // 5 minutes threshold
+      const threeDaysAgo = now - (3 * 24 * 60 * 60 * 1000); // 3 days threshold
 
       const visitors = snapshot.docs
         .map(doc => ({
@@ -325,7 +325,7 @@ function AdminPanel() {
         .filter(user => {
           // Consider user online if they have recent activity
           const lastSeen = user.lastSeen?.toMillis?.() || user.lastSeen || 0;
-          return lastSeen > fiveMinutesAgo;
+          return lastSeen > threeDaysAgo;
         })
         .sort((a, b) => {
           // Sort by most recent activity
@@ -2043,7 +2043,7 @@ function AdminPanel() {
           {activeTab === 'visitors' && isAdminUser && (
             <div className="visitors-section">
               <div className="section-info">
-                <p>🌐 Users who visited the website in the last 5 minutes.</p>
+                <p>🌐 Users who visited the website in the last 3 days.</p>
               </div>
 
               {onlineVisitors.length === 0 ? (
@@ -2076,11 +2076,14 @@ function AdminPanel() {
                           </div>
                           <div className="col-email">{visitor.email || 'No email'}</div>
                           <div className="col-last-seen">
-                            {isVeryRecent ? 'Just now' : `${minutesAgo} min ago`}
+                            {minutesAgo < 1 ? 'Just now' :
+                              minutesAgo < 60 ? `${minutesAgo} min ago` :
+                                minutesAgo < 1440 ? `${Math.floor(minutesAgo / 60)}h ${minutesAgo % 60}m ago` :
+                                  `${Math.floor(minutesAgo / 1440)}d ${Math.floor((minutesAgo % 1440) / 60)}h ago`}
                           </div>
                           <div className="col-status">
-                            <span className={`status-badge ${isVeryRecent ? 'online' : 'recent'}`}>
-                              {isVeryRecent ? '🟢 Online' : '🟡 Recent'}
+                            <span className={`status-badge ${isVeryRecent ? 'online' : 'recent'} ${visitor.isAnonymous ? 'guest' : ''}`}>
+                              {visitor.isAnonymous ? '👤 Guest' : (isVeryRecent ? '🟢 Online' : '🟡 Recent')}
                             </span>
                           </div>
                         </div>

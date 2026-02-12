@@ -1797,6 +1797,12 @@ input[type=number] {
   border: 1px solid rgba(156, 163, 175, 0.2);
 }
 
+.status-badge.guest {
+  background: rgba(139, 92, 246, 0.1);
+  color: var(--accent-purple);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
 .empty-mini {
   padding: 24px;
   text-align: center;
@@ -1805,4 +1811,34 @@ input[type=number] {
   color: var(--text-muted);
   font-style: italic;
   font-size: 14px;
-}@media (max-width: 1024px) { .admin-layout { flex-direction: column; gap: 24px; } .admin-sidebar { width: 100%; position: static; flex-direction: row; flex-wrap: wrap; gap: 16px; } .admin-category { flex: 1; min-width: 200px; } } @media (max-width: 600px) { .admin-sidebar { flex-direction: column; } .admin-category { width: 100%; } }
+}
+
+@media (max-width: 1024px) {
+  .admin-layout {
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .admin-sidebar {
+    width: 100%;
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .admin-category {
+    flex: 1;
+    min-width: 200px;
+  }
+}
+
+@media (max-width: 600px) {
+  .admin-sidebar {
+    flex-direction: column;
+  }
+
+  .admin-category {
+    width: 100%;
+  }
+}

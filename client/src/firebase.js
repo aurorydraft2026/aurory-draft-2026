@@ -1,6 +1,6 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAuth, OAuthProvider } from "firebase/auth";
+import { getAuth, OAuthProvider, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 // TODO: Replace with your Firebase project configuration
@@ -35,5 +35,8 @@ discordProvider.addScope('email');
 discordProvider.setCustomParameters({
   prompt: 'consent'
 });
+
+// Create Google Auth provider
+export const googleProvider = new GoogleAuthProvider();
 
 export default app;
