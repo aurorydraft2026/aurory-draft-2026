@@ -28,12 +28,19 @@ export async function scanAndVerifyDrafts(): Promise<number> {
     const data = doc.data();
     const draftId = doc.id;
 
-    // Skip if already fully verified (unless all results were DQ — possible false positive)
+    // Skip if already fully verified (unless payout is pending or results were DQ)
     if (data.verificationStatus === 'complete') {
       const hasRealDQ = (data.matchResults || []).some((r: any) =>
         r.status === 'both_disqualified' || r.status === 'disqualified_A' || r.status === 'disqualified_B'
       );
-      if (!hasRealDQ) continue;
+      const is1v1Match = data.draftType === 'mode3' || data.draftType === 'mode4';
+      const needsPayout = is1v1Match && data.poolAmount > 0 && !data.payoutComplete;
+
+      if (!hasRealDQ && !needsPayout) continue;
+
+      if (needsPayout) {
+        console.log(`  💰 Draft ${draftId} is verified but payout is pending. Processing...`);
+      }
     }
 
     // Skip if no battle codes
@@ -125,7 +132,8 @@ async function processPayouts(draftId: string, draftData: any, overallWinner: st
   // Determine winner UID
   const winnerUid = overallWinner === 'A' ? draftData.teamALeader : draftData.teamBLeader;
   if (!winnerUid) {
-    console.error(`  ❌ Cannot determine winner UID for draft ${draftId}`);
+    console.error(`  ❌ Cannot determine winner UID for draft ${draftId} (Winner: ${overallWinner})`);
+    console.log(`     teamALeader: ${draftData.teamALeader}, teamBLeader: ${draftData.teamBLeader}`);
     return;
   }
 

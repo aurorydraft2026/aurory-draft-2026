@@ -62,45 +62,158 @@
   color: var(--text-secondary);
 }
 
-/* Tabs */
-.admin-tabs {
-  display: flex;
-  gap: 8px;
+/* Notification Alert */
+.admin-notification-alert {
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
   margin-bottom: 24px;
-  border-bottom: 1px solid var(--border-subtle);
-  padding-bottom: 16px;
+  animation: slide-down 0.4s ease-out;
+}
+
+.alert-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.alert-icon {
+  font-size: 24px;
+}
+
+.alert-text {
+  font-size: 15px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.alert-text strong {
+  color: var(--accent-gold);
+}
+
+@keyframes slide-down {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Sidebar Layout */
+.admin-layout {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+}
+
+.admin-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  position: sticky;
+  top: 24px;
+}
+
+.admin-category {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.category-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  padding-left: 12px;
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.category-badge {
+  background: var(--status-danger);
+  color: white;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-family: var(--font-primary);
+}
+
+.category-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .admin-tab {
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
-  padding: 12px 20px;
+  padding: 12px 16px;
   border-radius: var(--radius-md);
   font-size: 14px;
   font-weight: 500;
   font-family: var(--font-primary);
   cursor: pointer;
   transition: all var(--transition-fast);
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
 }
 
 .admin-tab:hover {
   background: var(--bg-card-hover);
   color: var(--text-primary);
+  border-color: var(--border-medium);
 }
 
 .admin-tab.active {
   background: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-teal) 100%);
   color: white;
   border-color: transparent;
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.2);
+}
+
+.tab-badge {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.tab-badge.inline {
+  background: rgba(168, 85, 247, 0.2);
+  color: var(--accent-purple);
+}
+
+.admin-tab.active .tab-badge.inline {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
 }
 
 /* Content */
 .admin-content {
+  flex: 1;
   background: var(--bg-secondary);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-subtle);
   padding: 24px;
+  min-width: 0;
+  /* Prevents overflow in flexbox */
 }
 
 /* Empty State */
@@ -1553,3 +1666,143 @@ input[type=number] {
     padding: 8px 10px;
   }
 }
+
+/* History Section */
+.history-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.history-grids {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.history-block h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-table-wrapper {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+}
+
+.history-table th {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 14px 16px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.history-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  vertical-align: middle;
+}
+
+.history-table tr:last-child td {
+  border-bottom: none;
+}
+
+.user-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-cell .name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.user-cell .email {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.history-table .amount {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-weight: 600;
+  color: var(--accent-gold);
+}
+
+.history-table .processor {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.history-table .date {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.history-table .memo {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  color: var(--accent-teal);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Status Badges */
+.status-badge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  display: inline-block;
+}
+
+.status-badge.completed,
+.status-badge.processed {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.status-badge.rejected {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.status-badge.dismissed {
+  background: rgba(156, 163, 175, 0.1);
+  color: #9ca3af;
+  border: 1px solid rgba(156, 163, 175, 0.2);
+}
+
+.empty-mini {
+  padding: 24px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 14px;
+}@media (max-width: 1024px) { .admin-layout { flex-direction: column; gap: 24px; } .admin-sidebar { width: 100%; position: static; flex-direction: row; flex-wrap: wrap; gap: 16px; } .admin-category { flex: 1; min-width: 200px; } } @media (max-width: 600px) { .admin-sidebar { flex-direction: column; } .admin-category { width: 100%; } }
