@@ -279,181 +279,237 @@ function TournamentPage() {
 
   const [userPermission, setUserPermission] = useState(null);
 
+  // Helper: Build initial permissions from assignments
+  const getInitialPermissions = useCallback((existingPermissions, assignments) => {
+    const permissions = { ...existingPermissions };
+    permissions[user.uid] = 'admin'; // Ensure admin has access
+    assignments.forEach(assignment => {
+      permissions[assignment.participant.uid || assignment.participant.id] = assignment.team;
+    });
+    return permissions;
+  }, [user]);
+
+  // Helper: Initialize mode-specific data (pools, battle codes)
+  const initializeModeSpecificData = (draftType, timerMs, manualTimer, existingDraft) => {
+    const data = {};
+
+    if (draftType === 'mode3') {
+      const shuffledAmikos = [...AMIKOS].sort(() => Math.random() - 0.5);
+      data.playerAPool = shuffledAmikos.slice(0, 8).map(a => a.id);
+      data.playerBPool = shuffledAmikos.slice(8, 16).map(a => a.id);
+      data.simultaneousPicking = true;
+      data.currentTeam = 'AB';
+      data.sharedTimer = manualTimer ? null : Date.now();
+      data.timerMs = timerMs;
+      data.status = 'poolShuffle';
+      if (!existingDraft?.privateCode) {
+        data.privateCode = Math.floor(10000 + Math.random() * 90000).toString();
+      }
+    } else if (draftType === 'mode4') {
+      data.teamABans = [];
+      data.teamBBans = [];
+      data.bannedAmikos = [];
+      if (!existingDraft?.privateCode) {
+        data.privateCode = Math.floor(10000 + Math.random() * 90000).toString();
+      }
+    } else if (draftType === 'mode1' || draftType === 'mode2') {
+      if (!existingDraft?.privateCodes) {
+        const generatedCodes = [];
+        while (generatedCodes.length < 3) {
+          const code = Math.floor(10000 + Math.random() * 90000).toString();
+          if (!generatedCodes.includes(code)) generatedCodes.push(code);
+        }
+        data.privateCodes = generatedCodes;
+      }
+    }
+    return data;
+  };
+
+  // Helper: Send match start notifications to participants
+  const sendMatchStartNotifications = useCallback(async (existingDraft, assignments) => {
+    const tournamentTitle = existingDraft?.title || 'Tournament';
+    const tournamentLink = `/tournament/${DRAFT_ID}`;
+
+    try {
+      assignments.forEach(a => {
+        const p = a.participant;
+        if (p) {
+          createNotification(p.uid || p.id, {
+            title: tournamentTitle,
+            message: `Match Found! Head to the draft to begin.`,
+            type: 'invite',
+            link: tournamentLink
+          });
+        }
+      });
+    } catch (err) {
+      console.error('Failed to send start notifications:', err);
+    }
+  }, [DRAFT_ID]);
+
+  // Helper: Send battle code notifications once draft is complete
+  const sendBattleCodeNotifications = useCallback(async (draft) => {
+    const tournamentTitle = draft?.title || 'Tournament';
+    const tournamentLink = `/tournament/${DRAFT_ID}`;
+    const draftType = draft?.draftType;
+    const players = draft?.matchPlayers || [];
+
+    try {
+      if (draftType === 'mode3' || draftType === 'mode4') {
+        const p1 = players.find(p => p.team === 'A');
+        const p2 = players.find(p => p.team === 'B');
+        const code = draft.privateCode;
+        if (p1) createNotification(p1.uid, { title: tournamentTitle, message: `Draft Complete! Your battle code: ${code}`, type: 'invite', link: tournamentLink });
+        if (p2) createNotification(p2.uid, { title: tournamentTitle, message: `Draft Complete! Your battle code: ${code}`, type: 'invite', link: tournamentLink });
+      } else if (draftType === 'mode1' || draftType === 'mode2') {
+        const codes = draft.privateCodes || [];
+        const teamA = players.filter(p => p.team === 'A');
+        const teamB = players.filter(p => p.team === 'B');
+        [0, 1, 2].forEach(i => {
+          [teamA[i], teamB[i]].filter(Boolean).forEach(p =>
+            createNotification(p.uid, { title: `${tournamentTitle} (Match ${i + 1})`, message: `Draft Complete! Your battle code: ${codes[i]}`, type: 'invite', link: tournamentLink })
+          );
+        });
+      }
+    } catch (err) {
+      console.error('Failed to send battle code notifications:', err);
+    }
+  }, [DRAFT_ID]);
+
+  // Helper: Reconstruct matchPlayers from permissions (for legacy drafts)
+  const reconstructMatchPlayers = (draftState) => {
+    const permissions = draftState.permissions || {};
+    const teamALeader = draftState.teamALeader;
+    const teamBLeader = draftState.teamBLeader;
+
+    if (!teamALeader || !teamBLeader) return null;
+
+    const teamAUids = Object.entries(permissions).filter(([, p]) => p === 'A').map(([uid]) => uid);
+    const teamBUids = Object.entries(permissions).filter(([, p]) => p === 'B').map(([uid]) => uid);
+
+    if (teamAUids.length === 0 || teamBUids.length === 0) return null;
+
+    const sortedA = [teamALeader, ...teamAUids.filter(uid => uid !== teamALeader)];
+    const sortedB = [teamBLeader, ...teamBUids.filter(uid => uid !== teamBLeader)];
+
+    const reconstructed = [];
+    const mapPlayer = (uid, team) => {
+      const u = registeredUsers.find(user => user.uid === uid || user.id === uid);
+      if (!u) return null;
+      return {
+        team,
+        uid,
+        displayName: u.displayName || u.username || null,
+        auroryPlayerId: u.auroryPlayerId || null,
+        auroryPlayerName: u.auroryPlayerName || null
+      };
+    };
+
+    sortedA.forEach(uid => {
+      const p = mapPlayer(uid, 'A');
+      if (p) reconstructed.push(p);
+    });
+    sortedB.forEach(uid => {
+      const p = mapPlayer(uid, 'B');
+      if (p) reconstructed.push(p);
+    });
+
+    return reconstructed.length > 0 ? reconstructed : null;
+  };
+
+
+
   // Finalize draft after roulette
   const finalizeDraft = useCallback(async (timerMs, assignments, leaders = {}) => {
     const draftRef = doc(db, 'drafts', DRAFT_ID);
 
-    const existingDraft = await new Promise((resolve) => {
-      const unsubscribe = onSnapshot(draftRef, (doc) => {
-        unsubscribe();
-        resolve(doc.exists() ? doc.data() : null);
-      });
-    });
-
-    // Build permissions from assignments
-    const permissions = existingDraft?.permissions || {};
-    permissions[user.uid] = 'admin';
-
-    assignments.forEach(assignment => {
-      permissions[assignment.participant.uid] = assignment.team;
-    });
-
-    // Check if manual timer start is enabled (1v1 always auto-starts)
-    const is1v1Mode = existingDraft?.draftType === 'mode3' || existingDraft?.draftType === 'mode4';
-    const manualTimer = is1v1Mode ? false : (existingDraft?.manualTimerStart || false);
-
-    // Get leader names for the shuffled teams
-    const teamALeaderUser = registeredUsers.find(u => u.uid === leaders.teamALeader || u.id === leaders.teamALeader);
-    const teamBLeaderUser = registeredUsers.find(u => u.uid === leaders.teamBLeader || u.id === leaders.teamBLeader);
-
-    // Update leaderNames with teamA/teamB keys (post-shuffle) for homepage display
-    const updatedLeaderNames = {
-      ...(existingDraft?.leaderNames || {}),
-      teamA: teamALeaderUser?.username || teamALeaderUser?.displayName || 'Team A Captain',
-      teamB: teamBLeaderUser?.username || teamBLeaderUser?.displayName || 'Team B Captain'
-    };
-
-    // We no longer remap teamNames and teamBanners in the database.
-    // Instead, we store the original values and map them dynamically in the UI
-    // based on teamColors (which correctly tracks if Team A is Blue/Red).
-    const finalTeamNames = existingDraft?.teamNames || { team1: 'Team 1', team2: 'Team 2' };
-    const finalTeamBanners = existingDraft?.teamBanners || { team1: null, team2: null };
-
-    // Determine team colors based on original team mapping
-    // Original team1 is blue, original team2 is red
-    // If teamAIsOriginalTeam1 is true: Team A = blue, Team B = red
-    // If teamAIsOriginalTeam1 is false: Team A = red, Team B = blue
-    const teamColors = {
-      teamA: leaders.teamAIsOriginalTeam1 === false ? 'red' : 'blue',
-      teamB: leaders.teamAIsOriginalTeam1 === false ? 'blue' : 'red'
-    };
-
-    // Base update object
-    const updateData = {
-      teamA: [],
-      teamB: [],
-      currentPhase: 0,
-      currentTeam: 'A',
-      picksInPhase: 0,
-      // Only start timer automatically if manualTimerStart is false
-      timerStartA: manualTimer ? null : Date.now(),
-      timerStartB: null,
-      timerStarted: !manualTimer,
-      status: 'active',
-      permissions: permissions,
-      lockedPhases: [],
-      awaitingLockConfirmation: false,
-      timerDuration: timerMs,
-      // Store team leaders
-      teamALeader: leaders.teamALeader || null,
-      teamBLeader: leaders.teamBLeader || null,
-      // Store leader names with teamA/teamB keys for correct homepage display
-      leaderNames: updatedLeaderNames,
-      // Use original team names and banners (UI handles mapping)
-      teamNames: finalTeamNames,
-      teamBanners: finalTeamBanners,
-      // Store team colors (blue/red) based on original team mapping
-      teamColors: teamColors,
-      // Persist player assignments for match verification (survives finalAssignments cleanup)
-      matchPlayers: assignments.map(a => ({
-        team: a.team,
-        uid: a.participant.uid || a.participant.id,
-        displayName: a.participant.displayName || a.participant.username || null,
-        auroryPlayerId: a.participant.auroryPlayerId || null,
-        auroryPlayerName: a.participant.auroryPlayerName || null
-      })),
-      // Cleanup temporary assignment data (used only for roulette animation)
-      finalAssignments: deleteField(),
-      assignmentLeaders: deleteField()
-    };
-
-    // Handle 1v1 Single Draft mode (mode3)
-    if (existingDraft?.draftType === 'mode3') {
-      // Shuffle all amikos and assign 8 to each player (16 total, no overlap)
-      const shuffledAmikos = [...AMIKOS].sort(() => Math.random() - 0.5);
-      const playerAPool = shuffledAmikos.slice(0, 8).map(a => a.id);
-      const playerBPool = shuffledAmikos.slice(8, 16).map(a => a.id);
-
-      // For 1v1, both players share the same timer and pick simultaneously
-      updateData.playerAPool = playerAPool;
-      updateData.playerBPool = playerBPool;
-      updateData.simultaneousPicking = true;
-      updateData.currentTeam = 'AB'; // Both teams pick at same time
-      updateData.sharedTimer = manualTimer ? null : Date.now();
-      updateData.timerMs = timerMs; // Store timer duration for countdown
-      updateData.status = 'poolShuffle'; // NEW: Intermediate shuffle animation phase
-
-      // Ensure private code exists for mode3
-      if (!existingDraft?.privateCode && !updateData.privateCode) {
-        updateData.privateCode = Math.floor(10000 + Math.random() * 90000).toString();
-      }
-    }
-
-    // Handle 1v1 Ban Draft mode (mode4) - turn-based with standard timer
-    if (existingDraft?.draftType === 'mode4') {
-      updateData.teamABans = [];
-      updateData.teamBBans = [];
-      updateData.bannedAmikos = [];
-
-      if (!existingDraft?.privateCode && !updateData.privateCode) {
-        updateData.privateCode = Math.floor(10000 + Math.random() * 90000).toString();
-      }
-    }
-
-    // NEW: Handle 3v3 Battle Codes (mode1, mode2)
-    if (existingDraft?.draftType === 'mode1' || existingDraft?.draftType === 'mode2') {
-      if (!existingDraft?.privateCodes && !updateData.privateCodes) {
-        const generatedCodes = [];
-        while (generatedCodes.length < 3) {
-          const code = Math.floor(10000 + Math.random() * 90000).toString();
-          if (!generatedCodes.includes(code)) {
-            generatedCodes.push(code);
-          }
-        }
-        updateData.privateCodes = generatedCodes;
-      }
-    }
-
-    await updateDoc(draftRef, updateData);
-
-    // NEW: Send notifications to participants
     try {
-      const tournamentTitle = existingDraft?.title || 'Tournament';
-      const tournamentLink = `/tournament/${DRAFT_ID}`;
+      const result = await runTransaction(db, async (transaction) => {
+        const docSnap = await transaction.get(draftRef);
+        if (!docSnap.exists()) return { error: 'Draft not found' };
 
-      if (existingDraft?.draftType === 'mode3' || existingDraft?.draftType === 'mode4') {
-        const p1 = assignments.find(a => a.team === 'A')?.participant;
-        const p2 = assignments.find(a => a.team === 'B')?.participant;
-        const code = updateData.privateCode || existingDraft?.privateCode;
+        const currentData = docSnap.data();
+        // IDEMPOTENCY CHECK: If already active or completed, don't re-initialize
+        if (currentData.status !== 'waiting') {
+          return { alreadyProcessed: true };
+        }
 
-        if (p1) createNotification(p1.uid || p1.id, { title: tournamentTitle, message: `Match Found! Your battle code: ${code}`, type: 'invite', link: tournamentLink });
-        if (p2) createNotification(p2.uid || p2.id, { title: tournamentTitle, message: `Match Found! Your battle code: ${code}`, type: 'invite', link: tournamentLink });
-      } else if (existingDraft?.draftType === 'mode1' || existingDraft?.draftType === 'mode2') {
-        const codes = updateData.privateCodes || existingDraft?.privateCodes;
-        // Group assignments by team and row
-        const teamA = assignments.filter(a => a.team === 'A').map(a => a.participant);
-        const teamB = assignments.filter(a => a.team === 'B').map(a => a.participant);
+        // 1. Build permissions
+        const permissions = getInitialPermissions(currentData.permissions, assignments);
 
-        // Row 1
-        [teamA[0], teamB[0]].filter(Boolean).forEach(p =>
-          createNotification(p.uid || p.id, { title: `${tournamentTitle} (Match 1)`, message: `Your battle code: ${codes[0]}`, type: 'invite', link: tournamentLink })
-        );
-        // Row 2
-        [teamA[1], teamB[1]].filter(Boolean).forEach(p =>
-          createNotification(p.uid || p.id, { title: `${tournamentTitle} (Match 2)`, message: `Your battle code: ${codes[1]}`, type: 'invite', link: tournamentLink })
-        );
-        // Row 3
-        [teamA[2], teamB[2]].filter(Boolean).forEach(p =>
-          createNotification(p.uid || p.id, { title: `${tournamentTitle} (Match 3)`, message: `Your battle code: ${codes[2]}`, type: 'invite', link: tournamentLink })
-        );
+        // 2. Configure team metadata
+        const is1v1Mode = currentData.draftType === 'mode3' || currentData.draftType === 'mode4';
+        const manualTimer = is1v1Mode ? false : (currentData.manualTimerStart || false);
+
+        const teamALeaderUser = registeredUsers.find(u => u.uid === leaders.teamALeader || u.id === leaders.teamALeader);
+        const teamBLeaderUser = registeredUsers.find(u => u.uid === leaders.teamBLeader || u.id === leaders.teamBLeader);
+
+        const updatedLeaderNames = {
+          ...(currentData.leaderNames || {}),
+          teamA: teamALeaderUser?.username || teamALeaderUser?.displayName || 'Team A Captain',
+          teamB: teamBLeaderUser?.username || teamBLeaderUser?.displayName || 'Team B Captain'
+        };
+
+        const teamColors = {
+          teamA: leaders.teamAIsOriginalTeam1 === false ? 'red' : 'blue',
+          teamB: leaders.teamAIsOriginalTeam1 === false ? 'blue' : 'red'
+        };
+
+        // 3. Base update data
+        let updateData = {
+          teamA: [],
+          teamB: [],
+          currentPhase: 0,
+          currentTeam: 'A',
+          picksInPhase: 0,
+          timerStartA: manualTimer ? null : Date.now(),
+          timerStartB: null,
+          timerStarted: !manualTimer,
+          status: 'active',
+          permissions: permissions,
+          lockedPhases: [],
+          awaitingLockConfirmation: false,
+          timerDuration: timerMs,
+          teamALeader: leaders.teamALeader || null,
+          teamBLeader: leaders.teamBLeader || null,
+          leaderNames: updatedLeaderNames,
+          teamNames: currentData.teamNames || { team1: 'Team 1', team2: 'Team 2' },
+          teamBanners: currentData.teamBanners || { team1: null, team2: null },
+          teamColors: teamColors,
+          matchPlayers: assignments.map(a => ({
+            team: a.team,
+            uid: a.participant.uid || a.participant.id,
+            displayName: a.participant.displayName || a.participant.username || null,
+            auroryPlayerId: a.participant.auroryPlayerId || null,
+            auroryPlayerName: a.participant.auroryPlayerName || null
+          })),
+          finalAssignments: deleteField(),
+          assignmentLeaders: deleteField()
+        };
+
+        // 4. Mode-specific logic
+        const modeData = initializeModeSpecificData(currentData.draftType, timerMs, manualTimer, currentData);
+        updateData = { ...updateData, ...modeData };
+
+        // 5. Update Firestore inside the transaction
+        transaction.update(draftRef, updateData);
+
+        return { success: true, snapshot: currentData };
+      });
+
+      if (result?.success) {
+        // 6. Send start notifications ONLY for the winner of the race
+        await sendMatchStartNotifications(result.snapshot, assignments);
       }
-    } catch (notifyErr) {
-      console.error('Failed to send notifications:', notifyErr);
-    }
 
-    setShowRoulette(false);
-    setSelectedParticipants([]);
-  }, [user, registeredUsers, DRAFT_ID]);
+      setShowRoulette(false);
+      setSelectedParticipants([]);
+    } catch (err) {
+      console.error('Failed to finalize draft:', err);
+      showAlert('Error', 'Failed to start match. Please try again.');
+    }
+  }, [registeredUsers, DRAFT_ID, getInitialPermissions, sendMatchStartNotifications, showAlert]);
+
 
   // Handle Match Verification via Battle Code
   // ============================================================================
@@ -468,75 +524,10 @@ function TournamentPage() {
 
     // If no matchPlayers or finalAssignments, reconstruct from permissions
     if (!draftState.finalAssignments && !draftState.matchPlayers) {
-      const permissions = draftState.permissions || {};
+      const reconstructed = reconstructMatchPlayers(draftState);
 
-      // Use teamALeader and teamBLeader to ensure correct order
-      const teamALeader = draftState.teamALeader;
-      const teamBLeader = draftState.teamBLeader;
-
-      if (!teamALeader || !teamBLeader) {
-        showAlert('Not Ready', 'Team leaders not found. Cannot verify.');
-        return;
-      }
-
-      // Get all UIDs for each team
-      const teamAUids = Object.entries(permissions)
-        .filter(([, p]) => p === 'A')
-        .map(([uid]) => uid);
-
-      const teamBUids = Object.entries(permissions)
-        .filter(([, p]) => p === 'B')
-        .map(([uid]) => uid);
-
-      if (teamAUids.length === 0 || teamBUids.length === 0) {
-        showAlert('Not Ready', 'Draft must be completed before verification.');
-        return;
-      }
-
-      // Sort each team's UIDs to put leader first, then members
-      const sortedTeamAUids = [
-        teamALeader,
-        ...teamAUids.filter(uid => uid !== teamALeader)
-      ];
-
-      const sortedTeamBUids = [
-        teamBLeader,
-        ...teamBUids.filter(uid => uid !== teamBLeader)
-      ];
-
-      // Build matchPlayers in correct order
-      const reconstructed = [];
-
-      // Add Team A players in order: Leader, Member1, Member2
-      for (const uid of sortedTeamAUids) {
-        const u = registeredUsers.find(user => user.uid === uid || user.id === uid);
-        if (u) {
-          reconstructed.push({
-            team: 'A',
-            uid,
-            displayName: u.displayName || u.username || null,
-            auroryPlayerId: u.auroryPlayerId || null,
-            auroryPlayerName: u.auroryPlayerName || null
-          });
-        }
-      }
-
-      // Add Team B players in order: Leader, Member1, Member2
-      for (const uid of sortedTeamBUids) {
-        const u = registeredUsers.find(user => user.uid === uid || user.id === uid);
-        if (u) {
-          reconstructed.push({
-            team: 'B',
-            uid,
-            displayName: u.displayName || u.username || null,
-            auroryPlayerId: u.auroryPlayerId || null,
-            auroryPlayerName: u.auroryPlayerName || null
-          });
-        }
-      }
-
-      if (reconstructed.length === 0) {
-        showAlert('Not Ready', 'Could not find player data for verification.');
+      if (!reconstructed) {
+        showAlert('Not Ready', 'Draft metadata not found or incomplete. Cannot verify.');
         return;
       }
 
@@ -546,6 +537,7 @@ function TournamentPage() {
 
       draftDataForVerification = { ...draftState, matchPlayers: reconstructed };
     }
+
 
     setIsVerifying(true);
     try {
@@ -2103,7 +2095,7 @@ function TournamentPage() {
       console.error('Error executing pick:', error);
       showAlert('Error', 'Failed to pick Amiko. Please try again.');
     }
-  }, [DRAFT_ID, draftState, showAlert]);
+  }, [DRAFT_ID, draftState, showAlert, user]);
 
   // Send a chat message
   const sendChatMessage = async (e) => {
@@ -2288,6 +2280,9 @@ function TournamentPage() {
       await updateDoc(draftRef, updates);
       setShowLockConfirmation(false);
 
+      // Send battle codes now that draft is completed
+      await sendBattleCodeNotifications(draftState);
+
       logActivity({
         user,
         type: 'DRAFT',
@@ -2429,7 +2424,7 @@ function TournamentPage() {
         team: team
       }
     });
-  }, [DRAFT_ID, draftState]);
+  }, [DRAFT_ID, draftState, user]);
 
   // Lock picks in 1v1 mode
   const isTeamLocked = useCallback((team) => {
@@ -2467,7 +2462,7 @@ function TournamentPage() {
     });
 
     playLockSound();
-  }, [DRAFT_ID, draftState, playLockSound]);
+  }, [DRAFT_ID, draftState, playLockSound, user]);
 
   // ─── MODE 4: BAN DRAFT FUNCTIONS ───
 
@@ -2521,7 +2516,7 @@ function TournamentPage() {
       console.error('Error executing ban:', error);
       showAlert('Error', 'Failed to ban Amiko. Please try again.');
     }
-  }, [DRAFT_ID, draftState, showAlert]);
+  }, [DRAFT_ID, draftState, showAlert, user]);
 
   // Remove a ban (mode4 ban phases)
   const removeBan = useCallback(async (team, index) => {
@@ -2562,184 +2557,154 @@ function TournamentPage() {
     playRemoveSound();
   }, [DRAFT_ID, draftState, user, userPermission, playRemoveSound, showAlert, isBanLocked]);
 
-  // Pick an Amiko
-  const pickAmiko = useCallback(async (amikoId) => {
-    if (!user) {
-      showAlert('Login Required', 'Please log in with Discord to pick Amikos!');
+  // Mode 4: Ban Draft Selection logic
+  const handleMode4Selection = useCallback(async (amikoId, userTeam, isAdmin) => {
+    if (!userTeam && !isAdmin) {
+      showAlert('Not a Participant', 'Only the two draft participants can pick!');
       return;
     }
 
-    // STRICT SYNC: Prevent picking if previous pick hasn't confirmed yet
-    if (tempPick) {
-      console.log('Pick throttled: waiting for previous pick sync');
+    // LEADER-ONLY check
+    const isTeamLeader = (userTeam === 'A' && user.uid === draftState.teamALeader) ||
+      (userTeam === 'B' && user.uid === draftState.teamBLeader);
+    if (!isTeamLeader && !isAdmin) {
+      showAlert('Captain Only', 'Only the team captain can make selections.');
       return;
     }
 
-    if (draftState.status !== 'active') {
-      showAlert('Draft Not Active', 'The draft is not active yet.');
+    // Check if it's this team's turn
+    if (userTeam !== draftState.currentTeam && !isAdmin) {
+      showAlert('Not Your Turn', `It's ${draftState.currentTeam === 'A' ? 'Player 1' : 'Player 2'}'s turn!`);
       return;
     }
 
-    // Don't allow picks while waiting for lock confirmation
-    if (draftState.awaitingLockConfirmation) {
-      showAlert('Confirm Picks', 'Please confirm your picks before continuing!');
-      return;
-    }
+    const currentPhaseConfig = getPICK_ORDER('mode4')[draftState.currentPhase || 0];
+    const isBanPhase = currentPhaseConfig?.isBan;
 
-    const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
-
-    // Determine which team the current user is on
-    const userTeam = userPermission === 'A' ? 'A' : userPermission === 'B' ? 'B' : null;
-
-    // Handle 1v1 Ban Draft mode (mode4) - turn-based ban + pick phases
-    if (draftState.draftType === 'mode4') {
-      if (!userTeam && !isAdmin) {
-        showAlert('Not a Participant', 'Only the two draft participants can pick!');
+    if (isBanPhase) {
+      // BAN PHASE — check against banned amikos
+      const bannedAmikos = draftState.bannedAmikos || [];
+      if (bannedAmikos.includes(amikoId)) {
+        showAlert('Already Banned', 'This Amiko has already been banned!');
         return;
       }
 
-      // LEADER-ONLY check
-      const isTeamLeader = (userTeam === 'A' && user.uid === draftState.teamALeader) ||
-        (userTeam === 'B' && user.uid === draftState.teamBLeader);
-      if (!isTeamLeader && !isAdmin) {
-        showAlert('Captain Only', 'Only the team captain can make selections.');
-        return;
-      }
-
-      // Check if it's this team's turn
-      if (userTeam !== draftState.currentTeam && !isAdmin) {
-        showAlert('Not Your Turn', `It's ${draftState.currentTeam === 'A' ? 'Player 1' : 'Player 2'}'s turn!`);
-        return;
-      }
-
-      const currentPhaseConfig = getPICK_ORDER('mode4')[draftState.currentPhase || 0];
-      const isBanPhase = currentPhaseConfig?.isBan;
-
-      if (isBanPhase) {
-        // BAN PHASE — check against banned amikos
-        const bannedAmikos = draftState.bannedAmikos || [];
-        if (bannedAmikos.includes(amikoId)) {
-          showAlert('Already Banned', 'This Amiko has already been banned!');
+      // Element diversity constraint — each player's 3 bans must be different elements
+      const myBans = userTeam === 'A' ? (draftState.teamABans || []) : (draftState.teamBBans || []);
+      const banAmiko = AMIKOS.find(a => a.id === amikoId);
+      if (banAmiko?.element) {
+        const myBannedElements = myBans.map(banId => {
+          const a = AMIKOS.find(x => x.id === banId);
+          return a?.element;
+        }).filter(Boolean);
+        if (myBannedElements.includes(banAmiko.element)) {
+          showAlert('Same Element', `You already banned a ${banAmiko.element} type! Your 3 bans must be different elements.`);
           return;
         }
-
-        // Element diversity constraint — each player's 3 bans must be different elements
-        const myBans = userTeam === 'A' ? (draftState.teamABans || []) : (draftState.teamBBans || []);
-        const banAmiko = AMIKOS.find(a => a.id === amikoId);
-        if (banAmiko?.element) {
-          const myBannedElements = myBans.map(banId => {
-            const a = AMIKOS.find(x => x.id === banId);
-            return a?.element;
-          }).filter(Boolean);
-          if (myBannedElements.includes(banAmiko.element)) {
-            showAlert('Same Element', `You already banned a ${banAmiko.element} type! Your 3 bans must be different elements.`);
-            return;
-          }
-        }
-
-        if (isPickingRef.current) return;
-        isPickingRef.current = true;
-
-        setTempPick({ id: amikoId, team: userTeam });
-        playPickSound();
-
-        try {
-          await executeBan(amikoId);
-        } catch (error) {
-          setTempPick(null);
-          console.log('Ban failed:', error);
-        } finally {
-          isPickingRef.current = false;
-        }
-      } else {
-        // PICK PHASE — check against banned + already picked by OWN team
-        const bannedAmikos = draftState.bannedAmikos || [];
-        if (bannedAmikos.includes(amikoId)) {
-          showAlert('Banned', 'This Amiko has been banned and cannot be picked!');
-          return;
-        }
-
-        // Only check own team — opponent CAN pick the same amiko
-        const myPicks = userTeam === 'A' ? (draftState.teamA || []) : (draftState.teamB || []);
-        if (myPicks.includes(amikoId)) {
-          showAlert('Already Picked', 'You have already picked this Amiko!');
-          return;
-        }
-
-        if (isPickingRef.current) return;
-        isPickingRef.current = true;
-
-        setTempPick({ id: amikoId, team: userTeam });
-        playPickSound();
-
-        try {
-          await executePick(amikoId);
-        } catch (error) {
-          setTempPick(null);
-          console.log('Pick failed:', error);
-        } finally {
-          isPickingRef.current = false;
-        }
-      }
-      return;
-    }
-
-    // Handle 1v1 Single Draft mode (mode3) - simultaneous picking
-    if (draftState.simultaneousPicking || draftState.draftType === 'mode3') {
-      // In 1v1 mode, check if user is a participant
-      if (!userTeam && !isAdmin) {
-        showAlert('Not a Participant', 'Only the two draft participants can pick!');
-        return;
       }
 
-      // Check if team is locked
-      if (isTeamLocked(userTeam)) {
-        showAlert('Picks Locked', 'You have already locked your picks!');
-        return;
-      }
-
-      // Get the user's pool and their current picks
-      const myPool = userTeam === 'A' ? draftState.playerAPool : draftState.playerBPool;
-      const myPicks = userTeam === 'A' ? draftState.teamA : draftState.teamB;
-
-      // Check if user is trying to pick from their own pool
-      if (!myPool?.includes(amikoId) && !isAdmin) {
-        showAlert('Not Your Amiko', 'You can only pick from your assigned Amikos!');
-        return;
-      }
-
-      // Check if user has already picked 3
-      if (myPicks?.length >= 3) {
-        showAlert('Picks Complete', 'You have already selected your 3 Amikos!');
-        return;
-      }
-
-      // Check if already picked by this user
-      if (myPicks?.includes(amikoId)) {
-        showAlert('Already Picked', 'You have already picked this Amiko!');
-        return;
-      }
-
-      // Prevent rapid-fire picks
       if (isPickingRef.current) return;
       isPickingRef.current = true;
 
-      // OPTIMISTIC UI for 1v1
       setTempPick({ id: amikoId, team: userTeam });
       playPickSound();
 
       try {
-        await execute1v1Pick(amikoId, userTeam);
+        await executeBan(amikoId);
+      } catch (error) {
+        setTempPick(null);
+        console.log('Ban failed:', error);
+      } finally {
+        isPickingRef.current = false;
+      }
+    } else {
+      // PICK PHASE — check against banned + already picked by OWN team
+      const bannedAmikos = draftState.bannedAmikos || [];
+      if (bannedAmikos.includes(amikoId)) {
+        showAlert('Banned', 'This Amiko has been banned and cannot be picked!');
+        return;
+      }
+
+      // Only check own team — opponent CAN pick the same amiko
+      const myPicks = userTeam === 'A' ? (draftState.teamA || []) : (draftState.teamB || []);
+      if (myPicks.includes(amikoId)) {
+        showAlert('Already Picked', 'You have already picked this Amiko!');
+        return;
+      }
+
+      if (isPickingRef.current) return;
+      isPickingRef.current = true;
+
+      setTempPick({ id: amikoId, team: userTeam });
+      playPickSound();
+
+      try {
+        await executePick(amikoId);
       } catch (error) {
         setTempPick(null);
         console.log('Pick failed:', error);
       } finally {
         isPickingRef.current = false;
       }
+    }
+  }, [user, draftState, executeBan, executePick, playPickSound, showAlert]);
+
+  // Mode 3: Simultaneous Picking logic
+  const handleMode3Selection = useCallback(async (amikoId, userTeam, isAdmin) => {
+    // In 1v1 mode, check if user is a participant
+    if (!userTeam && !isAdmin) {
+      showAlert('Not a Participant', 'Only the two draft participants can pick!');
       return;
     }
 
-    // Standard turn-based picking logic (mode1/mode2)
+    // Check if team is locked
+    if (isTeamLocked(userTeam)) {
+      showAlert('Picks Locked', 'You have already locked your picks!');
+      return;
+    }
+
+    // Get the user's pool and their current picks
+    const myPool = userTeam === 'A' ? draftState.playerAPool : draftState.playerBPool;
+    const myPicks = userTeam === 'A' ? draftState.teamA : draftState.teamB;
+
+    // Check if user is trying to pick from their own pool
+    if (!myPool?.includes(amikoId) && !isAdmin) {
+      showAlert('Not Your Amiko', 'You can only pick from your assigned Amikos!');
+      return;
+    }
+
+    // Check if user has already picked 3
+    if (myPicks?.length >= 3) {
+      showAlert('Picks Complete', 'You have already selected your 3 Amikos!');
+      return;
+    }
+
+    // Check if already picked by this user
+    if (myPicks?.includes(amikoId)) {
+      showAlert('Already Picked', 'You have already picked this Amiko!');
+      return;
+    }
+
+    // Prevent rapid-fire picks
+    if (isPickingRef.current) return;
+    isPickingRef.current = true;
+
+    // OPTIMISTIC UI for 1v1
+    setTempPick({ id: amikoId, team: userTeam });
+    playPickSound();
+
+    try {
+      await execute1v1Pick(amikoId, userTeam);
+    } catch (error) {
+      setTempPick(null);
+      console.log('Pick failed:', error);
+    } finally {
+      isPickingRef.current = false;
+    }
+  }, [draftState, execute1v1Pick, isTeamLocked, playPickSound, showAlert]);
+
+  // Standard Turn-based Selection logic (Mode 1 & 2)
+  const handleStandardSelection = useCallback(async (amikoId, isAdmin) => {
     // Check if phase picks are already complete (user needs to remove a pick first)
     const currentPhaseConfig = getPICK_ORDER(draftState.draftType)[draftState.currentPhase];
     if (draftState.picksInPhase >= currentPhaseConfig.count) {
@@ -2773,7 +2738,6 @@ function TournamentPage() {
     isPickingRef.current = true;
 
     // OPTIMISTIC UI: Set temp pick to show immediately
-    // This overlays on top of the grid until Firestore confirms it
     setTempPick({ id: amikoId, team: draftState.currentTeam });
 
     // Play pick sound effect
@@ -2781,15 +2745,51 @@ function TournamentPage() {
 
     try {
       await executePick(amikoId);
-      // Success - Firestore listener will sync the official state
     } catch (error) {
-      // Failed - clear optimistic pick
       setTempPick(null);
       console.log('Pick failed:', error);
     } finally {
       isPickingRef.current = false;
     }
-  }, [user, draftState, userPermission, execute1v1Pick, executePick, executeBan, isTeamLocked, showAlert, tempPick, playPickSound]);
+  }, [user, draftState, userPermission, executePick, playPickSound, showAlert]);
+
+  // Pick an Amiko
+  const pickAmiko = useCallback(async (amikoId) => {
+    if (!user) {
+      showAlert('Login Required', 'Please log in with Discord to pick Amikos!');
+      return;
+    }
+
+    // STRICT SYNC: Prevent picking if previous pick hasn't confirmed yet
+    if (tempPick) {
+      console.log('Pick throttled: waiting for previous pick sync');
+      return;
+    }
+
+    if (draftState.status !== 'active') {
+      showAlert('Draft Not Active', 'The draft is not active yet.');
+      return;
+    }
+
+    // Don't allow picks while waiting for lock confirmation
+    if (draftState.awaitingLockConfirmation) {
+      showAlert('Confirm Picks', 'Please confirm your picks before continuing!');
+      return;
+    }
+
+    const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
+    const userTeam = userPermission === 'A' ? 'A' : userPermission === 'B' ? 'B' : null;
+
+    // Route to appropriate handler based on draft type
+    if (draftState.draftType === 'mode4') {
+      await handleMode4Selection(amikoId, userTeam, isAdmin);
+    } else if (draftState.simultaneousPicking || draftState.draftType === 'mode3') {
+      await handleMode3Selection(amikoId, userTeam, isAdmin);
+    } else {
+      await handleStandardSelection(amikoId, isAdmin);
+    }
+  }, [user, draftState, userPermission, handleMode4Selection, handleMode3Selection, handleStandardSelection, showAlert, tempPick]);
+
 
 
   // Remove an Amiko
