@@ -5104,3 +5104,27 @@ input[type="file"] {
   font-weight: 700;
   color: white;
 }
+
+/* Pool input AURY icon */
+.pool-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pool-aury-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.pool-label {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+  flex-shrink: 0;
+}
+
+.pool-amount-input {
+  flex: 1;
+}

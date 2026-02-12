@@ -476,7 +476,7 @@ function AdminPanel() {
         await updateDoc(withdrawalRef, {
           status: 'completed',
           txSignature: txSig,
-          processedBy: user.email,
+          processedBy: getUserEmail(user) || user.displayName || user.uid,
           processedAt: serverTimestamp()
         });
 
@@ -522,7 +522,7 @@ function AdminPanel() {
           // Update withdrawal status
           transaction.update(withdrawalRef, {
             status: 'rejected',
-            processedBy: user.email,
+            processedBy: getUserEmail(user) || user.displayName || user.uid,
             processedAt: serverTimestamp()
           });
         });
@@ -590,7 +590,7 @@ function AdminPanel() {
         // Mark notification as processed
         transaction.update(notificationRef, {
           status: 'processed',
-          processedBy: user.email,
+          processedBy: getUserEmail(user) || user.displayName || user.uid,
           processedAt: serverTimestamp()
         });
       });
@@ -601,7 +601,7 @@ function AdminPanel() {
         type: 'deposit',
         amount: amountInSmallestUnit,
         timestamp: serverTimestamp(),
-        processedBy: user.email
+        processedBy: getUserEmail(user) || user.displayName || user.uid
       });
 
       alert(`✅ Successfully credited ${amountAury} AURY to user!`);
@@ -634,7 +634,7 @@ function AdminPanel() {
       const notificationRef = doc(db, 'depositNotifications', notificationId);
       await updateDoc(notificationRef, {
         status: 'dismissed',
-        processedBy: user.email,
+        processedBy: getUserEmail(user) || user.displayName || user.uid,
         processedAt: serverTimestamp()
       });
 
@@ -695,7 +695,7 @@ function AdminPanel() {
           amount: amountInSmallestUnit,
           reason: creditReason || 'Credit by admin',
           timestamp: serverTimestamp(),
-          processedBy: user.email
+          processedBy: getUserEmail(user) || user.displayName || user.uid
         });
 
         // Notify User
@@ -785,7 +785,7 @@ function AdminPanel() {
           amount: amountInSmallestUnit,
           reason: deductReason || 'Balance Adjustment by Admin',
           timestamp: serverTimestamp(),
-          processedBy: user.email,
+          processedBy: getUserEmail(user) || user.displayName || user.uid,
           status: 'completed'
         });
 

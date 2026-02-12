@@ -4446,6 +4446,7 @@
   border-radius: 50%;
   border: 4px solid;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
 }
 
 .coin-face-3d.blue-face {
@@ -4781,15 +4782,22 @@
 
 .coin-team-name {
   font-family: var(--font-display);
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 700;
   color: white;
   text-transform: uppercase;
-  letter-spacing: 2px;
+  letter-spacing: 1px;
   text-align: center;
-  max-width: 100%;
-  padding: 10px;
+  max-width: 90%;
+  padding: 8px;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+  line-height: 1.2;
 }
 
 /* =============================================
@@ -5651,4 +5659,279 @@
   .vs-divider {
     margin: 4px 0;
   }
+}
+
+/* ═══════════════════════════════════════════
+   1v1 JOIN / WAITING SECTION
+   ═══════════════════════════════════════════ */
+
+.waiting-1v1-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 0;
+}
+
+.match-info-banner {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.mode-tag {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: rgba(139, 92, 246, 0.2);
+  color: #c084fc;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+.pool-tag {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.pool-tag.pool {
+  background: rgba(234, 179, 8, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(234, 179, 8, 0.3);
+}
+
+.pool-tag.friendly {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.fee-tag {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.match-slots {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 600px;
+}
+
+.match-slot {
+  flex: 1;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 2px dashed rgba(255, 255, 255, 0.1);
+  text-align: center;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.match-slot.filled {
+  border: 2px solid rgba(139, 92, 246, 0.3);
+  background: rgba(139, 92, 246, 0.05);
+}
+
+.match-slot.open {
+  border: 2px dashed rgba(234, 179, 8, 0.3);
+  animation: slotPulse 2s ease-in-out infinite;
+}
+
+@keyframes slotPulse {
+
+  0%,
+  100% {
+    border-color: rgba(234, 179, 8, 0.2);
+  }
+
+  50% {
+    border-color: rgba(234, 179, 8, 0.5);
+  }
+}
+
+.slot-player {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.slot-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid rgba(139, 92, 246, 0.5);
+}
+
+.slot-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.creator-badge {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+.paid-badge {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.slot-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.slot-empty-icon {
+  font-size: 1.5rem;
+  opacity: 0.5;
+}
+
+.slot-empty-text {
+  font-size: 0.8rem;
+}
+
+.match-vs {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
+}
+
+.join-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  background: rgba(234, 179, 8, 0.05);
+  border: 1px solid rgba(234, 179, 8, 0.15);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.join-fee-notice {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.join-balance {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.insufficient-warning {
+  color: #ef4444;
+  font-size: 0.75rem;
+}
+
+.join-match-btn {
+  background: linear-gradient(135deg, #eab308, #f59e0b);
+  color: #000;
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 12px 32px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.join-match-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(234, 179, 8, 0.3);
+}
+
+.join-match-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.waiting-notice {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.login-join-notice {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .match-slots {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .match-slot {
+    width: 100%;
+  }
+
+  .match-vs {
+    font-size: 1rem;
+  }
+}
+
+/* Entry fee notice in coin flip modal */
+.entry-fee-notice {
+  text-align: center;
+  padding: 8px 16px;
+  margin: 8px 0;
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.2);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.entry-fee-notice p {
+  margin: 2px 0;
+}
+
+.fee-balance {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+}
+
+.fee-insufficient {
+  color: #ef4444;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.roll-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

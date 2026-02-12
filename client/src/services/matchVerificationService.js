@@ -252,7 +252,7 @@ export async function verifyDraftBattles(draftData, registeredUsers) {
   // Build battle configs based on draft mode
   const battleConfigs = [];
 
-  if (draftType === 'mode3') {
+  if (draftType === 'mode3' || draftType === 'mode4') {
     // 1v1: One battle, one code
     const pA = teamAPlayers[0];
     const pB = teamBPlayers[0];
@@ -352,7 +352,7 @@ export async function verifyDraftBattles(draftData, registeredUsers) {
     if (teamAWins > teamBWins) overallWinner = 'A';
     else if (teamBWins > teamAWins) overallWinner = 'B';
     else overallWinner = 'draw';
-  } else if (allVerified && draftType === 'mode3') {
+  } else if (allVerified && (draftType === 'mode3' || draftType === 'mode4')) {
     overallWinner = results[0]?.winner || null;
     if (overallWinner) {
       score = overallWinner === 'A' ? '1-0' : '0-1';

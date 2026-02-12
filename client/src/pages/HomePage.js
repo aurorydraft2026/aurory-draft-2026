@@ -267,7 +267,9 @@ function HomePage() {
     timerHours: 24,
     timerMinutes: 0,
     timerSeconds: 0,
-    manualTimerStart: false
+    manualTimerStart: false,
+    poolAmount: '',  // AURY pool amount (human-readable, e.g. "100")
+    isFriendly: false // No-cost match
   });
   const navigate = useNavigate();
 
@@ -804,7 +806,13 @@ function HomePage() {
   useEffect(() => {
     if (showCreateModal) {
       fetchRegisteredUsers();
+      // Non-admins can only create 1v1 modes - default to mode3
+      const isAdmin = user && (isSuperAdmin(getUserEmail(user)) || user.role === 'admin');
+      if (!isAdmin && newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') {
+        setNewTournament(prev => ({ ...prev, draftType: 'mode3' }));
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showCreateModal]);
 
   // Fetch match history (verified matches from all tournaments)
@@ -1149,6 +1157,8 @@ function HomePage() {
       return;
     }
 
+    const is1v1 = newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4';
+
     const timerMs = (
       (newTournament.timerDays * 24 * 60 * 60 * 1000) +
       (newTournament.timerHours * 60 * 60 * 1000) +
@@ -1161,11 +1171,40 @@ function HomePage() {
       return;
     }
 
-    // If not using manual timer start, participants are required (6 for normal, 2 for 1v1)
-    if (!newTournament.manualTimerStart && !areTeamsComplete()) {
-      const required = (newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? 2 : 6;
-      alert(`Please assign all ${required} participants, or check "Start timer manually" to add participants later.`);
+    // 1v1: Enforce minimum 24-hour timer
+    if (is1v1 && timerMs < 24 * 60 * 60 * 1000) {
+      alert('1v1 drafts require a minimum timer of 24 hours so both players have time to prepare.');
       return;
+    }
+
+    // 3v3: If not using manual timer start, participants are required
+    if (!is1v1 && !newTournament.manualTimerStart && !areTeamsComplete()) {
+      alert('Please assign all 6 participants, or check "Start timer manually" to add participants later.');
+      return;
+    }
+
+    // 1v1 Pool validation
+    const isFriendly = is1v1 ? newTournament.isFriendly : true;
+    const poolAmountAury = is1v1 && !isFriendly ? parseFloat(newTournament.poolAmount) || 0 : 0;
+    const poolAmountSmallest = Math.floor(poolAmountAury * 1e9); // Convert to smallest unit
+    const entryFee = Math.floor(poolAmountSmallest / 2);
+
+    if (is1v1 && !isFriendly && poolAmountAury <= 0) {
+      alert('Please enter a pool amount greater than 0, or check "Friendly Match".');
+      return;
+    }
+
+    // Check if creator is self-assigned as a player
+    const creatorIsPlayer1 = team1.leader === user.uid;
+    const creatorIsPlayer2 = team2.leader === user.uid;
+    const creatorIsPlayer = creatorIsPlayer1 || creatorIsPlayer2;
+
+    // Wallet balance check for creator if self-assigned and pool > 0
+    if (is1v1 && !isFriendly && creatorIsPlayer && entryFee > 0) {
+      if (walletBalance < entryFee) {
+        alert(`Insufficient balance. You need at least ${(entryFee / 1e9).toFixed(2)} AURY to enter this match. Your balance: ${formatAuryAmount(walletBalance)} AURY`);
+        return;
+      }
     }
 
     try {
@@ -1173,49 +1212,82 @@ function HomePage() {
       const tournamentId = `tournament_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const draftRef = doc(db, 'drafts', tournamentId);
 
-      // Build permissions object with assigned participants as spectators
-      const permissions = {
-        [user.uid]: 'admin'
-      };
+      // For 1v1 with pool: deduct entry fee from creator's wallet atomically
+      if (is1v1 && !isFriendly && creatorIsPlayer && entryFee > 0) {
+        const walletRef = doc(db, 'wallets', user.uid);
+        await runTransaction(db, async (transaction) => {
+          const walletDoc = await transaction.get(walletRef);
+          const currentBalance = walletDoc.exists() ? (walletDoc.data().balance || 0) : 0;
+          if (currentBalance < entryFee) {
+            throw new Error('Insufficient balance');
+          }
+          transaction.update(walletRef, {
+            balance: currentBalance - entryFee,
+            updatedAt: serverTimestamp()
+          });
+          // Record transaction
+          const txRef = doc(collection(db, 'wallets', user.uid, 'transactions'));
+          transaction.set(txRef, {
+            type: 'entry_fee',
+            amount: entryFee,
+            draftId: tournamentId,
+            draftTitle: newTournament.title.trim(),
+            timestamp: serverTimestamp()
+          });
+        });
+      }
+
+      // Build permissions object
+      const permissions = {};
+      // Creator is admin only if they're NOT a player, otherwise they'll be assigned as A/B later
+      if (!is1v1 || (!creatorIsPlayer)) {
+        permissions[user.uid] = 'admin';
+      } else {
+        permissions[user.uid] = 'spectator'; // Will be upgraded when draft starts
+      }
       getAssignedParticipants().forEach(uid => {
-        permissions[uid] = 'spectator';
+        if (!permissions[uid]) permissions[uid] = 'spectator';
       });
 
-      // Save team structure (will be shuffled to A/B when draft starts)
+      // Save team structure
       const preAssignedTeams = {
         team1: {
-          leader: team1.leader,
-          member1: team1.member1,
-          member2: team1.member2
+          leader: team1.leader || null,
+          member1: team1.member1 || null,
+          member2: team1.member2 || null
         },
         team2: {
-          leader: team2.leader,
-          member1: team2.member1,
-          member2: team2.member2
+          leader: team2.leader || null,
+          member1: team2.member1 || null,
+          member2: team2.member2 || null
         }
       };
 
-      // Get team names for display (use custom names or fallback to leader names)
+      // Get team names
       const team1LeaderUser = getUserById(team1.leader);
       const team2LeaderUser = getUserById(team2.leader);
       const teamNames = {
-        team1: team1Name.trim() || team1LeaderUser?.username || team1LeaderUser?.displayName || 'Team 1',
-        team2: team2Name.trim() || team2LeaderUser?.username || team2LeaderUser?.displayName || 'Team 2',
+        team1: team1Name.trim() || team1LeaderUser?.username || team1LeaderUser?.displayName || 'Player 1',
+        team2: team2Name.trim() || team2LeaderUser?.username || team2LeaderUser?.displayName || 'Player 2',
       };
 
-      // Store team banners (base64)
+      // Store team banners
       const teamBanners = {
         team1: team1Banner || null,
         team2: team2Banner || null,
       };
 
+      // Determine if 1v1 is joinable (has open player slots)
+      const bothPlayersAssigned = is1v1 && team1.leader && team2.leader;
+      const hasOpenSlots = is1v1 && (!team1.leader || !team2.leader);
+
       const tournamentData = {
         title: newTournament.title.trim(),
         description: newTournament.description.trim(),
-        prizePool: newTournament.prizePool.trim(),
+        prizePool: is1v1 ? (isFriendly ? 'Friendly' : `${poolAmountAury} AURY`) : newTournament.prizePool.trim(),
         draftType: newTournament.draftType,
         timerDuration: timerMs,
-        manualTimerStart: newTournament.manualTimerStart,
+        manualTimerStart: is1v1 ? false : newTournament.manualTimerStart, // 1v1 always auto-starts timer
         timerStarted: false,
         teamA: [],
         teamB: [],
@@ -1224,21 +1296,39 @@ function HomePage() {
         picksInPhase: 0,
         timerStartA: null,
         timerStartB: null,
-        status: 'waiting',
+        status: bothPlayersAssigned ? 'coinFlip' : 'waiting',
         permissions: permissions,
-        preAssignedTeams: preAssignedTeams, // NEW: Store pre-assigned teams
-        teamNames: teamNames, // Store team names for display
-        teamBanners: teamBanners, // Store team banner images
+        preAssignedTeams: preAssignedTeams,
+        teamNames: teamNames,
+        teamBanners: teamBanners,
         lockedPhases: [],
         awaitingLockConfirmation: false,
         activeViewers: {},
         createdAt: serverTimestamp(),
-        createdBy: user.uid
+        createdBy: user.uid,
+        // 1v1 pool fields
+        poolAmount: poolAmountSmallest,
+        entryFee: entryFee,
+        isFriendly: isFriendly,
+        joinable: hasOpenSlots, // Open for others to join
+        entryPaid: creatorIsPlayer && !isFriendly && entryFee > 0 ? { [user.uid]: entryFee } : {}
       };
 
       // Generate private code for 1v1 mode
-      if (newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') {
+      if (is1v1) {
         tournamentData.privateCode = Math.floor(10000 + Math.random() * 90000).toString();
+      }
+
+      // If both players assigned, set up coinFlip phase for immediate confirmation
+      if (bothPlayersAssigned) {
+        tournamentData.coinFlip = {
+          phase: 'rolling',
+          team1Locked: false,
+          team2Locked: false,
+          result: null,
+          winner: null,
+          winnerTurnChoice: null
+        };
       }
 
       await setDoc(draftRef, tournamentData);
@@ -1248,12 +1338,14 @@ function HomePage() {
         title: '',
         description: '',
         prizePool: '',
-        draftType: 'mode1',
+        draftType: isAdminUser ? 'mode1' : 'mode3',
         timerDays: 0,
         timerHours: 24,
         timerMinutes: 0,
         timerSeconds: 0,
-        manualTimerStart: false
+        manualTimerStart: false,
+        poolAmount: '',
+        isFriendly: false
       });
       setTeam1({ leader: null, member1: null, member2: null });
       setTeam2({ leader: null, member1: null, member2: null });
@@ -1268,19 +1360,20 @@ function HomePage() {
       // Notify all assigned participants
       const assignedUids = getAssignedParticipants();
       for (const uid of assignedUids) {
-        if (uid === user.uid) continue; // Don't notify self
+        if (uid === user.uid) continue;
         await createNotification(uid, {
           type: 'invite',
-          title: 'Draft Invitation',
-          message: `You have been invited to participate in "${newTournament.title.trim()}".`,
+          title: is1v1 ? '1v1 Challenge!' : 'Draft Invitation',
+          message: is1v1
+            ? `You've been challenged to a 1v1 match: "${newTournament.title.trim()}"${!isFriendly ? ` (Entry: ${(entryFee / 1e9).toFixed(2)} AURY)` : ' (Friendly)'}`
+            : `You have been invited to participate in "${newTournament.title.trim()}".`,
           link: `/tournament/${tournamentId}`
         });
       }
 
       // Navigate to the new tournament
-      // If not using manual timer start, pass autoStart flag to trigger draft immediately
       navigate(`/tournament/${tournamentId}`, {
-        state: { autoStart: !newTournament.manualTimerStart }
+        state: { autoStart: !is1v1 && !newTournament.manualTimerStart }
       });
     } catch (error) {
       console.error('Error creating tournament:', error);
@@ -1385,7 +1478,7 @@ function HomePage() {
           {user ? (
             <div className="user-info">
               {/* Admin: Create Draft Button in Header */}
-              {isAdmin && (
+              {user && (
                 <button onClick={() => setShowCreateModal(true)} className="header-create-btn">
                   ⚡ Create
                 </button>
@@ -1709,10 +1802,10 @@ function HomePage() {
                   {tournaments.length === 0 ? (
                     <>
                       <p>🎮 No drafts available</p>
-                      {isAdmin ? (
+                      {user ? (
                         <p className="hint">Click "⚡ Create" to start one!</p>
                       ) : (
-                        <p className="hint">Check back later for upcoming drafts</p>
+                        <p className="hint">Log in to create or join a draft</p>
                       )}
                     </>
                   ) : (
@@ -1756,7 +1849,8 @@ function HomePage() {
                       return (
                         <div
                           key={tournament.id}
-                          className={`tournament-card ${isMyTurn ? 'active-turn' : ''} ${isParticipating && !isMyTurn ? 'participating' : ''}`}
+                          className={`tournament-card ${isMyTurn ? 'active-turn' : ''} ${isParticipating && !isMyTurn ? 'participating' : ''} ${(tournament.draftType === 'mode3' || tournament.draftType === 'mode4') && tournament.joinable && tournament.status === 'waiting' ? 'joinable-card' : ''
+                            }`}
                           onClick={() => goToTournament(tournament.id)}
                         >
                           {/* Live Timer Ribbon for Active Drafts */}
@@ -1786,6 +1880,11 @@ function HomePage() {
                                 <span className={`mode-badge mode-${tournament.draftType || 'mode1'}`}>
                                   {tournament.draftType === 'mode4' ? 'Ban 3-3' : tournament.draftType === 'mode3' ? 'DM 3-3' : tournament.draftType === 'mode2' ? 'Triad 1-2-1' : 'Triad 3-6-3'}
                                 </span>
+                                {(tournament.draftType === 'mode3' || tournament.draftType === 'mode4') && (
+                                  <span className={`pool-badge ${tournament.isFriendly ? 'friendly' : 'pool'}`}>
+                                    {tournament.isFriendly ? '🤝 Friendly' : `💰 ${(tournament.poolAmount / 1e9).toFixed(0)} AURY`}
+                                  </span>
+                                )}
                                 <span className={`status-badge ${getStatusColor(tournament.status)}`}>
                                   {getStatusText(tournament.status)}
                                 </span>
@@ -1860,7 +1959,35 @@ function HomePage() {
                             </div>
 
                             <div className="tournament-footer">
-                              <span className="view-btn">View Draft →</span>
+                              {(() => {
+                                const is1v1Card = tournament.draftType === 'mode3' || tournament.draftType === 'mode4';
+                                const isJoinable = is1v1Card && tournament.joinable && tournament.status === 'waiting';
+                                const canJoin = isJoinable && user && !isParticipating;
+
+                                if (canJoin) {
+                                  return (
+                                    <span className="view-btn join-now-btn">
+                                      ⚔️ Join Now →
+                                    </span>
+                                  );
+                                }
+                                if (isJoinable && !user) {
+                                  return <span className="view-btn join-now-btn">⚔️ Join Now →</span>;
+                                }
+                                if (is1v1Card && tournament.status === 'coinFlip') {
+                                  return <span className="view-btn starting-btn">🎲 Confirming... →</span>;
+                                }
+                                if (is1v1Card && tournament.status === 'waiting' && !isJoinable) {
+                                  return <span className="view-btn waiting-btn">⏳ Awaiting Players →</span>;
+                                }
+                                if (is1v1Card && tournament.status === 'assignment') {
+                                  return <span className="view-btn starting-btn">🎲 Starting... →</span>;
+                                }
+                                if (isParticipating) {
+                                  return <span className="view-btn">Enter Draft →</span>;
+                                }
+                                return <span className="view-btn">Spectate →</span>;
+                              })()}
                             </div>
                           </div>
                         </div>
@@ -2226,16 +2353,64 @@ function HomePage() {
                   />
                 </div>
 
-                <div className="form-group">
-                  <label>Prize Pool</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. $1,000 or 10,000 AURY"
-                    value={newTournament.prizePool}
-                    onChange={(e) => setNewTournament({ ...newTournament, prizePool: e.target.value })}
-                    className="form-input"
-                  />
-                </div>
+                {/* Prize Pool - Text based for 3v3 modes */}
+                {(newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') && (
+                  <div className="form-group">
+                    <label>Prize Pool</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. $1,000 or 10,000 AURY"
+                      value={newTournament.prizePool}
+                      onChange={(e) => setNewTournament({ ...newTournament, prizePool: e.target.value })}
+                      className="form-input"
+                    />
+                  </div>
+                )}
+
+                {/* AURY Pool - Numeric for 1v1 modes */}
+                {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') && (
+                  <div className="form-group">
+                    <label className="checkbox-label friendly-toggle">
+                      <input
+                        type="checkbox"
+                        checked={newTournament.isFriendly}
+                        onChange={(e) => setNewTournament({ ...newTournament, isFriendly: e.target.checked, poolAmount: '' })}
+                      />
+                      <span>🤝 Friendly Match (no cost)</span>
+                    </label>
+                    {!newTournament.isFriendly && (
+                      <>
+                        <label>Pool Amount (AURY)</label>
+                        <div className="pool-input-row">
+                          <img src="/aury-icon.png" alt="AURY" className="pool-aury-icon" />
+                          <input
+                            type="number"
+                            placeholder="e.g. 100"
+                            min="0"
+                            step="any"
+                            value={newTournament.poolAmount}
+                            onChange={(e) => setNewTournament({ ...newTournament, poolAmount: e.target.value })}
+                            className="form-input pool-amount-input"
+                          />
+                          <span className="pool-label">AURY</span>
+                        </div>
+                        <span className="input-hint">
+                          {newTournament.poolAmount && parseFloat(newTournament.poolAmount) > 0
+                            ? `Entry fee: ${(parseFloat(newTournament.poolAmount) / 2).toFixed(2)} AURY per player • Winner takes ${(parseFloat(newTournament.poolAmount) * 0.95).toFixed(2)} AURY (5% tax)`
+                            : 'Total pool will be split equally. Each player pays half as entry fee.'}
+                        </span>
+                        {newTournament.poolAmount && parseFloat(newTournament.poolAmount) > 0 && (
+                          <span className="input-hint wallet-hint">
+                            Your balance: {formatAuryAmount(walletBalance)} AURY
+                            {(team1.leader === user?.uid || team2.leader === user?.uid) && parseFloat(newTournament.poolAmount) / 2 * 1e9 > walletBalance
+                              ? ' ⚠️ Insufficient balance for entry fee'
+                              : ''}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
 
                 {/* NEW: Draft Type Dropdown */}
                 <div className="form-group">
@@ -2245,8 +2420,8 @@ function HomePage() {
                     onChange={(e) => setNewTournament({ ...newTournament, draftType: e.target.value })}
                     className="form-input"
                   >
-                    <option value="mode1">Triad Format 3-6-3</option>
-                    <option value="mode2">Triad Format 1-2-1</option>
+                    {isAdmin && <option value="mode1">Triad Format 3-6-3</option>}
+                    {isAdmin && <option value="mode2">Triad Format 1-2-1</option>}
                     <option value="mode3">Deathmatch 3-3</option>
                     <option value="mode4">Ban Draft 3-3</option>
                   </select>
@@ -2315,19 +2490,28 @@ function HomePage() {
                       type="checkbox"
                       checked={newTournament.manualTimerStart}
                       onChange={(e) => setNewTournament({ ...newTournament, manualTimerStart: e.target.checked })}
+                      disabled={newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4'}
                     />
                     <span>Start timer manually (wait for all players to be ready)</span>
                   </label>
+                  {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') && (
+                    <span className="input-hint">1v1 drafts always start when both players confirm ready. Minimum timer: 24 hours.</span>
+                  )}
                 </div>
 
                 {/* Team Assignment Section */}
                 <div className="form-group team-assignment-section">
                   <label>
-                    Assign Teams ({getAssignedCount()}/{(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? 2 : 6} assigned)
-                    {!newTournament.manualTimerStart && <span className="required-text"> *</span>}
+                    {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4')
+                      ? `Assign Players (${getAssignedCount()}/2 — optional)`
+                      : `Assign Teams (${getAssignedCount()}/6 assigned)`}
+                    {(newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') && !newTournament.manualTimerStart && <span className="required-text"> *</span>}
                   </label>
-                  {!newTournament.manualTimerStart && !areTeamsComplete() && (
-                    <p className="field-hint">All {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? 2 : 6} participants required, or enable "Start timer manually"</p>
+                  {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') && (
+                    <p className="field-hint">Leave slots open for anyone to join (first come, first serve), or assign specific players.</p>
+                  )}
+                  {(newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') && !newTournament.manualTimerStart && !areTeamsComplete() && (
+                    <p className="field-hint">All 6 participants required, or enable "Start timer manually"</p>
                   )}
 
                   <div className="teams-container">

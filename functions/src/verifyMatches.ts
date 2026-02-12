@@ -8,6 +8,7 @@
  */
 
 import * as admin from 'firebase-admin';
+import fetch from 'node-fetch';
 
 const db = admin.firestore();
 const AURORY_API_BASE = 'https://aggregator-api.live.aurory.io';
@@ -74,6 +75,11 @@ export async function scanAndVerifyDrafts(): Promise<number> {
           });
           newlyVerified++;
           console.log(`  ✅ Draft ${draftId}: ${verificationData.allVerified ? 'FULLY VERIFIED' : 'partial'}`);
+
+          // Process payouts for fully verified 1v1 matches
+          if (verificationData.allVerified && verificationData.overallWinner) {
+            await processPayouts(draftId, data, verificationData.overallWinner);
+          }
         } else {
           // Update timestamp to throttle retries
           await doc.ref.update({
@@ -89,6 +95,174 @@ export async function scanAndVerifyDrafts(): Promise<number> {
   return newlyVerified;
 }
 
+// ─── PAYOUT PROCESSING ───
+
+const SUPER_ADMIN_UID = 'fWp7xeLNvuTD9axrPtJpp4afC1g2';
+const TAX_RATE = 0.05; // 5% tax on winnings
+
+/**
+ * Process prize payouts for a verified 1v1 match
+ * Winner receives poolAmount * 0.95, tax (5%) goes to super admin wallet
+ */
+async function processPayouts(draftId: string, draftData: any, overallWinner: string): Promise<void> {
+  // Only process 1v1 modes with pool amounts
+  const is1v1 = draftData.draftType === 'mode3' || draftData.draftType === 'mode4';
+  if (!is1v1) return;
+
+  // Skip friendly matches or zero-pool matches
+  if (draftData.isFriendly || !draftData.poolAmount || draftData.poolAmount <= 0) return;
+
+  // Skip if already paid out
+  if (draftData.payoutComplete) return;
+
+  // Skip draws (no payout)
+  if (overallWinner === 'draw') {
+    console.log(`  💰 Draw result for ${draftId}, refunding entry fees...`);
+    await processRefund(draftId, draftData);
+    return;
+  }
+
+  // Determine winner UID
+  const winnerUid = overallWinner === 'A' ? draftData.teamALeader : draftData.teamBLeader;
+  if (!winnerUid) {
+    console.error(`  ❌ Cannot determine winner UID for draft ${draftId}`);
+    return;
+  }
+
+  const poolAmount = draftData.poolAmount;
+  const taxAmount = Math.floor(poolAmount * TAX_RATE);
+  const winnerPrize = poolAmount - taxAmount;
+
+  try {
+    await db.runTransaction(async (tx) => {
+      // Re-check payout status inside transaction
+      const draftRef = db.doc(`drafts/${draftId}`);
+      const draftSnap = await tx.get(draftRef);
+      if (draftSnap.data()?.payoutComplete) return;
+
+      // Credit winner
+      const winnerWalletRef = db.doc(`wallets/${winnerUid}`);
+      const winnerWallet = await tx.get(winnerWalletRef);
+      const winnerBalance = winnerWallet.exists ? (winnerWallet.data()?.balance || 0) : 0;
+
+      if (winnerWallet.exists) {
+        tx.update(winnerWalletRef, {
+          balance: winnerBalance + winnerPrize,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      } else {
+        tx.set(winnerWalletRef, {
+          balance: winnerPrize,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+
+      // Record winner transaction
+      const winnerTxRef = db.collection(`wallets/${winnerUid}/transactions`).doc();
+      tx.set(winnerTxRef, {
+        type: 'prize_won',
+        amount: winnerPrize,
+        grossAmount: poolAmount,
+        taxAmount: taxAmount,
+        draftId: draftId,
+        draftTitle: draftData.title || 'Untitled Match',
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Credit tax to super admin
+      const adminWalletRef = db.doc(`wallets/${SUPER_ADMIN_UID}`);
+      const adminWallet = await tx.get(adminWalletRef);
+      const adminBalance = adminWallet.exists ? (adminWallet.data()?.balance || 0) : 0;
+
+      if (adminWallet.exists) {
+        tx.update(adminWalletRef, {
+          balance: adminBalance + taxAmount,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      } else {
+        tx.set(adminWalletRef, {
+          balance: taxAmount,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+
+      // Record tax transaction
+      const adminTxRef = db.collection(`wallets/${SUPER_ADMIN_UID}/transactions`).doc();
+      tx.set(adminTxRef, {
+        type: 'tax_collected',
+        amount: taxAmount,
+        draftId: draftId,
+        draftTitle: draftData.title || 'Untitled Match',
+        fromUser: winnerUid,
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Mark payout complete on draft
+      tx.update(draftRef, {
+        payoutComplete: true,
+        payoutData: {
+          winnerUid,
+          winnerPrize,
+          taxAmount,
+          processedAt: Date.now()
+        }
+      });
+    });
+
+    console.log(`  💰 Payout complete for ${draftId}: ${(winnerPrize / 1e9).toFixed(2)} AURY to winner, ${(taxAmount / 1e9).toFixed(2)} AURY tax`);
+  } catch (err) {
+    console.error(`  ❌ Payout error for ${draftId}:`, err);
+  }
+}
+
+/**
+ * Refund entry fees on draw
+ */
+async function processRefund(draftId: string, draftData: any): Promise<void> {
+  const entryPaid = draftData.entryPaid || {};
+  if (Object.keys(entryPaid).length === 0) return;
+
+  try {
+    await db.runTransaction(async (tx) => {
+      const draftRef = db.doc(`drafts/${draftId}`);
+      const draftSnap = await tx.get(draftRef);
+      if (draftSnap.data()?.payoutComplete) return;
+
+      for (const [uid, amount] of Object.entries(entryPaid)) {
+        if (!amount || (amount as number) <= 0) continue;
+        const walletRef = db.doc(`wallets/${uid}`);
+        const walletSnap = await tx.get(walletRef);
+        const balance = walletSnap.exists ? (walletSnap.data()?.balance || 0) : 0;
+
+        if (walletSnap.exists) {
+          tx.update(walletRef, {
+            balance: balance + (amount as number),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+        }
+
+        const refundTxRef = db.collection(`wallets/${uid}/transactions`).doc();
+        tx.set(refundTxRef, {
+          type: 'refund_draw',
+          amount: amount,
+          draftId: draftId,
+          draftTitle: draftData.title || 'Untitled Match',
+          timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+
+      tx.update(draftRef, {
+        payoutComplete: true,
+        payoutData: { refunded: true, processedAt: Date.now() }
+      });
+    });
+
+    console.log(`  💰 Refund complete for ${draftId} (draw)`);
+  } catch (err) {
+    console.error(`  ❌ Refund error for ${draftId}:`, err);
+  }
+}
+
 // ─── Aurory API calls (direct, no CORS proxy needed) ───
 
 async function fetchMatchByBattleCode(battleCode: string): Promise<{ matches: any[]; error: string | null }> {
@@ -96,7 +270,8 @@ async function fetchMatchByBattleCode(battleCode: string): Promise<{ matches: an
 
   try {
     const response = await fetch(url, {
-      headers: { 'accept': 'application/json' }
+      headers: { 'accept': 'application/json' },
+      timeout: 10000
     });
 
     if (!response.ok) {
@@ -234,7 +409,7 @@ async function verifyDraftBattles(draftData: any): Promise<any> {
 
   const battleConfigs: any[] = [];
 
-  if (draftType === 'mode3') {
+  if (draftType === 'mode3' || draftType === 'mode4') {
     const pA = teamAPlayers[0];
     const pB = teamBPlayers[0];
     if (!pA?.auroryPlayerId || !pB?.auroryPlayerId) {
@@ -296,7 +471,7 @@ async function verifyDraftBattles(draftData: any): Promise<any> {
     const teamAWins = results.filter((r: any) => r.winner === 'A').length;
     const teamBWins = results.filter((r: any) => r.winner === 'B').length;
 
-    if (draftType === 'mode3') {
+    if (draftType === 'mode3' || draftType === 'mode4') {
       overallWinner = results[0]?.winner || null;
       score = overallWinner === 'A' ? '1-0' : overallWinner === 'B' ? '0-1' : null;
     } else {
