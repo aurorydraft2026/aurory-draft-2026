@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { auth, db, discordProvider, googleProvider } from '../firebase';
 import { signInWithPopup, getAdditionalUserInfo, signOut, onAuthStateChanged } from 'firebase/auth';
 import {
@@ -31,10 +31,6 @@ const getUserEmail = (user) => {
   return null;
 };
 
-// Generate a unique deposit memo for a user
-const generateDepositMemo = (userId) => {
-  return `AURY-${userId.slice(0, 8).toUpperCase()}`;
-};
 
 
 function HomePage() {
@@ -245,6 +241,8 @@ function HomePage() {
 
   // Aurory Account Link State
   const [showAuroryModal, setShowAuroryModal] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showLoginSuccessModal, setShowLoginSuccessModal] = useState(false);
 
   // Match History state
   const [matchHistory, setMatchHistory] = useState([]);
@@ -252,6 +250,8 @@ function HomePage() {
   const [matchHistoryFilter, setMatchHistoryFilter] = useState('all'); // 'all', 'mode1', 'mode2', 'mode3'
   const [expandedMatch, setExpandedMatch] = useState(null); // draftId of expanded match
   const [showUserModal, setShowUserModal] = useState(false);
+  const profileMenuRef = useRef(null);
+  const notificationMenuRef = useRef(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [tournamentFilter, setTournamentFilter] = useState('active');
   const [draftModeFilter, setDraftModeFilter] = useState('all'); // 'all','mode1','mode2','mode3'
@@ -265,8 +265,8 @@ function HomePage() {
     prizePool: '',
     draftType: 'mode1', // NEW: Default to Draft Mode 1
     timerDays: 0,
-    timerHours: 24,
-    timerMinutes: 0,
+    timerHours: 0,
+    timerMinutes: 1,
     timerSeconds: 0,
     manualTimerStart: false,
     poolAmount: '',  // AURY pool amount (human-readable, e.g. "100")
@@ -290,6 +290,7 @@ function HomePage() {
       if (currentUser) {
         // First set the auth user
         setUser(currentUser);
+        setLoading(false);
 
         // Then listen to the user's Firestore document for Aurory data
         const userRef = doc(db, 'users', currentUser.uid);
@@ -317,9 +318,9 @@ function HomePage() {
         });
       } else {
         setUser(null);
+        setLoading(false);
         if (unsubscribeUserDoc) unsubscribeUserDoc();
       }
-      setLoading(false);
     });
 
     return () => {
@@ -327,6 +328,28 @@ function HomePage() {
       if (unsubscribeUserDoc) unsubscribeUserDoc();
     };
   }, []);
+
+  // Handle click outside for profile dropdown
+  useEffect(() => {
+    function handleClickOutside(event) {
+      // Only handle click-outside for desktop dropdown
+      if (window.innerWidth <= 768) return;
+
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setShowUserModal(false);
+      }
+
+      if (notificationMenuRef.current && !notificationMenuRef.current.contains(event.target)) {
+        setShowNotificationPanel(false);
+      }
+    }
+    if (showUserModal || showNotificationPanel) {
+      document.addEventListener('click', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [showUserModal, showNotificationPanel]);
 
   // Listen for tournaments
   useEffect(() => {
@@ -379,8 +402,7 @@ function HomePage() {
         setDoc(walletRef, {
           balance: 0,
           pendingDeposits: 0,
-          createdAt: serverTimestamp(),
-          memo: generateDepositMemo(user.uid)
+          createdAt: serverTimestamp()
         });
         setWalletBalance(0);
       }
@@ -483,7 +505,7 @@ function HomePage() {
     if (tournament.status !== 'active') return null;
     if (tournament.manualTimerStart && !tournament.timerStarted) return { waiting: true };
 
-    const timerDuration = tournament.timerDuration || 24 * 60 * 60 * 1000;
+    const timerDuration = tournament.timerDuration || 30 * 1000;
     const currentTeam = tournament.currentTeam || 'A';
     const timerStart = currentTeam === 'A' ? tournament.timerStartA : tournament.timerStartB;
 
@@ -586,6 +608,7 @@ function HomePage() {
         type: 'AUTH',
         action: 'login_discord'
       });
+      setShowLoginSuccessModal(true);
     } catch (error) {
       console.error('Login error:', error);
       alert('Login failed: ' + error.message);
@@ -628,6 +651,7 @@ function HomePage() {
         type: 'AUTH',
         action: 'login_google'
       });
+      setShowLoginSuccessModal(true);
     } catch (error) {
       console.error('Google login error:', error);
       alert('Google login failed: ' + error.message);
@@ -797,12 +821,11 @@ function HomePage() {
         userId: user.uid,
         userEmail: user.email,
         userName: user.displayName,
-        userMemo: generateDepositMemo(user.uid),
+        createdAt: serverTimestamp(),
         amount: amount,
         txSignature: depositTxSignature || '',
         note: depositNote || '',
-        status: 'pending', // pending, processed
-        createdAt: serverTimestamp()
+        status: 'pending' // pending, processed
       });
 
       alert('✅ Admin has been notified! Your deposit will be credited soon.');
@@ -1233,9 +1256,9 @@ function HomePage() {
       return;
     }
 
-    // 1v1: Enforce minimum 24-hour timer
-    if (is1v1 && timerMs < 24 * 60 * 60 * 1000) {
-      alert('1v1 drafts require a minimum timer of 24 hours so both players have time to prepare.');
+    // 1v1: Enforce minimum 30-second timer
+    if (is1v1 && timerMs < 30 * 1000) {
+      alert('1v1 drafts require a minimum timer of 30 seconds so both players have time to prepare.');
       return;
     }
 
@@ -1414,8 +1437,8 @@ function HomePage() {
         prizePool: '',
         draftType: isAdminUser ? 'mode1' : 'mode3',
         timerDays: 0,
-        timerHours: 24,
-        timerMinutes: 0,
+        timerHours: 0,
+        timerMinutes: 1,
         timerSeconds: 0,
         manualTimerStart: false,
         poolAmount: '',
@@ -1536,6 +1559,234 @@ function HomePage() {
   const isAdminUser = user && (isSuperAdminUser || user.role === 'admin');
   const isAdmin = isAdminUser; // Preserve for backwards compatibility within this file
 
+  // Helper to render profile menu content (shared between mobile modal and desktop dropdown)
+  const renderUserProfileContent = () => {
+    if (!user) return null;
+    return (
+      <div
+        className="user-profile-modal"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h3>👤 User Profile</h3>
+          <button className="close-modal" onClick={() => setShowUserModal(false)}>✕</button>
+        </div>
+
+        <div className="user-modal-content">
+          <div className="user-header-info">
+            <img
+              src={user.auroryProfilePicture || user.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+              alt="Profile"
+              className="modal-profile-pic"
+              onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+            />
+            <div className="user-text-info">
+              <span className="modal-username">
+                {user.displayName}
+                {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}
+              </span>
+              <span className="modal-email">{user.email}</span>
+              {isSuperAdminUser ? (
+                <span className="modal-admin-badge">⭐ Super Admin</span>
+              ) : isAdminUser ? (
+                <span className="modal-admin-badge admin-staff">⭐ Admin</span>
+              ) : null}
+
+              {user.isAurorian && <span className="aurorian-tag">Aurorian Holder</span>}
+            </div>
+          </div>
+
+          <div className="user-modal-actions">
+            <button
+              className="modal-action-btn aurory"
+              onClick={() => {
+                setShowUserModal(false);
+                setShowAuroryModal(true);
+              }}
+            >
+              <span className="btn-icon">🎮</span>
+              <div className="btn-text">
+                <span className="btn-title">Aurory Account</span>
+                <span className="btn-desc">Link your game account</span>
+              </div>
+            </button>
+
+            {isAdmin && (
+              <button
+                className="modal-action-btn admin"
+                onClick={() => {
+                  setShowUserModal(false);
+                  navigate('/admin/panel');
+                }}
+              >
+                <span className="btn-icon">💼</span>
+                <div className="btn-text">
+                  <span className="btn-title">Admin Panel</span>
+                  <span className="btn-desc">Manage wallets & deposits</span>
+                </div>
+              </button>
+            )}
+
+            <div className="modal-divider"></div>
+
+            <button
+              className="modal-action-btn logout"
+              onClick={() => {
+                setShowUserModal(false);
+                setShowLogoutConfirm(true);
+              }}
+            >
+              <span className="btn-icon">🚪</span>
+              <div className="btn-text">
+                <span className="btn-title">Logout</span>
+                <span className="btn-desc">Sign out of your account</span>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Helper to render notification panel content (shared between mobile modal and desktop dropdown)
+  const renderNotificationPanelContent = () => {
+    return (
+      <div className="notification-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="notification-panel-header">
+          <div className="header-left">
+            <h3>Notifications</h3>
+            {notifications.length > 0 && (
+              <button
+                className="delete-all-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deleteAllNotifications();
+                }}
+                title="Delete all notifications"
+              >
+                🗑️ Clear All
+              </button>
+            )}
+          </div>
+          <button className="close-panel-btn" onClick={() => setShowNotificationPanel(false)}>✕</button>
+        </div>
+        <div className="notification-list">
+          {notifications.length === 0 ? (
+            <div className="no-notifications">No new notifications</div>
+          ) : (
+            notifications.map(notif => (
+              <div
+                key={notif.id}
+                className={`notification-item ${!notif.read ? 'unread' : ''} ${notif.type}`}
+                onClick={() => {
+                  if (notif.link && notif.link !== '#') navigate(notif.link);
+                  setShowNotificationPanel(false);
+                }}
+              >
+                <div className="notification-icon">
+                  {notif.type === 'invite' ? '🎮' :
+                    notif.type === 'deposit' ? '📥' :
+                      notif.type === 'withdrawal' ? '📤' : '🔔'}
+                </div>
+                <div className="notification-content">
+                  <div className="notification-title">{notif.title}</div>
+                  <div className="notification-message">{notif.message}</div>
+                  <div className="notification-time">
+                    {formatTransactionTime(notif.createdAt)}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderLoginModalContent = () => {
+    return (
+      <div className="login-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>🔐 Welcome to Aurory Draft</h3>
+          <button className="close-modal" onClick={() => setShowLoginModal(false)}>✕</button>
+        </div>
+        <div className="modal-body">
+          <div className="login-welcome-text">
+            <p>Connect your account to start participating in drafts and managing your wallet.</p>
+          </div>
+          <div className="login-options">
+            <button
+              className="modal-action-btn discord"
+              onClick={() => {
+                setShowLoginModal(false);
+                handleDiscordLogin();
+              }}
+            >
+              <span className="btn-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z" />
+                </svg>
+              </span>
+              <div className="btn-text">
+                <span className="btn-title">Continue with Discord</span>
+                <span className="btn-desc">Fastest way to join tournaments</span>
+              </div>
+            </button>
+            <button
+              className="modal-action-btn google"
+              onClick={() => {
+                setShowLoginModal(false);
+                handleGoogleLogin();
+              }}
+            >
+              <span className="btn-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 12-4.53z" fill="#EA4335" />
+                </svg>
+              </span>
+              <div className="btn-text">
+                <span className="btn-title">Continue with Google</span>
+                <span className="btn-desc">Secure access via your Google account</span>
+              </div>
+            </button>
+          </div>
+          <div className="login-footer">
+            <p>
+              By logging in, you agree to our{' '}
+              <Link to="/terms" onClick={() => setShowLoginModal(false)}>Terms of Service</Link>
+              {' '}and{' '}
+              <Link to="/privacy" onClick={() => setShowLoginModal(false)}>Privacy Policy</Link>.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderLoginSuccessModal = () => {
+    return (
+      <div className="login-success-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-body">
+          <div className="success-icon-wrapper">
+            <div className="success-icon">🎉</div>
+          </div>
+          <h3>Login Successful!</h3>
+          <p>Welcome back! You're now connected and ready to explore Aurory Draft.</p>
+          <button
+            className="btn-primary awesome-btn"
+            onClick={() => setShowLoginSuccessModal(false)}
+          >
+            Awesome!
+          </button>
+        </div>
+      </div>
+    );
+  };
+
 
   if (loading) {
     return <div className="loading">Loading...</div>;
@@ -1562,7 +1813,7 @@ function HomePage() {
               </button>
 
               {/* Notifications Bell */}
-              <div className="notification-container">
+              <div className="notification-menu-container" ref={notificationMenuRef}>
                 <button
                   className={`notification-bell ${unreadCount > 0 ? 'has-unread' : ''}`}
                   onClick={() => {
@@ -1576,102 +1827,54 @@ function HomePage() {
                 </button>
 
                 {showNotificationPanel && (
-                  <div className="notification-panel">
-                    <div className="notification-panel-header">
-                      <div className="header-left">
-                        <h3>Notifications</h3>
-                        {notifications.length > 0 && (
-                          <button
-                            className="delete-all-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteAllNotifications();
-                            }}
-                            title="Delete all notifications"
-                          >
-                            🗑️ Clear All
-                          </button>
-                        )}
-                      </div>
-                      <button className="close-panel-btn" onClick={() => setShowNotificationPanel(false)}>✕</button>
-                    </div>
-                    <div className="notification-list">
-                      {notifications.length === 0 ? (
-                        <div className="no-notifications">No new notifications</div>
-                      ) : (
-                        notifications.map(notif => (
-                          <div
-                            key={notif.id}
-                            className={`notification-item ${!notif.read ? 'unread' : ''} ${notif.type}`}
-                            onClick={() => {
-                              if (notif.link && notif.link !== '#') navigate(notif.link);
-                              setShowNotificationPanel(false);
-                            }}
-                          >
-                            <div className="notification-icon">
-                              {notif.type === 'invite' ? '🎮' :
-                                notif.type === 'deposit' ? '📥' :
-                                  notif.type === 'withdrawal' ? '📤' : '🔔'}
-                            </div>
-                            <div className="notification-content">
-                              <div className="notification-title">{notif.title}</div>
-                              <div className="notification-message">{notif.message}</div>
-                              <div className="notification-time">
-                                {formatTransactionTime(notif.createdAt)}
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
+                  <div className="desktop-notification-dropdown">
+                    {renderNotificationPanelContent()}
                   </div>
                 )}
               </div>
 
               {/* Clickable Profile Section */}
-              <div
-                className="profile-trigger"
-                onClick={() => setShowUserModal(true)}
-                title="User Menu"
-              >
-                <img
-                  src={user.auroryProfilePicture || user.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
-                  alt="Profile"
-                  className="profile-pic"
-                  onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                />
-                <div className="profile-names">
-                  <span className="username">
-                    {user.displayName || user.email?.split('@')[0] || 'User'}
-                    {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}
-                  </span>
-                  {isSuperAdminUser ? (
-                    <span className="admin-badge">⭐ Super Admin</span>
-                  ) : isAdminUser ? (
-                    <span className="admin-badge admin-staff">⭐ Admin</span>
-                  ) : null}
-                  {user.isAurorian && <span className="aurorian-tag">Aurorian Holder</span>}
-
+              <div className="profile-menu-container" ref={profileMenuRef}>
+                <div
+                  className="profile-trigger"
+                  onClick={() => setShowUserModal(!showUserModal)}
+                  title="User Menu"
+                >
+                  <img
+                    src={user.auroryProfilePicture || user.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                    alt="Profile"
+                    className="profile-pic"
+                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                  />
+                  <div className="profile-names">
+                    <span className="username">
+                      {user.displayName || user.email?.split('@')[0] || 'User'}
+                      {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}
+                    </span>
+                    {isSuperAdminUser ? (
+                      <span className="admin-badge">⭐ Super Admin</span>
+                    ) : isAdminUser ? (
+                      <span className="admin-badge admin-staff">⭐ Admin</span>
+                    ) : null}
+                    {user.isAurorian && <span className="aurorian-tag">Aurorian Holder</span>}
+                  </div>
+                  <span className={`menu-arrow ${showUserModal ? 'active' : ''}`}>▾</span>
                 </div>
-                <span className="menu-arrow">▾</span>
+
+                {showUserModal && (
+                  <div className="desktop-profile-dropdown">
+                    {renderUserProfileContent()}
+                  </div>
+                )}
               </div>
             </div>
           ) : (
-            <div className="login-buttons">
-              <button onClick={handleDiscordLogin} className="discord-login-btn">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z" />
-                </svg>
-                Discord
-              </button>
-              <button onClick={handleGoogleLogin} className="google-login-btn">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 12-4.53z" fill="#EA4335" />
-                </svg>
-                Google
+            <div className="login-container">
+              <button
+                className="btn-primary login-trigger-btn"
+                onClick={() => setShowLoginModal(true)}
+              >
+                <span>🔑</span> Login
               </button>
             </div>
           )}
@@ -2972,7 +3175,7 @@ function HomePage() {
                 {walletTab === 'deposit' && (
                   <div className="deposit-section">
                     <p className="deposit-instructions">
-                      Send AURY tokens to the address below with your unique memo.
+                      Send AURY tokens to the address below.
                       Your balance will be updated after admin confirmation.
                     </p>
 
@@ -2993,27 +3196,6 @@ function HomePage() {
                       </div>
                     </div>
 
-                    <div className="deposit-field">
-                      <label>Your Unique Memo (Required)</label>
-                      <div className="copy-field">
-                        <input
-                          type="text"
-                          value={generateDepositMemo(user.uid)}
-                          readOnly
-                        />
-                        <button
-                          className={`copy-btn ${copySuccess === 'memo' ? 'copied' : ''}`}
-                          onClick={() => copyToClipboard(generateDepositMemo(user.uid), 'memo')}
-                        >
-                          {copySuccess === 'memo' ? '✓ Copied!' : '📋 Copy'}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="deposit-warning">
-                      ⚠️ <strong>Important:</strong> Always include your unique memo when sending.
-                      Deposits without the correct memo cannot be credited to your account.
-                    </div>
 
                     {/* NEW: Deposit Notification Section */}
                     <div className="deposit-notification-section">
@@ -3189,6 +3371,15 @@ function HomePage() {
         )
       }
 
+      {/* Mobile User Profile Modal (Root level to avoid header clipping) */}
+      {
+        showUserModal && window.innerWidth <= 768 && (
+          <div className="modal-overlay mobile-profile-modal-overlay" onClick={() => setShowUserModal(false)}>
+            {renderUserProfileContent()}
+          </div>
+        )
+      }
+
       {/* Aurory Account Link Modal */}
       <AuroryAccountLink
         user={user}
@@ -3196,89 +3387,27 @@ function HomePage() {
         onClose={() => setShowAuroryModal(false)}
       />
 
-      {/* User Profile Modal */}
+      {/* Login Modal */}
       {
-        showUserModal && user && (
-          <div className="modal-overlay" onClick={() => setShowUserModal(false)}>
-            <div className="user-profile-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h3>👤 User Profile</h3>
-                <button className="close-modal" onClick={() => setShowUserModal(false)}>✕</button>
-              </div>
+        showLoginModal && (
+          <div className="modal-overlay" onClick={() => setShowLoginModal(false)}>
+            {renderLoginModalContent()}
+          </div>
+        )
+      }
 
-              <div className="user-modal-content">
-                <div className="user-header-info">
-                  <img
-                    src={user.auroryProfilePicture || user.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
-                    alt="Profile"
-                    className="modal-profile-pic"
-                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                  />
-                  <div className="user-text-info">
-                    <span className="modal-username">
-                      {user.displayName}
-                      {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}
-                    </span>
-                    <span className="modal-email">{user.email}</span>
-                    {isSuperAdminUser ? (
-                      <span className="modal-admin-badge">⭐ Super Admin</span>
-                    ) : isAdminUser ? (
-                      <span className="modal-admin-badge admin-staff">⭐ Admin</span>
-                    ) : null}
+      {/* Login Success Modal */}
+      {showLoginSuccessModal && (
+        <div className="modal-overlay success-overlay" onClick={() => setShowLoginSuccessModal(false)}>
+          {renderLoginSuccessModal()}
+        </div>
+      )}
 
-                    {user.isAurorian && <span className="aurorian-tag">Aurorian Holder</span>}
-                  </div>
-                </div>
-
-                <div className="user-modal-actions">
-                  <button
-                    className="modal-action-btn aurory"
-                    onClick={() => {
-                      setShowUserModal(false);
-                      setShowAuroryModal(true);
-                    }}
-                  >
-                    <span className="btn-icon">🎮</span>
-                    <div className="btn-text">
-                      <span className="btn-title">Aurory Account</span>
-                      <span className="btn-desc">Link your game account</span>
-                    </div>
-                  </button>
-
-                  {isAdmin && (
-                    <button
-                      className="modal-action-btn admin"
-                      onClick={() => {
-                        setShowUserModal(false);
-                        navigate('/admin/panel');
-                      }}
-                    >
-                      <span className="btn-icon">💼</span>
-                      <div className="btn-text">
-                        <span className="btn-title">Admin Panel</span>
-                        <span className="btn-desc">Manage wallets & deposits</span>
-                      </div>
-                    </button>
-                  )}
-
-                  <div className="modal-divider"></div>
-
-                  <button
-                    className="modal-action-btn logout"
-                    onClick={() => {
-                      setShowUserModal(false);
-                      setShowLogoutConfirm(true);
-                    }}
-                  >
-                    <span className="btn-icon">🚪</span>
-                    <div className="btn-text">
-                      <span className="btn-title">Logout</span>
-                      <span className="btn-desc">Sign out of your account</span>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </div>
+      {/* Mobile Notification Modal (Root level to avoid header clipping) */}
+      {
+        showNotificationPanel && window.innerWidth <= 768 && (
+          <div className="modal-overlay mobile-notification-modal-overlay" onClick={() => setShowNotificationPanel(false)}>
+            {renderNotificationPanelContent()}
           </div>
         )
       }
@@ -3323,6 +3452,11 @@ function HomePage() {
           <div className="footer-left">
             <p className="footer-msg">Built with ❤️ for the Aurory Tournament Community. Happy Playing! 🎮🔴</p>
             <p className="footer-tagline">Anito Guild Community 2026</p>
+            <div className="footer-legal-links">
+              <Link to="/terms">Terms of Service</Link>
+              <span className="dot">•</span>
+              <Link to="/privacy">Privacy Policy</Link>
+            </div>
           </div>
           <div className="footer-right">
             <div className="footer-links-wrapper">

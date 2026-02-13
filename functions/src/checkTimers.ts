@@ -95,7 +95,7 @@ async function checkDraftTimer(draftId: string, data: any): Promise<boolean> {
   if (data.manualTimerStart && !data.timerStarted) return false;
 
   const now = Date.now();
-  const timerDuration = data.timerDuration || 24 * 60 * 60 * 1000;
+  const timerDuration = data.timerDuration || 30 * 1000;
 
   // Determine which timer to check
   let timerStart: number | null = null;
@@ -560,7 +560,7 @@ async function serverFinalizeDraft(draftId: string, data: any): Promise<boolean>
   }
 
   const manualTimer = data.manualTimerStart || false;
-  const timerMs = data.timerDuration || 24 * 60 * 60 * 1000;
+  const timerMs = data.timerDuration || 30 * 1000;
 
   // Fetch leader user data for display names
   const teamALeaderDoc = leaders.teamALeader ? await db.doc(`users/${leaders.teamALeader}`).get() : null;

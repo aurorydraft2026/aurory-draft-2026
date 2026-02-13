@@ -645,5 +645,5 @@ export const getPICK_ORDER = (draftType) => {
 // Default export for backward compatibility
 export const PICK_ORDER = PICK_ORDER_MODE_1;
 
-// Timer configuration (24 hours in milliseconds)
-export const TIMER_DURATION = 24 * 60 * 60 * 1000;
+// Timer configuration (30 seconds in milliseconds)
+export const TIMER_DURATION = 30 * 1000;

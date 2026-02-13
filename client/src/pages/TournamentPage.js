@@ -260,7 +260,7 @@ function TournamentPage() {
     description: '',
     prizePool: '',
     draftType: 'mode1', // NEW: Add this line
-    timerDuration: 24 * 60 * 60 * 1000, // Default 24 hours in ms
+    timerDuration: 30 * 1000, // Default 30 seconds in ms
     // Active viewers tracking
     activeViewers: {},
     // Manual timer control
@@ -606,7 +606,7 @@ function TournamentPage() {
     }
 
     // Use timer from draftState (set when tournament was created/edited)
-    const timerMs = draftState.timerDuration || 24 * 60 * 60 * 1000;
+    const timerMs = draftState.timerDuration || 30 * 1000;
 
     if (timerMs <= 0) {
       showAlert('Invalid Timer', 'Please set a timer duration greater than 0 in Edit Tournament.');
@@ -727,7 +727,7 @@ function TournamentPage() {
       if (coinFlip.team1Locked && coinFlip.team2Locked) {
         if (draftState.draftType === 'mode3') {
           // MODE 3: Start draft immediately after both are ready
-          const timerMs = draftState.timerDuration || 24 * 60 * 60 * 1000;
+          const timerMs = draftState.timerDuration || 30 * 1000;
           const teamAUsers = [team1?.leader].filter(Boolean).map(uid => registeredUsers.find(u => u.uid === uid || u.id === uid)).filter(Boolean);
           const teamBUsers = [team2?.leader].filter(Boolean).map(uid => registeredUsers.find(u => u.uid === uid || u.id === uid)).filter(Boolean);
 
@@ -1217,7 +1217,7 @@ function TournamentPage() {
           description: data.description || '',
           prizePool: data.prizePool || '',
           draftType: data.draftType || 'mode1',
-          timerDuration: data.timerDuration || 24 * 60 * 60 * 1000,
+          timerDuration: data.timerDuration || 30 * 1000,
           activeViewers: data.activeViewers || {},
           manualTimerStart: data.manualTimerStart || false,
           timerStarted: data.timerStarted || false,
@@ -1709,7 +1709,7 @@ function TournamentPage() {
     // Mark as triggered and start the draft
     autoStartTriggered.current = true;
 
-    const timerMs = draftState.timerDuration || 24 * 60 * 60 * 1000;
+    const timerMs = draftState.timerDuration || 30 * 1000;
     startRouletteAnimation(timerMs, participants);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state, loading, user, tournamentExists, draftState, registeredUsers]);
@@ -1838,7 +1838,7 @@ function TournamentPage() {
         const isTeamBLeader = user.uid === draftState.assignmentLeaders?.teamBLeader;
 
         if (isAdmin || isTeamALeader || isTeamBLeader) {
-          const timerMs = draftState.timerDuration || 24 * 60 * 60 * 1000;
+          const timerMs = draftState.timerDuration || 30 * 1000;
           await finalizeDraft(timerMs, draftState.finalAssignments, draftState.assignmentLeaders);
         }
       };
@@ -3043,7 +3043,7 @@ function TournamentPage() {
   // Open edit tournament modal
   const openEditModal = () => {
     // Convert timerDuration to days/hours/minutes/seconds
-    const totalMs = draftState.timerDuration || 24 * 60 * 60 * 1000;
+    const totalMs = draftState.timerDuration || 30 * 1000;
     const totalSeconds = Math.floor(totalMs / 1000);
     const days = Math.floor(totalSeconds / (24 * 3600));
     const hours = Math.floor((totalSeconds % (24 * 3600)) / 3600);
@@ -3279,7 +3279,7 @@ function TournamentPage() {
   };
 
   const getCurrentTimer = useCallback(() => {
-    const timerDuration = draftState.timerDuration || 24 * 60 * 60 * 1000;
+    const timerDuration = draftState.timerDuration || 30 * 1000;
 
     if (draftState.status !== 'active') return formatTime(timerDuration);
 
@@ -3313,7 +3313,7 @@ function TournamentPage() {
   const [currentTimerDisplay, setCurrentTimerDisplay] = useState('24:00:00');
 
   useEffect(() => {
-    const timerDuration = draftState.timerDuration || 24 * 60 * 60 * 1000;
+    const timerDuration = draftState.timerDuration || 30 * 1000;
 
     if (draftState.status !== 'active') {
       setCurrentTimerDisplay(formatTime(timerDuration));

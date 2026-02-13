@@ -1758,16 +1758,6 @@ input[type=number] {
   white-space: nowrap;
 }
 
-.history-table .memo {
-  font-family: 'SF Mono', 'Fira Code', monospace;
-  font-size: 12px;
-  color: var(--accent-teal);
-  max-width: 150px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* Status Badges */
 .status-badge {
   padding: 4px 10px;

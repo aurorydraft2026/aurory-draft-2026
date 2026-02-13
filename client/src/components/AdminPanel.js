@@ -1627,10 +1627,6 @@ function AdminPanel() {
 
                       <div className="deposit-details">
                         <div className="detail-row">
-                          <span className="label">User's Memo:</span>
-                          <span className="value mono">{notification.userMemo}</span>
-                        </div>
-                        <div className="detail-row">
                           <span className="label">Amount Claimed:</span>
                           <span className="value amount">{notification.amount} AURY</span>
                         </div>
@@ -1662,9 +1658,6 @@ function AdminPanel() {
                       </div>
 
                       <div className="withdrawal-actions">
-                        <div className="deposit-warning" style={{ marginBottom: '12px', padding: '10px' }}>
-                          ⚠️ <strong>Verify on blockchain:</strong> Check that the transaction matches the memo <code>{notification.userMemo}</code> before crediting.
-                        </div>
 
                         <div className="action-buttons">
                           <button
@@ -2192,7 +2185,6 @@ function AdminPanel() {
                             <tr>
                               <th>User</th>
                               <th>Amount</th>
-                              <th>Memo</th>
                               <th>Status</th>
                               <th>Processed By</th>
                               <th>Date</th>
@@ -2208,7 +2200,6 @@ function AdminPanel() {
                                   </div>
                                 </td>
                                 <td className="amount">{d.amount} AURY</td>
-                                <td className="memo">{d.userMemo}</td>
                                 <td>
                                   <span className={`status-badge ${d.status}`}>
                                     {d.status === 'processed' ? 'Credited' : 'Dismissed'}

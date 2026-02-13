@@ -5,6 +5,8 @@ import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import HomePage from './pages/HomePage';
 import TournamentPage from './pages/TournamentPage';
+import TermsPage from './pages/TermsPage';
+import PrivacyPage from './pages/PrivacyPage';
 import './App.css';
 import AdminPanel from './components/AdminPanel';
 
@@ -73,6 +75,8 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/tournament/:tournamentId" element={<TournamentPage />} />
           <Route path="/admin/panel" element={<AdminPanel />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
         </Routes>
       </div>
     </Router>
