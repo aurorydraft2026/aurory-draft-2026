@@ -1,0 +1,67 @@
+.loading-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 40px;
+    min-height: 200px;
+}
+
+.loading-container.full-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg-deepest);
+    z-index: 9999;
+    padding: 0;
+    min-height: 100vh;
+    backdrop-filter: blur(10px);
+}
+
+.loading-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    animation: fadeInOut 2s ease-in-out infinite;
+}
+
+.loading-logo-container {
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(0 0 20px rgba(0, 200, 255, 0.2));
+}
+
+.loading-gif {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    /* GIF has black background; screen mode makes it transparent */
+    mix-blend-mode: screen;
+}
+
+.loading-message {
+    font-family: 'Exo 2', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin: 0;
+}
+
+@keyframes fadeInOut {
+
+    0%,
+    100% {
+        opacity: 0.8;
+        transform: scale(0.98);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}

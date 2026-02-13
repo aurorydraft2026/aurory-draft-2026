@@ -106,17 +106,32 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.header .logo h1 {
-  font-family: 'Exo 2', sans-serif;
-  font-weight: 800;
-  font-size: 1.4rem;
-  letter-spacing: 0.5px;
-  background: linear-gradient(135deg, var(--accent-cyan) 0%, #7c3aed 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin: 0;
-  text-transform: uppercase;
+.header .logo {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.logo-desktop {
+  height: 38px;
+  width: auto;
+  display: block;
+}
+
+.logo-mobile {
+  display: none;
+  height: 32px;
+  width: auto;
+}
+
+@media (max-width: 768px) {
+  .logo-desktop {
+    display: none;
+  }
+
+  .logo-mobile {
+    display: block;
+  }
 }
 
 .auth-section {
@@ -752,8 +767,101 @@
 }
 
 /* ============================================================
-   MAIN CONTENT
+   ANNOUNCEMENT TICKER STASH
    ============================================================ */
+.announcement-bar {
+  position: sticky;
+  top: var(--header-height);
+  z-index: 20;
+  height: 36px;
+  background: #000000;
+  border-bottom: 2px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+}
+
+.announcement-bar.hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.announcement-bar::before,
+.announcement-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 100px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.announcement-bar::before {
+  left: 0;
+  background: linear-gradient(90deg, #000000 0%, transparent 100%);
+}
+
+.announcement-bar::after {
+  right: 0;
+  background: linear-gradient(-90deg, #000000 0%, transparent 100%);
+}
+
+.announcement-content {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.announcement-track {
+  display: flex;
+  align-items: center;
+  animation: marquee 25s linear infinite;
+  padding-left: 20px;
+}
+
+.announcement-track:hover {
+  animation-play-state: paused;
+}
+
+.announcement-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 60px;
+  color: var(--text-primary);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 500;
+  font-size: 0.88rem;
+  letter-spacing: 0.5px;
+}
+
+.announcement-icon {
+  font-size: 1.1rem;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.2));
+}
+
+.highlight-text {
+  color: var(--accent-cyan);
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(0, 200, 255, 0.3);
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+/* Adjust main content padding-top to account for ticker height when sticky */
 .main-content {
   position: relative;
   z-index: 1;
@@ -3987,7 +4095,7 @@
 
 .profile-names .aurorian-tag {
   font-size: 0.62rem;
-  color: var(--accent-purple);
+  color: var(--accent-gold);
   font-weight: 500;
 }
 
@@ -5619,3 +5727,83 @@ input[type="file"] {
 .no-tournaments-container {
   width: 100%;
 }
+
+@media (max-width: 768px) {
+  .homepage-footer {
+    padding: 30px 20px !important;
+  }
+
+  .footer-content {
+    flex-direction: column !important;
+    text-align: center !important;
+    gap: 25px !important;
+  }
+
+  .footer-left {
+    align-items: center !important;
+    text-align: center !important;
+  }
+
+  .footer-legal-links {
+    justify-content: center !important;
+    margin-top: 10px !important;
+  }
+
+  .footer-right {
+    justify-content: center !important;
+    width: 100% !important;
+  }
+
+  .footer-links-wrapper {
+    align-items: center !important;
+    text-align: center !important;
+  }
+
+  .footer-links-container {
+    justify-content: center !important;
+  }
+}
+/* Token Stats Ticker Styles */
+.token-stats-item {
+  display: flex !important;
+  align-items: center;
+  gap: 15px;
+  background: rgba(168, 85, 247, 0.1);
+  padding: 5px 20px;
+  border-radius: 20px;
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  margin: 0 40px;
+}
+
+.stat-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stat-label {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-divider {
+  color: rgba(255, 255, 255, 0.2);
+  font-weight: 300;
+  margin: 0 5px;
+}
+
+@media (max-width: 768px) {
+  .token-stats-item {
+    padding: 4px 12px;
+    margin: 0 20px;
+    gap: 10px;
+  }
+  
+  .stat-label {
+    font-size: 0.8rem;
+  }
+}
+

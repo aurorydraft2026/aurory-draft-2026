@@ -36,6 +36,7 @@ import Mode4Draft from '../components/drafts/Mode4Draft';
 import '../components/drafts/Mode4Draft.css';
 import { verifyDraftBattles, saveVerificationResults } from '../services/matchVerificationService';
 import { logActivity } from '../services/activityService';
+import LoadingScreen from '../components/LoadingScreen';
 import './TournamentPage.css';
 
 // Helper function to get user email
@@ -3433,7 +3434,7 @@ function TournamentPage() {
   };
 
   if (loading) {
-    return <div className="loading">Loading...</div>;
+    return <LoadingScreen fullScreen message="Entering Draft..." />;
   }
 
   if (!tournamentExists) {

@@ -4,7 +4,7 @@ import { auth, db, discordProvider, googleProvider } from '../firebase';
 import { signInWithPopup, getAdditionalUserInfo, signOut, onAuthStateChanged } from 'firebase/auth';
 import {
   collection, onSnapshot, doc, setDoc, serverTimestamp, getDocs,
-  addDoc, query, orderBy, limit, runTransaction, writeBatch
+  addDoc, query, orderBy, limit, runTransaction, writeBatch, where
 } from 'firebase/firestore';
 import { isSuperAdmin } from '../config/admins';
 import { createNotification } from '../services/notifications';
@@ -16,6 +16,7 @@ import {
 import { fetchVerifiedMatches, scanAndVerifyCompletedDrafts } from '../services/matchVerificationService';
 import { AMIKOS } from '../data/amikos';
 import { logActivity } from '../services/activityService';
+import LoadingScreen from '../components/LoadingScreen';
 import './HomePage.css';
 
 // Your AURY deposit wallet address (replace with your actual address)
@@ -127,6 +128,12 @@ function HomePage() {
 
   // Minimum swipe distance (in px)
   const minSwipeDistance = 50;
+
+  // Announcement Ticker State
+  const [tickerAnnouncements, setTickerAnnouncements] = useState([]);
+  const [showTicker, setShowTicker] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+  const [tokenStats, setTokenStats] = useState(null);
 
   const onTouchStart = (e) => {
     setTouchEnd(null);
@@ -449,6 +456,63 @@ function HomePage() {
 
     return () => unsubscribe();
   }, [user]);
+
+  // Fetch Ticker Announcements from Firestore
+  useEffect(() => {
+    const q = query(
+      collection(db, 'settings'),
+      where('type', '==', 'ticker_announcement'),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setTickerAnnouncements(docs);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch Token Stats from Aurory API
+  useEffect(() => {
+    const fetchTokenStats = async () => {
+      try {
+        const response = await fetch('https://aggregator-api.live.aurory.io/v1/token-stats');
+        if (!response.ok) throw new Error('Failed to fetch token stats');
+        const data = await response.json();
+        setTokenStats(data);
+      } catch (err) {
+        console.error('Error fetching token stats:', err);
+      }
+    };
+
+    fetchTokenStats();
+    const interval = setInterval(fetchTokenStats, 10 * 60 * 1000); // Update every 10 mins
+    return () => clearInterval(interval);
+  }, []);
+
+  // Handle Scroll to auto-hide ticker
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+
+      // If scrolling down and past 100px, hide ticker
+      if (currentScrollY > lastScrollY && currentScrollY > 100) {
+        setShowTicker(false);
+      }
+      // If scrolling up, show ticker
+      else if (currentScrollY < lastScrollY) {
+        setShowTicker(true);
+      }
+
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScrollY]);
+
+
 
   // Mark notifications as read
   const markAllAsRead = async () => {
@@ -1789,15 +1853,24 @@ function HomePage() {
 
 
   if (loading) {
-    return <div className="loading">Loading...</div>;
+    return <LoadingScreen fullScreen />;
   }
 
   return (
     <div className="homepage">
       {/* Header with Discord Login */}
       <header className="header">
-        <div className="logo">
-          <h1>Aurory Draft</h1>
+        <div className="logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
+          <img
+            src="/Aurorydraft logos/Aurory Draft Logo_color-white text_Horizontal.svg"
+            alt="Aurory Draft"
+            className="logo-desktop"
+          />
+          <img
+            src="/Aurorydraft logos/AD_logo_mobile_colored.svg"
+            alt="Aurory Draft"
+            className="logo-mobile"
+          />
         </div>
         <div className="auth-section">
           {user ? (
@@ -1880,6 +1953,53 @@ function HomePage() {
           )}
         </div>
       </header>
+
+      {/* Announcement Ticker Stash */}
+      <div className={`announcement-bar ${(!showTicker || tickerAnnouncements.length === 0) ? 'hidden' : ''}`}>
+        <div className="announcement-content">
+          <div className="announcement-track">
+            {(tickerAnnouncements.length > 0 || tokenStats) && (
+              <>
+                {/* Repeat enough times to cover screen and allow seamless loop */}
+                {[...Array((tickerAnnouncements.length + (tokenStats ? 1 : 0)) <= 2 ? 4 : 2)].map((_, i) => (
+                  <React.Fragment key={`loop-${i}`}>
+                    {tickerAnnouncements.map((ticker) => (
+                      <span key={`${ticker.id}-${i}`} className="announcement-item">
+                        <span className="announcement-icon">{ticker.icon}</span>
+                        <span dangerouslySetInnerHTML={{ __html: (ticker.text || '').replace(/\*\*(.*?)\*\*/g, '<span class="highlight-text">$1</span>') }} />
+                      </span>
+                    ))}
+                    {tokenStats && (
+                      <span key={`token-stats-${i}`} className="announcement-item token-stats-item">
+                        <span className="announcement-icon">📊</span>
+                        <span className="stat-group">
+                          <span className="stat-label">$AURY:</span>
+                          <span className="highlight-text">${tokenStats.aury?.current_price?.toFixed(3)}</span>
+                        </span>
+                        <span className="stat-divider">|</span>
+                        <span className="stat-group">
+                          <span className="stat-label">SOL:</span>
+                          <span className="highlight-text">${tokenStats.sol?.current_price?.toFixed(2)}</span>
+                        </span>
+                        <span className="stat-divider">|</span>
+                        <span className="stat-group">
+                          <span className="stat-label">USDC:</span>
+                          <span className="highlight-text">$1.00</span>
+                        </span>
+                        <span className="stat-divider">|</span>
+                        <span className="stat-group">
+                          <span className="stat-label">Aurorian Floor:</span>
+                          <span className="highlight-text">{(tokenStats.aurorian?.floor_price / 1000000000).toFixed(2)} SOL</span>
+                        </span>
+                      </span>
+                    )}
+                  </React.Fragment>
+                ))}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Main Content */}
       <main className="main-content">

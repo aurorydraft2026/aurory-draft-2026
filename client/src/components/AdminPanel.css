@@ -1832,3 +1832,159 @@ input[type=number] {
     width: 100%;
   }
 }
+
+/* Ticker Management Section */
+.ticker-management-section .section-header {
+  margin-bottom: 24px;
+}
+
+.ticker-management-section .section-header h2 {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.ticker-management-section .section-header p {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.ticker-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ticker-form .form-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.ticker-form .save-btn {
+  background: var(--accent-purple);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ticker-form .save-btn:hover {
+  background: var(--accent-purple-hover);
+}
+
+.ticker-form .cancel-btn {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.emoji-select-wrapper {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.emoji-select {
+  padding: 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: white;
+  font-size: 1.1rem;
+  cursor: pointer;
+  width: 140px !important;
+  flex: none;
+}
+
+.emoji-manual-input {
+  width: 60px !important;
+  max-width: 60px !important;
+  text-align: center;
+  font-size: 1.2rem !important;
+  flex: none;
+}
+
+.text-input-group {
+  width: 100%;
+}
+
+.text-input-group input {
+  width: 100% !important;
+}
+
+.ticker-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.ticker-admin-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+.ticker-admin-item:hover {
+  border-color: var(--accent-purple);
+  background: rgba(168, 85, 247, 0.05);
+}
+
+.admin-ticker-icon {
+  font-size: 1.5rem;
+}
+
+.ticker-info {
+  flex: 1;
+}
+
+.ticker-text {
+  margin: 0;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.ticker-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: block;
+  margin-top: 4px;
+}
+
+.ticker-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ticker-actions button {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+
+.ticker-actions button:hover {
+  border-color: var(--accent-purple);
+  color: var(--accent-purple);
+}
+
+.ticker-actions button.delete:hover {
+  border-color: var(--status-danger);
+  color: var(--status-danger);
+  background: rgba(239, 68, 68, 0.1);
+}

@@ -21,6 +21,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { isSuperAdmin } from '../config/admins';
 import { createNotification } from '../services/notifications';
 import { logActivity } from '../services/activityService';
+import LoadingScreen from './LoadingScreen';
 import './AdminPanel.css';
 
 // Helper to get user email
@@ -107,6 +108,13 @@ function AdminPanel() {
   const [selectedUserForLogs, setSelectedUserForLogs] = useState(null);
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsError, setLogsError] = useState(null);
+
+  // Ticker Announcements state
+  const [tickerAnnouncements, setTickerAnnouncements] = useState([]);
+  const [tickerText, setTickerText] = useState('');
+  const [tickerIcon, setTickerIcon] = useState('📢');
+  const [editingTickerId, setEditingTickerId] = useState(null);
+  const [tickerLoading, setTickerLoading] = useState(false);
 
   // Banner social links (max 3 displayed)
   const [bannerDiscord, setBannerDiscord] = useState('');
@@ -415,6 +423,24 @@ function AdminPanel() {
     };
   }, [isAdmin, activeTab]);
 
+  // Fetch Ticker Announcements
+  const fetchTickerAnnouncements = () => {
+    setTickerLoading(true);
+    const q = query(collection(db, 'settings'), where('type', '==', 'ticker_announcement'), orderBy('createdAt', 'desc'));
+    return onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setTickerAnnouncements(docs);
+      setTickerLoading(false);
+    });
+  };
+
+  useEffect(() => {
+    if (activeTab === 'ticker') {
+      const unsubscribe = fetchTickerAnnouncements();
+      return () => unsubscribe();
+    }
+  }, [activeTab]);
+
   const handleSaveBanner = async () => {
     if (!bannerTitle) return alert('Banner title is required');
     if (!bannerText) return alert('Banner description is required');
@@ -525,6 +551,106 @@ function AdminPanel() {
     } catch (error) {
       console.error('Error deleting banner:', error);
       alert('Error deleting banner: ' + error.message);
+    }
+  };
+
+  // Ticker Management Functions
+  const handleSaveTicker = async () => {
+    if (!tickerText) return;
+
+    try {
+      const tickerData = {
+        text: tickerText,
+        icon: tickerIcon,
+        type: 'ticker_announcement',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        author: {
+          uid: auth.currentUser.uid,
+          name: auth.currentUser.displayName || 'Admin'
+        }
+      };
+
+      if (editingTickerId) {
+        await updateDoc(doc(db, 'settings', editingTickerId), {
+          ...tickerData,
+          createdAt: tickerAnnouncements.find(t => t.id === editingTickerId)?.createdAt || serverTimestamp()
+        });
+        alert('Ticker updated!');
+      } else {
+        await addDoc(collection(db, 'settings'), tickerData);
+        alert('Ticker added!');
+      }
+
+      resetTickerForm();
+    } catch (error) {
+      console.error("Error saving ticker:", error);
+      alert("Failed to save ticker");
+    }
+  };
+
+  const resetTickerForm = () => {
+    setTickerText('');
+    setTickerIcon('📢');
+    setEditingTickerId(null);
+  };
+
+  const handleEditTicker = (ticker) => {
+    setTickerText(ticker.text);
+    setTickerIcon(ticker.icon);
+    setEditingTickerId(ticker.id);
+  };
+
+  const handleDeleteTicker = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this announcement?')) return;
+    try {
+      await deleteDoc(doc(db, 'settings', id));
+    } catch (error) {
+      console.error('Error deleting ticker:', error);
+    }
+  };
+
+  const handleRestoreTickerDefaults = async () => {
+    if (!isAdminUser) return;
+    if (!window.confirm('Are you sure you want to restore the default announcements? This will add 3 items to the list.')) return;
+
+    setProcessingId('restore_ticker_defaults');
+    try {
+      const defaults = [
+        { icon: '📢', text: 'Welcome to **Aurory Draft** — The ultimate esports platform for the **Aurory Community**! 🎮🔴' },
+        { icon: '⚔️', text: 'New **Swiss Triad Drafts** are now live! Test your strategy in the latest competitive formats.' },
+        { icon: '🎁', text: 'Join our **Official Discord** for tournament announcements and exclusive giveaways! 🚀' }
+      ];
+
+      const batch = writeBatch(db);
+      defaults.forEach(item => {
+        const newDocRef = doc(collection(db, 'settings'));
+        batch.set(newDocRef, {
+          ...item,
+          type: 'ticker_announcement',
+          createdBy: user.uid,
+          author: {
+            name: user.displayName || user.email?.split('@')[0] || 'Admin',
+            uid: user.uid
+          },
+          createdAt: serverTimestamp()
+        });
+      });
+
+      await batch.commit();
+      alert('✅ Default announcements restored successfully!');
+
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'restore_ticker_defaults',
+        metadata: { count: defaults.length }
+      });
+    } catch (error) {
+      console.error('Error restoring defaults:', error);
+      alert('Error: ' + error.message);
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -1102,8 +1228,8 @@ function AdminPanel() {
     });
   };
 
-  if (authLoading) {
-    return <div className="loading">Loading...</div>;
+  if (authLoading || loading) {
+    return <LoadingScreen fullScreen message="Accessing Admin Panel..." />;
   }
 
   if (!isAdmin) {
@@ -1211,6 +1337,12 @@ function AdminPanel() {
                 onClick={() => setActiveTab('notify')}
               >
                 📢 Notifications
+              </button>
+              <button
+                className={`admin-tab ${activeTab === 'ticker' ? 'active' : ''}`}
+                onClick={() => setActiveTab('ticker')}
+              >
+                🎊 Ticker Announcements
               </button>
             </div>
           </div>
@@ -1512,6 +1644,96 @@ function AdminPanel() {
             </div>
           )}
 
+          {activeTab === 'ticker' && (
+            <div className="ticker-management-section">
+              <div className="section-header">
+                <h2>🎊 Ticker Announcement Management</h2>
+                <div className="header-actions">
+                  <p>Manage the scrolling announcements that appear on the homepage.</p>
+                  <button
+                    className="secondary-btn small"
+                    onClick={handleRestoreTickerDefaults}
+                    disabled={processingId === 'restore_ticker_defaults'}
+                  >
+                    {processingId === 'restore_ticker_defaults' ? 'Restoring...' : '🔄 Restore Defaults'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="ticker-form-card card">
+                <h3>{editingTickerId ? 'Edit Announcement' : 'Add New Announcement'}</h3>
+                <div className="ticker-form">
+                  <div className="form-group icon-input-group">
+                    <label>Icon (Emoji)</label>
+                    <div className="emoji-select-wrapper">
+                      <select
+                        value={tickerIcon}
+                        onChange={(e) => setTickerIcon(e.target.value)}
+                        className="emoji-select"
+                      >
+                        {['📢', '⚔️', '🎁', '🥚', '🔥', '🏆', '💎', '🚀', '✨', '🎫', '🎮', '🔴'].map(emoji => (
+                          <option key={emoji} value={emoji}>{emoji} {emoji === '📢' ? '(Default)' : ''}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={tickerIcon}
+                        onChange={(e) => setTickerIcon(e.target.value)}
+                        placeholder="📢"
+                        className="emoji-manual-input"
+                        title="Manual emoji entry"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group text-input-group">
+                    <label>Announcement Text</label>
+                    <input
+                      type="text"
+                      value={tickerText}
+                      onChange={(e) => setTickerText(e.target.value)}
+                      placeholder="Enter announcement text..."
+                    />
+                  </div>
+
+                  <div className="form-actions">
+                    <button className="save-btn" onClick={handleSaveTicker}>
+                      {editingTickerId ? 'Update Announcement' : 'Add Announcement'}
+                    </button>
+                    {editingTickerId && (
+                      <button className="cancel-btn" onClick={resetTickerForm}>Cancel</button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="ticker-list-card card">
+                <h3>Current Announcements</h3>
+                {tickerLoading ? (
+                  <p>Loading announcements...</p>
+                ) : tickerAnnouncements.length === 0 ? (
+                  <p className="empty-msg">No active announcements. Homepage will show defaults.</p>
+                ) : (
+                  <div className="ticker-items-list">
+                    {tickerAnnouncements.map(ticker => (
+                      <div key={ticker.id} className="ticker-admin-item">
+                        <span className="admin-ticker-icon">{ticker.icon}</span>
+                        <div className="ticker-info">
+                          <p className="ticker-text">{ticker.text}</p>
+                          <span className="ticker-meta">Added by {ticker.author?.name} on {formatTime(ticker.createdAt)}</span>
+                        </div>
+                        <div className="ticker-actions">
+                          <button onClick={() => handleEditTicker(ticker)}>Edit</button>
+                          <button className="delete" onClick={() => handleDeleteTicker(ticker.id)}>Delete</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {activeTab === 'withdrawals' && (
             <div className="withdrawals-section">
               <div className="section-info">
@@ -1519,7 +1741,7 @@ function AdminPanel() {
               </div>
 
               {loading ? (
-                <div className="loading">Loading...</div>
+                <LoadingScreen message="Loading withdrawals..." />
               ) : pendingWithdrawals.length === 0 ? (
                 <div className="empty-state">
                   <p>✅ No pending withdrawals</p>
@@ -1609,7 +1831,7 @@ function AdminPanel() {
               )}
 
               {loading ? (
-                <div className="loading">Loading...</div>
+                <LoadingScreen message="Loading deposits..." />
               ) : depositNotifications.length === 0 ? (
                 <div className="empty-state">
                   <p>✅ No pending deposit notifications</p>
@@ -2130,7 +2352,7 @@ function AdminPanel() {
               </div>
 
               {historyLoading ? (
-                <div className="loading">Loading history...</div>
+                <LoadingScreen message="Loading history..." />
               ) : (
                 <div className="history-grids">
                   <div className="history-block">
@@ -2289,7 +2511,7 @@ function AdminPanel() {
               </div>
 
               {logsLoading ? (
-                <div className="loading">Loading logs...</div>
+                <LoadingScreen message="Loading logs..." />
               ) : logsError ? (
                 <div className="error-message">{logsError}</div>
               ) : globalLogs.length === 0 ? (
@@ -2350,7 +2572,7 @@ function AdminPanel() {
             </div>
             <div className="modal-body">
               {logsLoading ? (
-                <div className="loading">Loading logs...</div>
+                <LoadingScreen message="Loading logs..." />
               ) : logsError ? (
                 <div className="error-message">{logsError}</div>
               ) : userLogs.length === 0 ? (

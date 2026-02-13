@@ -339,5 +339,16 @@ service cloud.firestore {
       // Logs are immutable
       allow update: if false;
     }
+
+    // =============================================
+    // SETTINGS (Global Announcements, etc.)
+    // =============================================
+    match /settings/{docId} {
+      // Anyone can read settings
+      allow read: if true;
+      
+      // Only admins can manage settings
+      allow write: if isAdmin();
+    }
   }
 }
