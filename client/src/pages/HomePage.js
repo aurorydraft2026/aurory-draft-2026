@@ -14,6 +14,7 @@ import {
   syncAuroryName
 } from '../services/auroryProfileService';
 import { fetchVerifiedMatches, scanAndVerifyCompletedDrafts } from '../services/matchVerificationService';
+import { auroryFetch } from '../services/auroryProxyClient';
 import { AMIKOS } from '../data/amikos';
 import { logActivity } from '../services/activityService';
 import LoadingScreen from '../components/LoadingScreen';
@@ -473,13 +474,11 @@ function HomePage() {
     return () => unsubscribe();
   }, []);
 
-  // Fetch Token Stats from Aurory API
+  // Fetch Token Stats from Aurory API via Proxy
   useEffect(() => {
     const fetchTokenStats = async () => {
       try {
-        const response = await fetch('https://aggregator-api.live.aurory.io/v1/token-stats');
-        if (!response.ok) throw new Error('Failed to fetch token stats');
-        const data = await response.json();
+        const data = await auroryFetch('/v1/token-stats');
         setTokenStats(data);
       } catch (err) {
         console.error('Error fetching token stats:', err);
@@ -1958,10 +1957,10 @@ function HomePage() {
       <div className={`announcement-bar ${(!showTicker || tickerAnnouncements.length === 0) ? 'hidden' : ''}`}>
         <div className="announcement-content">
           <div className="announcement-track">
-            {(tickerAnnouncements.length > 0 || tokenStats) && (
+            {tickerAnnouncements.length > 0 && (
               <>
                 {/* Repeat enough times to cover screen and allow seamless loop */}
-                {[...Array((tickerAnnouncements.length + (tokenStats ? 1 : 0)) <= 2 ? 4 : 2)].map((_, i) => (
+                {[...Array(tickerAnnouncements.length <= 2 ? 4 : 2)].map((_, i) => (
                   <React.Fragment key={`loop-${i}`}>
                     {tickerAnnouncements.map((ticker) => (
                       <span key={`${ticker.id}-${i}`} className="announcement-item">
@@ -1969,35 +1968,37 @@ function HomePage() {
                         <span dangerouslySetInnerHTML={{ __html: (ticker.text || '').replace(/\*\*(.*?)\*\*/g, '<span class="highlight-text">$1</span>') }} />
                       </span>
                     ))}
-                    {tokenStats && (
-                      <span key={`token-stats-${i}`} className="announcement-item token-stats-item">
-                        <span className="announcement-icon">📊</span>
-                        <span className="stat-group">
-                          <span className="stat-label">$AURY:</span>
-                          <span className="highlight-text">${tokenStats.aury?.current_price?.toFixed(3)}</span>
-                        </span>
-                        <span className="stat-divider">|</span>
-                        <span className="stat-group">
-                          <span className="stat-label">SOL:</span>
-                          <span className="highlight-text">${tokenStats.sol?.current_price?.toFixed(2)}</span>
-                        </span>
-                        <span className="stat-divider">|</span>
-                        <span className="stat-group">
-                          <span className="stat-label">USDC:</span>
-                          <span className="highlight-text">$1.00</span>
-                        </span>
-                        <span className="stat-divider">|</span>
-                        <span className="stat-group">
-                          <span className="stat-label">Aurorian Floor:</span>
-                          <span className="highlight-text">{(tokenStats.aurorian?.floor_price / 1000000000).toFixed(2)} SOL</span>
-                        </span>
-                      </span>
-                    )}
                   </React.Fragment>
                 ))}
               </>
             )}
           </div>
+          {tokenStats && (
+            <div className="token-stats-fixed">
+              <span className="announcement-icon">📊</span>
+              <div className="stats-scroll-container">
+                <span className="stat-group">
+                  <span className="stat-label">$AURY:</span>
+                  <span className="highlight-text">${tokenStats.aury?.current_price?.toFixed(3)}</span>
+                </span>
+                <span className="stat-divider">|</span>
+                <span className="stat-group">
+                  <span className="stat-label">SOL:</span>
+                  <span className="highlight-text">${tokenStats.sol?.current_price?.toFixed(2)}</span>
+                </span>
+                <span className="stat-divider">|</span>
+                <span className="stat-group">
+                  <span className="stat-label">USDC:</span>
+                  <span className="highlight-text">$1.00</span>
+                </span>
+                <span className="stat-divider">|</span>
+                <span className="stat-group">
+                  <span className="stat-label">Aurorian Floor:</span>
+                  <span className="highlight-text">{(tokenStats.aurorian?.floor_price / 1000000000).toFixed(2)} SOL</span>
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

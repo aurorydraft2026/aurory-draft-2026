@@ -28,7 +28,8 @@ const ALLOWED_ENDPOINTS = [
   '/v1/matches',
   '/v1/player-matches',
   '/v1/egg-hatches',
-  '/v2/players'
+  '/v2/players',
+  '/v1/token-stats'
 ];
 
 /**

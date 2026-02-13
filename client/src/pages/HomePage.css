@@ -773,7 +773,7 @@
   position: sticky;
   top: var(--header-height);
   z-index: 20;
-  height: 36px;
+  height: 28px;
   background: #000000;
   border-bottom: 2px solid var(--border-subtle);
   display: flex;
@@ -820,7 +820,7 @@
 .announcement-track {
   display: flex;
   align-items: center;
-  animation: marquee 25s linear infinite;
+  animation: marquee 40s linear infinite;
   padding-left: 20px;
 }
 
@@ -836,12 +836,12 @@
   color: var(--text-primary);
   font-family: 'Rajdhani', sans-serif;
   font-weight: 500;
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   letter-spacing: 0.5px;
 }
 
 .announcement-icon {
-  font-size: 1.1rem;
+  font-size: 0.9rem;
   filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.2));
 }
 
@@ -5763,27 +5763,67 @@ input[type="file"] {
     justify-content: center !important;
   }
 }
-/* Token Stats Ticker Styles */
-.token-stats-item {
-  display: flex !important;
+
+
+
+
+
+@media (max-width: 768px) {
+  .token-stats-fixed {
+    display: none;
+    /* Hide fixed stats on small mobile to give room for text */
+  }
+
+  .announcement-bar::after {
+    display: block !important;
+    /* Restore gradient for mobile */
+  }
+}
+
+
+/* Token Stats Ticker Styles (Fixed on Right) */
+.token-stats-fixed {
+  background: #000;
+  height: 100%;
+  display: flex;
   align-items: center;
   gap: 15px;
-  background: rgba(168, 85, 247, 0.1);
-  padding: 5px 20px;
-  border-radius: 20px;
-  border: 1px solid rgba(168, 85, 247, 0.2);
-  margin: 0 40px;
+  padding: 0 15px;
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 10;
+  border-left: 1px solid rgba(168, 85, 247, 0.3);
+  box-shadow: -15px 0 30px rgba(0, 0, 0, 0.8);
+}
+
+.token-stats-fixed::before {
+  content: "";
+  position: absolute;
+  left: -100px;
+  top: 0;
+  bottom: 0;
+  width: 100px;
+  background: linear-gradient(-90deg, #000000 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.stats-scroll-container {
+  display: flex;
+  align-items: center;
+  gap: 15px;
 }
 
 .stat-group {
   display: flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
 }
 
 .stat-label {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -5792,18 +5832,36 @@ input[type="file"] {
 .stat-divider {
   color: rgba(255, 255, 255, 0.2);
   font-weight: 300;
-  margin: 0 5px;
+  margin: 0 2px;
+}
+
+/* Ensure ticker after gradient doesn't overlap or is removed */
+.announcement-bar::after {
+  display: none !important;
+}
+
+@media (max-width: 1024px) {
+  .token-stats-fixed {
+    padding: 0 15px;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+  }
+
+  .stats-scroll-container {
+    gap: 10px;
+  }
 }
 
 @media (max-width: 768px) {
-  .token-stats-item {
-    padding: 4px 12px;
-    margin: 0 20px;
-    gap: 10px;
+  .token-stats-fixed {
+    display: none;
+    /* Hide fixed stats on small mobile to give room for text */
   }
-  
-  .stat-label {
-    font-size: 0.8rem;
+
+  .announcement-bar::after {
+    display: block !important;
+    /* Restore gradient for mobile */
   }
 }
-
