@@ -130,10 +130,20 @@ async function processPayouts(draftId: string, draftData: any, overallWinner: st
   }
 
   // Determine winner UID
-  const winnerUid = overallWinner === 'A' ? draftData.teamALeader : draftData.teamBLeader;
+  let winnerUid = overallWinner === 'A' ? draftData.teamALeader : draftData.teamBLeader;
+
+  // ROBUSTNESS FALLBACK: If leaders not at root, find them in matchPlayers
+  if (!winnerUid && draftData.matchPlayers) {
+    const leader = draftData.matchPlayers.find((p: any) => p.team === overallWinner);
+    if (leader) {
+      winnerUid = leader.uid;
+      console.log(`  🔍 Recovered winner UID ${winnerUid} from matchPlayers for draft ${draftId}`);
+    }
+  }
+
   if (!winnerUid) {
     console.error(`  ❌ Cannot determine winner UID for draft ${draftId} (Winner: ${overallWinner})`);
-    console.log(`     teamALeader: ${draftData.teamALeader}, teamBLeader: ${draftData.teamBLeader}`);
+    console.log(`     teamALeader: ${draftData.teamALeader}, teamBLeader: ${draftData.teamBLeader}, matchPlayers length: ${draftData.matchPlayers?.length || 0}`);
     return;
   }
 
@@ -537,7 +547,12 @@ async function backfillMatchPlayers(draftId: string, draftData: any): Promise<an
 
     if (matchPlayers.length === 0) return null;
 
-    await db.doc(`drafts/${draftId}`).update({ matchPlayers });
+    // Enhance backfill: restore leaders to root if possible
+    const updateData: any = { matchPlayers };
+    if (teamALeader) updateData.teamALeader = teamALeader;
+    if (teamBLeader) updateData.teamBLeader = teamBLeader;
+
+    await db.doc(`drafts/${draftId}`).update(updateData);
     return matchPlayers;
   } catch (error) {
     console.error(`Error backfilling matchPlayers for ${draftId}:`, error);
