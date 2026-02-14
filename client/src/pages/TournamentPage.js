@@ -3527,9 +3527,21 @@ function TournamentPage() {
     <>
       <div className="tournament-page">
         <header className="tournament-header">
-          <div className="header-title">
-            <h1>{draftState.title || 'Aurory Draft'}</h1>
-            {draftState.title && <span className="tournament-subtitle">Aurory Draft Tournament</span>}
+          <div className="header-brand">
+            {(draftState.draftType === 'mode1' || draftState.draftType === 'mode2') && (
+              <img
+                src="/Aurorydraft logos/Triad_logo.png"
+                alt="Triad Logo"
+                className="triad-logo-header"
+              />
+            )}
+            <div className="header-title">
+              <h1>{draftState.title || 'Aurory Draft'}</h1>
+              {draftState.description && (
+                <p className="header-description">{draftState.description}</p>
+              )}
+              {draftState.title && <span className="tournament-subtitle">Aurory Draft Tournament</span>}
+            </div>
           </div>
           <div className="header-controls">
             <div className="spectator-count" title="People watching">
@@ -4019,18 +4031,29 @@ function TournamentPage() {
         {
           (draftState.status === 'active' || draftState.status === 'completed') && (draftState.description || draftState.prizePool || draftState.draftType) && (
             <div className="tournament-info">
-              {draftState.draftType && (
-                <div className="tournament-draft-type">
-                  <span className="info-label">🎮 Draft Type:</span>
-                  <span className="info-value">
-                    {draftState.draftType === 'mode2' ? 'Triad Swiss Draft 2' : 'Triad Swiss Draft 1'}
-                  </span>
+              {(draftState.draftType === 'mode1' || draftState.draftType === 'mode2') && (
+                <div className="info-logo-container">
+                  <img
+                    src="/Aurorydraft logos/Triad_logo.png"
+                    alt="Triad Logo"
+                    className="triad-logo-large"
+                  />
                 </div>
               )}
-              {draftState.description && (
-                <div className="tournament-prize">
-                  <span className="info-label">🏆 Prize Pool:</span>
-                  <span className="info-value prize">{draftState.prizePool}</span>
+              {draftState.draftType && (
+                <div className="info-data-row">
+                  <div className="tournament-draft-type">
+                    <span className="info-label">🎮 Draft Type:</span>
+                    <span className="info-value">
+                      {draftState.draftType === 'mode2' ? 'Triad Swiss Draft 2' : 'Triad Swiss Draft 1'}
+                    </span>
+                  </div>
+                  {draftState.prizePool && (
+                    <div className="tournament-prize">
+                      <span className="info-label">🏆 Prize Pool:</span>
+                      <span className="info-value prize">{draftState.prizePool}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

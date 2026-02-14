@@ -41,9 +41,9 @@ export async function fetchMatchByBattleCode(battleCode) {
  * 1. Fetch match by battle code from global endpoint
  * 2. Check both player IDs are in the match
  * 3. Check each player's amikos match their draft (order-independent)
- * 4. If one player's amikos don't match → disqualified, opponent wins
- * 5. If both don't match → both disqualified
- * 6. If both match → use actual game result
+ * 4. If one player's amikos don't match â†’ disqualified, opponent wins
+ * 5. If both don't match â†’ both disqualified
+ * 6. If both match â†’ use actual game result
  * 
  * @param {Object} battleConfig
  * @param {string} battleConfig.battleCode - Private battle code
@@ -124,22 +124,22 @@ export async function verifySingleBattle(battleConfig) {
   let status, winner, disqualificationReason;
 
   if (!lineupAValid && !lineupBValid) {
-    // Both players cheated — both disqualified
+    // Both players cheated â€” both disqualified
     status = 'both_disqualified';
     winner = null;
     disqualificationReason = 'Both players used different Amikos than drafted.';
   } else if (!lineupAValid) {
-    // Player A cheated — Player B wins
+    // Player A cheated â€” Player B wins
     status = 'disqualified_A';
     winner = 'B';
     disqualificationReason = `${playerAName} used different Amikos than drafted.`;
   } else if (!lineupBValid) {
-    // Player B cheated — Player A wins
+    // Player B cheated â€” Player A wins
     status = 'disqualified_B';
     winner = 'A';
     disqualificationReason = `${playerBName} used different Amikos than drafted.`;
   } else {
-    // Both lineups valid — use actual game result
+    // Both lineups valid â€” use actual game result
     status = 'verified';
     winner = playerAOutcome === 'win' ? 'A' : 'B';
     disqualificationReason = null;
@@ -449,7 +449,7 @@ export async function fetchVerifiedMatches(limitCount = 50, modeFilter = null) {
 
 /**
  * Backfill matchPlayers for old drafts that don't have it.
- * Reconstructs from permissions (uid → team mapping) + user docs (auroryPlayerId).
+ * Reconstructs from permissions (uid â†’ team mapping) + user docs (auroryPlayerId).
  * Saves to Firestore so it only needs to run once per draft.
  * @returns {Array|null} The matchPlayers array, or null if reconstruction failed
  */
@@ -469,7 +469,7 @@ async function backfillMatchPlayers(draftId, draftData) {
 
     if (teamAUids.length === 0 || teamBUids.length === 0) return null;
 
-    // 🔧 FIX: Sort by leader first
+    // ðŸ”§ FIX: Sort by leader first
     const sortedTeamAUids = teamALeader ? [
       teamALeader,
       ...teamAUids.filter(uid => uid !== teamALeader)
@@ -527,7 +527,7 @@ async function backfillMatchPlayers(draftId, draftData) {
     const draftRef = doc(db, 'drafts', draftId);
     await updateDoc(draftRef, { matchPlayers });
 
-    console.log(`✅ Backfilled matchPlayers for draft ${draftId}:`, matchPlayers.length, 'players');
+    console.log(`âœ… Backfilled matchPlayers for draft ${draftId}:`, matchPlayers.length, 'players');
     return matchPlayers;
   } catch (error) {
     console.error(`Error backfilling matchPlayers for draft ${draftId}:`, error);

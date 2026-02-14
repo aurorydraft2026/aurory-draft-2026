@@ -82,7 +82,7 @@ function HomePage() {
       content: "The first pick will be determined through a randomization process. Following the first pick, teams will select two (2) Amikos per round, adhering to the established draft order. Mirror Amikos are not allowed. Once an Amiko has been selected by a team, it may not be selected by the opposing team for that match. All selections are locked immediately upon confirmation."
     },
     {
-      icon: "⏱️",
+      icon: "⏲️",
       title: "Draft Timer & Enforcement",
       color: "danger",
       content: "Each draft phase will have a strict time limit, which will be announced prior to the draft. Teams must complete their selections within the allotted time. Failure to make a selection before the timer expires will result in a random Amiko being assigned to the team. Randomly assigned selections are final and may not be appealed."
@@ -94,7 +94,7 @@ function HomePage() {
       content: "Teams are given a maximum of two (2) days to complete each scheduled draft stage. The draft stage is considered complete once all required Amikos have been successfully selected and locked by both teams. No changes, substitutions, or re-drafts are permitted after draft completion unless explicitly authorized by tournament organizers."
     },
     {
-      icon: "⚔️",
+      icon: "⚠️",
       title: "Match Duration & Completion",
       color: "purple",
       content: "Teams are given a maximum of two (2) days to complete each scheduled match. Both teams are expected to coordinate promptly to ensure completion within the assigned timeframe. Failure to complete a match within the allotted period may result in penalties, forfeiture, or organizer intervention."
@@ -1013,37 +1013,54 @@ function HomePage() {
       if (!match.overallWinner) return;
 
       if (leaderboardMode === 'team') {
-        // --- TEAM MODE: Use overall match winner ---
-        // Get players from matchPlayers or permissions
-        let players = [];
-        if (match.matchPlayers?.length > 0) {
-          players = match.matchPlayers;
-        } else if (match.permissions) {
-          Object.entries(match.permissions).forEach(([uid, perm]) => {
-            if (perm === 'A' || perm === 'B') {
-              players.push({ uid, team: perm, displayName: uid });
-            }
-          });
-        }
+        // --- TEAM MODE: Group by leader + members set ---
+        // Skip 1v1 matches in team leaderboard
+        if (match.draftType === 'mode3' || match.draftType === 'mode4') return;
 
-        players.forEach(p => {
-          if (p.team !== 'A' && p.team !== 'B') return;
-          const uid = p.uid;
-          if (!winCounts[uid]) {
-            // Try to resolve from registeredUsers
-            const userData = registeredUsers.find(u => u.id === uid);
-            winCounts[uid] = {
-              uid,
-              displayName: p.auroryPlayerName || p.displayName || userData?.displayName || userData?.username || 'Player',
-              photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
+        const teams = ['A', 'B'];
+        teams.forEach(tCode => {
+          const teamPlayers = match.matchPlayers?.filter(p => p.team === tCode) || [];
+          if (teamPlayers.length === 0) return;
+
+          // Identity: First player is leader, rest are members
+          const leader = teamPlayers[0];
+          const members = teamPlayers.slice(1).map(p => p.uid).sort();
+          const teamKey = `${leader.uid}|${members.join(',')}`;
+
+          const teamName = match.teamNames?.[tCode === 'A' ? 'team1' : 'team2'] || 'Team';
+          const bannerUrl = match.teamBanners?.[tCode === 'A' ? 'team1' : 'team2'] || null;
+          const matchTime = match.verifiedAt?.seconds || (new Date(match.verifiedAt).getTime() / 1000) || 0;
+
+          if (!winCounts[teamKey]) {
+            winCounts[teamKey] = {
+              teamKey,
+              teamName,
+              bannerUrl,
               wins: 0,
               losses: 0,
+              lastUpdated: matchTime,
+              members: teamPlayers.map(p => {
+                const userData = registeredUsers.find(u => u.id === p.uid);
+                return {
+                  uid: p.uid,
+                  displayName: p.auroryPlayerName || p.displayName || userData?.displayName || 'Player',
+                  photoURL: userData?.auroryProfilePicture || userData?.photoURL || null
+                };
+              })
             };
-          }
-          if (p.team === match.overallWinner) {
-            winCounts[uid].wins += 1;
           } else {
-            winCounts[uid].losses += 1;
+            // Update to latest team name and banner if match is newer
+            if (matchTime > winCounts[teamKey].lastUpdated) {
+              winCounts[teamKey].teamName = teamName;
+              winCounts[teamKey].bannerUrl = bannerUrl;
+              winCounts[teamKey].lastUpdated = matchTime;
+            }
+          }
+
+          if (tCode === match.overallWinner) {
+            winCounts[teamKey].wins += 1;
+          } else {
+            winCounts[teamKey].losses += 1;
           }
         });
 
@@ -1611,7 +1628,7 @@ function HomePage() {
     switch (status) {
       case 'active': return '🟢 Active';
       case 'coinFlip': return '🪙 Coin Flip';
-      case 'poolShuffle': return '🔀 Shuffling';
+      case 'poolShuffle': return '� Shuffling';
       case 'assignment': return '📋 Assigning';
       case 'completed': return '✅ Completed';
       default: return '⏳ Waiting';
@@ -1633,7 +1650,7 @@ function HomePage() {
       >
         <div className="modal-header">
           <h3>👤 User Profile</h3>
-          <button className="close-modal" onClick={() => setShowUserModal(false)}>✕</button>
+          <button className="close-modal" onClick={() => setShowUserModal(false)}>✖</button>
         </div>
 
         <div className="user-modal-content">
@@ -1651,9 +1668,9 @@ function HomePage() {
               </span>
               <span className="modal-email">{user.email}</span>
               {isSuperAdminUser ? (
-                <span className="modal-admin-badge">⭐ Super Admin</span>
+                <span className="modal-admin-badge">⭐Super Admin</span>
               ) : isAdminUser ? (
-                <span className="modal-admin-badge admin-staff">⭐ Admin</span>
+                <span className="modal-admin-badge admin-staff">⭐Admin</span>
               ) : null}
 
               {user.isAurorian && <span className="aurorian-tag">Aurorian Holder</span>}
@@ -1728,11 +1745,11 @@ function HomePage() {
                 }}
                 title="Delete all notifications"
               >
-                🗑️ Clear All
+                🗑️ Clear All
               </button>
             )}
           </div>
-          <button className="close-panel-btn" onClick={() => setShowNotificationPanel(false)}>✕</button>
+          <button className="close-panel-btn" onClick={() => setShowNotificationPanel(false)}>✖</button>
         </div>
         <div className="notification-list">
           {notifications.length === 0 ? (
@@ -1771,8 +1788,8 @@ function HomePage() {
     return (
       <div className="login-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>🔐 Welcome to Aurory Draft</h3>
-          <button className="close-modal" onClick={() => setShowLoginModal(false)}>✕</button>
+          <h3>🔍 Welcome to Aurory Draft</h3>
+          <button className="close-modal" onClick={() => setShowLoginModal(false)}>✖</button>
         </div>
         <div className="modal-body">
           <div className="login-welcome-text">
@@ -1924,9 +1941,9 @@ function HomePage() {
                       {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}
                     </span>
                     {isSuperAdminUser ? (
-                      <span className="admin-badge">⭐ Super Admin</span>
+                      <span className="admin-badge">⭐Super Admin</span>
                     ) : isAdminUser ? (
-                      <span className="admin-badge admin-staff">⭐ Admin</span>
+                      <span className="admin-badge admin-staff">⭐Admin</span>
                     ) : null}
                     {user.isAurorian && <span className="aurorian-tag">Aurorian Holder</span>}
                   </div>
@@ -2144,7 +2161,7 @@ function HomePage() {
             <div className="tournaments-section">
               <div className="tournaments-header">
                 <div className="header-title-group">
-                  <h3>♟️ All Drafts </h3>
+                  <h3>♟️All Drafts </h3>
                   {user && (
                     <button onClick={() => setShowCreateModal(true)} className="inline-create-btn">
                       <span className="plus-icon">+</span> Create Draft
@@ -2158,7 +2175,7 @@ function HomePage() {
                 <div className="filter-tabs-row">
                   {[
                     { key: 'active', label: 'Active', icon: '🟢' },
-                    { key: 'waiting', label: 'Waiting', icon: '⏳' },
+                    { key: 'waiting', label: 'Waiting', icon: '⌛' },
                     { key: 'completed', label: 'Completed', icon: '✅' },
                     { key: 'played', label: 'Played', icon: '🎮' },
                     { key: 'participating', label: 'Joined', icon: '👤' },
@@ -2275,15 +2292,15 @@ function HomePage() {
                             <div className={`timer-ribbon ${isMyTurn ? 'my-turn-ribbon' : ''} ${isParticipating && !isMyTurn ? 'not-my-turn' : ''} ${timer.isUrgent ? 'urgent' : ''} ${timer.expired ? 'expired' : ''} ${timer.waiting ? 'waiting' : ''}`}>
                               <div className="ribbon-content">
                                 {timer.waiting ? (
-                                  <span className="ribbon-text">⏸️ Waiting to Start</span>
+                                  <span className="ribbon-text">⏳Waiting to Start</span>
                                 ) : timer.expired ? (
-                                  <span className="ribbon-text">⚠️ Time Expired!</span>
+                                  <span className="ribbon-text">⚠️Time Expired!</span>
                                 ) : (
                                   <>
                                     <span className="ribbon-team">
-                                      {isMyTurn ? '⚡ YOUR TURN!' : `${turnName}'s Turn`}
+                                      {isMyTurn ? '⚡YOUR TURN!' : `${turnName}'s Turn`}
                                     </span>
-                                    <span className="ribbon-timer">⏱️ {formatTimer(timer)}</span>
+                                    <span className="ribbon-timer">⏲{formatTimer(timer)}</span>
                                   </>
                                 )}
                               </div>
@@ -2564,7 +2581,7 @@ function HomePage() {
                                       {result.status === 'verified' && '✅'}
                                       {(result.status === 'disqualified_A' || result.status === 'disqualified_B') && '⛔ DQ'}
                                       {result.status === 'both_disqualified' && '⛔ Both DQ'}
-                                      {result.status === 'not_found' && '⏳'}
+                                      {result.status === 'not_found' && '⏱️'}
                                     </span>
                                   </div>
 
@@ -2643,30 +2660,58 @@ function HomePage() {
                     <p>No matches this month</p>
                   </div>
                 ) : (
-                  topPlayers.map((player, idx) => (
-                    <div key={player.uid} className={`top-player-row ${idx < 3 ? `rank-${idx + 1}` : ''}`}>
-                      <span className="top-player-rank">
-                        {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
-                      </span>
-                      <img
-                        src={player.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
-                        alt=""
-                        className="top-player-avatar"
-                        onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                      />
-                      <div className="top-player-info">
-                        <span className="top-player-name">{player.displayName}</span>
-                        <span className="top-player-record">
-                          <span className="record-wins">{player.wins}W</span>
-                          <span className="record-sep">·</span>
-                          <span className="record-losses">{player.losses}L</span>
+                  topPlayers.map((item, idx) => {
+                    const isTeam = leaderboardMode === 'team';
+                    return (
+                      <div key={isTeam ? item.teamKey : item.uid} className={`top-player-row ${idx < 3 ? `rank-${idx + 1}` : ''} ${isTeam ? 'team-row' : ''}`}>
+                        {isTeam && item.bannerUrl && (
+                          <div
+                            className="top-player-banner-bg"
+                            style={{ backgroundImage: `url(${item.bannerUrl})` }}
+                          />
+                        )}
+                        <span className="top-player-rank">
+                          {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
                         </span>
+
+                        {isTeam ? (
+                          <div className="team-avatar-stack">
+                            {item.members.map((m, mIdx) => (
+                              <img
+                                key={m.uid}
+                                src={m.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                alt=""
+                                className={`top-player-avatar ${mIdx === 0 ? 'leader-avatar' : 'member-avatar'}`}
+                                style={{
+                                  zIndex: 10 - mIdx
+                                }}
+                                onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <img
+                            src={item.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                            alt=""
+                            className="top-player-avatar"
+                            onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                          />
+                        )}
+
+                        <div className="top-player-info">
+                          <span className="top-player-name">{isTeam ? item.teamName : item.displayName}</span>
+                          <span className="top-player-record">
+                            <span className="record-wins">{item.wins}W</span>
+                            <span className="record-sep">·</span>
+                            <span className="record-losses">{item.losses}L</span>
+                          </span>
+                        </div>
+                        <div className="top-player-winrate">
+                          {Math.round((item.wins / (item.wins + item.losses || 1)) * 100)}%
+                        </div>
                       </div>
-                      <div className="top-player-winrate">
-                        {Math.round((player.wins / (player.wins + player.losses)) * 100)}%
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -2744,7 +2789,7 @@ function HomePage() {
             <div className="create-modal">
               <div className="modal-header">
                 <h3>➕ Create New Draft</h3>
-                <button className="close-modal" onClick={() => setShowCreateModal(false)}>✕</button>
+                <button className="close-modal" onClick={() => setShowCreateModal(false)}>✖</button>
               </div>
 
               <div className="modal-body">
@@ -2961,7 +3006,7 @@ function HomePage() {
                                   type="button"
                                   className="remove-banner-btn"
                                   onClick={(e) => { e.preventDefault(); setTeam1Banner(null); }}
-                                >✕</button>
+                                >✖</button>
                               </div>
                             ) : (
                               <div className="banner-placeholder">
@@ -2994,7 +3039,7 @@ function HomePage() {
                               onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                             />
                             <span>{getUserById(team1.leader)?.displayName || 'Unknown'}</span>
-                            <button className="remove-btn" onClick={() => removeFromSlot(1, 'leader')}>✕</button>
+                            <button className="remove-btn" onClick={() => removeFromSlot(1, 'leader')}>✖</button>
                           </div>
                         ) : (
                           <button
@@ -3026,7 +3071,7 @@ function HomePage() {
                                   onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                                 />
                                 <span className="mini-name">{getUserById(team1.member2)?.displayName || 'Unknown'}</span>
-                                <button className="remove-btn" onClick={() => { removeFromSlot(1, 'member1'); removeFromSlot(1, 'member2'); }}>✕</button>
+                                <button className="remove-btn" onClick={() => { removeFromSlot(1, 'member1'); removeFromSlot(1, 'member2'); }}>✖</button>
                               </div>
                             </div>
                           ) : (
@@ -3070,7 +3115,7 @@ function HomePage() {
                                   type="button"
                                   className="remove-banner-btn"
                                   onClick={(e) => { e.preventDefault(); setTeam2Banner(null); }}
-                                >✕</button>
+                                >✖</button>
                               </div>
                             ) : (
                               <div className="banner-placeholder">
@@ -3103,7 +3148,7 @@ function HomePage() {
                               onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                             />
                             <span>{getUserById(team2.leader)?.displayName || 'Unknown'}</span>
-                            <button className="remove-btn" onClick={() => removeFromSlot(2, 'leader')}>✕</button>
+                            <button className="remove-btn" onClick={() => removeFromSlot(2, 'leader')}>✖</button>
                           </div>
                         ) : (
                           <button
@@ -3135,7 +3180,7 @@ function HomePage() {
                                   onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                                 />
                                 <span className="mini-name">{getUserById(team2.member2)?.displayName || 'Unknown'}</span>
-                                <button className="remove-btn" onClick={() => { removeFromSlot(2, 'member1'); removeFromSlot(2, 'member2'); }}>✕</button>
+                                <button className="remove-btn" onClick={() => { removeFromSlot(2, 'member1'); removeFromSlot(2, 'member2'); }}>✖</button>
                               </div>
                             </div>
                           ) : (
@@ -3162,7 +3207,7 @@ function HomePage() {
                               {assigningSlot.roles.length === 2 ? 'Step 1/2' : assigningSlot.roles.length === 1 && assigningSlot.sessionRoles.length === 2 ? 'Step 2/2' : 'Assigning Slot'}
                             </span>
                           </div>
-                          <button className="close-modal" onClick={() => setAssigningSlot(null)}>✕</button>
+                          <button className="close-modal" onClick={() => setAssigningSlot(null)}>✖</button>
                         </div>
 
                         <div className="selection-search-container">
@@ -3197,7 +3242,7 @@ function HomePage() {
                                       {newTournament.draftType === 'mode3' ? 'Participant' : `Selected as ${role === 'leader' ? 'Leader' : role === 'member1' ? 'Member 1' : 'Member 2'}`}
                                     </span>
                                   </div>
-                                  <button className="deselect-circle-btn" onClick={() => handleDeselectDuringFlow(role)}>✕</button>
+                                  <button className="deselect-circle-btn" onClick={() => handleDeselectDuringFlow(role)}>✖</button>
                                 </div>
                               );
                             })}
@@ -3260,7 +3305,7 @@ function HomePage() {
             <div className="wallet-modal">
               <div className="modal-header">
                 <h3><img src="/aury-icon.png" alt="" className="modal-aury-icon" /> AURY Wallet</h3>
-                <button className="close-modal" onClick={() => setShowWalletModal(false)}>✕</button>
+                <button className="close-modal" onClick={() => setShowWalletModal(false)}>✖</button>
               </div>
 
               {/* Wallet Balance Display */}
@@ -3321,7 +3366,7 @@ function HomePage() {
                     {/* NEW: Deposit Notification Section */}
                     <div className="deposit-notification-section">
                       <div className="deposit-notification-header">
-                        <h4>💬 Already Sent Your Deposit?</h4>
+                        <h4>✉️ Already Sent Your Deposit?</h4>
                         <p>Notify the admin to speed up the crediting process</p>
                       </div>
 
@@ -3368,7 +3413,7 @@ function HomePage() {
                         onClick={submitDepositNotification}
                         disabled={walletLoading || !depositAmount}
                       >
-                        {walletLoading ? 'Sending...' : '📨 Notify Admin About Deposit'}
+                        {walletLoading ? 'Sending...' : '📧 Notify Admin About Deposit'}
                       </button>
 
                       {/* Logic inside submitDepositNotification is handled elsewhere, let's look for the function actual definition if this is JSX */}
@@ -3452,17 +3497,17 @@ function HomePage() {
                               amountClass = 'negative';
                               break;
                             case 'withdrawal_pending':
-                              icon = '⏳';
+                              icon = '⏱️';
                               label = 'Withdrawal Pending';
                               amountClass = 'negative';
                               break;
                             case 'withdrawal_rejected_refund':
-                              icon = '🔄';
+                              icon = '↩️';
                               label = 'Withdrawal Rejected (Refunded)';
                               amountClass = 'positive';
                               break;
                             default:
-                              icon = '💫';
+                              icon = '❓';
                               label = tx.type;
                               amountClass = '';
                           }
@@ -3540,7 +3585,7 @@ function HomePage() {
             <div className="confirmation-modal logout-confirm" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h3>🚪 Confirm Logout</h3>
-                <button className="close-modal" onClick={() => setShowLogoutConfirm(false)}>✕</button>
+                <button className="close-modal" onClick={() => setShowLogoutConfirm(false)}>✖</button>
               </div>
               <div className="modal-body">
                 <div className="confirm-icon">🚪</div>

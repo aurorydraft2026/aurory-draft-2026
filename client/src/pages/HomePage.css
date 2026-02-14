@@ -1163,7 +1163,7 @@
 }
 
 .indicator {
-  width: 32px;
+  width: 16px;
   height: 8px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.2);
@@ -1173,7 +1173,7 @@
 
 .indicator.active {
   background: var(--accent-cyan);
-  width: 48px;
+  width: 25px;
   box-shadow: 0 0 10px var(--accent-cyan-glow);
 }
 
@@ -2518,7 +2518,7 @@
   letter-spacing: 0.5px;
   text-transform: uppercase;
   background: linear-gradient(135deg, var(--accent-gold), #d97706);
-  color: black;
+  color: white;
   box-shadow: 0 0 15px var(--accent-gold-glow);
   width: fit-content;
   margin-top: 4px;
@@ -4089,7 +4089,7 @@
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
   font-size: 0.62rem;
-  color: var(--accent-gold);
+  color: white;
   letter-spacing: 0.5px;
 }
 
@@ -4272,7 +4272,7 @@
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
   font-size: 0.7rem;
-  color: var(--accent-gold);
+  color: white;
   text-transform: uppercase;
   letter-spacing: 0.8px;
 }
@@ -5282,8 +5282,8 @@
   }
 
   .banner-indicators {
-    left: 16px;
-    right: auto;
+    right: 16px;
+    left: auto;
   }
 
   .filter-tab-label {
@@ -5823,10 +5823,15 @@ input[type="file"] {
 
 .stat-label {
   color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.68rem;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.token-stats-fixed .highlight-text {
+  font-size: 0.72rem;
+  font-weight: 600;
 }
 
 .stat-divider {
@@ -5846,7 +5851,7 @@ input[type="file"] {
   }
 
   .stat-label {
-    font-size: 0.75rem;
+    font-size: 0.65rem;
   }
 
   .stats-scroll-container {
@@ -5864,4 +5869,329 @@ input[type="file"] {
     display: block !important;
     /* Restore gradient for mobile */
   }
+}
+
+
+
+.team-avatar-stack .top-player-avatar {
+  position: absolute;
+  transition: all 0.2s ease;
+  border-width: 1px;
+}
+
+.team-avatar-stack .top-player-avatar:nth-child(1) {
+  right: 0;
+  z-index: 3;
+}
+
+.team-avatar-stack .top-player-avatar:nth-child(2) {
+  right: 12px;
+  z-index: 2;
+}
+
+.team-avatar-stack .top-player-avatar:nth-child(3) {
+  right: 24px;
+  z-index: 1;
+}
+
+.team-row:hover .team-avatar-stack .top-player-avatar {
+  opacity: 1 !important;
+  transform: scale(1.05);
+}
+
+.team-row:hover .team-avatar-stack .top-player-avatar:nth-child(2) {
+  right: 16px;
+}
+
+.team-row:hover .team-avatar-stack .top-player-avatar:nth-child(3) {
+  right: 32px;
+}
+
+.team-avatar-stack .member-avatar {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.team-avatar-stack .leader-avatar {
+  border-color: var(--accent-cyan);
+}
+
+
+.team-avatar-stack .top-player-avatar {
+  position: absolute;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-width: 1px;
+  object-fit: cover;
+}
+
+/* Default States (Leader Big, Members Small) */
+.team-avatar-stack .leader-avatar {
+  width: 32px;
+  height: 32px;
+  right: 0;
+  z-index: 3;
+}
+
+.team-avatar-stack .member-avatar {
+  width: 22px;
+  height: 22px;
+  opacity: 1;
+  /* Opacity is now full */
+}
+
+.team-avatar-stack .top-player-avatar:nth-child(2) {
+  right: 15px;
+  z-index: 2;
+}
+
+.team-avatar-stack .top-player-avatar:nth-child(3) {
+  right: 28px;
+  z-index: 1;
+}
+
+/* Hover States (All same size as leader) */
+.team-row:hover .team-avatar-stack {
+  width: 85px;
+}
+
+.team-row:hover .team-avatar-stack .top-player-avatar {
+  width: 32px;
+  height: 32px;
+  transform: scale(1);
+}
+
+.team-row:hover .team-avatar-stack .top-player-avatar:nth-child(2) {
+  right: 24px;
+}
+
+.team-row:hover .team-avatar-stack .top-player-avatar:nth-child(3) {
+  right: 48px;
+}
+
+.team-avatar-stack .member-avatar {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.team-avatar-stack .leader-avatar {
+  border-color: var(--accent-cyan);
+}
+
+
+
+
+.team-avatar-stack .top-player-avatar {
+  position: absolute;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-width: 1px;
+  object-fit: cover;
+}
+
+/* Default States (Leader Big, Members Small) */
+.team-avatar-stack .leader-avatar {
+  width: 32px;
+  height: 32px;
+  right: 0;
+  z-index: 3;
+}
+
+.team-avatar-stack .member-avatar {
+  width: 22px;
+  height: 22px;
+}
+
+.team-avatar-stack .top-player-avatar:nth-child(2) {
+  right: 18px;
+  /* Increased from 15px to show more of the second member */
+  z-index: 2;
+}
+
+.team-avatar-stack .top-player-avatar:nth-child(3) {
+  right: 36px;
+  /* Adjusted to sit at the edge of the 58px container */
+  z-index: 1;
+}
+
+/* Hover States (All same size as leader) */
+.team-row:hover .team-avatar-stack {
+  width: 85px;
+}
+
+.team-row:hover .team-avatar-stack .top-player-avatar {
+  width: 32px;
+  height: 32px;
+  transform: scale(1);
+}
+
+.team-row:hover .team-avatar-stack .top-player-avatar:nth-child(2) {
+  right: 26px;
+}
+
+.team-row:hover .team-avatar-stack .top-player-avatar:nth-child(3) {
+  right: 52px;
+}
+
+.team-avatar-stack .member-avatar {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.team-avatar-stack .leader-avatar {
+  border-color: var(--accent-cyan);
+}
+
+
+
+
+.team-avatar-stack .top-player-avatar {
+  position: absolute;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-width: 1px;
+  object-fit: cover;
+}
+
+/* Default States (Leader Big, Members Small - LEFT oriented) */
+.team-avatar-stack .leader-avatar {
+  width: 32px;
+  height: 32px;
+  left: 0;
+  z-index: 3;
+}
+
+.team-avatar-stack .member-avatar {
+  width: 22px;
+  height: 22px;
+}
+
+.team-avatar-stack .top-player-avatar:nth-child(2) {
+  left: 18px;
+  z-index: 2;
+}
+
+.team-avatar-stack .top-player-avatar:nth-child(3) {
+  left: 36px;
+  z-index: 1;
+}
+
+/* Hover States (All same size as leader) */
+.team-row:hover .team-avatar-stack {
+  width: 85px;
+}
+
+.team-row:hover .team-avatar-stack .top-player-avatar {
+  width: 32px;
+  height: 32px;
+  transform: scale(1);
+}
+
+.team-row:hover .team-avatar-stack .top-player-avatar:nth-child(2) {
+  left: 26px;
+}
+
+.team-row:hover .team-avatar-stack .top-player-avatar:nth-child(3) {
+  left: 52px;
+}
+
+.team-avatar-stack .member-avatar {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.team-avatar-stack .leader-avatar {
+  border-color: var(--accent-cyan);
+}
+
+
+/* --- Team Leaderboard Refinements --- */
+.team-avatar-stack {
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 66px;
+  /* Increased to accommodate shifted members */
+  height: 32px;
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.team-avatar-stack .top-player-avatar {
+  position: absolute;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-width: 1px;
+  object-fit: cover;
+}
+
+/* Default States (Leader Big, Members Small) */
+.team-avatar-stack .leader-avatar {
+  width: 32px;
+  height: 32px;
+  left: 0;
+  z-index: 3;
+}
+
+.team-avatar-stack .member-avatar {
+  width: 22px;
+  height: 22px;
+}
+
+.team-avatar-stack .top-player-avatar:nth-child(2) {
+  left: 22px;
+  /* Moved from 18px to the right to clear the big leader */
+  z-index: 2;
+}
+
+.team-avatar-stack .top-player-avatar:nth-child(3) {
+  left: 40px;
+  /* Shifted accordingly */
+  z-index: 1;
+}
+
+/* Hover States (All same size as leader) */
+.team-row:hover .team-avatar-stack {
+  width: 95px;
+  /* Slightly wider hover container */
+}
+
+.team-row:hover .team-avatar-stack .top-player-avatar {
+  width: 32px;
+  height: 32px;
+  transform: scale(1);
+}
+
+.team-row:hover .team-avatar-stack .top-player-avatar:nth-child(2) {
+  left: 28px;
+}
+
+.team-row:hover .team-avatar-stack .top-player-avatar:nth-child(3) {
+  left: 56px;
+}
+
+.team-avatar-stack .member-avatar {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.team-avatar-stack .leader-avatar {
+  border-color: var(--accent-cyan);
+}
+
+
+.top-player-row {
+  position: relative;
+  /* ... existing styles ... */
+}
+
+.top-player-banner-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: 0;
+  mask-image: linear-gradient(to right, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 100%);
+  -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+.top-player-row>* {
+  position: relative;
+  z-index: 1;
 }
