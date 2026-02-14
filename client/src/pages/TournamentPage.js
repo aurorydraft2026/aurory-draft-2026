@@ -37,6 +37,7 @@ import '../components/drafts/Mode4Draft.css';
 import { verifyDraftBattles, saveVerificationResults } from '../services/matchVerificationService';
 import { logActivity } from '../services/activityService';
 import LoadingScreen from '../components/LoadingScreen';
+import DraftRulesModal from '../components/DraftRulesModal';
 import './TournamentPage.css';
 
 // Helper function to get user email
@@ -65,7 +66,24 @@ const getUserDisplayName = (user) => {
 const DEFAULT_AVATAR = 'https://cdn.discordapp.com/embed/avatars/0.png';
 const getUserProfilePicture = (user) => {
   if (!user) return DEFAULT_AVATAR;
-  return user.auroryProfilePicture || (user.photoURL && user.photoURL !== '' ? user.photoURL : DEFAULT_AVATAR);
+
+  // 1. Aurory Rank/Profile Pic
+  if (user.auroryProfilePicture && user.auroryProfilePicture !== '') return user.auroryProfilePicture;
+
+  // 2. Direct photoURL (Firebase)
+  if (user.photoURL && user.photoURL !== '') return user.photoURL;
+
+  // 3. Provider photoURL (Google/Discord)
+  if (user.providerData && user.providerData.length > 0) {
+    for (const provider of user.providerData) {
+      if (provider.photoURL && provider.photoURL !== '') return provider.photoURL;
+    }
+  }
+
+  // 4. Case-insensitive photoUrl fallback
+  if (user.photoUrl && user.photoUrl !== '') return user.photoUrl;
+
+  return DEFAULT_AVATAR;
 };
 
 function TournamentPage() {
@@ -166,6 +184,9 @@ function TournamentPage() {
   // Optimistic pick state (to prevent flickering)
   const [tempPick, setTempPick] = useState(null); // { id: 'amiko1', team: 'A' }
 
+  // Rules modal state
+  const [showRulesModal, setShowRulesModal] = useState(false);
+
   // Shuffle animation state for 1v1 pools
   const [shuffleHighlights, setShuffleHighlights] = useState([]);
 
@@ -260,7 +281,7 @@ function TournamentPage() {
     title: '',
     description: '',
     prizePool: '',
-    draftType: 'mode1', // NEW: Add this line
+    draftType: null, // Initialized as null to prevent default display before sync
     timerDuration: 30 * 1000, // Default 30 seconds in ms
     // Active viewers tracking
     activeViewers: {},
@@ -1217,7 +1238,7 @@ function TournamentPage() {
           title: data.title || '',
           description: data.description || '',
           prizePool: data.prizePool || '',
-          draftType: data.draftType || 'mode1',
+          draftType: data.draftType, // Keep as is from Firestore; rendering logic handles null/undefined
           timerDuration: data.timerDuration || 30 * 1000,
           activeViewers: data.activeViewers || {},
           manualTimerStart: data.manualTimerStart || false,
@@ -1657,9 +1678,11 @@ function TournamentPage() {
       const displayName = getUserDisplayName(user);
 
       const userRef = doc(db, 'users', user.uid);
+      const photoURL = getUserProfilePicture(user);
+
       await setDoc(userRef, {
         displayName: displayName,
-        photoURL: user.photoURL || '',
+        photoURL: photoURL !== DEFAULT_AVATAR ? photoURL : (user.photoURL || ''),
         email: userEmail || '',
         lastLogin: serverTimestamp()
       }, { merge: true });
@@ -2487,6 +2510,8 @@ function TournamentPage() {
     const draftRef = doc(db, 'drafts', DRAFT_ID);
     const teamKey = draftState.currentTeam === 'A' ? 'teamABans' : 'teamBBans';
 
+
+
     const currentPhaseConfig = getPICK_ORDER(draftState.draftType || 'mode4')[draftState.currentPhase || 0];
     const newPicksInPhase = (draftState.picksInPhase || 0) + 1;
 
@@ -2842,67 +2867,73 @@ function TournamentPage() {
 
     setShowAdminPanel(false);
 
-    showConfirm(
-      'Reset Tournament',
-      'Are you sure you want to reset the tournament? This will clear all picks and reset team assignments.',
-      async () => {
-        const draftRef = doc(db, 'drafts', DRAFT_ID);
+    const performReset = async () => {
+      const draftRef = doc(db, 'drafts', DRAFT_ID);
 
-        const newPermissions = { ...draftState.permissions };
-        Object.keys(newPermissions).forEach(uid => {
-          if (newPermissions[uid] !== 'admin') {
-            newPermissions[uid] = 'spectator';
-          }
-        });
-
-        // Clear all chats and typing indicators
-        const collectionsToClear = [
-          'chatA', 'chatB', 'chatAll', 'chatSpectators',
-          'typingA', 'typingB', 'typingAll', 'typingSpectators'
-        ];
-
-        try {
-          await Promise.all(collectionsToClear.map(async (collectionName) => {
-            const colRef = collection(db, 'drafts', DRAFT_ID, collectionName);
-            const snapshot = await getDocs(colRef);
-            return Promise.all(snapshot.docs.map(doc => deleteDoc(doc.ref)));
-          }));
-        } catch (error) {
-          console.error('Error clearing chats/typing indicators:', error);
+      const newPermissions = { ...draftState.permissions };
+      Object.keys(newPermissions).forEach(uid => {
+        if (newPermissions[uid] !== 'admin') {
+          newPermissions[uid] = 'spectator';
         }
+      });
 
-        await updateDoc(draftRef, {
-          teamA: [],
-          teamB: [],
-          currentPhase: 0,
-          currentTeam: 'A',
-          picksInPhase: 0,
-          timerStartA: null,
-          timerStartB: null,
-          status: 'waiting',
-          permissions: newPermissions,
-          lockedPhases: [],
-          awaitingLockConfirmation: false,
-          timerStarted: false,
-          votes: { A: {}, B: {} },
-          // 1v1 Mode state cleanup
-          lockedTeams: [],
-          playerAPool: [],
-          playerBPool: [],
-          simultaneousPicking: false,
-          sharedTimer: null,
-          // Mode4 ban state cleanup
-          teamABans: [],
-          teamBBans: [],
-          bannedAmikos: []
-        });
+      // Clear all chats and typing indicators
+      const collectionsToClear = [
+        'chatA', 'chatB', 'chatAll', 'chatSpectators',
+        'typingA', 'typingB', 'typingAll', 'typingSpectators'
+      ];
 
-        // Reset participant selection
-        setSelectedParticipants([]);
-
-        setSearchQuery('');
+      try {
+        await Promise.all(collectionsToClear.map(async (collectionName) => {
+          const colRef = collection(db, 'drafts', DRAFT_ID, collectionName);
+          const snapshot = await getDocs(colRef);
+          return Promise.all(snapshot.docs.map(doc => deleteDoc(doc.ref)));
+        }));
+      } catch (error) {
+        console.error('Error clearing chats/typing indicators:', error);
       }
-    );
+
+      await updateDoc(draftRef, {
+        teamA: [],
+        teamB: [],
+        currentPhase: 0,
+        currentTeam: 'A',
+        picksInPhase: 0,
+        timerStartA: null,
+        timerStartB: null,
+        status: 'waiting',
+        permissions: newPermissions,
+        lockedPhases: [],
+        awaitingLockConfirmation: false,
+        timerStarted: false,
+        votes: { A: {}, B: {} },
+        // 1v1 Mode state cleanup
+        lockedTeams: [],
+        playerAPool: [],
+        playerBPool: [],
+        simultaneousPicking: false,
+        sharedTimer: null,
+        // Mode4 ban state cleanup
+        teamABans: [],
+        teamBBans: [],
+        bannedAmikos: []
+      });
+
+      // Reset participant selection
+      setSelectedParticipants([]);
+
+      setSearchQuery('');
+    };
+
+    if (isSuperAdmin(getUserEmail(user))) {
+      performReset();
+    } else {
+      showConfirm(
+        'Reset Tournament',
+        'Are you sure you want to reset the tournament? This will clear all picks and reset team assignments.',
+        performReset
+      );
+    }
   };
 
   // Start timer manually
@@ -3558,7 +3589,7 @@ function TournamentPage() {
                   {isSuperAdmin(getUserEmail(user)) ? '⭐ Super Admin' :
                     userPermission === 'admin' ? '👑 Admin' :
                       userPermission === 'A' ? `${draftState.teamColors?.teamA === 'blue' ? '🔵' : '🔴'} ${getUserDisplayName(user)}` :
-                        userPermission === 'B' ? `${draftState.teamColors?.teamB === 'blue' ? '🔵' : '🔴'} ${getUserDisplayName(user)}` : '👁️ Viewer'}
+                        userPermission === 'B' ? `${draftState.teamColors?.teamB === 'blue' ? '🔵' : '🔴'} ${getUserDisplayName(user)}` : ''}
                   {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder" style={{ marginLeft: '4px' }}>🛡️</span>}
                 </span>
                 {(userPermission === 'admin' || isSuperAdmin(getUserEmail(user))) && (
@@ -3568,7 +3599,7 @@ function TournamentPage() {
                 )}
               </>
             ) : (
-              <span className="user-role">👁️ Viewer</span>
+              null
             )}
             <button onClick={() => navigate('/')} className="back-btn">
               ← Home
@@ -3707,8 +3738,23 @@ function TournamentPage() {
                     <div className="coin-display">
                       <div className={`coin-3d ${draftState.coinFlip.phase === 'spinning' ? 'spinning-fast' : 'spinning-slow'} ${draftState.coinFlip.phase === 'result' || draftState.coinFlip.phase === 'turnChoice' || draftState.coinFlip.phase === 'done' ? 'stopped' : ''}`}
                         data-result={draftState.coinFlip.result}>
-                        <div className={`coin-face-3d blue-face ${draftState.teamBanners?.team1 ? 'has-banner' : ''}`}>
-                          {draftState.teamBanners?.team1 ? (
+                        <div className={`coin-face-3d blue-face ${draftState.teamBanners?.team1 || draftState.draftType === 'mode4' ? 'has-banner' : ''}`}>
+                          {draftState.draftType === 'mode4' ? (
+                            <img
+                              src={(() => {
+                                const leaderUid = draftState.preAssignedTeams?.team1?.leader;
+                                if (!leaderUid) return DEFAULT_AVATAR;
+                                // Robust lookup: Check registered users first, fallback to current user if it's them
+                                const foundUser = registeredUsers.find(u => (u.uid || u.id) === leaderUid);
+                                if (foundUser) return getUserProfilePicture(foundUser);
+                                if (user && user.uid === leaderUid) return getUserProfilePicture(user);
+                                return DEFAULT_AVATAR;
+                              })()}
+                              alt={draftState.teamNames?.team1 || 'Team 1'}
+                              className="coin-profile-img"
+                              onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_AVATAR; }}
+                            />
+                          ) : draftState.teamBanners?.team1 ? (
                             <img src={draftState.teamBanners.team1} alt={draftState.teamNames?.team1 || 'Team 1'} className="coin-banner-img" />
                           ) : (
                             <span className="coin-team-name">{draftState.teamNames?.team1 || 'Team 1'}</span>
@@ -3720,8 +3766,23 @@ function TournamentPage() {
                           <div key={i} className="coin-thickness" style={{ transform: `translateZ(${5.5 - i}px)` }}></div>
                         ))}
 
-                        <div className={`coin-face-3d red-face ${draftState.teamBanners?.team2 ? 'has-banner' : ''}`}>
-                          {draftState.teamBanners?.team2 ? (
+                        <div className={`coin-face-3d red-face ${draftState.teamBanners?.team2 || draftState.draftType === 'mode4' ? 'has-banner' : ''}`}>
+                          {draftState.draftType === 'mode4' ? (
+                            <img
+                              src={(() => {
+                                const leaderUid = draftState.preAssignedTeams?.team2?.leader;
+                                if (!leaderUid) return DEFAULT_AVATAR;
+                                // Robust lookup: Check registered users first, fallback to current user if it's them
+                                const foundUser = registeredUsers.find(u => (u.uid || u.id) === leaderUid);
+                                if (foundUser) return getUserProfilePicture(foundUser);
+                                if (user && user.uid === leaderUid) return getUserProfilePicture(user);
+                                return DEFAULT_AVATAR;
+                              })()}
+                              alt={draftState.teamNames?.team2 || 'Team 2'}
+                              className="coin-profile-img"
+                              onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_AVATAR; }}
+                            />
+                          ) : draftState.teamBanners?.team2 ? (
                             <img src={draftState.teamBanners.team2} alt={draftState.teamNames?.team2 || 'Team 2'} className="coin-banner-img" />
                           ) : (
                             <span className="coin-team-name">{draftState.teamNames?.team2 || 'Team 2'}</span>
@@ -3990,8 +4051,8 @@ function TournamentPage() {
                       </button>
                     )}
 
-                    {/* Start Draft - Only show when waiting, and only for 3v3 modes (1v1 auto-starts) */}
-                    {draftState.status === 'waiting' && draftState.draftType !== 'mode3' && draftState.draftType !== 'mode4' && (
+                    {/* Start Draft - show when waiting */}
+                    {draftState.status === 'waiting' && (
                       <button onClick={initializeDraft} className="action-btn start">
                         🚀 Start Draft
                       </button>
@@ -4045,8 +4106,19 @@ function TournamentPage() {
                   <div className="tournament-draft-type">
                     <span className="info-label">🎮 Draft Type:</span>
                     <span className="info-value">
-                      {draftState.draftType === 'mode2' ? 'Triad Swiss Draft 2' : 'Triad Swiss Draft 1'}
+                      {draftState.status === 'waiting' && !draftState.draftType ? 'Loading Tournament...' :
+                        draftState.draftType === 'mode1' ? 'Triad Swiss Draft 1' :
+                          draftState.draftType === 'mode2' ? 'Triad Swiss Draft 2' :
+                            draftState.draftType === 'mode3' ? '1v1 Random Pool' :
+                              draftState.draftType === 'mode4' ? '1v1 Ban Draft' : 'Tournament Draft'}
                     </span>
+                    <button
+                      className="view-rules-btn"
+                      onClick={() => setShowRulesModal(true)}
+                      title="View Draft Rules"
+                    >
+                      📜 Rules
+                    </button>
                   </div>
                   {draftState.prizePool && (
                     <div className="tournament-prize">
@@ -4082,7 +4154,7 @@ function TournamentPage() {
                 <div className="waiting-1v1-section">
                   <div className="match-info-banner">
                     <span className={`mode-tag mode-${draftState.draftType}`}>
-                      {draftState.draftType === 'mode4' ? '⚔️ Ban Draft 3-3' : '⚔️ Deathmatch 3-3'}
+                      {draftState.draftType === 'mode4' ? '⚔️ Ban Draft 1-2-1' : '⚔️ Deathmatch 3-3'}
                     </span>
                     <span className={`pool-tag ${draftState.isFriendly ? 'friendly' : 'pool'}`}>
                       {draftState.isFriendly ? '🤝 Friendly Match' : `💰 Pool: ${formatAuryAmount(draftState.poolAmount)} AURY`}
@@ -5102,6 +5174,12 @@ function TournamentPage() {
             </div>
           )
         }
+        {/* Draft Rules Modal */}
+        <DraftRulesModal
+          isOpen={showRulesModal}
+          onClose={() => setShowRulesModal(false)}
+          draftType={draftState.draftType}
+        />
       </div > {/* End of tournament-page */}
     </>
   );

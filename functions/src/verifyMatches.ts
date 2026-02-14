@@ -27,6 +27,7 @@ export async function scanAndVerifyDrafts(): Promise<number> {
   for (const doc of snapshot.docs) {
     const data = doc.data();
     const draftId = doc.id;
+    console.log(`\n📄 Checking draft ${draftId} (Status: ${data.status}, Verification: ${data.verificationStatus})...`);
 
     // Skip if already fully verified (unless payout is pending or results were DQ)
     if (data.verificationStatus === 'complete') {
@@ -36,31 +37,54 @@ export async function scanAndVerifyDrafts(): Promise<number> {
       const is1v1Match = data.draftType === 'mode3' || data.draftType === 'mode4';
       const needsPayout = is1v1Match && data.poolAmount > 0 && !data.payoutComplete;
 
-      if (!hasRealDQ && !needsPayout) continue;
+      if (needsPayout && data.overallWinner && data.verificationStatus === 'complete') {
+        console.log(`  💰 Draft ${draftId} is verified and pending payout. Processing now...`);
+        await processPayouts(draftId, data, data.overallWinner);
+        continue; // Payout processed, move to next draft
+      }
 
-      if (needsPayout) {
-        console.log(`  💰 Draft ${draftId} is verified but payout is pending. Processing...`);
+      if (!hasRealDQ && !needsPayout) {
+        console.log(`  ⏭️ Skip ${draftId}: Already verified and no pending payout.`);
+        continue;
       }
     }
 
     // Skip if no battle codes
-    if (!data.privateCode && !data.privateCodes) continue;
+    if (!data.privateCode && !data.privateCodes) {
+      console.log(`  ⏭️ Skip ${draftId}: No battle codes found.`);
+      continue;
+    }
 
     // Skip if no player data
     if (!data.matchPlayers?.length && !data.finalAssignments?.length) {
+      console.log(`  ⏭️ Skip ${draftId}: No player assignments found.`);
       // Try to backfill matchPlayers from permissions
       const backfilled = await backfillMatchPlayers(draftId, data);
-      if (!backfilled) continue;
+      if (!backfilled) {
+        console.log(`  ❌ Backfill failed for ${draftId}.`);
+        continue;
+      }
       data.matchPlayers = backfilled;
     }
 
-    // Throttle: skip if checked < 2 min ago
-    const lastCheck = toMillis(data.lastVerificationCheck) || 0;
-    if (lastCheck && (Date.now() - lastCheck) < 120000) continue;
+    // Throttle: skip if checked < 2 min ago (unless payout is pending)
+    const is1v1Match = data.draftType === 'mode3' || data.draftType === 'mode4';
+    const needsPayout = is1v1Match && data.poolAmount > 0 && !data.payoutComplete;
+
+    if (!needsPayout) {
+      const lastCheck = toMillis(data.lastVerificationCheck) || 0;
+      if (lastCheck && (Date.now() - lastCheck) < 120000) {
+        console.log(`  ⏭️ Skip ${draftId}: Throttled (last check < 2m ago).`);
+        continue;
+      }
+    }
 
     // Skip drafts older than 48 hours since completion
     const completedAt = toMillis(data.completedAt) || toMillis(data.lastVerificationCheck) || 0;
-    if (completedAt && (Date.now() - completedAt) > 48 * 60 * 60 * 1000) continue;
+    if (completedAt && (Date.now() - completedAt) > 48 * 60 * 60 * 1000) {
+      console.log(`  ⏭️ Skip ${draftId}: Older than 48 hours (Completed: ${new Date(completedAt).toISOString()}).`);
+      continue;
+    }
 
     try {
       console.log(`🔍 Verifying draft ${draftId}...`);
@@ -112,15 +136,26 @@ const TAX_RATE = 0.05; // 5% tax on winnings
  * Winner receives poolAmount * 0.95, tax (5%) goes to super admin wallet
  */
 async function processPayouts(draftId: string, draftData: any, overallWinner: string): Promise<void> {
+  console.log(`  💰 processPayouts called for ${draftId}. Winner: ${overallWinner}`);
+
   // Only process 1v1 modes with pool amounts
   const is1v1 = draftData.draftType === 'mode3' || draftData.draftType === 'mode4';
-  if (!is1v1) return;
+  if (!is1v1) {
+    console.log(`  ⏭️ Skip Payout ${draftId}: Not a 1v1 match (Type: ${draftData.draftType}).`);
+    return;
+  }
 
   // Skip friendly matches or zero-pool matches
-  if (draftData.isFriendly || !draftData.poolAmount || draftData.poolAmount <= 0) return;
+  if (draftData.isFriendly || !draftData.poolAmount || draftData.poolAmount <= 0) {
+    console.log(`  ⏭️ Skip Payout ${draftId}: Friendly or no pool (isFriendly: ${draftData.isFriendly}, pool: ${draftData.poolAmount}).`);
+    return;
+  }
 
   // Skip if already paid out
-  if (draftData.payoutComplete) return;
+  if (draftData.payoutComplete) {
+    console.log(`  ⏭️ Skip Payout ${draftId}: Already paid out.`);
+    return;
+  }
 
   // Skip draws (no payout)
   if (overallWinner === 'draw') {

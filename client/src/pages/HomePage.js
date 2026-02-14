@@ -18,6 +18,7 @@ import { auroryFetch } from '../services/auroryProxyClient';
 import { AMIKOS } from '../data/amikos';
 import { logActivity } from '../services/activityService';
 import LoadingScreen from '../components/LoadingScreen';
+import DraftRulesModal from '../components/DraftRulesModal';
 import './HomePage.css';
 
 // Your AURY deposit wallet address (replace with your actual address)
@@ -134,6 +135,11 @@ function HomePage() {
   const [tickerAnnouncements, setTickerAnnouncements] = useState([]);
   const [showTicker, setShowTicker] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+
+  // Draft Rules Modal State for HomePage Join
+  const [showRulesModal, setShowRulesModal] = useState(false);
+  const [selectedTournamentForRules, setSelectedTournamentForRules] = useState(null);
+
   const [tokenStats, setTokenStats] = useState(null);
 
   const onTouchStart = (e) => {
@@ -1602,8 +1608,27 @@ function HomePage() {
 
   // Navigate to Tournament page
   const goToTournament = (tournamentId) => {
-    navigate(`/tournament/${tournamentId}`);
+    const tournament = tournaments.find(t => t.id === tournamentId);
+    if (!tournament) {
+      navigate(`/tournament/${tournamentId}`);
+      return;
+    }
+
+    const myPermissions = user ? tournament.permissions?.[user.uid] : null;
+    const isParticipating = myPermissions === 'A' || myPermissions === 'B';
+    const isJoinable = (tournament.draftType === 'mode3' || tournament.draftType === 'mode4') &&
+      tournament.joinable &&
+      tournament.status === 'waiting';
+
+    // If joinable and user isn't already a participant, show rules first
+    if (isJoinable && user && !isParticipating) {
+      setSelectedTournamentForRules(tournament);
+      setShowRulesModal(true);
+    } else {
+      navigate(`/tournament/${tournamentId}`);
+    }
   };
+
 
   // Get participant count for a tournament
   const getParticipantCount = (tournament) => {
@@ -1940,12 +1965,14 @@ function HomePage() {
                       {user.displayName || user.email?.split('@')[0] || 'User'}
                       {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}
                     </span>
-                    {isSuperAdminUser ? (
-                      <span className="admin-badge">⭐Super Admin</span>
-                    ) : isAdminUser ? (
-                      <span className="admin-badge admin-staff">⭐Admin</span>
-                    ) : null}
-                    {user.isAurorian && <span className="aurorian-tag">Aurorian Holder</span>}
+                    <div className="profile-badges-row">
+                      {isSuperAdminUser ? (
+                        <span className="admin-badge">⭐Super Admin</span>
+                      ) : isAdminUser ? (
+                        <span className="admin-badge admin-staff">⭐Admin</span>
+                      ) : null}
+                      {user.isAurorian && <span className="aurorian-tag">Aurorian Holder</span>}
+                    </div>
                   </div>
                   <span className={`menu-arrow ${showUserModal ? 'active' : ''}`}>▾</span>
                 </div>
@@ -2219,7 +2246,7 @@ function HomePage() {
                     <option value="mode1">Triad Format 3-6-3</option>
                     <option value="mode2">Triad Format 1-2-1</option>
                     <option value="mode3">Deathmatch 3-3</option>
-                    <option value="mode4">Ban Draft 3-3</option>
+                    <option value="mode4">Ban Draft 1-2-1</option>
                   </select>
                 </div>
               </div>
@@ -2312,7 +2339,7 @@ function HomePage() {
                               <h4>{tournament.title || 'Untitled Draft'}</h4>
                               <div className="card-badges">
                                 <span className={`mode-badge mode-${tournament.draftType || 'mode1'}`}>
-                                  {tournament.draftType === 'mode4' ? 'Ban 3-3' : tournament.draftType === 'mode3' ? 'DM 3-3' : tournament.draftType === 'mode2' ? 'Triad 1-2-1' : 'Triad 3-6-3'}
+                                  {tournament.draftType === 'mode4' ? 'Ban 1-2-1' : tournament.draftType === 'mode3' ? 'DM 3-3' : tournament.draftType === 'mode2' ? 'Triad 1-2-1' : 'Triad 3-6-3'}
                                 </span>
                                 {(tournament.draftType === 'mode3' || tournament.draftType === 'mode4') && (
                                   <span className={`pool-badge ${tournament.isFriendly ? 'friendly' : 'pool'}`}>
@@ -2459,7 +2486,7 @@ function HomePage() {
                   <option value="mode1">Triad Format 3-6-3</option>
                   <option value="mode2">Triad Format 1-2-1</option>
                   <option value="mode3">Deathmatch 3-3</option>
-                  <option value="mode4">Ban Draft 3-3</option>
+                  <option value="mode4">Ban Draft 1-2-1</option>
                 </select>
               </div>
 
@@ -2496,7 +2523,7 @@ function HomePage() {
                       }
                       const teamAColor = match.teamColors?.teamA || 'blue';
                       const teamBColor = match.teamColors?.teamB || 'red';
-                      const modeLabels = { mode1: 'Triad 3-6-3', mode2: 'Triad 1-2-1', mode3: 'DM 3-3', mode4: 'Ban 3-3' };
+                      const modeLabels = { mode1: 'Triad 3-6-3', mode2: 'Triad 1-2-1', mode3: 'DM 3-3', mode4: 'Ban 1-2-1' };
 
                       // For 3v3: show team names; For 1v1: show player names
                       let teamADisplay, teamBDisplay;
@@ -2885,7 +2912,7 @@ function HomePage() {
                     {isAdmin && <option value="mode1">Triad Format 3-6-3</option>}
                     {isAdmin && <option value="mode2">Triad Format 1-2-1</option>}
                     <option value="mode3">Deathmatch 3-3</option>
-                    <option value="mode4">Ban Draft 3-3</option>
+                    <option value="mode4">Ban Draft 1-2-1</option>
                   </select>
                   <span className="input-hint">
                     {newTournament.draftType === 'mode1'
@@ -2893,7 +2920,7 @@ function HomePage() {
                       : newTournament.draftType === 'mode2'
                         ? 'Triad Format 1-2-1: 10 phases with smaller alternating picks'
                         : newTournament.draftType === 'mode4'
-                          ? 'Ban Draft 3-3: Turn-based bans (1-2-2-1), then picks (1-2-2-1) with coin flip'
+                          ? 'Ban Draft 1-2-1: Turn-based bans (1-2-2-1), then picks (1-2-2-1) with coin flip'
                           : 'Deathmatch 3-3: Simultaneous picks from random pools (3 picks each)'}
                   </span>
                 </div>
@@ -3551,6 +3578,24 @@ function HomePage() {
         user={user}
         isOpen={showAuroryModal}
         onClose={() => setShowAuroryModal(false)}
+      />
+
+      {/* Draft Rules Modal for Joining */}
+      <DraftRulesModal
+        isOpen={showRulesModal}
+        onClose={() => {
+          setShowRulesModal(false);
+          setSelectedTournamentForRules(null);
+        }}
+        draftType={selectedTournamentForRules?.draftType}
+        showAcceptButton={true}
+        onAccept={() => {
+          if (selectedTournamentForRules) {
+            navigate(`/tournament/${selectedTournamentForRules.id}`);
+            setShowRulesModal(false);
+            setSelectedTournamentForRules(null);
+          }
+        }}
       />
 
       {/* Login Modal */}

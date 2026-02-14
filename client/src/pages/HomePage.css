@@ -4070,8 +4070,9 @@
 .profile-names {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
+  justify-content: center;
 }
 
 .profile-names .username {
@@ -4083,20 +4084,41 @@
   align-items: center;
   gap: 4px;
   white-space: nowrap;
+  line-height: 1.2;
+}
+
+/* Horizontal container for badges in header */
+.profile-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
 }
 
 .profile-names .admin-badge {
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
-  font-size: 0.62rem;
-  color: white;
+  font-size: 0.6rem;
+  color: var(--accent-cyan);
   letter-spacing: 0.5px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .profile-names .aurorian-tag {
-  font-size: 0.62rem;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.58rem;
   color: var(--accent-gold);
-  font-weight: 500;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(240, 178, 50, 0.1);
+  border: 1px solid rgba(240, 178, 50, 0.3);
+  white-space: nowrap;
 }
 
 .menu-arrow {
