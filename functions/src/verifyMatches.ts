@@ -135,39 +135,43 @@ const TAX_RATE = 0.05; // 5% tax on winnings
  * Process prize payouts for a verified 1v1 match
  * Winner receives poolAmount * 0.95, tax (5%) goes to super admin wallet
  */
-async function processPayouts(draftId: string, draftData: any, overallWinner: string): Promise<void> {
+// Export for manual trigger
+export async function processPayouts(draftId: string, draftData: any, overallWinner: string): Promise<string> {
   console.log(`  💰 processPayouts called for ${draftId}. Winner: ${overallWinner}`);
 
   // Only process 1v1 modes with pool amounts
   const is1v1 = draftData.draftType === 'mode3' || draftData.draftType === 'mode4';
   if (!is1v1) {
-    console.log(`  ⏭️ Skip Payout ${draftId}: Not a 1v1 match (Type: ${draftData.draftType}).`);
-    return;
+    const msg = `  ⏭️ Skip Payout ${draftId}: Not a 1v1 match (Type: ${draftData.draftType}).`;
+    console.log(msg);
+    return msg;
   }
 
   // Skip friendly matches or zero-pool matches
   if (draftData.isFriendly || !draftData.poolAmount || draftData.poolAmount <= 0) {
-    console.log(`  ⏭️ Skip Payout ${draftId}: Friendly or no pool (isFriendly: ${draftData.isFriendly}, pool: ${draftData.poolAmount}).`);
-    return;
+    const msg = `  ⏭️ Skip Payout ${draftId}: Friendly or no pool (isFriendly: ${draftData.isFriendly}, pool: ${draftData.poolAmount}).`;
+    console.log(msg);
+    return msg;
   }
 
   // Skip if already paid out
   if (draftData.payoutComplete) {
-    console.log(`  ⏭️ Skip Payout ${draftId}: Already paid out.`);
-    return;
+    const msg = `  ⏭️ Skip Payout ${draftId}: Already paid out.`;
+    console.log(msg);
+    return msg;
   }
 
   // Skip draws (no payout)
   if (overallWinner === 'draw') {
     console.log(`  💰 Draw result for ${draftId}, refunding entry fees...`);
     await processRefund(draftId, draftData);
-    return;
+    return `Refund processed for draw in draft ${draftId}`;
   }
 
   // Determine winner UID
   let winnerUid = overallWinner === 'A' ? draftData.teamALeader : draftData.teamBLeader;
 
-  // ROBUSTNESS FALLBACK: If leaders not at root, find them in matchPlayers
+  // ROBUSTNESS FALLBACK 1: If leaders not at root, find them in matchPlayers
   if (!winnerUid && draftData.matchPlayers) {
     const leader = draftData.matchPlayers.find((p: any) => p.team === overallWinner);
     if (leader) {
@@ -176,10 +180,33 @@ async function processPayouts(draftId: string, draftData: any, overallWinner: st
     }
   }
 
+  // ROBUSTNESS FALLBACK 2: Try finalAssignments (legacy field)
+  if (!winnerUid && draftData.finalAssignments) {
+    const assignment = draftData.finalAssignments.find((a: any) => a.team === overallWinner);
+    if (assignment && assignment.participant) {
+      winnerUid = assignment.participant.uid || assignment.participant.id;
+      console.log(`  🔍 Recovered winner UID ${winnerUid} from finalAssignments for draft ${draftId}`);
+    }
+  }
+
+  // ROBUSTNESS FALLBACK 3: Try permissions object
+  if (!winnerUid && draftData.permissions) {
+    // Find the first user with permission 'A' or 'B' matching the winner team
+    const uids = Object.entries(draftData.permissions)
+      .filter(([, perm]) => perm === overallWinner)
+      .map(([uid]) => uid);
+
+    if (uids.length > 0) {
+      winnerUid = uids[0]; // Take the first one found
+      console.log(`  🔍 Recovered winner UID ${winnerUid} from permissions for draft ${draftId}`);
+    }
+  }
+
   if (!winnerUid) {
-    console.error(`  ❌ Cannot determine winner UID for draft ${draftId} (Winner: ${overallWinner})`);
-    console.log(`     teamALeader: ${draftData.teamALeader}, teamBLeader: ${draftData.teamBLeader}, matchPlayers length: ${draftData.matchPlayers?.length || 0}`);
-    return;
+    const errorMsg = `  ❌ Cannot determine winner UID for draft ${draftId} (Winner: ${overallWinner})`;
+    console.error(errorMsg);
+    console.log(`     Debug info: teamALeader=${draftData.teamALeader}, teamBLeader=${draftData.teamBLeader}, matchPlayers=${draftData.matchPlayers?.length}, finalAssignments=${draftData.finalAssignments?.length}`);
+    throw new Error(errorMsg);
   }
 
   const poolAmount = draftData.poolAmount;
@@ -188,16 +215,20 @@ async function processPayouts(draftId: string, draftData: any, overallWinner: st
 
   try {
     await db.runTransaction(async (tx) => {
-      // Re-check payout status inside transaction
+      // 1. READS (Must come before any writes)
       const draftRef = db.doc(`drafts/${draftId}`);
       const draftSnap = await tx.get(draftRef);
       if (draftSnap.data()?.payoutComplete) return;
 
-      // Credit winner
       const winnerWalletRef = db.doc(`wallets/${winnerUid}`);
       const winnerWallet = await tx.get(winnerWalletRef);
-      const winnerBalance = winnerWallet.exists ? (winnerWallet.data()?.balance || 0) : 0;
 
+      const adminWalletRef = db.doc(`wallets/${SUPER_ADMIN_UID}`);
+      const adminWallet = await tx.get(adminWalletRef);
+
+      // 2. WRITES
+      // Credit winner
+      const winnerBalance = winnerWallet.exists ? (winnerWallet.data()?.balance || 0) : 0;
       if (winnerWallet.exists) {
         tx.update(winnerWalletRef, {
           balance: winnerBalance + winnerPrize,
@@ -223,10 +254,7 @@ async function processPayouts(draftId: string, draftData: any, overallWinner: st
       });
 
       // Credit tax to super admin
-      const adminWalletRef = db.doc(`wallets/${SUPER_ADMIN_UID}`);
-      const adminWallet = await tx.get(adminWalletRef);
       const adminBalance = adminWallet.exists ? (adminWallet.data()?.balance || 0) : 0;
-
       if (adminWallet.exists) {
         tx.update(adminWalletRef, {
           balance: adminBalance + taxAmount,
@@ -257,14 +285,18 @@ async function processPayouts(draftId: string, draftData: any, overallWinner: st
           winnerUid,
           winnerPrize,
           taxAmount,
-          processedAt: Date.now()
+          processedAt: Date.now(),
+          method: 'automatic'
         }
       });
     });
 
-    console.log(`  💰 Payout complete for ${draftId}: ${(winnerPrize / 1e9).toFixed(2)} AURY to winner, ${(taxAmount / 1e9).toFixed(2)} AURY tax`);
-  } catch (err) {
-    console.error(`  ❌ Payout error for ${draftId}:`, err);
+    const successMsg = `  💰 Payout complete for ${draftId}: ${(winnerPrize / 1e9).toFixed(2)} AURY to winner ${winnerUid}`;
+    console.log(successMsg);
+    return successMsg;
+  } catch (err: any) {
+    console.error(`  ❌ Payout transaction error for ${draftId}:`, err);
+    throw new Error(`Payout transaction failed: ${err.message}`);
   }
 }
 
@@ -277,14 +309,23 @@ async function processRefund(draftId: string, draftData: any): Promise<void> {
 
   try {
     await db.runTransaction(async (tx) => {
+      // 1. READS
       const draftRef = db.doc(`drafts/${draftId}`);
       const draftSnap = await tx.get(draftRef);
       if (draftSnap.data()?.payoutComplete) return;
 
-      for (const [uid, amount] of Object.entries(entryPaid)) {
-        if (!amount || (amount as number) <= 0) continue;
+      const refundEntries = Object.entries(entryPaid).filter(([, amount]) => (amount as number) > 0);
+      const walletSnaps: Record<string, admin.firestore.DocumentSnapshot> = {};
+
+      for (const [uid] of refundEntries) {
         const walletRef = db.doc(`wallets/${uid}`);
-        const walletSnap = await tx.get(walletRef);
+        walletSnaps[uid] = await tx.get(walletRef);
+      }
+
+      // 2. WRITES
+      for (const [uid, amount] of refundEntries) {
+        const walletRef = db.doc(`wallets/${uid}`);
+        const walletSnap = walletSnaps[uid];
         const balance = walletSnap.exists ? (walletSnap.data()?.balance || 0) : 0;
 
         if (walletSnap.exists) {

@@ -3568,10 +3568,19 @@ function TournamentPage() {
             )}
             <div className="header-title">
               <h1>{draftState.title || 'Aurory Draft'}</h1>
+              <div className="header-meta-row">
+                {draftState.title && <span className="tournament-subtitle">Aurory Draft Tournament</span>}
+                <span
+                  className="header-draft-id"
+                  onClick={() => copyToClipboard(DRAFT_ID, 'Draft ID')}
+                  title="Click to copy Draft ID"
+                >
+                  🆔 {DRAFT_ID.slice(0, 8)}... <span className="copy-icon">📋</span>
+                </span>
+              </div>
               {draftState.description && (
                 <p className="header-description">{draftState.description}</p>
               )}
-              {draftState.title && <span className="tournament-subtitle">Aurory Draft Tournament</span>}
             </div>
           </div>
           <div className="header-controls">

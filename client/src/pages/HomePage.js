@@ -284,7 +284,8 @@ function HomePage() {
     timerSeconds: 0,
     manualTimerStart: false,
     poolAmount: '',  // AURY pool amount (human-readable, e.g. "100")
-    isFriendly: false // No-cost match
+    isFriendly: false, // No-cost match
+    requiresEntryFee: true // If true, players pay half. If false, creator pays full.
   });
   const navigate = useNavigate();
 
@@ -1356,9 +1357,13 @@ function HomePage() {
 
     // 1v1 Pool validation
     const isFriendly = is1v1 ? newTournament.isFriendly : true;
+    const requiresEntryFee = is1v1 && !isFriendly ? (newTournament.requiresEntryFee !== false) : true;
     const poolAmountAury = is1v1 && !isFriendly ? parseFloat(newTournament.poolAmount) || 0 : 0;
     const poolAmountSmallest = Math.floor(poolAmountAury * 1e9); // Convert to smallest unit
-    const entryFee = Math.floor(poolAmountSmallest / 2);
+
+    // If requires fee: Entry is half the pool.
+    // If sponsored (no fee): Entry is 0 for joiners.
+    const entryFee = requiresEntryFee ? Math.floor(poolAmountSmallest / 2) : 0;
 
     if (is1v1 && !isFriendly && poolAmountAury <= 0) {
       alert('Please enter a pool amount greater than 0, or check "Friendly Match".');
@@ -1370,10 +1375,24 @@ function HomePage() {
     const creatorIsPlayer2 = team2.leader === user.uid;
     const creatorIsPlayer = creatorIsPlayer1 || creatorIsPlayer2;
 
-    // Wallet balance check for creator if self-assigned and pool > 0
-    if (is1v1 && !isFriendly && creatorIsPlayer && entryFee > 0) {
-      if (walletBalance < entryFee) {
-        alert(`Insufficient balance. You need at least ${(entryFee / 1e9).toFixed(2)} AURY to enter this match. Your balance: ${formatAuryAmount(walletBalance)} AURY`);
+    // Calculate how much the creator needs to pay NOW
+    // If sponsored: Creator pays FULL pool.
+    // If split: Creator pays their share (only if they are playing).
+    let creatorDeduction = 0;
+    if (is1v1 && !isFriendly) {
+      if (!requiresEntryFee) {
+        // Sponsored: Creator pays everything
+        creatorDeduction = poolAmountSmallest;
+      } else if (creatorIsPlayer) {
+        // Split: Creator pays their share
+        creatorDeduction = entryFee;
+      }
+    }
+
+    // Wallet balance check for ALL non-friendly 1v1 drafts
+    if (creatorDeduction > 0) {
+      if (walletBalance < creatorDeduction) {
+        alert(`Insufficient balance to create this match. You need at least ${(creatorDeduction / 1e9).toFixed(2)} AURY.`);
         return;
       }
     }
@@ -1383,24 +1402,24 @@ function HomePage() {
       const tournamentId = `tournament_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const draftRef = doc(db, 'drafts', tournamentId);
 
-      // For 1v1 with pool: deduct entry fee from creator's wallet atomically
-      if (is1v1 && !isFriendly && creatorIsPlayer && entryFee > 0) {
+      // Deduct from creator's wallet
+      if (creatorDeduction > 0) {
         const walletRef = doc(db, 'wallets', user.uid);
         await runTransaction(db, async (transaction) => {
           const walletDoc = await transaction.get(walletRef);
           const currentBalance = walletDoc.exists() ? (walletDoc.data().balance || 0) : 0;
-          if (currentBalance < entryFee) {
+          if (currentBalance < creatorDeduction) {
             throw new Error('Insufficient balance');
           }
           transaction.update(walletRef, {
-            balance: currentBalance - entryFee,
+            balance: currentBalance - creatorDeduction,
             updatedAt: serverTimestamp()
           });
           // Record transaction
           const txRef = doc(collection(db, 'wallets', user.uid, 'transactions'));
           transaction.set(txRef, {
-            type: 'entry_fee',
-            amount: entryFee,
+            type: !requiresEntryFee ? 'sponsored_pool' : 'entry_fee',
+            amount: creatorDeduction,
             draftId: tournamentId,
             draftTitle: newTournament.title.trim(),
             timestamp: serverTimestamp()
@@ -1482,7 +1501,7 @@ function HomePage() {
         entryFee: entryFee,
         isFriendly: isFriendly,
         joinable: hasOpenSlots, // Open for others to join
-        entryPaid: creatorIsPlayer && !isFriendly && entryFee > 0 ? { [user.uid]: entryFee } : {}
+        entryPaid: creatorDeduction > 0 ? { [user.uid]: creatorDeduction } : {}
       };
 
       // Generate private code for 1v1 mode
@@ -2869,6 +2888,16 @@ function HomePage() {
                     </label>
                     {!newTournament.isFriendly && (
                       <>
+                        <label className="checkbox-label" style={{ marginBottom: '10px' }}>
+                          <input
+                            type="checkbox"
+                            checked={newTournament.requiresEntryFee !== false}
+                            onChange={(e) => setNewTournament({ ...newTournament, requiresEntryFee: e.target.checked })}
+                          />
+                          <span>Requires Entry Fee (Split Pool)</span>
+                        </label>
+                        {newTournament.requiresEntryFee === false && <span className="input-hint" style={{ display: 'block', marginBottom: '10px', color: '#ffd700' }}>🌟 Sponsored: You pay the full pool amount. Players join for free.</span>}
+
                         <label>Pool Amount (AURY)</label>
                         <div className="pool-input-row">
                           <img src="/aury-icon.png" alt="AURY" className="pool-aury-icon" />
@@ -2885,15 +2914,22 @@ function HomePage() {
                         </div>
                         <span className="input-hint">
                           {newTournament.poolAmount && parseFloat(newTournament.poolAmount) > 0
-                            ? `Entry fee: ${(parseFloat(newTournament.poolAmount) / 2).toFixed(2)} AURY per player • Winner takes ${(parseFloat(newTournament.poolAmount) * 0.95).toFixed(2)} AURY (5% tax)`
-                            : 'Total pool will be split equally. Each player pays half as entry fee.'}
+                            ? (newTournament.requiresEntryFee !== false
+                              ? `Entry fee: ${(parseFloat(newTournament.poolAmount) / 2).toFixed(2)} AURY per player • Winner takes ${(parseFloat(newTournament.poolAmount) * 0.95).toFixed(2)} AURY (5% tax)`
+                              : `Sponsored: You pay ${(parseFloat(newTournament.poolAmount)).toFixed(2)} AURY. Entry is FREE for players. Winner takes ${(parseFloat(newTournament.poolAmount) * 0.95).toFixed(2)} AURY`)
+                            : (newTournament.requiresEntryFee !== false
+                              ? 'Total pool will be split equally. Each player pays half as entry fee.'
+                              : 'You pay the full pool amount. Players join for free.')}
                         </span>
                         {newTournament.poolAmount && parseFloat(newTournament.poolAmount) > 0 && (
                           <span className="input-hint wallet-hint">
                             Your balance: {formatAuryAmount(walletBalance)} AURY
-                            {(team1.leader === user?.uid || team2.leader === user?.uid) && parseFloat(newTournament.poolAmount) / 2 * 1e9 > walletBalance
-                              ? ' ⚠️ Insufficient balance for entry fee'
-                              : ''}
+                            {(() => {
+                              const cost = newTournament.requiresEntryFee !== false
+                                ? ((team1.leader === user?.uid || team2.leader === user?.uid) ? parseFloat(newTournament.poolAmount) / 2 : 0)
+                                : parseFloat(newTournament.poolAmount);
+                              return cost * 1e9 > walletBalance ? ' ⚠️ Insufficient balance' : '';
+                            })()}
                           </span>
                         )}
                       </>
@@ -3298,7 +3334,7 @@ function HomePage() {
                                   />
                                   <div className="participant-info">
                                     <span className="participant-name">{u.displayName || 'Unknown'}</span>
-                                    <span className="participant-email">{u.email}</span>
+
                                   </div>
                                   <div className="plus-indicator">+</div>
                                 </div>

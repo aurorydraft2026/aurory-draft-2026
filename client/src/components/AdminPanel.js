@@ -51,6 +51,7 @@ function AdminPanel() {
   const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
+  const [expandedCategory, setExpandedCategory] = useState('balance'); // Default expanded category on mobile
 
   // Online visitors state
   const [onlineVisitors, setOnlineVisitors] = useState([]);
@@ -115,6 +116,10 @@ function AdminPanel() {
   const [tickerIcon, setTickerIcon] = useState('📢');
   const [editingTickerId, setEditingTickerId] = useState(null);
   const [tickerLoading, setTickerLoading] = useState(false);
+
+  // Manual Payout state
+  const [payoutDraftId, setPayoutDraftId] = useState('');
+  const [payoutLoading, setPayoutLoading] = useState(false);
 
   // Banner social links (max 3 displayed)
   const [bannerDiscord, setBannerDiscord] = useState('');
@@ -608,6 +613,59 @@ function AdminPanel() {
     } catch (error) {
       console.error('Error deleting ticker:', error);
     }
+  };
+
+  // Manual Payout Handler
+  const handleManualPayout = async () => {
+    if (!payoutDraftId) return alert('Please enter a Draft ID');
+    if (!window.confirm(`Are you sure you want to manually trigger payout for draft ${payoutDraftId}? This should only be done if the automatic payout failed.`)) return;
+
+    setPayoutLoading(true);
+    try {
+      // Direct call to Cloud Function via URL (since we aren't using httpsCallable in this file yet)
+      // Note: In a production app, use httpsCallable from firebase/functions
+      // For now, we'll use a fetch to the location where functions are hosted (or assumes similar setup to auroryProxy)
+      // Actually, let's use the provided `auroryProxy` pattern but for our own function
+      // OR better, since we didn't inject `functions` instance here, we can try to use `httpsCallable` if we import it
+      // Let's rely on standard fetch to the function URL if we know it, OR import functions.
+
+      // Since we didn't see `functions` imported in AdminPanel, let's import it now or use a direct fetch pattern if `auroryProxy` is any indication.
+      // However, `auroryProxy` is an exported generic proxy. `manualPayout` is a callable function.
+      // Let's assume standard `httpsCallable` is the way. 
+      // We need to add `getFunctions, httpsCallable` to imports first.
+
+      // WAIT: I shouldn't add imports in this block. 
+      // I'll implement the logic here assuming I will add imports in a separate step or just use `fetch` to the likely URL.
+      // Given the environment, maybe `fetch` is safer if I don't want to mess with top-level imports yet.
+      // BUT `manualPayout` is `onCall`, which requires `firebase-functions` client SDK to handle auth tokens automatically.
+      // If I use `fetch`, I have to attach the token manually.
+
+      // Let's use `auth.currentUser.getIdToken()` and fetch.
+      const token = await auth.currentUser.getIdToken();
+      // URL format: https://us-central1-<project-id>.cloudfunctions.net/manualPayout
+      // I need the project ID. It's usually in `auth.app.options.projectId`.
+      const projectId = auth.app.options.projectId;
+      const response = await fetch(`https://us-central1-${projectId}.cloudfunctions.net/manualPayout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ data: { draftId: payoutDraftId } })
+      });
+
+      const result = await response.json();
+      if (result.error) {
+        throw new Error(result.error.message || result.error);
+      }
+
+      alert(`Success: ${result.result.message}`);
+      setPayoutDraftId('');
+    } catch (error) {
+      console.error('Manual payout error:', error);
+      alert('Error triggering payout: ' + error.message);
+    }
+    setPayoutLoading(false);
   };
 
   const handleRestoreTickerDefaults = async () => {
@@ -1271,8 +1329,19 @@ function AdminPanel() {
         <div className="admin-sidebar">
           {/* Balance Category */}
           {isSuperAdminUser && (
-            <div className="admin-category">
-              <h3 className="category-title">Balance</h3>
+            <div className={`admin-category ${expandedCategory === 'balance' ? 'expanded' : ''}`}>
+              <div
+                className="category-title"
+                onClick={() => {
+                  console.log('Toggling balance. Current:', expandedCategory);
+                  setExpandedCategory(expandedCategory === 'balance' ? '' : 'balance');
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <h3>Balance</h3>
+                <span className="mobile-only-arrow">{expandedCategory === 'balance' ? '▲' : '▼'}</span>
+              </div>
               <div className="category-tabs">
                 <button
                   className={`admin-tab ${activeTab === 'credit' ? 'active' : ''}`}
@@ -1291,15 +1360,23 @@ function AdminPanel() {
           )}
 
           {/* Transactions Category */}
-          <div className="admin-category">
-            <h3 className="category-title">
-              Transactions
-              {(depositNotifications.length + pendingWithdrawals.length) > 0 && (
-                <span className="category-badge">
-                  {depositNotifications.length + pendingWithdrawals.length}
-                </span>
-              )}
-            </h3>
+          <div className={`admin-category ${expandedCategory === 'transactions' ? 'expanded' : ''}`}>
+            <div
+              className="category-title"
+              onClick={() => setExpandedCategory(expandedCategory === 'transactions' ? '' : 'transactions')}
+              role="button"
+              tabIndex={0}
+            >
+              <h3>
+                Transactions
+                {(depositNotifications.length + pendingWithdrawals.length) > 0 && (
+                  <span className="category-badge">
+                    {depositNotifications.length + pendingWithdrawals.length}
+                  </span>
+                )}
+              </h3>
+              <span className="mobile-only-arrow">{expandedCategory === 'transactions' ? '▲' : '▼'}</span>
+            </div>
             <div className="category-tabs">
               <button
                 className={`admin-tab ${activeTab === 'deposits' ? 'active' : ''}`}
@@ -1319,12 +1396,28 @@ function AdminPanel() {
               >
                 📜 History
               </button>
+              {isSuperAdminUser && (
+                <button
+                  className={`admin-tab ${activeTab === 'payouts' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('payouts')}
+                >
+                  💰 Manual Payouts
+                </button>
+              )}
             </div>
           </div>
 
           {/* Campaigns Category */}
-          <div className="admin-category">
-            <h3 className="category-title">Campaigns</h3>
+          <div className={`admin-category ${expandedCategory === 'campaigns' ? 'expanded' : ''}`}>
+            <div
+              className="category-title"
+              onClick={() => setExpandedCategory(expandedCategory === 'campaigns' ? '' : 'campaigns')}
+              role="button"
+              tabIndex={0}
+            >
+              <h3>Campaigns</h3>
+              <span className="mobile-only-arrow">{expandedCategory === 'campaigns' ? '▲' : '▼'}</span>
+            </div>
             <div className="category-tabs">
               <button
                 className={`admin-tab ${activeTab === 'banners' ? 'active' : ''}`}
@@ -1348,8 +1441,16 @@ function AdminPanel() {
           </div>
 
           {/* User Management Category */}
-          <div className="admin-category">
-            <h3 className="category-title">User Management</h3>
+          <div className={`admin-category ${expandedCategory === 'users' ? 'expanded' : ''}`}>
+            <div
+              className="category-title"
+              onClick={() => setExpandedCategory(expandedCategory === 'users' ? '' : 'users')}
+              role="button"
+              tabIndex={0}
+            >
+              <h3>User Management</h3>
+              <span className="mobile-only-arrow">{expandedCategory === 'users' ? '▲' : '▼'}</span>
+            </div>
             <div className="category-tabs">
               {isSuperAdminUser && (
                 <button
@@ -1364,7 +1465,7 @@ function AdminPanel() {
                   className={`admin-tab ${activeTab === 'visitors' ? 'active' : ''}`}
                   onClick={() => setActiveTab('visitors')}
                 >
-                  🌐 Online Visitors {onlineVisitors.length > 0 && <span className="tab-badge inline">{onlineVisitors.length}</span>}
+                  🌐 Visitors {onlineVisitors.length > 0 && <span className="tab-badge inline">{onlineVisitors.length}</span>}
                 </button>
               )}
               {isSuperAdminUser && (
@@ -2271,6 +2372,7 @@ function AdminPanel() {
                 <div className="user-list-header">
                   <div className="col-user">User</div>
                   <div className="col-email">Email</div>
+                  <div className="col-balance">Balance</div>
                   <div className="col-role">Role</div>
                 </div>
                 <div className="user-list-body">
@@ -2292,6 +2394,9 @@ function AdminPanel() {
                             <span>{u.displayName || 'Unknown'}</span>
                           </div>
                           <div className="col-email">{u.email}</div>
+                          <div className="col-balance">
+                            {formatAuryAmount(u.balance || 0)} AURY
+                          </div>
                           <div className="col-role">
                             {userIsSuper ? (
                               <span className="badge-super">Super Admin</span>
@@ -2441,6 +2546,45 @@ function AdminPanel() {
             </div>
           )}
 
+
+          {activeTab === 'payouts' && isSuperAdminUser && (
+            <div className="credit-section">
+              <div className="section-info">
+                <p>💰 Manually trigger payout for a draft. Use this ONLY if the automatic payout failed (e.g., due to API error or missing data).</p>
+              </div>
+
+              <div className="credit-form">
+                <div className="form-group">
+                  <label>Draft ID</label>
+                  <input
+                    type="text"
+                    placeholder="Enter Draft ID..."
+                    value={payoutDraftId}
+                    onChange={(e) => setPayoutDraftId(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-info-box">
+                  <p>⚠️ <strong>Warning:</strong> This will attempt to pay out the Overall Winner of the draft.</p>
+                  <ul style={{ marginTop: '8px', paddingLeft: '20px', fontSize: '0.9em' }}>
+                    <li>Ensure the draft is marked as "completed" and verified.</li>
+                    <li>If it already paid out, the system will block a double payment.</li>
+                    <li>The system will attempt to recover the winner UID from legacy fields if needed.</li>
+                  </ul>
+                </div>
+
+                <button
+                  className="credit-btn"
+                  onClick={handleManualPayout}
+                  disabled={payoutLoading || !payoutDraftId}
+                  style={{ marginTop: '16px' }}
+                >
+                  {payoutLoading ? 'Processing...' : '🚀 Trigger Payout'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'visitors' && isAdminUser && (
             <div className="visitors-section">
               <div className="section-info">
@@ -2560,67 +2704,69 @@ function AdminPanel() {
             </div>
           )}
         </div>
-      </div>
+      </div >
 
       {/* Per-User Logs Modal */}
-      {selectedUserForLogs && (
-        <div className="admin-modal-overlay activity-modal">
-          <div className="admin-modal">
-            <div className="modal-header">
-              <h2>Activity Log: {selectedUserForLogs.displayName || selectedUserForLogs.email}</h2>
-              <button className="close-btn" onClick={() => setSelectedUserForLogs(null)}>×</button>
-            </div>
-            <div className="modal-body">
-              {logsLoading ? (
-                <LoadingScreen message="Loading logs..." />
-              ) : logsError ? (
-                <div className="error-message">{logsError}</div>
-              ) : userLogs.length === 0 ? (
-                <div className="empty-state">
-                  <p>📭 No activity logs found for this user.</p>
-                </div>
-              ) : (
-                <div className="logs-table-container">
-                  <table className="logs-table">
-                    <thead>
-                      <tr>
-                        <th>Time</th>
-                        <th>Type</th>
-                        <th>Action</th>
-                        <th>Details</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {userLogs.map(log => (
-                        <tr key={log.id}>
-                          <td className="log-time">{formatTime(log.timestamp)}</td>
-                          <td className="log-type">
-                            <span className={`type-tag tag-${log.type?.toLowerCase()}`}>
-                              {log.type}
-                            </span>
-                          </td>
-                          <td className="log-action">{log.action?.replace(/_/g, ' ')}</td>
-                          <td className="log-details short">
-                            <pre className="details-json">
-                              {JSON.stringify(log.metadata, null, 1)}
-                            </pre>
-                          </td>
+      {
+        selectedUserForLogs && (
+          <div className="admin-modal-overlay activity-modal">
+            <div className="admin-modal">
+              <div className="modal-header">
+                <h2>Activity Log: {selectedUserForLogs.displayName || selectedUserForLogs.email}</h2>
+                <button className="close-btn" onClick={() => setSelectedUserForLogs(null)}>×</button>
+              </div>
+              <div className="modal-body">
+                {logsLoading ? (
+                  <LoadingScreen message="Loading logs..." />
+                ) : logsError ? (
+                  <div className="error-message">{logsError}</div>
+                ) : userLogs.length === 0 ? (
+                  <div className="empty-state">
+                    <p>📭 No activity logs found for this user.</p>
+                  </div>
+                ) : (
+                  <div className="logs-table-container">
+                    <table className="logs-table">
+                      <thead>
+                        <tr>
+                          <th>Time</th>
+                          <th>Type</th>
+                          <th>Action</th>
+                          <th>Details</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-            <div className="modal-footer">
-              <button className="secondary-btn" onClick={() => setSelectedUserForLogs(null)}>
-                Close
-              </button>
+                      </thead>
+                      <tbody>
+                        {userLogs.map(log => (
+                          <tr key={log.id}>
+                            <td className="log-time">{formatTime(log.timestamp)}</td>
+                            <td className="log-type">
+                              <span className={`type-tag tag-${log.type?.toLowerCase()}`}>
+                                {log.type}
+                              </span>
+                            </td>
+                            <td className="log-action">{log.action?.replace(/_/g, ' ')}</td>
+                            <td className="log-details short">
+                              <pre className="details-json">
+                                {JSON.stringify(log.metadata, null, 1)}
+                              </pre>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button className="secondary-btn" onClick={() => setSelectedUserForLogs(null)}>
+                  Close
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }
 

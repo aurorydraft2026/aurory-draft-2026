@@ -242,6 +242,38 @@
   font-weight: 400;
 }
 
+.header-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.header-draft-id {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid var(--border-subtle);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.header-draft-id:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+  border-color: var(--accent-purple);
+}
+
+.copy-icon {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
 .header-info {
   display: flex;
   align-items: center;

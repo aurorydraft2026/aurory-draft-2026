@@ -91,17 +91,24 @@ const Mode2Draft = ({
         const teamColor = isTeamA ? (draftState.teamColors?.teamA || 'blue') : (draftState.teamColors?.teamB || 'red');
         const displayPicks = isTeamA ? displayTeamA : displayTeamB;
         const leader = getTeamLeader(team);
-        const teamBanner = isTeamA
+        // Use leader's profile as default banner if no team banner is set
+        const leaderImage = leader?.auroryProfilePicture || leader?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png';
+
+        const rawBanner = isTeamA
             ? (draftState.teamColors?.teamA === 'blue' ? draftState.teamBanners?.team1 : draftState.teamBanners?.team2)
             : (draftState.teamColors?.teamB === 'blue' ? draftState.teamBanners?.team1 : draftState.teamBanners?.team2);
 
+        const teamBanner = rawBanner || leaderImage;
+
         return (
             <div className={`team-panel team-${teamColor}`}>
-                {teamBanner && (
-                    <div className="team-banner-circle">
-                        <img src={teamBanner} alt={getTeamDisplayName(team)} />
-                    </div>
-                )}
+                <div className="team-banner-circle">
+                    <img
+                        src={teamBanner}
+                        alt={getTeamDisplayName(team)}
+                        onError={(e) => { e.target.onerror = null; e.target.src = leaderImage; }}
+                    />
+                </div>
                 <h2 className={`team-heading team-${teamColor}-heading`}>
                     {getTeamDisplayName(team)}
                 </h2>

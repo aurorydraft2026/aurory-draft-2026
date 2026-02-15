@@ -82,3 +82,7 @@ export const verifyMatches = onSchedule(
         }
     }
 );
+// ─── 4. ADMIN OPERATIONS ───
+// Manual triggers for admins (e.g. payout retry)
+import { manualPayout } from './adminOps';
+exports.manualPayout = manualPayout;
