@@ -6,7 +6,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   validateAuroryAccount,
   linkAuroryAccount,
-  unlinkAuroryAccount,
   getLinkedAuroryAccount,
   clearCache
 } from '../services/auroryProfileService';
@@ -52,6 +51,12 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
     setLinking(true);
     setError(null);
 
+    // Warning alert as requested
+    if (!window.confirm('Warning: This action cannot be undone. You can only link one Aurory account to your profile. Are you sure you want to continue?')) {
+      setLinking(false);
+      return;
+    }
+
     try {
       const validation = await validateAuroryAccount(searchInput.trim());
 
@@ -87,24 +92,6 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
       setError(err.message);
     } finally {
       setLinking(false);
-    }
-  };
-
-  const handleUnlink = async () => {
-    if (!window.confirm('Are you sure you want to unlink your Aurory account?')) {
-      return;
-    }
-
-    try {
-      const result = await unlinkAuroryAccount(user.uid);
-      if (result.success) {
-        if (linkedAccount?.playerId) {
-          clearCache(linkedAccount.playerId);
-        }
-        setLinkedAccount(null);
-      }
-    } catch (err) {
-      setError(err.message);
     }
   };
 
@@ -148,19 +135,15 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
 
               <div className="linked-status">
                 <span className="linked-check">✓</span>
-                <span>Account linked successfully</span>
+                <span>Account linked permanent</span>
               </div>
-
-              <button className="unlink-btn" onClick={handleUnlink}>
-                Unlink Account
-              </button>
             </div>
           </div>
         ) : (
           // Link Account View
           <div className="aurory-link-view">
             <div className="method-content">
-              <p className="method-desc">Enter your <strong>Aurory Player ID</strong> (e.g., p-12345) to link your in-game profile. Each ID can only be linked to one account.</p>
+              <p className="method-desc">Enter your <strong>Aurory Player ID</strong> (e.g., p-12345) to link your in-game profile. <strong>This action is permanent and cannot be undone.</strong></p>
               <div className="search-input-group">
                 <input
                   type="text"
@@ -446,23 +429,6 @@ const auroryModalStyles = `
 .linked-check {
   font-size: 1.1rem;
   font-weight: 700;
-}
-
-.unlink-btn {
-  padding: 10px 24px;
-  background: transparent;
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 8px;
-  color: rgba(239, 68, 68, 0.7);
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.unlink-btn:hover {
-  background: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.5);
-  color: #fca5a5;
 }
 
 @media (max-width: 480px) {

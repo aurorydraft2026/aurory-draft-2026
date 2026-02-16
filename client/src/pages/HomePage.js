@@ -276,7 +276,6 @@ function HomePage() {
   const profileMenuRef = useRef(null);
   const notificationMenuRef = useRef(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [maintenance, setMaintenance] = useState({ enabled: false, message: '' });
   const [tournamentFilter, setTournamentFilter] = useState('active');
   const [draftModeFilter, setDraftModeFilter] = useState('all'); // 'all','mode1','mode2','mode3'
   const [draftsExpanded, setDraftsExpanded] = useState(false);
@@ -523,17 +522,6 @@ function HomePage() {
     fetchTokenStats();
     const interval = setInterval(fetchTokenStats, 10 * 60 * 1000); // Update every 10 mins
     return () => clearInterval(interval);
-  }, []);
-
-  // Listen for maintenance status
-  useEffect(() => {
-    const maintenanceRef = doc(db, 'settings', 'maintenance');
-    const unsubscribe = onSnapshot(maintenanceRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setMaintenance(docSnap.data());
-      }
-    });
-    return () => unsubscribe();
   }, []);
 
   // Handle Scroll to auto-hide ticker
@@ -2253,19 +2241,8 @@ function HomePage() {
                 <div className="header-title-group">
                   <h3>♟️All Drafts </h3>
                   {user && (
-                    <button
-                      onClick={() => {
-                        if (maintenance.enabled && !isAdmin) {
-                          alert('⚠️ System is currently under maintenance. New drafts are temporarily disabled.');
-                          return;
-                        }
-                        setShowCreateModal(true);
-                      }}
-                      className="inline-create-btn"
-                      disabled={maintenance.enabled && !isAdmin}
-                    >
-                      <span className="plus-icon">{maintenance.enabled && !isAdmin ? '🛠️' : '+'}</span>
-                      {maintenance.enabled && !isAdmin ? 'Under Maintenance' : 'Create Draft'}
+                    <button onClick={() => setShowCreateModal(true)} className="inline-create-btn">
+                      <span className="plus-icon">+</span> Create Draft
                     </button>
                   )}
                 </div>
@@ -2341,22 +2318,13 @@ function HomePage() {
                 <div className="no-tournaments-container">
                   <div className="tournaments-grid">
                     {user && (
-                      <div
-                        className={`create-placeholder-card ${maintenance.enabled && !isAdmin ? 'disabled' : ''}`}
-                        onClick={() => {
-                          if (maintenance.enabled && !isAdmin) {
-                            alert('⚠️ System is currently under maintenance. New drafts are temporarily disabled.');
-                            return;
-                          }
-                          setShowCreateModal(true);
-                        }}
-                      >
+                      <div className="create-placeholder-card" onClick={() => setShowCreateModal(true)}>
                         <div className="placeholder-content">
                           <div className="plus-circle">
-                            <span className="plus-icon">{maintenance.enabled && !isAdmin ? '🛠️' : '+'}</span>
+                            <span className="plus-icon">+</span>
                           </div>
-                          <h4>{maintenance.enabled && !isAdmin ? 'Under Maintenance' : 'Create New Draft'}</h4>
-                          <p>{maintenance.enabled && !isAdmin ? 'New drafts are temporarily disabled' : 'Start a new Triad or DM match'}</p>
+                          <h4>Create New Draft</h4>
+                          <p>Start a new Triad or DM match</p>
                         </div>
                       </div>
                     )}

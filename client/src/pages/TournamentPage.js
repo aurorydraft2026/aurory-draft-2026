@@ -86,6 +86,11 @@ const getUserProfilePicture = (user) => {
   return DEFAULT_AVATAR;
 };
 
+// Helper function to check if user has a linked Aurory account
+const isAccountLinked = (user) => {
+  return user && user.auroryPlayerId && user.auroryPlayerId !== '';
+};
+
 function TournamentPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -691,6 +696,12 @@ function TournamentPage() {
 
     if (!isTeam1Leader && !isTeam2Leader) return;
 
+    // Check account linking
+    if (!isAccountLinked(user)) {
+      showAlert('Aurory Account Required', 'You must link your Aurory account on the Home page before confirming your roll.');
+      return;
+    }
+
     // Check if this player needs to pay entry fee (not friendly, not yet paid)
     const is1v1 = draftState.draftType === 'mode3' || draftState.draftType === 'mode4';
     const entryFee = draftState.entryFee || 0;
@@ -813,6 +824,10 @@ function TournamentPage() {
   // Check if current user can join this draft
   const canJoinDraft = () => {
     if (!user || !draftState.joinable || draftState.status !== 'waiting') return false;
+
+    // Check account linking
+    if (!isAccountLinked(user)) return false;
+
     const is1v1 = draftState.draftType === 'mode3' || draftState.draftType === 'mode4';
     if (!is1v1) return false;
     // Already a participant?
@@ -826,6 +841,13 @@ function TournamentPage() {
   // Handle joining a 1v1 draft
   const handleJoinDraft = async () => {
     if (!user || isJoining) return;
+
+    // Check account linking first
+    if (!isAccountLinked(user)) {
+      showAlert('Aurory Account Required', 'You must link your Aurory account on the Home page before joining a match.');
+      return;
+    }
+
     if (!canJoinDraft()) {
       showAlert('Cannot Join', 'This match is not available for joining.');
       return;

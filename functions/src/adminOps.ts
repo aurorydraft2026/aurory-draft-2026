@@ -73,7 +73,7 @@ export const manualPayout = onCall(
 
 /**
  * Cleanup inactive anonymous guest accounts.
- * Deletes users who are anonymous and haven't been seen in over 10 minutes.
+ * Deletes users who are anonymous and haven't been seen in over 24 hours.
  */
 export const cleanupInactiveGuests = onCall(
     {
@@ -95,13 +95,13 @@ export const cleanupInactiveGuests = onCall(
         console.log(`🧹 Manual Cleanup Triggered by ${callerUid}`);
 
         try {
-            const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+            const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
             // 2. Query Firestore for inactive anonymous users
             const usersRef = db.collection('users');
             const q = usersRef
                 .where('isAnonymous', '==', true)
-                .where('lastSeen', '<', admin.firestore.Timestamp.fromDate(tenMinutesAgo))
+                .where('lastSeen', '<', admin.firestore.Timestamp.fromDate(oneDayAgo))
                 .limit(500); // Process in batches to avoid timeout
 
             const snapshot = await q.get();
