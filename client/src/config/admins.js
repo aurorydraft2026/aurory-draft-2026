@@ -8,7 +8,7 @@ export const SUPER_ADMIN_EMAILS = [
 // To find your UID: Login to the app, then go to Firebase Console > Authentication > Users
 // Copy your UID and add it to this array
 export const SUPER_ADMIN_UIDS = [
-  'fWp7xeLNvuTD9axrPtJpp4afC1g2' // Replace with your actual Firebase UID after logging in
+  'fWp7xeLNvuTD9axrPtJpp4afC1g2'
 ];
 
 // Check if an email is a super admin

@@ -70,3 +70,69 @@ export const manualPayout = onCall(
         }
     }
 );
+
+/**
+ * Cleanup inactive anonymous guest accounts.
+ * Deletes users who are anonymous and haven't been seen in over 10 minutes.
+ */
+export const cleanupInactiveGuests = onCall(
+    {
+        region: 'us-central1',
+        timeoutSeconds: 540, // 9 minutes max
+        memory: '512MiB'
+    },
+    async (request) => {
+        // 1. Auth Check
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User must be logged in.');
+        }
+
+        const callerUid = request.auth.uid;
+        if (callerUid !== SUPER_ADMIN_UID) {
+            throw new HttpsError('permission-denied', 'Only Super Admin can trigger cleanup.');
+        }
+
+        console.log(`🧹 Manual Cleanup Triggered by ${callerUid}`);
+
+        try {
+            const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+
+            // 2. Query Firestore for inactive anonymous users
+            const usersRef = db.collection('users');
+            const q = usersRef
+                .where('isAnonymous', '==', true)
+                .where('lastSeen', '<', admin.firestore.Timestamp.fromDate(tenMinutesAgo))
+                .limit(500); // Process in batches to avoid timeout
+
+            const snapshot = await q.get();
+            const uidsToDelete = snapshot.docs.map(doc => doc.id);
+
+            if (uidsToDelete.length === 0) {
+                return { success: true, count: 0, message: 'No inactive guests found.' };
+            }
+
+            console.log(`🗑️ Deleting ${uidsToDelete.length} inactive guests...`);
+
+            // 3. Delete from Firebase Auth
+            // Note: deleteUsers is limited to 1000 at a time
+            await admin.auth().deleteUsers(uidsToDelete);
+
+            // 4. Delete from Firestore
+            const batch = db.batch();
+            snapshot.docs.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+
+            return {
+                success: true,
+                count: uidsToDelete.length,
+                message: `Successfully deleted ${uidsToDelete.length} inactive guests.`
+            };
+
+        } catch (error: any) {
+            console.error('Cleanup failed:', error);
+            throw new HttpsError('internal', error.message || 'Unknown error during cleanup.');
+        }
+    }
+);

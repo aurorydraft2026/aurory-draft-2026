@@ -42,8 +42,17 @@ function HomePage() {
   const syncInProgressRef = React.useRef(false); // Guard for infinite sync loops
   const [tournaments, setTournaments] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isCreatingDraft, setIsCreatingDraft] = useState(false);
   const [registeredUsers, setRegisteredUsers] = useState([]);
   const [participantSearchQuery, setParticipantSearchQuery] = useState('');
+  const hasRedirectedRef = useRef(false);
+  const [seenTabs, setSeenTabs] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('aurory_seen_tabs') || '{}');
+    } catch (e) {
+      return {};
+    }
+  });
 
   // Team assignment state (3 players per team)
   const [team1, setTeam1] = useState({ leader: null, member1: null, member2: null });
@@ -267,6 +276,7 @@ function HomePage() {
   const profileMenuRef = useRef(null);
   const notificationMenuRef = useRef(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [maintenance, setMaintenance] = useState({ enabled: false, message: '' });
   const [tournamentFilter, setTournamentFilter] = useState('active');
   const [draftModeFilter, setDraftModeFilter] = useState('all'); // 'all','mode1','mode2','mode3'
   const [draftsExpanded, setDraftsExpanded] = useState(false);
@@ -389,6 +399,24 @@ function HomePage() {
     return () => unsubscribe();
   }, []);
 
+  // Handle automatic tab redirection
+  useEffect(() => {
+    if (tournaments.length > 0 && !hasRedirectedRef.current && tournamentFilter === 'active') {
+      const activeCount = tournaments.filter(t => t.status === 'active' || t.status === 'coinFlip' || t.status === 'poolShuffle' || t.status === 'assignment').length;
+      const waitingCount = tournaments.filter(t => t.status === 'waiting').length;
+      const completedCount = tournaments.filter(t => t.status === 'completed').length;
+
+      if (activeCount === 0) {
+        if (waitingCount > 0) {
+          setTournamentFilter('waiting');
+        } else if (completedCount > 0) {
+          setTournamentFilter('completed');
+        }
+      }
+      hasRedirectedRef.current = true;
+    }
+  }, [tournaments, tournamentFilter]);
+
 
   // Update current time every second for live timer display
   useEffect(() => {
@@ -495,6 +523,17 @@ function HomePage() {
     fetchTokenStats();
     const interval = setInterval(fetchTokenStats, 10 * 60 * 1000); // Update every 10 mins
     return () => clearInterval(interval);
+  }, []);
+
+  // Listen for maintenance status
+  useEffect(() => {
+    const maintenanceRef = doc(db, 'settings', 'maintenance');
+    const unsubscribe = onSnapshot(maintenanceRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setMaintenance(docSnap.data());
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   // Handle Scroll to auto-hide ticker
@@ -1324,6 +1363,8 @@ function HomePage() {
 
   // Create new tournament
   const handleCreateTournament = async () => {
+    if (isCreatingDraft) return;
+
     if (!newTournament.title.trim()) {
       alert('Please enter a draft title');
       return;
@@ -1398,6 +1439,7 @@ function HomePage() {
     }
 
     try {
+      setIsCreatingDraft(true);
       // Generate unique tournament ID
       const tournamentId = `tournament_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const draftRef = doc(db, 'drafts', tournamentId);
@@ -1557,6 +1599,7 @@ function HomePage() {
       setTeam2Banner(null);
       setAssigningSlot(null);
       setParticipantSearchQuery('');
+      setIsCreatingDraft(false);
       setShowCreateModal(false);
 
       // Notify all assigned participants
@@ -1578,6 +1621,7 @@ function HomePage() {
         state: { autoStart: !is1v1 && !newTournament.manualTimerStart }
       });
     } catch (error) {
+      setIsCreatingDraft(false);
       console.error('Error creating tournament:', error);
       alert('Failed to create draft: ' + error.message);
     }
@@ -2209,8 +2253,19 @@ function HomePage() {
                 <div className="header-title-group">
                   <h3>♟️All Drafts </h3>
                   {user && (
-                    <button onClick={() => setShowCreateModal(true)} className="inline-create-btn">
-                      <span className="plus-icon">+</span> Create Draft
+                    <button
+                      onClick={() => {
+                        if (maintenance.enabled && !isAdmin) {
+                          alert('⚠️ System is currently under maintenance. New drafts are temporarily disabled.');
+                          return;
+                        }
+                        setShowCreateModal(true);
+                      }}
+                      className="inline-create-btn"
+                      disabled={maintenance.enabled && !isAdmin}
+                    >
+                      <span className="plus-icon">{maintenance.enabled && !isAdmin ? '🛠️' : '+'}</span>
+                      {maintenance.enabled && !isAdmin ? 'Under Maintenance' : 'Create Draft'}
                     </button>
                   )}
                 </div>
@@ -2246,11 +2301,23 @@ function HomePage() {
                       <button
                         key={tab.key}
                         className={`filter-tab ${tournamentFilter === tab.key ? 'active' : ''} ${tab.key === 'myTurn' && count > 0 ? 'has-turns' : ''}`}
-                        onClick={() => { setTournamentFilter(tab.key); setDraftsExpanded(false); }}
+                        onClick={() => {
+                          setTournamentFilter(tab.key);
+                          setDraftsExpanded(false);
+                          if (!seenTabs[tab.key]) {
+                            const newSeen = { ...seenTabs, [tab.key]: true };
+                            setSeenTabs(newSeen);
+                            localStorage.setItem('aurory_seen_tabs', JSON.stringify(newSeen));
+                          }
+                        }}
                       >
                         <span className="filter-tab-icon">{tab.icon}</span>
                         <span className="filter-tab-label">{tab.label}</span>
-                        {count > 0 && <span className="filter-tab-count">{count}</span>}
+                        {count > 0 && (
+                          <span className={`filter-tab-count ${(tab.key === 'active' || tab.key === 'waiting') && !seenTabs[tab.key] ? 'count-highlight' : ''}`}>
+                            {count}
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -2274,13 +2341,22 @@ function HomePage() {
                 <div className="no-tournaments-container">
                   <div className="tournaments-grid">
                     {user && (
-                      <div className="create-placeholder-card" onClick={() => setShowCreateModal(true)}>
+                      <div
+                        className={`create-placeholder-card ${maintenance.enabled && !isAdmin ? 'disabled' : ''}`}
+                        onClick={() => {
+                          if (maintenance.enabled && !isAdmin) {
+                            alert('⚠️ System is currently under maintenance. New drafts are temporarily disabled.');
+                            return;
+                          }
+                          setShowCreateModal(true);
+                        }}
+                      >
                         <div className="placeholder-content">
                           <div className="plus-circle">
-                            <span className="plus-icon">+</span>
+                            <span className="plus-icon">{maintenance.enabled && !isAdmin ? '🛠️' : '+'}</span>
                           </div>
-                          <h4>Create New Draft</h4>
-                          <p>Start a new Triad or DM match</p>
+                          <h4>{maintenance.enabled && !isAdmin ? 'Under Maintenance' : 'Create New Draft'}</h4>
+                          <p>{maintenance.enabled && !isAdmin ? 'New drafts are temporarily disabled' : 'Start a new Triad or DM match'}</p>
                         </div>
                       </div>
                     )}
@@ -2861,6 +2937,30 @@ function HomePage() {
                   />
                 </div>
 
+                {/* NEW: Draft Type Dropdown */}
+                <div className="form-group">
+                  <label>Draft Type</label>
+                  <select
+                    value={newTournament.draftType}
+                    onChange={(e) => setNewTournament({ ...newTournament, draftType: e.target.value })}
+                    className="form-input"
+                  >
+                    {isAdmin && <option value="mode1">Triad Format 3-6-3</option>}
+                    {isAdmin && <option value="mode2">Triad Format 1-2-1</option>}
+                    <option value="mode3">Deathmatch 3-3</option>
+                    <option value="mode4">Ban Draft 1-2-1</option>
+                  </select>
+                  <span className="input-hint">
+                    {newTournament.draftType === 'mode1'
+                      ? 'Triad Format 3-6-3: A picks 3, B picks 6, A picks 6, B picks 3'
+                      : newTournament.draftType === 'mode2'
+                        ? 'Triad Format 1-2-1: 10 phases with smaller alternating picks'
+                        : newTournament.draftType === 'mode4'
+                          ? 'Ban Draft 1-2-1: Turn-based bans (1-2-2-1), then picks (1-2-2-1) with coin flip'
+                          : 'Deathmatch 3-3: Simultaneous picks from random pools (3 picks each)'}
+                  </span>
+                </div>
+
                 {/* Prize Pool - Text based for 3v3 modes */}
                 {(newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') && (
                   <div className="form-group">
@@ -2915,8 +3015,8 @@ function HomePage() {
                         <span className="input-hint">
                           {newTournament.poolAmount && parseFloat(newTournament.poolAmount) > 0
                             ? (newTournament.requiresEntryFee !== false
-                              ? `Entry fee: ${(parseFloat(newTournament.poolAmount) / 2).toFixed(2)} AURY per player • Winner takes ${(parseFloat(newTournament.poolAmount) * 0.95).toFixed(2)} AURY (5% tax)`
-                              : `Sponsored: You pay ${(parseFloat(newTournament.poolAmount)).toFixed(2)} AURY. Entry is FREE for players. Winner takes ${(parseFloat(newTournament.poolAmount) * 0.95).toFixed(2)} AURY`)
+                              ? `Entry fee: ${(parseFloat(newTournament.poolAmount) / 2).toFixed(2)} AURY per player • Winner takes ${(parseFloat(newTournament.poolAmount) * 0.975).toFixed(2)} AURY (2.5% tax)`
+                              : `Sponsored: You pay ${(parseFloat(newTournament.poolAmount)).toFixed(2)} AURY. Entry is FREE for players. Winner takes ${(parseFloat(newTournament.poolAmount) * 0.975).toFixed(2)} AURY`)
                             : (newTournament.requiresEntryFee !== false
                               ? 'Total pool will be split equally. Each player pays half as entry fee.'
                               : 'You pay the full pool amount. Players join for free.')}
@@ -2936,30 +3036,6 @@ function HomePage() {
                     )}
                   </div>
                 )}
-
-                {/* NEW: Draft Type Dropdown */}
-                <div className="form-group">
-                  <label>Draft Type</label>
-                  <select
-                    value={newTournament.draftType}
-                    onChange={(e) => setNewTournament({ ...newTournament, draftType: e.target.value })}
-                    className="form-input"
-                  >
-                    {isAdmin && <option value="mode1">Triad Format 3-6-3</option>}
-                    {isAdmin && <option value="mode2">Triad Format 1-2-1</option>}
-                    <option value="mode3">Deathmatch 3-3</option>
-                    <option value="mode4">Ban Draft 1-2-1</option>
-                  </select>
-                  <span className="input-hint">
-                    {newTournament.draftType === 'mode1'
-                      ? 'Triad Format 3-6-3: A picks 3, B picks 6, A picks 6, B picks 3'
-                      : newTournament.draftType === 'mode2'
-                        ? 'Triad Format 1-2-1: 10 phases with smaller alternating picks'
-                        : newTournament.draftType === 'mode4'
-                          ? 'Ban Draft 1-2-1: Turn-based bans (1-2-2-1), then picks (1-2-2-1) with coin flip'
-                          : 'Deathmatch 3-3: Simultaneous picks from random pools (3 picks each)'}
-                  </span>
-                </div>
 
                 <div className="form-group">
                   <label>Timer Duration (per turn)</label>
@@ -3009,19 +3085,6 @@ function HomePage() {
                       <span>Sec</span>
                     </div>
                   </div>
-
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={newTournament.manualTimerStart}
-                      onChange={(e) => setNewTournament({ ...newTournament, manualTimerStart: e.target.checked })}
-                      disabled={newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4'}
-                    />
-                    <span>Start timer manually (wait for all players to be ready)</span>
-                  </label>
-                  {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') && (
-                    <span className="input-hint">1v1 drafts always start when both players confirm ready. Minimum timer: 24 hours.</span>
-                  )}
                 </div>
 
                 {/* Team Assignment Section */}
@@ -3093,7 +3156,7 @@ function HomePage() {
 
                       {/* Leader Slot */}
                       <div className="assignment-slot">
-                        <span className="slot-label">{newTournament.draftType === 'mode3' ? '👤 Player' : '👑 Leader'}</span>
+                        <span className="slot-label">{(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? '👤 Player' : '👑 Leader'}</span>
                         {team1.leader ? (
                           <div className="assigned-user">
                             <img
@@ -3109,7 +3172,7 @@ function HomePage() {
                             className={`assign-btn ${assigningSlot?.team === 1 && assigningSlot?.roles?.includes('leader') ? 'active' : ''}`}
                             onClick={() => setAssigningSlot({ team: 1, roles: ['leader'], sessionRoles: ['leader'] })}
                           >
-                            {newTournament.draftType === 'mode3' ? '+ Select Player' : '+ Assign Leader'}
+                            {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? '+ Select Player' : '+ Assign Leader'}
                           </button>
                         )}
                       </div>
@@ -3202,7 +3265,7 @@ function HomePage() {
 
                       {/* Leader Slot */}
                       <div className="assignment-slot">
-                        <span className="slot-label">{newTournament.draftType === 'mode3' ? '👤 Player' : '👑 Leader'}</span>
+                        <span className="slot-label">{(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? '👤 Player' : '👑 Leader'}</span>
                         {team2.leader ? (
                           <div className="assigned-user">
                             <img
@@ -3218,7 +3281,7 @@ function HomePage() {
                             className={`assign-btn ${assigningSlot?.team === 2 && assigningSlot?.roles?.includes('leader') ? 'active' : ''}`}
                             onClick={() => setAssigningSlot({ team: 2, roles: ['leader'], sessionRoles: ['leader'] })}
                           >
-                            {newTournament.draftType === 'mode3' ? '+ Select Player' : '+ Assign Leader'}
+                            {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? '+ Select Player' : '+ Assign Leader'}
                           </button>
                         )}
                       </div>
@@ -3265,7 +3328,7 @@ function HomePage() {
                       <div className="participant-selection-modal">
                         <div className="modal-header">
                           <div className="selection-title-group">
-                            <h3>👥 Select {newTournament.draftType === 'mode3' ? `Player ${assigningSlot.team}` : `Team ${assigningSlot.team} ${assigningSlot.sessionRoles.length > 1 ? 'Members' : 'Leader'}`}</h3>
+                            <h3>👥 Select {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? `Player ${assigningSlot.team}` : `Team ${assigningSlot.team} ${assigningSlot.sessionRoles.length > 1 ? 'Members' : 'Leader'}`}</h3>
                             <span className="selection-progress-badge">
                               {assigningSlot.roles.length === 2 ? 'Step 1/2' : assigningSlot.roles.length === 1 && assigningSlot.sessionRoles.length === 2 ? 'Step 2/2' : 'Assigning Slot'}
                             </span>
@@ -3302,7 +3365,7 @@ function HomePage() {
                                   <div className="participant-info">
                                     <span className="participant-name">{u.displayName}</span>
                                     <span className="participant-email">
-                                      {newTournament.draftType === 'mode3' ? 'Participant' : `Selected as ${role === 'leader' ? 'Leader' : role === 'member1' ? 'Member 1' : 'Member 2'}`}
+                                      {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? 'Participant' : `Selected as ${role === 'leader' ? 'Leader' : role === 'member1' ? 'Member 1' : 'Member 2'}`}
                                     </span>
                                   </div>
                                   <button className="deselect-circle-btn" onClick={() => handleDeselectDuringFlow(role)}>✖</button>
@@ -3346,14 +3409,35 @@ function HomePage() {
                     </div>
                   )}
                 </div>
+
+                <div className="form-group">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={newTournament.manualTimerStart}
+                      onChange={(e) => setNewTournament({ ...newTournament, manualTimerStart: e.target.checked })}
+                      disabled={newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4'}
+                    />
+                    <span style={{ fontWeight: '600', color: '#ffd700' }}>🚀 Start timer manually</span>
+                  </label>
+                  <span className="input-hint" style={{ marginTop: '5px', display: 'block' }}>
+                    {newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4'
+                      ? '1v1 drafts always start when both players confirm ready. Minimum timer: 30 seconds.'
+                      : 'Wait for all players to be ready before starting the countdown.'}
+                  </span>
+                </div>
               </div>
 
               <div className="modal-footer">
                 <button className="cancel-btn" onClick={() => setShowCreateModal(false)}>
                   Cancel
                 </button>
-                <button className="create-btn" onClick={handleCreateTournament}>
-                  🚀 Proceed
+                <button
+                  className="create-btn"
+                  onClick={handleCreateTournament}
+                  disabled={isCreatingDraft}
+                >
+                  {isCreatingDraft ? '⏳ Creating...' : '🚀 Proceed'}
                 </button>
               </div>
             </div>
@@ -3548,7 +3632,9 @@ function HomePage() {
                           // Determine transaction display based on type
                           let icon, label, amountClass;
 
-                          switch (tx.type) {
+                          const txTypeKey = (tx.type || '').toLowerCase();
+
+                          switch (txTypeKey) {
                             case 'deposit':
                               icon = '📥';
                               label = 'Deposit';
@@ -3569,9 +3655,34 @@ function HomePage() {
                               label = 'Withdrawal Rejected (Refunded)';
                               amountClass = 'positive';
                               break;
+                            case 'entry_fee':
+                              icon = '🎟️';
+                              label = 'Entry Fee';
+                              amountClass = 'negative';
+                              break;
+                            case 'sponsored_pool':
+                              icon = '💎';
+                              label = 'Sponsored Pool';
+                              amountClass = 'negative';
+                              break;
+                            case 'prize_won':
+                              icon = '🏆';
+                              label = 'Prize Won';
+                              amountClass = 'positive';
+                              break;
+                            case 'tax_collected':
+                              icon = '🏛️';
+                              label = 'Tax Collected';
+                              amountClass = 'negative';
+                              break;
+                            case 'refund_draw':
+                              icon = '↩️';
+                              label = 'Match Refund (Draw)';
+                              amountClass = 'positive';
+                              break;
                             default:
                               icon = '❓';
-                              label = tx.type;
+                              label = tx.type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown';
                               amountClass = '';
                           }
 

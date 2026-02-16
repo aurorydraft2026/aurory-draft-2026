@@ -3011,6 +3011,7 @@ function TournamentPage() {
           console.error('Error deleting typing indicators:', error);
         }
 
+
         // Delete the tournament document
         await deleteDoc(draftRef);
         navigate('/');
@@ -4067,15 +4068,19 @@ function TournamentPage() {
                       </button>
                     )}
 
-                    {/* Edit Tournament */}
-                    <button onClick={openEditModal} className="action-btn edit">
-                      ✏️ Edit Tournament
-                    </button>
+                    {/* Edit Tournament - Hidden for 1v1 modes */}
+                    {!['mode3', 'mode4'].includes(draftState.draftType) && (
+                      <button onClick={openEditModal} className="action-btn edit">
+                        ✏️ Edit Tournament
+                      </button>
+                    )}
 
-                    {/* Reset Tournament */}
-                    <button onClick={resetDraft} className="action-btn reset">
-                      🔄 Reset Tournament
-                    </button>
+                    {/* Reset Tournament - Hidden for 1v1 modes */}
+                    {!['mode3', 'mode4'].includes(draftState.draftType) && (
+                      <button onClick={resetDraft} className="action-btn reset">
+                        🔄 Reset Tournament
+                      </button>
+                    )}
 
                     {/* Delete Tournament */}
                     <button onClick={deleteTournament} className="action-btn delete">

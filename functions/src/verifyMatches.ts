@@ -129,11 +129,11 @@ export async function scanAndVerifyDrafts(): Promise<number> {
 // ─── PAYOUT PROCESSING ───
 
 const SUPER_ADMIN_UID = 'fWp7xeLNvuTD9axrPtJpp4afC1g2';
-const TAX_RATE = 0.05; // 5% tax on winnings
+const TAX_RATE = 0.025; // 2.5% tax on winnings
 
 /**
  * Process prize payouts for a verified 1v1 match
- * Winner receives poolAmount * 0.95, tax (5%) goes to super admin wallet
+ * Winner receives poolAmount * 0.975, tax (2.5%) goes to super admin wallet
  */
 // Export for manual trigger
 export async function processPayouts(draftId: string, draftData: any, overallWinner: string): Promise<string> {

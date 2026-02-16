@@ -16,6 +16,7 @@ import {
   limit,
   writeBatch,
   deleteDoc,
+  setDoc,
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { isSuperAdmin } from '../config/admins';
@@ -121,6 +122,11 @@ function AdminPanel() {
   const [payoutDraftId, setPayoutDraftId] = useState('');
   const [payoutLoading, setPayoutLoading] = useState(false);
 
+  // Maintenance Mode state
+  const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState('');
+  const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+
   // Banner social links (max 3 displayed)
   const [bannerDiscord, setBannerDiscord] = useState('');
   const [bannerTwitter, setBannerTwitter] = useState('');
@@ -128,22 +134,6 @@ function AdminPanel() {
   const [bannerFacebook, setBannerFacebook] = useState('');
   const [bannerInstagram, setBannerInstagram] = useState('');
   const [bannerYoutube, setBannerYoutube] = useState('');
-
-  // Handle image upload to Base64
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 1024 * 1024) { // 1MB limit for Firestore
-        alert('Image too large. Please use an image under 1MB.');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setBannerImage(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
   // Listen for auth state changes
   useEffect(() => {
@@ -189,6 +179,72 @@ function AdminPanel() {
   const isAdminUser = user && (isSuperAdminUser || user.role === 'admin');
   const isAdmin = isAdminUser; // Keep for existing checks in the file
 
+  // Handle maintenance toggle
+  const handleToggleMaintenance = async () => {
+    if (!isSuperAdminUser) return;
+    const newStatus = !maintenanceEnabled;
+    const confirmMsg = newStatus
+      ? "Turn ON Maintenance Mode? This will redirect new visitors to the maintenance page."
+      : "Turn OFF Maintenance Mode? Normal service will resume.";
+
+    if (!window.confirm(confirmMsg)) return;
+
+    setMaintenanceLoading(true);
+    try {
+      const maintenanceRef = doc(db, 'settings', 'maintenance');
+      await setDoc(maintenanceRef, {
+        enabled: newStatus,
+        message: maintenanceMessage,
+        updatedAt: serverTimestamp(),
+        updatedBy: getUserEmail(user)
+      }, { merge: true });
+
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'toggle_maintenance',
+        metadata: { enabled: newStatus }
+      });
+
+      alert(`✅ Maintenance Mode is now ${newStatus ? 'ON' : 'OFF'}`);
+    } catch (error) {
+      console.error('Error toggling maintenance:', error);
+      alert('Error updating maintenance status: ' + error.message);
+    } finally {
+      setMaintenanceLoading(false);
+    }
+  };
+
+  // Handle image upload to Base64
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 1024 * 1024) { // 1MB limit for Firestore
+        alert('Image too large. Please use an image under 1MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setBannerImage(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Fetch maintenance status
+  useEffect(() => {
+    if (!isAdmin) return;
+    const maintenanceRef = doc(db, 'settings', 'maintenance');
+    const unsubscribe = onSnapshot(maintenanceRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setMaintenanceEnabled(data.enabled || false);
+        setMaintenanceMessage(data.message || '');
+      }
+    });
+    return () => unsubscribe();
+  }, [isAdmin]);
+
 
   // Fetch pending withdrawals
   useEffect(() => {
@@ -224,10 +280,6 @@ function AdminPanel() {
   useEffect(() => {
     if (!isAdmin) return;
 
-    console.log('Setting up deposit notifications listener...');
-    console.log('Admin email:', getUserEmail(user));
-    console.log('Is super admin:', isSuperAdmin(getUserEmail(user)));
-
     const notificationsRef = collection(db, 'depositNotifications');
 
     // TRY TWO APPROACHES:
@@ -244,11 +296,9 @@ function AdminPanel() {
       where('status', '==', 'pending')
     );
 
-    // Try the query with orderBy first
     const unsubscribe = onSnapshot(
       qWithOrder,
       (snapshot) => {
-        console.log('✅ Deposit notifications loaded:', snapshot.docs.length);
         const notifications = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
@@ -263,14 +313,11 @@ function AdminPanel() {
         setDepositError(null);
       },
       (error) => {
-        console.error('❌ Error with orderBy query, trying without orderBy:', error);
         setDepositError(error.message);
 
-        // Fallback: Try without orderBy
         const fallbackUnsubscribe = onSnapshot(
           qWithoutOrder,
           (snapshot) => {
-            console.log('✅ Deposit notifications loaded (fallback):', snapshot.docs.length);
             const notifications = snapshot.docs.map(doc => ({
               id: doc.id,
               ...doc.data()
@@ -285,7 +332,6 @@ function AdminPanel() {
             setDepositError('⚠️ Using fallback query. Create Firestore index for better performance.');
           },
           (fallbackError) => {
-            console.error('❌ Error with fallback query:', fallbackError);
             setDepositError(`Error loading deposit notifications: ${fallbackError.message}`);
           }
         );
@@ -295,7 +341,7 @@ function AdminPanel() {
     );
 
     return () => unsubscribe();
-  }, [isAdmin, user]);
+  }, [isAdmin]);
 
   // Fetch all users and their balances
   useEffect(() => {
@@ -666,6 +712,51 @@ function AdminPanel() {
       alert('Error triggering payout: ' + error.message);
     }
     setPayoutLoading(false);
+  };
+
+  // Handle cleanup of inactive guests
+  const handleCleanupInactiveGuests = async () => {
+    if (!isSuperAdminUser) return;
+    if (!window.confirm('⚠️ Are you sure you want to delete ALL anonymous guest accounts that have been inactive for over 10 minutes? This will remove them from both Auth and Firestore and cannot be undone.')) {
+      return;
+    }
+
+    setProcessingId('cleanup_guests');
+    try {
+      const token = await auth.currentUser.getIdToken();
+      const projectId = auth.app.options.projectId;
+
+      const response = await fetch(`https://us-central1-${projectId}.cloudfunctions.net/cleanupInactiveGuests`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ data: {} })
+      });
+
+      const result = await response.json();
+      if (result.error) {
+        throw new Error(result.error.message || result.error);
+      }
+
+      alert(`✅ Cleanup successful! ${result.result.message}`);
+
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'cleanup_inactive_guests',
+        metadata: {
+          count: result.result.count,
+          threshold: '10 minutes'
+        }
+      });
+    } catch (error) {
+      console.error('Cleanup error:', error);
+      alert('Error during cleanup: ' + error.message);
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   const handleRestoreTickerDefaults = async () => {
@@ -1437,6 +1528,14 @@ function AdminPanel() {
               >
                 🎊 Ticker Announcements
               </button>
+              {isSuperAdminUser && (
+                <button
+                  className={`admin-tab ${activeTab === 'maintenance' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('maintenance')}
+                >
+                  🛠️ Maintenance Mode
+                </button>
+              )}
             </div>
           </div>
 
@@ -2345,8 +2444,15 @@ function AdminPanel() {
 
           {activeTab === 'users' && isSuperAdminUser && (
             <div className="users-assignment-section">
-              <div className="section-info">
+              <div className="section-info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <p>👥 Manage user roles. Admins can process deposits and withdrawals but cannot manually credit/deduct balance.</p>
+                <button
+                  className="clear-btn-admin"
+                  onClick={handleCleanupInactiveGuests}
+                  disabled={processingId === 'cleanup_guests'}
+                >
+                  🗑️ {processingId === 'cleanup_guests' ? 'Cleaning...' : 'Cleanup Inactive Guests (1d)'}
+                </button>
               </div>
 
               {/* Search Bar */}
@@ -2585,10 +2691,59 @@ function AdminPanel() {
             </div>
           )}
 
+          {activeTab === 'maintenance' && isSuperAdminUser && (
+            <div className="maintenance-management">
+              <div className="section-header">
+                <h2>🛠️ Maintenance Mode Control</h2>
+                <p>Activate this to prevent new users from joining and show a maintenance page on the home screen.</p>
+              </div>
+
+              <div className={`maintenance-card card ${maintenanceEnabled ? 'active-maintenance' : ''}`}>
+                <div className="maintenance-status-badge">
+                  <span className={`status-dot ${maintenanceEnabled ? 'on' : 'off'}`}></span>
+                  {maintenanceEnabled ? 'MAINTENANCE MODE ACTIVE' : 'SYSTEM ONLINE'}
+                </div>
+
+                <div className="form-group">
+                  <label>Maintenance Message (Optional)</label>
+                  <textarea
+                    placeholder="e.g., We are performing essential database upgrades. Should be back in 30 mins!"
+                    value={maintenanceMessage}
+                    onChange={(e) => setMaintenanceMessage(e.target.value)}
+                    className="maintenance-textarea"
+                  />
+                </div>
+
+                <div className="maintenance-actions">
+                  <button
+                    className={`maintenance-toggle-btn ${maintenanceEnabled ? 'turn-off' : 'turn-on'}`}
+                    onClick={handleToggleMaintenance}
+                    disabled={maintenanceLoading}
+                  >
+                    {maintenanceLoading ? 'Updating...' : maintenanceEnabled ? 'Turn OFF Maintenance' : 'Turn ON Maintenance'}
+                  </button>
+                </div>
+
+                <div className="soft-lock-notice">
+                  <p>ℹ️ <strong>Note:</strong> This is a "Soft Lock". Ongoing drafts will NOT be interrupted. New drafting sessions will be blocked.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'visitors' && isAdminUser && (
             <div className="visitors-section">
-              <div className="section-info">
+              <div className="section-info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <p>🌐 Users who visited the website in the last 3 days.</p>
+                {isSuperAdminUser && (
+                  <button
+                    className="clear-btn-admin"
+                    onClick={handleCleanupInactiveGuests}
+                    disabled={processingId === 'cleanup_guests'}
+                  >
+                    🗑️ {processingId === 'cleanup_guests' ? 'Cleaning...' : 'Cleanup Inactive Guests (10m)'}
+                  </button>
+                )}
               </div>
 
               {onlineVisitors.length === 0 ? (
