@@ -1281,7 +1281,8 @@ function HomePage() {
     const teamB = [];
     if (tournament.permissions) {
       Object.entries(tournament.permissions).forEach(([uid, perm]) => {
-        if (perm === 'A' || perm === 'B') {
+        // Show A/B participants, OR spectators if the tournament is still waiting (pre-assigned)
+        if (perm === 'A' || perm === 'B' || (perm === 'spectator' && tournament.status === 'waiting')) {
           const userData = getUserById(uid);
           const participant = {
             uid,
@@ -1295,8 +1296,24 @@ function HomePage() {
               participant.isLeader = true;
             }
           }
-          if (perm === 'A') teamA.push(participant);
-          else teamB.push(participant);
+
+          // Assign to team based on permission OR preAssignedMTeams if they are spectator
+          if (perm === 'A') {
+            teamA.push(participant);
+          } else if (perm === 'B') {
+            teamB.push(participant);
+          } else if (perm === 'spectator' && tournament.status === 'waiting') {
+            // New logic: check preAssignedTeams to see which side they belong to
+            if (tournament.preAssignedTeams?.team1?.leader === uid ||
+              tournament.preAssignedTeams?.team1?.member1 === uid ||
+              tournament.preAssignedTeams?.team1?.member2 === uid) {
+              teamA.push(participant);
+            } else if (tournament.preAssignedTeams?.team2?.leader === uid ||
+              tournament.preAssignedTeams?.team2?.member1 === uid ||
+              tournament.preAssignedTeams?.team2?.member2 === uid) {
+              teamB.push(participant);
+            }
+          }
         }
       });
     }
@@ -1487,8 +1504,8 @@ function HomePage() {
       const team1LeaderUser = getUserById(team1.leader);
       const team2LeaderUser = getUserById(team2.leader);
       const teamNames = {
-        team1: team1Name.trim() || team1LeaderUser?.username || team1LeaderUser?.displayName || 'Player 1',
-        team2: team2Name.trim() || team2LeaderUser?.username || team2LeaderUser?.displayName || 'Player 2',
+        team1: team1Name.trim() || team1LeaderUser?.auroryPlayerName || team1LeaderUser?.displayName || team1LeaderUser?.username || 'Player 1',
+        team2: team2Name.trim() || team2LeaderUser?.auroryPlayerName || team2LeaderUser?.displayName || team2LeaderUser?.username || 'Player 2',
       };
 
       // Store team banners
@@ -1526,6 +1543,7 @@ function HomePage() {
         activeViewers: {},
         createdAt: serverTimestamp(),
         createdBy: user.uid,
+        creatorDisplayName: user.displayName || user.email || 'Unknown',
         // 1v1 pool fields
         poolAmount: poolAmountSmallest,
         entryFee: entryFee,
@@ -2419,6 +2437,10 @@ function HomePage() {
                               {tournament.description || ''}
                             </p>
 
+                            <div className="hosted-by">
+                              👑 Hosted by: {tournament.creatorDisplayName || tournament.teamNames?.team1 || 'Unknown'}
+                            </div>
+
                             <div className="tournament-details">
                               {tournament.prizePool && (
                                 <div className="detail-item prize">
@@ -2976,6 +2998,7 @@ function HomePage() {
                             step="any"
                             value={newTournament.poolAmount}
                             onChange={(e) => setNewTournament({ ...newTournament, poolAmount: e.target.value })}
+                            onWheel={(e) => e.target.blur()}
                             className="form-input pool-amount-input"
                           />
                           <span className="pool-label">AURY</span>
@@ -3354,7 +3377,7 @@ function HomePage() {
                               filteredUsers.map(u => (
                                 <div
                                   key={u.id}
-                                  className="participant-item hoverable"
+                                  className={`participant-item hoverable ${!u.auroryPlayerId ? 'unlinked-warning' : ''}`}
                                   onClick={() => assignParticipant(u.id)}
                                 >
                                   <img
@@ -3365,7 +3388,9 @@ function HomePage() {
                                   />
                                   <div className="participant-info">
                                     <span className="participant-name">{u.displayName || 'Unknown'}</span>
-
+                                    {!u.auroryPlayerId && (
+                                      <span className="unlinked-label">⚠️ No Aurory account linked</span>
+                                    )}
                                   </div>
                                   <div className="plus-indicator">+</div>
                                 </div>
@@ -3648,6 +3673,16 @@ function HomePage() {
                               label = 'Match Refund (Draw)';
                               amountClass = 'positive';
                               break;
+                            case 'refund_pool':
+                              icon = '↩️';
+                              label = 'Tournament Refund';
+                              amountClass = 'positive';
+                              break;
+                            case 'entry_fee_refund':
+                              icon = '↩️';
+                              label = 'Entry Fee Refund';
+                              amountClass = 'positive';
+                              break;
                             default:
                               icon = '❓';
                               label = tx.type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown';
@@ -3663,7 +3698,7 @@ function HomePage() {
                                 {tx.reason && <span className="tx-reason">{tx.reason}</span>}
                               </div>
                               <div className={`tx-amount ${amountClass}`}>
-                                {(tx.type === 'deposit' || tx.type === 'withdrawal_rejected_refund') ? '+' : '-'}
+                                {amountClass === 'positive' ? '+' : '-'}
                                 {formatAuryAmount(tx.amount)} AURY
                               </div>
                             </div>

@@ -1729,11 +1729,21 @@
   color: var(--text-secondary);
   font-size: 0.82rem;
   line-height: 1.5;
-  margin: 0 0 14px 0;
+  margin: 0 0 8px 0;
   display: -webkit-box;
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.hosted-by {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tournament-details {
@@ -3397,6 +3407,17 @@
 .participant-email {
   font-size: 0.68rem;
   color: var(--text-muted);
+}
+
+.participant-item.unlinked-warning {
+  opacity: 0.6;
+}
+
+.unlinked-label {
+  display: block;
+  font-size: 0.65rem;
+  color: #fbbf24;
+  margin-top: 1px;
 }
 
 .plus-indicator {

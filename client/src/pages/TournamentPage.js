@@ -113,6 +113,7 @@ function TournamentPage() {
 
 
   // Participants selection state
+  // eslint-disable-next-line no-unused-vars
   const [selectedParticipants, setSelectedParticipants] = useState([]);
 
   // Roulette animation state
@@ -133,6 +134,12 @@ function TournamentPage() {
     timerSeconds: 0,
     manualTimerStart: false
   });
+
+  // Edit modal team assignment state (mirrors create modal)
+  const [editTeam1, setEditTeam1] = useState({ leader: null, member1: null, member2: null });
+  const [editTeam2, setEditTeam2] = useState({ leader: null, member1: null, member2: null });
+  const [editAssigningSlot, setEditAssigningSlot] = useState(null);
+  const [editParticipantSearchQuery, setEditParticipantSearchQuery] = useState('');
 
   // Lock confirmation modal state
   const [showLockConfirmation, setShowLockConfirmation] = useState(false);
@@ -939,7 +946,8 @@ function TournamentPage() {
 
             const updateData = {
               preAssignedTeams: updatedTeams,
-              [`permissions.${user.uid}`]: 'spectator', // Will be set to A/B when draft starts
+              // Preserve admin permission if the joiner is the creator
+              [`permissions.${user.uid}`]: data.createdBy === user.uid ? 'admin' : 'spectator',
               // Update team name for the slot
               [`teamNames.${slot}`]: joinerName,
               // Record entry paid
@@ -2429,6 +2437,7 @@ function TournamentPage() {
 
 
   // Toggle participant selection
+  // eslint-disable-next-line no-unused-vars
   const toggleParticipant = (userId) => {
     if (draftState.status !== 'waiting') return;
 
@@ -3095,6 +3104,98 @@ function TournamentPage() {
     return Object.keys(votes[team] || {}).length;
   };
 
+  // Edit modal helper: get user by ID
+  const editGetUserById = (userId) => {
+    return registeredUsers.find(u => u.id === userId || u.uid === userId);
+  };
+
+  // Edit modal helper: get all assigned participant IDs from edit team slots
+  const editGetAssignedParticipants = () => {
+    const assigned = [];
+    if (editTeam1.leader) assigned.push(editTeam1.leader);
+    if (editTeam1.member1) assigned.push(editTeam1.member1);
+    if (editTeam1.member2) assigned.push(editTeam1.member2);
+    if (editTeam2.leader) assigned.push(editTeam2.leader);
+    if (editTeam2.member1) assigned.push(editTeam2.member1);
+    if (editTeam2.member2) assigned.push(editTeam2.member2);
+    return assigned;
+  };
+
+  // Edit modal helper: assign a participant to a slot
+  const editAssignParticipant = (userId) => {
+    if (!editAssigningSlot) return;
+    const { team, roles, sessionRoles } = editAssigningSlot;
+
+    const targetUser = editGetUserById(userId);
+    if (!targetUser?.auroryPlayerId) {
+      showAlert('Error', 'This user has not linked an Aurory account and cannot participate in the draft.');
+      return;
+    }
+
+    const currentRole = roles[0];
+    if (team === 1) {
+      setEditTeam1(prev => ({ ...prev, [currentRole]: userId }));
+    } else {
+      setEditTeam2(prev => ({ ...prev, [currentRole]: userId }));
+    }
+
+    const remainingRoles = roles.slice(1);
+    if (remainingRoles.length > 0) {
+      setEditAssigningSlot({ team, roles: remainingRoles, sessionRoles });
+    } else {
+      setEditAssigningSlot(null);
+    }
+    setEditParticipantSearchQuery('');
+  };
+
+  // Edit modal helper: remove participant from a slot
+  const editRemoveFromSlot = (team, role) => {
+    if (team === 1) {
+      setEditTeam1(prev => ({ ...prev, [role]: null }));
+    } else {
+      setEditTeam2(prev => ({ ...prev, [role]: null }));
+    }
+  };
+
+  // Edit modal helper: deselect during flow
+  const editHandleDeselectDuringFlow = (role) => {
+    if (!editAssigningSlot) return;
+    const { team, roles, sessionRoles } = editAssigningSlot;
+
+    if (team === 1) {
+      setEditTeam1(prev => ({ ...prev, [role]: null }));
+    } else {
+      setEditTeam2(prev => ({ ...prev, [role]: null }));
+    }
+
+    if (sessionRoles.includes(role) && !roles.includes(role)) {
+      setEditAssigningSlot({ team, roles: [role, ...roles], sessionRoles });
+    }
+  };
+
+  // Edit modal helper: filtered users for search (exclude already assigned)
+  const editFilteredSearchUsers = registeredUsers.filter(u => {
+    if (isSuperAdmin(u.email) || u.role === 'admin') return false;
+    if (editGetAssignedParticipants().includes(u.id)) return false;
+
+    const searchLower = editParticipantSearchQuery.toLowerCase();
+    if (!searchLower) return true;
+    const nameMatch = u.displayName?.toLowerCase().includes(searchLower);
+    const emailMatch = u.email?.toLowerCase().includes(searchLower);
+    return nameMatch || emailMatch;
+  });
+
+  // Debounce search for edit modal participant search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (editParticipantSearchQuery && editParticipantSearchQuery.trim().length >= 2) {
+        searchUsers(editParticipantSearchQuery);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [editParticipantSearchQuery, searchUsers]);
+
   // Open edit tournament modal
   const openEditModal = () => {
     // Convert timerDuration to days/hours/minutes/seconds
@@ -3117,17 +3218,70 @@ function TournamentPage() {
       manualTimerStart: draftState.manualTimerStart || false
     });
 
-    // Pre-select current participants
-    const currentParticipants = Object.entries(draftState.permissions || {})
-      .filter(([uid, perm]) => perm === 'spectator' || perm === 'A' || perm === 'B')
-      .filter(([uid, perm]) => {
-        const userObj = registeredUsers.find(u => u.id === uid || u.uid === uid);
-        return userObj && !isSuperAdmin(userObj.email);
-      })
-      .map(([uid]) => uid);
-    setSelectedParticipants(currentParticipants);
+    // Prefill team slots from preAssignedTeams or permissions
+    const is1v1 = draftState.draftType === 'mode3' || draftState.draftType === 'mode4';
+    const preTeams = draftState.preAssignedTeams;
 
+    if (preTeams) {
+      setEditTeam1({
+        leader: preTeams.team1?.leader || null,
+        member1: preTeams.team1?.member1 || null,
+        member2: preTeams.team1?.member2 || null
+      });
+      setEditTeam2({
+        leader: preTeams.team2?.leader || null,
+        member1: preTeams.team2?.member1 || null,
+        member2: preTeams.team2?.member2 || null
+      });
+    } else {
+      // Fallback: derive from permissions
+      const teamAPlayers = Object.entries(draftState.permissions || {})
+        .filter(([, perm]) => perm === 'A')
+        .map(([uid]) => uid);
+      const teamBPlayers = Object.entries(draftState.permissions || {})
+        .filter(([, perm]) => perm === 'B')
+        .map(([uid]) => uid);
+
+      setEditTeam1({
+        leader: teamAPlayers[0] || null,
+        member1: is1v1 ? null : (teamAPlayers[1] || null),
+        member2: is1v1 ? null : (teamAPlayers[2] || null)
+      });
+      setEditTeam2({
+        leader: teamBPlayers[0] || null,
+        member1: is1v1 ? null : (teamBPlayers[1] || null),
+        member2: is1v1 ? null : (teamBPlayers[2] || null)
+      });
+    }
+
+    setEditAssigningSlot(null);
+    setEditParticipantSearchQuery('');
     setShowEditModal(true);
+
+    // Pre-fetch a batch of users so the participant list isn't empty
+    // This loads the most recent users to give an initial pool to pick from
+    (async () => {
+      try {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, orderBy('displayName'), limit(50));
+        const snapshot = await getDocs(q);
+        const fetchedUsers = snapshot.docs.map(doc => ({
+          uid: doc.id,
+          id: doc.id,
+          ...doc.data()
+        })).filter(u => u.email); // Only real users (not anonymous)
+
+        if (fetchedUsers.length > 0) {
+          setRegisteredUsers(prev => {
+            const combined = [...prev, ...fetchedUsers];
+            const unique = Array.from(new Map(combined.map(item => [item.uid, item])).values());
+            return unique;
+          });
+        }
+      } catch (error) {
+        console.error('Error pre-fetching users for edit modal:', error);
+      }
+    })();
   };
 
   // Save edited tournament
@@ -3151,35 +3305,70 @@ function TournamentPage() {
 
     const draftRef = doc(db, 'drafts', DRAFT_ID);
 
-    // Build updated permissions
-    const newPermissions = { ...draftState.permissions };
+    // Build permissions from team slots
+    const newPermissions = {};
 
-    // Remove participants who are no longer selected (except admins)
-    Object.keys(newPermissions).forEach(uid => {
-      if (newPermissions[uid] !== 'admin' && !selectedParticipants.includes(uid)) {
-        delete newPermissions[uid];
+    // Preserve admin permissions
+    Object.entries(draftState.permissions || {}).forEach(([uid, perm]) => {
+      if (perm === 'admin') {
+        newPermissions[uid] = 'admin';
       }
     });
 
-    // Add newly selected participants
-    selectedParticipants.forEach(uid => {
+    // Add team slot participants as spectators (will be assigned A/B at game start)
+    const assignedFromSlots = editGetAssignedParticipants();
+    assignedFromSlots.forEach(uid => {
       if (!newPermissions[uid]) {
         newPermissions[uid] = 'spectator';
       }
     });
 
-    await updateDoc(draftRef, {
-      title: editTournament.title.trim(),
-      description: editTournament.description.trim(),
-      prizePool: editTournament.prizePool.trim(),
-      draftType: editTournament.draftType,
-      timerDuration: timerMs,
-      manualTimerStart: editTournament.manualTimerStart,
-      permissions: newPermissions
-    });
+    // Build preAssignedTeams
+    const preAssignedTeams = {
+      team1: {
+        leader: editTeam1.leader || null,
+        member1: editTeam1.member1 || null,
+        member2: editTeam1.member2 || null
+      },
+      team2: {
+        leader: editTeam2.leader || null,
+        member1: editTeam2.member1 || null,
+        member2: editTeam2.member2 || null
+      }
+    };
 
-    setShowEditModal(false);
-    showAlert('Success', 'Tournament settings updated successfully!');
+    // Rebuild teamNames and leaderNames from new leaders
+    const team1LeaderUser = editTeam1.leader ? editGetUserById(editTeam1.leader) : null;
+    const team2LeaderUser = editTeam2.leader ? editGetUserById(editTeam2.leader) : null;
+
+    const teamNames = {
+      team1: team1LeaderUser?.auroryPlayerName || team1LeaderUser?.displayName || team1LeaderUser?.username || 'Open Slot',
+      team2: team2LeaderUser?.auroryPlayerName || team2LeaderUser?.displayName || team2LeaderUser?.username || 'Open Slot',
+    };
+    const leaderNames = {
+      team1: team1LeaderUser?.auroryPlayerName || team1LeaderUser?.displayName || 'Open Slot',
+      team2: team2LeaderUser?.auroryPlayerName || team2LeaderUser?.displayName || 'Open Slot',
+    };
+
+    try {
+      await updateDoc(draftRef, {
+        title: editTournament.title.trim(),
+        description: editTournament.description.trim(),
+        draftType: editTournament.draftType,
+        timerDuration: timerMs,
+        manualTimerStart: editTournament.manualTimerStart,
+        permissions: newPermissions,
+        preAssignedTeams: preAssignedTeams,
+        teamNames: teamNames,
+        leaderNames: leaderNames
+      });
+
+      setShowEditModal(false);
+      showAlert('Success', 'Tournament settings updated successfully!');
+    } catch (error) {
+      console.error('Error saving edited tournament:', error);
+      showAlert('Error', 'Failed to save changes: ' + error.message);
+    }
   };
 
 
@@ -3436,6 +3625,7 @@ function TournamentPage() {
     return () => clearTimeout(timer);
   }, [searchQuery, searchUsers]);
 
+  // eslint-disable-next-line no-unused-vars
   const filteredUsers = registeredUsers.filter(u => {
     // Exclude super admin from participants list
     if (isSuperAdmin(u.email)) return false;
@@ -3619,7 +3809,7 @@ function TournamentPage() {
                     userPermission === 'A' ? `team-${draftState.teamColors?.teamA || 'blue'}` :
                       userPermission === 'B' ? `team-${draftState.teamColors?.teamB || 'red'}` : ''}`}>
                   {isSuperAdmin(getUserEmail(user)) ? '⭐ Super Admin' :
-                    userPermission === 'admin' ? '👑 Admin' :
+                    userPermission === 'admin' ? '👑 Host' :
                       userPermission === 'A' ? `${draftState.teamColors?.teamA === 'blue' ? '🔵' : '🔴'} ${getUserDisplayName(user)}` :
                         userPermission === 'B' ? `${draftState.teamColors?.teamB === 'blue' ? '🔵' : '🔴'} ${getUserDisplayName(user)}` : ''}
                   {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder" style={{ marginLeft: '4px' }}>🛡️</span>}
@@ -4090,12 +4280,10 @@ function TournamentPage() {
                       </button>
                     )}
 
-                    {/* Edit Tournament - Hidden for 1v1 modes */}
-                    {!['mode3', 'mode4'].includes(draftState.draftType) && (
-                      <button onClick={openEditModal} className="action-btn edit">
-                        ✏️ Edit Tournament
-                      </button>
-                    )}
+                    {/* Edit Tournament */}
+                    <button onClick={openEditModal} className="action-btn edit">
+                      ✏️ Edit Tournament
+                    </button>
 
                     {/* Reset Tournament - Hidden for 1v1 modes */}
                     {!['mode3', 'mode4'].includes(draftState.draftType) && (
@@ -4930,9 +5118,12 @@ function TournamentPage() {
                       type="text"
                       placeholder="e.g. $1,000 or 10,000 AURY"
                       value={editTournament.prizePool}
-                      onChange={(e) => setEditTournament({ ...editTournament, prizePool: e.target.value })}
                       className="form-input"
+                      disabled
                     />
+                    <span className="input-hint warning">
+                      🔒 Prize pool cannot be changed after creation
+                    </span>
                   </div>
 
                   {/* Draft Type Dropdown */}
@@ -5013,45 +5204,242 @@ function TournamentPage() {
                     </label>
                   </div>
 
-                  {/* Participants Selection in Edit Modal */}
-                  <div className="form-group participants-section">
-                    <label>Participants ({selectedParticipants.length} selected)</label>
-                    <input
-                      type="text"
-                      placeholder="Search users..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="form-input search-input"
-                    />
-                    <div className="participants-list">
-                      {filteredUsers.length === 0 ? (
-                        <p className="no-users">No users found</p>
-                      ) : (
-                        filteredUsers.map(u => {
-                          const isSelected = selectedParticipants.includes(u.uid);
-                          return (
-                            <div
-                              key={u.uid}
-                              className={`participant-item ${isSelected ? 'selected' : ''}`}
-                              onClick={() => toggleParticipant(u.uid)}
-                            >
+                  {/* Team Assignment Section (mirrors create modal) */}
+                  <div className="form-group team-assignment-section">
+                    <label>
+                      {(editTournament.draftType === 'mode3' || editTournament.draftType === 'mode4')
+                        ? `Assign Players (${editGetAssignedParticipants().length}/2)`
+                        : `Assign Teams (${editGetAssignedParticipants().length}/6 assigned)`}
+                    </label>
+                    {(editTournament.draftType === 'mode3' || editTournament.draftType === 'mode4') && (
+                      <p className="field-hint">Leave slots open for anyone to join, or assign specific players.</p>
+                    )}
+
+                    <div className="teams-container">
+                      {/* Team 1 */}
+                      <div className="team-assignment-panel team-1">
+                        <div className="team-header-editable">
+                          <span className="team-color-badge blue">🔵</span>
+                          <span className="team-name-static">
+                            {(editTournament.draftType === 'mode3' || editTournament.draftType === 'mode4') ? 'Player 1' : 'Team 1'}
+                          </span>
+                        </div>
+
+                        {/* Leader Slot */}
+                        <div className="assignment-slot">
+                          <span className="slot-label">{(editTournament.draftType === 'mode3' || editTournament.draftType === 'mode4') ? '👤 Player' : '👑 Leader'}</span>
+                          {editTeam1.leader ? (
+                            <div className="assigned-user">
                               <img
-                                src={u.auroryProfilePicture || (u.photoURL && u.photoURL !== '' ? u.photoURL : 'https://cdn.discordapp.com/embed/avatars/0.png')}
-                                alt={u.displayName}
-                                className="participant-avatar"
+                                src={editGetUserById(editTeam1.leader)?.auroryProfilePicture || editGetUserById(editTeam1.leader)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                alt=""
                                 onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                               />
-                              <div className="participant-info">
-                                <span className="participant-name">{u.displayName || 'Unknown'}{u.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}</span>
+                              <span>{editGetUserById(editTeam1.leader)?.displayName || 'Unknown'}</span>
+                              <button className="remove-btn" onClick={() => editRemoveFromSlot(1, 'leader')}>✖</button>
+                            </div>
+                          ) : (
+                            <button
+                              className={`assign-btn ${editAssigningSlot?.team === 1 && editAssigningSlot?.roles?.includes('leader') ? 'active' : ''}`}
+                              onClick={() => setEditAssigningSlot({ team: 1, roles: ['leader'], sessionRoles: ['leader'] })}
+                            >
+                              {(editTournament.draftType === 'mode3' || editTournament.draftType === 'mode4') ? '+ Select Player' : '+ Assign Leader'}
+                            </button>
+                          )}
+                        </div>
+
+                        {(editTournament.draftType !== 'mode3' && editTournament.draftType !== 'mode4') && (
+                          <div className="assignment-slot members-slot">
+                            <span className="slot-label">👤 Members (2)</span>
+                            {editTeam1.member1 && editTeam1.member2 ? (
+                              <div className="assigned-members-group">
+                                <div className="assigned-user mini">
+                                  <img
+                                    src={editGetUserById(editTeam1.member1)?.auroryProfilePicture || editGetUserById(editTeam1.member1)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                    alt=""
+                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                                  />
+                                  <span className="mini-name">{editGetUserById(editTeam1.member1)?.displayName || 'Unknown'}</span>
+                                </div>
+                                <div className="assigned-user mini">
+                                  <img
+                                    src={editGetUserById(editTeam1.member2)?.auroryProfilePicture || editGetUserById(editTeam1.member2)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                    alt=""
+                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                                  />
+                                  <span className="mini-name">{editGetUserById(editTeam1.member2)?.displayName || 'Unknown'}</span>
+                                  <button className="remove-btn" onClick={() => { editRemoveFromSlot(1, 'member1'); editRemoveFromSlot(1, 'member2'); }}>✖</button>
+                                </div>
                               </div>
-                              <span className="participant-check">
-                                {isSelected ? '✓' : ''}
+                            ) : (
+                              <button
+                                className="assign-bulk-btn"
+                                onClick={() => setEditAssigningSlot({ team: 1, roles: ['member1', 'member2'], sessionRoles: ['member1', 'member2'] })}
+                              >
+                                + Select 2 Members
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Team 2 */}
+                      <div className="team-assignment-panel team-2">
+                        <div className="team-header-editable">
+                          <span className="team-color-badge red">🔴</span>
+                          <span className="team-name-static">
+                            {(editTournament.draftType === 'mode3' || editTournament.draftType === 'mode4') ? 'Player 2' : 'Team 2'}
+                          </span>
+                        </div>
+
+                        {/* Leader Slot */}
+                        <div className="assignment-slot">
+                          <span className="slot-label">{(editTournament.draftType === 'mode3' || editTournament.draftType === 'mode4') ? '👤 Player' : '👑 Leader'}</span>
+                          {editTeam2.leader ? (
+                            <div className="assigned-user">
+                              <img
+                                src={editGetUserById(editTeam2.leader)?.auroryProfilePicture || editGetUserById(editTeam2.leader)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                alt=""
+                                onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                              />
+                              <span>{editGetUserById(editTeam2.leader)?.displayName || 'Unknown'}</span>
+                              <button className="remove-btn" onClick={() => editRemoveFromSlot(2, 'leader')}>✖</button>
+                            </div>
+                          ) : (
+                            <button
+                              className={`assign-btn ${editAssigningSlot?.team === 2 && editAssigningSlot?.roles?.includes('leader') ? 'active' : ''}`}
+                              onClick={() => setEditAssigningSlot({ team: 2, roles: ['leader'], sessionRoles: ['leader'] })}
+                            >
+                              {(editTournament.draftType === 'mode3' || editTournament.draftType === 'mode4') ? '+ Select Player' : '+ Assign Leader'}
+                            </button>
+                          )}
+                        </div>
+
+                        {(editTournament.draftType !== 'mode3' && editTournament.draftType !== 'mode4') && (
+                          <div className="assignment-slot members-slot">
+                            <span className="slot-label">👤 Members (2)</span>
+                            {editTeam2.member1 && editTeam2.member2 ? (
+                              <div className="assigned-members-group">
+                                <div className="assigned-user mini">
+                                  <img
+                                    src={editGetUserById(editTeam2.member1)?.auroryProfilePicture || editGetUserById(editTeam2.member1)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                    alt=""
+                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                                  />
+                                  <span className="mini-name">{editGetUserById(editTeam2.member1)?.displayName || 'Unknown'}</span>
+                                </div>
+                                <div className="assigned-user mini">
+                                  <img
+                                    src={editGetUserById(editTeam2.member2)?.auroryProfilePicture || editGetUserById(editTeam2.member2)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                    alt=""
+                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                                  />
+                                  <span className="mini-name">{editGetUserById(editTeam2.member2)?.displayName || 'Unknown'}</span>
+                                  <button className="remove-btn" onClick={() => { editRemoveFromSlot(2, 'member1'); editRemoveFromSlot(2, 'member2'); }}>✖</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                className="assign-bulk-btn"
+                                onClick={() => setEditAssigningSlot({ team: 2, roles: ['member1', 'member2'], sessionRoles: ['member1', 'member2'] })}
+                              >
+                                + Select 2 Members
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Participant Selection Modal Overlay */}
+                    {editAssigningSlot && (
+                      <div className="modal-overlay selection-overlay">
+                        <div className="participant-selection-modal">
+                          <div className="modal-header">
+                            <div className="selection-title-group">
+                              <h3>👥 Select {(editTournament.draftType === 'mode3' || editTournament.draftType === 'mode4') ? `Player ${editAssigningSlot.team}` : `Team ${editAssigningSlot.team} ${editAssigningSlot.sessionRoles.length > 1 ? 'Members' : 'Leader'}`}</h3>
+                              <span className="selection-progress-badge">
+                                {editAssigningSlot.roles.length === 2 ? 'Step 1/2' : editAssigningSlot.roles.length === 1 && editAssigningSlot.sessionRoles.length === 2 ? 'Step 2/2' : 'Assigning Slot'}
                               </span>
                             </div>
-                          );
-                        })
-                      )}
-                    </div>
+                            <button className="close-modal" onClick={() => setEditAssigningSlot(null)}>✖</button>
+                          </div>
+
+                          <div className="selection-search-container">
+                            <input
+                              type="text"
+                              placeholder="Search by name or email..."
+                              value={editParticipantSearchQuery}
+                              onChange={(e) => setEditParticipantSearchQuery(e.target.value)}
+                              className="form-input selection-search-input"
+                              autoFocus
+                            />
+                          </div>
+
+                          <div className="selection-modal-content">
+                            <div className="participants-list">
+                              {/* Show current selections at the top */}
+                              {editAssigningSlot.sessionRoles.filter(r => !editAssigningSlot.roles.includes(r)).map(role => {
+                                const assignedUserId = (editAssigningSlot.team === 1 ? editTeam1 : editTeam2)[role];
+                                const u = editGetUserById(assignedUserId);
+                                if (!u) return null;
+                                return (
+                                  <div key={role} className="participant-item selection-active sticky-selection">
+                                    <img
+                                      src={u.auroryProfilePicture || u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                      alt=""
+                                      className="participant-avatar"
+                                      onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                                    />
+                                    <div className="participant-info">
+                                      <span className="participant-name">{u.displayName}</span>
+                                      <span className="participant-email">
+                                        {(editTournament.draftType === 'mode3' || editTournament.draftType === 'mode4') ? 'Participant' : `Selected as ${role === 'leader' ? 'Leader' : role === 'member1' ? 'Member 1' : 'Member 2'}`}
+                                      </span>
+                                    </div>
+                                    <button className="deselect-circle-btn" onClick={() => editHandleDeselectDuringFlow(role)}>✖</button>
+                                  </div>
+                                );
+                              })}
+
+                              <div className="selection-divider">
+                                <span>Available Participants</span>
+                              </div>
+
+                              {editFilteredSearchUsers.length === 0 ? (
+                                <div className="no-users-container">
+                                  <p className="no-users">No available users found matching "{editParticipantSearchQuery}"</p>
+                                  <button className="clear-search-btn" onClick={() => setEditParticipantSearchQuery('')}>Clear Search</button>
+                                </div>
+                              ) : (
+                                editFilteredSearchUsers.map(u => (
+                                  <div
+                                    key={u.id}
+                                    className={`participant-item hoverable ${!u.auroryPlayerId ? 'unlinked-warning' : ''}`}
+                                    onClick={() => editAssignParticipant(u.id)}
+                                  >
+                                    <img
+                                      src={u.auroryProfilePicture || u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                      alt={u.displayName}
+                                      className="participant-avatar"
+                                      onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                                    />
+                                    <div className="participant-info">
+                                      <span className="participant-name">{u.displayName || 'Unknown'}</span>
+                                      {!u.auroryPlayerId && (
+                                        <span className="unlinked-label">⚠️ No Aurory account linked</span>
+                                      )}
+                                    </div>
+                                    <div className="plus-indicator">+</div>
+                                  </div>
+                                ))
+
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 

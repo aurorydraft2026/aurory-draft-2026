@@ -6,8 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   validateAuroryAccount,
   linkAuroryAccount,
-  getLinkedAuroryAccount,
-  clearCache
+  getLinkedAuroryAccount
 } from '../services/auroryProfileService';
 
 // ============================================================================

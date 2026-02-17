@@ -3,7 +3,7 @@
 // Uses Cloud Functions proxy to call /v1/matches global endpoint
 
 import {
-  doc, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs
+  doc, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, limit
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { auroryFetch } from './auroryProxyClient';
@@ -141,7 +141,14 @@ export async function verifySingleBattle(battleConfig) {
   } else {
     // Both lineups valid — use actual game result
     status = 'verified';
-    winner = playerAOutcome === 'win' ? 'A' : 'B';
+    if (playerAOutcome === 'win') {
+      winner = 'A';
+    } else if (playerBOutcome === 'win') {
+      winner = 'B';
+    } else {
+      // Neither player has 'win' outcome (draw/tie/API anomaly)
+      winner = 'draw';
+    }
     disqualificationReason = null;
   }
 
@@ -401,7 +408,8 @@ export async function fetchVerifiedMatches(limitCount = 50, modeFilter = null) {
     // Simple query - just filter by verificationStatus (no compound index needed)
     const q = query(
       draftsRef,
-      where('verificationStatus', 'in', ['complete', 'partial'])
+      where('verificationStatus', 'in', ['complete', 'partial']),
+      limit(limitCount)
     );
 
     const snapshot = await getDocs(q);

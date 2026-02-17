@@ -1656,6 +1656,17 @@
   text-align: center;
 }
 
+.participant-item.unlinked-warning {
+  opacity: 0.6;
+}
+
+.unlinked-label {
+  display: block;
+  font-size: 10px;
+  color: var(--warning, #fbbf24);
+  margin-top: 2px;
+}
+
 /* Modal Footer */
 .modal-footer {
   display: flex;

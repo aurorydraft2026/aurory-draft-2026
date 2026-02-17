@@ -39,12 +39,10 @@ export async function processActiveTimers(): Promise<number> {
   }
 
   // ─── 2. Check drafts in preparation phase (1.5s delay between turns) ───
-  const prepDrafts = await db.collection('drafts')
-    .where('status', '==', 'active')
-    .where('inPreparation', '==', true)
-    .get();
+  // Reuse the activeDrafts snapshot to avoid a redundant Firestore query
+  const prepDocs = activeDrafts.docs.filter(d => d.data().inPreparation === true);
 
-  for (const doc of prepDrafts.docs) {
+  for (const doc of prepDocs) {
     try {
       const changed = await checkPreparationPhase(doc.id, doc.data());
       if (changed) processed++;

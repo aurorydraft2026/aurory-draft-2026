@@ -85,10 +85,11 @@ export const verifyMatches = onSchedule(
 // ─── 4. ADMIN OPERATIONS ───
 // Manual triggers for admins (e.g. payout retry)
 import { manualPayout, cleanupInactiveGuests } from './adminOps';
-exports.manualPayout = manualPayout;
-exports.cleanupInactiveGuests = cleanupInactiveGuests;
+export { manualPayout, cleanupInactiveGuests };
 
 // ─── 5. REFUNDS ───
-// Refund creator when a paid 1v1 tournament is deleted
-import { onTournamentDeleted } from './refunds';
+// Refund creator when a paid 1v1 tournament is deleted or updated
+import { onTournamentDeleted, onTournamentUpdated } from './refunds';
 export const tournamentRefund = onTournamentDeleted;
+export const tournamentUpdateRefund = onTournamentUpdated;
+

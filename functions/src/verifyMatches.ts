@@ -22,6 +22,7 @@ export async function scanAndVerifyDrafts(): Promise<number> {
   // Find completed drafts that aren't fully verified
   const snapshot = await db.collection('drafts')
     .where('status', '==', 'completed')
+    .limit(100)
     .get();
 
   for (const doc of snapshot.docs) {
@@ -109,7 +110,16 @@ export async function scanAndVerifyDrafts(): Promise<number> {
 
           // Process payouts for fully verified 1v1 matches
           if (verificationData.allVerified && verificationData.overallWinner) {
-            await processPayouts(draftId, data, verificationData.overallWinner);
+            // Re-read fresh draft data to avoid stale poolAmount/leader values
+            const freshDoc = await doc.ref.get();
+            const freshData = freshDoc.data() || data;
+
+            if (verificationData.overallWinner === 'draw' || verificationData.overallWinner === 'both_disqualified') {
+              // Draw or both disqualified → refund entry fees
+              await processRefund(draftId, freshData);
+            } else {
+              await processPayouts(draftId, freshData, verificationData.overallWinner);
+            }
           }
         } else {
           // Update timestamp to throttle retries
@@ -333,6 +343,12 @@ async function processRefund(draftId: string, draftData: any): Promise<void> {
             balance: balance + (amount as number),
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
+        } else {
+          // Create wallet for user who doesn't have one yet
+          tx.set(walletRef, {
+            balance: amount as number,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
         }
 
         const refundTxRef = db.collection(`wallets/${uid}/transactions`).doc();
@@ -443,7 +459,14 @@ async function verifySingleBattle(config: any): Promise<any> {
     disqualificationReason = `${playerBName} used different Amikos than drafted.`;
   } else {
     status = 'verified';
-    winner = playerAOutcome === 'win' ? 'A' : 'B';
+    if (playerAOutcome === 'win') {
+      winner = 'A';
+    } else if (playerBOutcome === 'win') {
+      winner = 'B';
+    } else {
+      // Neither player has 'win' outcome (draw/tie/API anomaly)
+      winner = 'draw';
+    }
     disqualificationReason = null;
   }
 
@@ -566,8 +589,16 @@ async function verifyDraftBattles(draftData: any): Promise<any> {
     const teamBWins = results.filter((r: any) => r.winner === 'B').length;
 
     if (draftType === 'mode3' || draftType === 'mode4') {
-      overallWinner = results[0]?.winner || null;
-      score = overallWinner === 'A' ? '1-0' : overallWinner === 'B' ? '0-1' : null;
+      // 1v1: single battle
+      const singleWinner = results[0]?.winner || null;
+      if (singleWinner === null) {
+        // both_disqualified — treat as refund-worthy
+        overallWinner = 'both_disqualified';
+        score = '0-0';
+      } else {
+        overallWinner = singleWinner;
+        score = overallWinner === 'A' ? '1-0' : overallWinner === 'B' ? '0-1' : '0-0';
+      }
     } else {
       score = `${teamAWins}-${teamBWins}`;
       overallWinner = teamAWins > teamBWins ? 'A' : teamBWins > teamAWins ? 'B' : 'draw';

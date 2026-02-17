@@ -37,7 +37,8 @@ export const onTournamentDeleted = functions.firestore
         // 2. Prepare Refunds
         const refunds: { [uid: string]: number } = {};
 
-        // Check entryPaid map for all payers
+        // Check entryPaid map for all payers — this is the source of truth
+        // Only users who actually paid (recorded in entryPaid) should be refunded
         if (data.entryPaid && typeof data.entryPaid === 'object') {
             for (const [uid, amount] of Object.entries(data.entryPaid)) {
                 if (typeof amount === 'number' && amount > 0) {
@@ -46,26 +47,8 @@ export const onTournamentDeleted = functions.firestore
             }
         }
 
-        // Fallback for creator if no refunds found yet
         if (Object.keys(refunds).length === 0) {
-            const creatorId = data.createdBy;
-            if (creatorId) {
-                const poolAmount = data.poolAmount || 0;
-                const entryFee = data.entryFee || 0;
-                let fallbackAmount = 0;
-
-                if (poolAmount > 0) {
-                    fallbackAmount = (entryFee === 0) ? poolAmount : entryFee;
-                }
-
-                if (fallbackAmount > 0) {
-                    refunds[creatorId] = fallbackAmount;
-                }
-            }
-        }
-
-        if (Object.keys(refunds).length === 0) {
-            console.log(`Draft ${draftId} deleted, but no refunds applicable.`);
+            console.log(`Draft ${draftId} deleted, but no refunds applicable (no entryPaid records).`);
             return;
         }
 
@@ -109,5 +92,119 @@ export const onTournamentDeleted = functions.firestore
             console.log(`Successfully processed all refunds for draft ${draftId}`);
         } catch (error) {
             console.error(`Failed to process refunds for draft ${draftId}:`, error);
+        }
+    });
+
+/**
+ * Trigger: When a draft document is updated
+ * Goal: Refund players who were removed from slots but had already paid.
+ */
+export const onTournamentUpdated = functions.firestore
+    .document('drafts/{draftId}')
+    .onUpdate(async (change, context) => {
+        const before = change.before.data();
+        const after = change.after.data();
+        const draftId = context.params.draftId;
+
+        if (!before || !after) return;
+
+        // Only process refunds in 'waiting' status
+        if (after.status !== 'waiting') return;
+
+        // 1. Identify assigned players in the BEFORE snapshot
+        const beforeAssigned = new Set<string>();
+        if (before.preAssignedTeams) {
+            ['team1', 'team2'].forEach(teamKey => {
+                const team = before.preAssignedTeams[teamKey];
+                if (team) {
+                    ['leader', 'member1', 'member2'].forEach(role => {
+                        if (team[role]) beforeAssigned.add(team[role]);
+                    });
+                }
+            });
+        }
+
+        // 2. Identify assigned players in the AFTER snapshot
+        const afterAssigned = new Set<string>();
+        if (after.preAssignedTeams) {
+            ['team1', 'team2'].forEach(teamKey => {
+                const team = after.preAssignedTeams[teamKey];
+                if (team) {
+                    ['leader', 'member1', 'member2'].forEach(role => {
+                        if (team[role]) afterAssigned.add(team[role]);
+                    });
+                }
+            });
+        }
+
+        // 3. Check for players in entryPaid who were REMOVED from slots
+        const refundsToProcess: { [uid: string]: number } = {};
+        if (after.entryPaid && typeof after.entryPaid === 'object') {
+            for (const [uid, amount] of Object.entries(after.entryPaid)) {
+                // ONLY refund if they were assigned before AND are NOT assigned now
+                // This prevents sponsored creators (who paid but are not in slots) from getting incidental refunds on edit.
+                if (typeof amount === 'number' && amount > 0 && beforeAssigned.has(uid) && !afterAssigned.has(uid)) {
+                    refundsToProcess[uid] = amount;
+                }
+            }
+        }
+
+        if (Object.keys(refundsToProcess).length === 0) return;
+
+        console.log(`Processing removal refunds for draft ${draftId}:`, refundsToProcess);
+
+        try {
+            await admin.firestore().runTransaction(async (transaction) => {
+                // Re-read draft to ensure we have latest entryPaid status
+                const draftRef = admin.firestore().collection('drafts').doc(draftId);
+                const draftDoc = await transaction.get(draftRef);
+                if (!draftDoc.exists) return;
+
+                const currentData = draftDoc.data() || {};
+                const currentPaid = currentData.entryPaid || {};
+                const updateData: any = {};
+
+                for (const [uid, amount] of Object.entries(refundsToProcess)) {
+                    // Double check in transaction
+                    if (currentPaid[uid] !== amount) continue;
+
+                    const walletRef = admin.firestore().collection('wallets').doc(uid);
+                    const walletDoc = await transaction.get(walletRef);
+
+                    if (!walletDoc.exists) {
+                        console.warn(`Wallet for user ${uid} not found. Skipping.`);
+                        continue;
+                    }
+
+                    const currentBalance = walletDoc.data()?.balance || 0;
+
+                    // Credit balance
+                    transaction.update(walletRef, {
+                        balance: currentBalance + amount,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    // Create transaction record
+                    const txRef = walletRef.collection('transactions').doc();
+                    transaction.set(txRef, {
+                        type: 'entry_fee_refund',
+                        amount: amount,
+                        draftId: draftId,
+                        draftTitle: currentData.title || 'Tournament Refund',
+                        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                        note: 'Refunded for removal from tournament'
+                    });
+
+                    // Clear entryPaid for this user
+                    updateData[`entryPaid.${uid}`] = 0;
+                }
+
+                if (Object.keys(updateData).length > 0) {
+                    transaction.update(draftRef, updateData);
+                }
+            });
+            console.log(`Successfully processed removal refunds for draft ${draftId}`);
+        } catch (error) {
+            console.error(`Failed to process removal refunds for draft ${draftId}:`, error);
         }
     });
