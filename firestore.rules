@@ -324,6 +324,21 @@ service cloud.firestore {
     }
 
     // =============================================
+    // NEWS
+    // =============================================
+    match /news/{newsId} {
+      // Anyone can read news
+      allow read: if true;
+      
+      // Only admins can create news
+      allow create: if isAdmin();
+      
+      // Admins can update/delete their own news, Super Admins can update/delete any
+      allow update, delete: if isSuperAdmin() || 
+                               (isAdmin() && resource.data.authorUid == request.auth.uid);
+    }
+
+    // =============================================
     // ACTIVITY LOGS
     // =============================================
     match /activity_logs/{logId} {

@@ -129,6 +129,13 @@ function AdminPanel() {
   const [bannerInstagram, setBannerInstagram] = useState('');
   const [bannerYoutube, setBannerYoutube] = useState('');
 
+  // News management state
+  const [news, setNews] = useState([]);
+  const [newsTitle, setNewsTitle] = useState('');
+  const [newsDescription, setNewsDescription] = useState('');
+  const [newsBanner, setNewsBanner] = useState('');
+  const [editingNewsId, setEditingNewsId] = useState(null);
+
   // Handle image upload to Base64
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -382,6 +389,24 @@ function AdminPanel() {
     return () => unsubscribe();
   }, [isAdmin]);
 
+  // Fetch News
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const newsRef = collection(db, 'news');
+    const q = query(newsRef, orderBy('createdAt', 'desc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const newsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setNews(newsData);
+    });
+
+    return () => unsubscribe();
+  }, [isAdmin]);
+
   // Fetch History (processed withdrawals and deposits)
   useEffect(() => {
     if (!isAdmin || activeTab !== 'history') return;
@@ -445,6 +470,102 @@ function AdminPanel() {
       return () => unsubscribe();
     }
   }, [activeTab]);
+
+  // News management functions
+  const handleSaveNews = async () => {
+    if (!newsTitle) return alert('News title is required');
+    if (!newsDescription) return alert('News description is required');
+    if (!newsBanner) return alert('News banner is required');
+
+    setProcessingId('news');
+    try {
+      const newsData = {
+        title: newsTitle,
+        description: newsDescription,
+        banner: newsBanner,
+        authorName: user.auroryPlayerName || user.displayName || 'Admin',
+        authorUid: user.uid,
+        updatedAt: serverTimestamp()
+      };
+
+      if (editingNewsId) {
+        const newsRef = doc(db, 'news', editingNewsId);
+        await updateDoc(newsRef, newsData);
+        alert('News post updated successfully!');
+
+        logActivity({
+          user,
+          type: 'ADMIN',
+          action: 'update_news',
+          metadata: { newsId: editingNewsId, title: newsTitle }
+        });
+      } else {
+        await addDoc(collection(db, 'news'), {
+          ...newsData,
+          createdAt: serverTimestamp()
+        });
+        alert('News post added successfully!');
+
+        logActivity({
+          user,
+          type: 'ADMIN',
+          action: 'create_news',
+          metadata: { title: newsTitle }
+        });
+      }
+
+      resetNewsForm();
+    } catch (error) {
+      console.error('Error saving news:', error);
+      alert('Error saving news: ' + error.message);
+    }
+    setProcessingId(null);
+  };
+
+  const resetNewsForm = () => {
+    setNewsTitle('');
+    setNewsDescription('');
+    setNewsBanner('');
+    setEditingNewsId(null);
+  };
+
+  const handleEditNews = (post) => {
+    setNewsTitle(post.title || '');
+    setNewsDescription(post.description || '');
+    setNewsBanner(post.banner || '');
+    setEditingNewsId(post.id);
+
+    // Scroll to form
+    const formElement = document.querySelector('.news-form-card');
+    if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleDeleteNews = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this news post?')) return;
+
+    try {
+      await deleteDoc(doc(db, 'news', id));
+      alert('News post deleted!');
+    } catch (error) {
+      console.error('Error deleting news:', error);
+      alert('Error deleting news: ' + error.message);
+    }
+  };
+
+  const handleNewsBannerUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 1024 * 1024) { // 1MB limit for Firestore
+        alert('Image too large. Please use an image under 1MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewsBanner(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSaveBanner = async () => {
     if (!bannerTitle) return alert('Banner title is required');
@@ -1482,6 +1603,12 @@ function AdminPanel() {
               >
                 🎊 Ticker Announcements
               </button>
+              <button
+                className={`admin-tab ${activeTab === 'news' ? 'active' : ''}`}
+                onClick={() => setActiveTab('news')}
+              >
+                📰 News
+              </button>
             </div>
           </div>
 
@@ -1876,6 +2003,154 @@ function AdminPanel() {
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'news' && (
+            <div className="news-management">
+              <h2>📰 News & Blog Management</h2>
+
+              <div className={`news-form-card card ${editingNewsId ? 'editing-mode' : ''}`}>
+                <h3>{editingNewsId ? 'Edit News Post' : 'Create New News Post'}</h3>
+                <div className="news-form">
+                  <div className="form-group">
+                    <label>Title</label>
+                    <input
+                      type="text"
+                      value={newsTitle}
+                      onChange={(e) => setNewsTitle(e.target.value)}
+                      placeholder="Enter a catchy title..."
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Banner Image (Square Recommended)</label>
+                    <div className="image-input-container">
+                      <input
+                        type="text"
+                        value={newsBanner}
+                        onChange={(e) => setNewsBanner(e.target.value)}
+                        placeholder="Image URL or upload below..."
+                        className="flex-1"
+                      />
+                      <div className="file-upload-wrapper">
+                        <label className="upload-btn">
+                          Upload Banner
+                          <input type="file" accept="image/*" onChange={handleNewsBannerUpload} style={{ display: 'none' }} />
+                        </label>
+                      </div>
+                    </div>
+                    {newsBanner && (
+                      <div className="image-preview-mini">
+                        <img src={newsBanner} alt="Banner Preview" style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '8px' }} />
+                        <button onClick={() => setNewsBanner('')} type="button">Remove</button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="form-group">
+                    <label>Description (Rich Text)</label>
+                    <div className="rich-text-toolbar">
+                      <button
+                        type="button"
+                        title="Bold"
+                        onClick={() => {
+                          const textArea = document.getElementById('news-description');
+                          const start = textArea.selectionStart;
+                          const end = textArea.selectionEnd;
+                          const text = textArea.value;
+                          const before = text.substring(0, start);
+                          const selected = text.substring(start, end);
+                          const after = text.substring(end);
+                          setNewsDescription(before + '**' + selected + '**' + after);
+                        }}
+                      ><strong>B</strong></button>
+                      <button
+                        type="button"
+                        title="Italic"
+                        onClick={() => {
+                          const textArea = document.getElementById('news-description');
+                          const start = textArea.selectionStart;
+                          const end = textArea.selectionEnd;
+                          const text = textArea.value;
+                          const before = text.substring(0, start);
+                          const selected = text.substring(start, end);
+                          const after = text.substring(end);
+                          setNewsDescription(before + '_' + selected + '_' + after);
+                        }}
+                      ><em>I</em></button>
+                      <button
+                        type="button"
+                        title="Add Link"
+                        onClick={() => {
+                          const url = prompt('Enter URL:');
+                          if (url) {
+                            const textArea = document.getElementById('news-description');
+                            const start = textArea.selectionStart;
+                            const end = textArea.selectionEnd;
+                            const text = textArea.value;
+                            const before = text.substring(0, start);
+                            const selected = text.substring(start, end) || 'link text';
+                            const after = text.substring(end);
+                            setNewsDescription(before + '[' + selected + '](' + url + ')' + after);
+                          }
+                        }}
+                      >🔗</button>
+                    </div>
+                    <textarea
+                      id="news-description"
+                      value={newsDescription}
+                      onChange={(e) => setNewsDescription(e.target.value)}
+                      placeholder="Write your news content here... (Supports Markdown-like formatting)"
+                      className="form-textarea news-textarea"
+                      rows={12}
+                    />
+                  </div>
+
+                  <div className="form-actions">
+                    <button
+                      className={`save-news-btn ${editingNewsId ? 'update-btn' : ''}`}
+                      onClick={handleSaveNews}
+                      disabled={processingId === 'news'}
+                    >
+                      {processingId === 'news' ? 'Saving...' : editingNewsId ? 'Update News' : 'Post News'}
+                    </button>
+                    {editingNewsId && (
+                      <button className="cancel-edit-btn" onClick={resetNewsForm}>
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="news-list-card card">
+                <h3>Existing News Posts</h3>
+                <div className="news-grid-admin">
+                  {news.length === 0 ? (
+                    <p className="empty-msg">No news posts found.</p>
+                  ) : (
+                    news.map(post => {
+                      const canManage = user && (user.uid === post.authorUid || isSuperAdminUser);
+                      return (
+                        <div key={post.id} className="news-admin-item">
+                          <img src={post.banner} alt="" className="news-admin-banner" />
+                          <div className="news-admin-content">
+                            <h4>{post.title}</h4>
+                            <p className="news-admin-meta">By {post.authorName} • {post.createdAt?.toDate ? post.createdAt.toDate().toLocaleDateString() : 'Just now'}</p>
+                            {canManage && (
+                              <div className="news-admin-actions">
+                                <button onClick={() => handleEditNews(post)}>Edit</button>
+                                <button className="delete" onClick={() => handleDeleteNews(post.id)}>Delete</button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
           )}

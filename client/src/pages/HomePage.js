@@ -151,6 +151,13 @@ function HomePage() {
 
   const [tokenStats, setTokenStats] = useState(null);
 
+  // News State
+  const [news, setNews] = useState([]);
+  const [newsLoading, setNewsLoading] = useState(true);
+  const [selectedNews, setSelectedNews] = useState(null);
+  const [showNewsModal, setShowNewsModal] = useState(false);
+  const [hasNewNews, setHasNewNews] = useState(false);
+
   const onTouchStart = (e) => {
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientX);
@@ -491,6 +498,30 @@ function HomePage() {
 
     return () => unsubscribe();
   }, [user]);
+
+  // Fetch News - Top 3
+  useEffect(() => {
+    const newsRef = collection(db, 'news');
+    const q = query(newsRef, orderBy('createdAt', 'desc'), limit(3));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const newsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setNews(newsData);
+      setNewsLoading(false);
+
+      if (newsData.length > 0) {
+        const lastSeenId = localStorage.getItem('lastSeenNewsId');
+        if (lastSeenId !== newsData[0].id) {
+          setHasNewNews(true);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Fetch Ticker Announcements from Firestore
   useEffect(() => {
@@ -2509,8 +2540,56 @@ function HomePage() {
             </div>
           </div>{/* end main-column */}
 
-          {/* Right Column: Match History + Top Players */}
+          {/* Right Column: News + Match History + Top Players */}
           <div className="right-sidebar">
+            {/* News Section */}
+            <div className="news-section">
+              <div className="news-section-header">
+                <h3>📰 Latest News</h3>
+                {hasNewNews && <span className="news-count-badge">NEW</span>}
+              </div>
+              <div className="news-list">
+                {newsLoading ? (
+                  <div className="news-loading">
+                    <div className="spinner-small"></div>
+                  </div>
+                ) : news.length === 0 ? (
+                  <div className="news-empty">
+                    <p>No news yet</p>
+                  </div>
+                ) : (
+                  news.map((item) => (
+                    <div
+                      key={item.id}
+                      className="news-item"
+                      onClick={() => {
+                        setSelectedNews(item);
+                        setShowNewsModal(true);
+                        // Mark news as seen
+                        if (news.length > 0) {
+                          localStorage.setItem('lastSeenNewsId', news[0].id);
+                          setHasNewNews(false);
+                        }
+                      }}
+                    >
+                      <div className="news-item-banner">
+                        <img src={item.banner} alt="" />
+                      </div>
+                      <div className="news-item-info">
+                        <h4 className="news-item-title">{item.title}</h4>
+                        <div className="news-item-meta">
+                          <span className="news-author">{item.authorName}</span>
+                          <span className="news-dot">•</span>
+                          <span className="news-date">
+                            {item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Recently'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
             {/* Match History */}
             <div className="match-history-section">
               <div className="match-history-header">
@@ -3801,6 +3880,44 @@ function HomePage() {
           </div>
         </div>
       </footer>
+      {/* Full News Modal */}
+      {showNewsModal && selectedNews && (
+        <div className="modal-overlay news-modal-overlay">
+          <div className="news-full-modal">
+            <div className="news-modal-header">
+              <button className="close-modal" onClick={() => setShowNewsModal(false)}>✖</button>
+            </div>
+            <div className="news-modal-content">
+              <img src={selectedNews.banner} alt="" className="news-modal-banner" />
+              <h2 className="news-modal-title">{selectedNews.title}</h2>
+              <div className="news-modal-meta">
+                <div className="news-modal-author-info">
+                  <span className="author-label">Posted by</span>
+                  <span className="author-name">{selectedNews.authorName}</span>
+                </div>
+                <span className="news-modal-date">
+                  {selectedNews.createdAt?.toDate ? selectedNews.createdAt.toDate().toLocaleDateString(undefined, {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  }) : 'Recently'}
+                </span>
+              </div>
+              <div
+                className="news-modal-body"
+                dangerouslySetInnerHTML={{
+                  __html: selectedNews.description
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/_(.*?)_/g, '<em>$1</em>')
+                    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+                    .replace(/\n/g, '<br />')
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div >
   );
 }
