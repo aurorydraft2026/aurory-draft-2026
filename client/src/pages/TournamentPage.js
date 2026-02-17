@@ -433,7 +433,7 @@ function TournamentPage() {
       return {
         team,
         uid,
-        displayName: u.displayName || u.username || null,
+        displayName: u.auroryPlayerName || u.displayName || u.username || null,
         auroryPlayerId: u.auroryPlayerId || null,
         auroryPlayerName: u.auroryPlayerName || null
       };
@@ -480,8 +480,8 @@ function TournamentPage() {
 
         const updatedLeaderNames = {
           ...(currentData.leaderNames || {}),
-          teamA: teamALeaderUser?.username || teamALeaderUser?.displayName || 'Team A Captain',
-          teamB: teamBLeaderUser?.username || teamBLeaderUser?.displayName || 'Team B Captain'
+          teamA: teamALeaderUser?.auroryPlayerName || teamALeaderUser?.username || teamALeaderUser?.displayName || 'Team A Captain',
+          teamB: teamBLeaderUser?.auroryPlayerName || teamBLeaderUser?.username || teamBLeaderUser?.displayName || 'Team B Captain'
         };
 
         const teamColors = {
@@ -513,7 +513,7 @@ function TournamentPage() {
           matchPlayers: assignments.map(a => ({
             team: a.team,
             uid: a.participant.uid || a.participant.id,
-            displayName: a.participant.displayName || a.participant.username || null,
+            displayName: a.participant.auroryPlayerName || a.participant.displayName || a.participant.username || null,
             auroryPlayerId: a.participant.auroryPlayerId || null,
             auroryPlayerName: a.participant.auroryPlayerName || null
           })),
@@ -3606,14 +3606,14 @@ function TournamentPage() {
   // Helper to get consistent team display name based on identity mapping
   const getTeamDisplayName = (team) => {
     if (draftState.draftType === 'mode3' || draftState.draftType === 'mode4') {
-      return getTeamLeader(team)?.displayName || (team === 'A' ? 'Player 1' : 'Player 2');
+      const leader = getTeamLeader(team);
+      return leader?.auroryPlayerName || leader?.displayName || (team === 'A' ? 'Player 1' : 'Player 2');
     }
     const color = team === 'A' ? draftState.teamColors?.teamA : draftState.teamColors?.teamB;
     if (color === 'blue') return draftState.teamNames?.team1 || 'Team 1';
     if (color === 'red') return draftState.teamNames?.team2 || 'Team 2';
     return team === 'A' ? 'Team A' : 'Team B';
   };
-
   // Debounce search effect
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -3637,19 +3637,9 @@ function TournamentPage() {
     return name.includes(query) || email.includes(query);
   });
 
-  const getCurrentPickNumber = () => {
-    const currentTeamPicks = draftState.currentTeam === 'A' ? draftState.teamA.length : draftState.teamB.length;
-    return currentTeamPicks + 1;
-  };
 
-  const getOrdinalSuffix = (num) => {
-    const j = num % 10;
-    const k = num % 100;
-    if (j === 1 && k !== 11) return num + 'st';
-    if (j === 2 && k !== 12) return num + 'nd';
-    if (j === 3 && k !== 13) return num + 'rd';
-    return num + 'th';
-  };
+
+
 
   // Get current phase picks for the lock confirmation modal
   const getCurrentPhasePicks = () => {
@@ -4397,7 +4387,7 @@ function TournamentPage() {
                             alt="" className="slot-avatar"
                             onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                           />
-                          <span className="slot-name">{p1.displayName || p1.username || 'Player 1'}</span>
+                          <span className="slot-name">{p1.auroryPlayerName || p1.displayName || p1.username || 'Player 1'}</span>
                           {p1Uid === draftState.createdBy && <span className="creator-badge">Creator</span>}
                           {draftState.entryPaid?.[p1Uid] > 0 && <span className="paid-badge">✓ Paid</span>}
                         </div>
@@ -4419,7 +4409,7 @@ function TournamentPage() {
                             alt="" className="slot-avatar"
                             onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                           />
-                          <span className="slot-name">{p2.displayName || p2.username || 'Player 2'}</span>
+                          <span className="slot-name">{p2.auroryPlayerName || p2.displayName || p2.username || 'Player 2'}</span>
                           {p2Uid === draftState.createdBy && <span className="creator-badge">Creator</span>}
                           {draftState.entryPaid?.[p2Uid] > 0 && <span className="paid-badge">✓ Paid</span>}
                         </div>
@@ -5150,16 +5140,16 @@ function TournamentPage() {
                       value={editTournament.draftType}
                       onChange={(e) => setEditTournament({ ...editTournament, draftType: e.target.value })}
                       className="form-input"
-                      disabled={draftState.status !== 'waiting'}
+                      disabled={true}
                     >
-                      <option value="mode1">Triad Swiss Draft 1</option>
-                      <option value="mode2">Triad Swiss Draft 2</option>
+                      <option value="mode1">3v3 Triad Swiss Format 3-6-3</option>
+                      <option value="mode2">3v3 Triad Swiss Format 1-2-1</option>
+                      <option value="mode3">1v1 Deathmatch 3-3</option>
+                      <option value="mode4">1v1 Ban Draft 1-2-1</option>
                     </select>
-                    {draftState.status !== 'waiting' && (
-                      <span className="input-hint warning">
-                        ⚠️ Cannot change draft type once tournament has started
-                      </span>
-                    )}
+                    <span className="input-hint warning">
+                      🔒 Draft type cannot be changed after creation
+                    </span>
                   </div>
 
                   <div className="form-group">
@@ -5504,13 +5494,13 @@ function TournamentPage() {
                   <div className="lineup-team-headers">
                     <div className={`team-header team-${draftState.teamColors?.teamA || 'blue'}`}>
                       {(draftState.draftType === 'mode3' || draftState.draftType === 'mode4')
-                        ? <>{getTeamLeader('A')?.displayName || 'Player 1'}{getTeamLeader('A')?.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}</>
+                        ? <>{getTeamLeader('A')?.auroryPlayerName || getTeamLeader('A')?.displayName || 'Player 1'}{getTeamLeader('A')?.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}</>
                         : (draftState.teamColors?.teamA === 'blue' ? (draftState.teamNames?.team1 || 'Team 1') : (draftState.teamNames?.team2 || 'Team 2'))}
                     </div>
                     <div className="spacer"></div>
                     <div className={`team-header team-${draftState.teamColors?.teamB || 'red'}`}>
                       {(draftState.draftType === 'mode3' || draftState.draftType === 'mode4')
-                        ? <>{getTeamLeader('B')?.displayName || 'Player 2'}{getTeamLeader('B')?.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}</>
+                        ? <>{getTeamLeader('B')?.auroryPlayerName || getTeamLeader('B')?.displayName || 'Player 2'}{getTeamLeader('B')?.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}</>
                         : (draftState.teamColors?.teamB === 'blue' ? (draftState.teamNames?.team1 || 'Team 1') : (draftState.teamNames?.team2 || 'Team 2'))}
                     </div>
                   </div>

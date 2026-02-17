@@ -1111,7 +1111,7 @@ function HomePage() {
               const userData = registeredUsers.find(u => u.id === uidA);
               winCounts[uidA] = {
                 uid: uidA,
-                displayName: result.playerA.displayName || userData?.displayName || 'Player',
+                displayName: userData?.auroryPlayerName || result.playerA.displayName || userData?.displayName || 'Player',
                 photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
                 wins: 0,
                 losses: 0
@@ -1128,7 +1128,7 @@ function HomePage() {
               const userData = registeredUsers.find(u => u.id === uidB);
               winCounts[uidB] = {
                 uid: uidB,
-                displayName: result.playerB.displayName || userData?.displayName || 'Player',
+                displayName: userData?.auroryPlayerName || result.playerB.displayName || userData?.displayName || 'Player',
                 photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
                 wins: 0,
                 losses: 0
@@ -1543,7 +1543,7 @@ function HomePage() {
         activeViewers: {},
         createdAt: serverTimestamp(),
         createdBy: user.uid,
-        creatorDisplayName: user.displayName || user.email || 'Unknown',
+        creatorDisplayName: user.auroryPlayerName || user.displayName || user.email || 'Unknown',
         // 1v1 pool fields
         poolAmount: poolAmountSmallest,
         entryFee: entryFee,
@@ -1699,11 +1699,7 @@ function HomePage() {
   };
 
 
-  // Get participant count for a tournament
-  const getParticipantCount = (tournament) => {
-    if (!tournament.permissions) return 0;
-    return Object.values(tournament.permissions).filter(p => p === 'A' || p === 'B').length;
-  };
+
 
   // Get status badge color
   const getStatusColor = (status) => {
@@ -2324,10 +2320,10 @@ function HomePage() {
                     onChange={(e) => { setDraftModeFilter(e.target.value); setDraftsExpanded(false); }}
                   >
                     <option value="all">All Modes</option>
-                    <option value="mode1">Triad Format 3-6-3</option>
-                    <option value="mode2">Triad Format 1-2-1</option>
-                    <option value="mode3">Deathmatch 3-3</option>
-                    <option value="mode4">Ban Draft 1-2-1</option>
+                    <option value="mode1">3v3 Triad Swiss Format 3-6-3</option>
+                    <option value="mode2">3v3 Triad Swiss Format 1-2-1</option>
+                    <option value="mode3">1v1 Deathmatch 3-3</option>
+                    <option value="mode4">1v1 Ban Draft 1-2-1</option>
                   </select>
                 </div>
               </div>
@@ -2364,29 +2360,34 @@ function HomePage() {
                       const isMyTurn = tournament.status === 'active' && timer && !timer.expired && !timer.waiting && timer.team === myPermissions;
 
                       // Determine display name for current turn
-                      // Use teamA/teamB keys which are set after shuffle in finalizeDraft
-                      // Fall back to team1/team2 for backwards compatibility with existing tournaments
                       let turnName = `Team ${timer?.team || 'A'}`;
-                      if (timer?.team && tournament.leaderNames) {
-                        // First try the shuffled team keys (teamA/teamB) - new format
-                        const shuffledKey = timer.team === 'A' ? 'teamA' : 'teamB';
-                        if (tournament.leaderNames[shuffledKey]) {
-                          turnName = tournament.leaderNames[shuffledKey];
-                        } else {
-                          // Fallback to pre-shuffle keys (team1/team2) for existing tournaments
-                          const fallbackKey = timer.team === 'A' ? 'team1' : 'team2';
-                          if (tournament.leaderNames[fallbackKey]) {
-                            turnName = tournament.leaderNames[fallbackKey];
-                          }
-                        }
+                      if (timer?.team) {
+                        const teamId = timer.team === 'A' ? 'team1' : 'team2';
+                        const leaderUid = tournament.preAssignedTeams?.[teamId]?.leader;
+                        const leaderUser = leaderUid ? getUserById(leaderUid) : null;
+
+                        // Priority 1: Current In-game name from user data
+                        // Priority 2: Stored leader name from shuffled session
+                        // Priority 3: Stored leader name from creation
+                        // Priority 4: Fallback
+                        const teamKey = timer.team === 'A' ? 'teamA' : 'teamB';
+                        turnName = leaderUser?.auroryPlayerName ||
+                          tournament.leaderNames?.[teamKey] ||
+                          tournament.leaderNames?.[teamId] ||
+                          leaderUser?.displayName ||
+                          `Team ${timer.team}`;
                       }
 
-                      // Leader VS Leader display - use teamNames (set at creation) or leaderNames
-                      const team1Name = tournament.teamNames?.team1 || tournament.leaderNames?.team1 || 'Team A';
-                      const team2Name = tournament.teamNames?.team2 || tournament.leaderNames?.team2 || 'Team B';
+                      // Leader VS Leader display - prioritize in-game names
+                      const team1LeaderId = tournament.preAssignedTeams?.team1?.leader;
+                      const team2LeaderId = tournament.preAssignedTeams?.team2?.leader;
+                      const team1User = team1LeaderId ? getUserById(team1LeaderId) : null;
+                      const team2User = team2LeaderId ? getUserById(team2LeaderId) : null;
 
-                      // Get actual participants
-                      const teamParticipants = getTeamParticipants(tournament);
+                      const team1Name = team1User?.auroryPlayerName || tournament.teamNames?.team1 || tournament.leaderNames?.team1 || 'Team A';
+                      const team2Name = team2User?.auroryPlayerName || tournament.teamNames?.team2 || tournament.leaderNames?.team2 || 'Team B';
+
+
 
                       return (
                         <div
@@ -2566,10 +2567,10 @@ function HomePage() {
                   onChange={(e) => setMatchHistoryFilter(e.target.value)}
                 >
                   <option value="all">All Modes</option>
-                  <option value="mode1">Triad Format 3-6-3</option>
-                  <option value="mode2">Triad Format 1-2-1</option>
-                  <option value="mode3">Deathmatch 3-3</option>
-                  <option value="mode4">Ban Draft 1-2-1</option>
+                  <option value="mode1">3v3 Triad Swiss Format 3-6-3</option>
+                  <option value="mode2">3v3 Triad Swiss Format 1-2-1</option>
+                  <option value="mode3">1v1 Deathmatch 3-3</option>
+                  <option value="mode4">1v1 Ban Draft 1-2-1</option>
                 </select>
               </div>
 
@@ -2933,19 +2934,19 @@ function HomePage() {
                     onChange={(e) => setNewTournament({ ...newTournament, draftType: e.target.value })}
                     className="form-input"
                   >
-                    {isAdmin && <option value="mode1">Triad Format 3-6-3</option>}
-                    {isAdmin && <option value="mode2">Triad Format 1-2-1</option>}
-                    <option value="mode3">Deathmatch 3-3</option>
-                    <option value="mode4">Ban Draft 1-2-1</option>
+                    {isAdmin && <option value="mode1">3v3 Triad Swiss Format 3-6-3</option>}
+                    {isAdmin && <option value="mode2">3v3 Triad Swiss Format 1-2-1</option>}
+                    <option value="mode3">1v1 Deathmatch 3-3</option>
+                    <option value="mode4">1v1 Ban Draft 1-2-1</option>
                   </select>
                   <span className="input-hint">
                     {newTournament.draftType === 'mode1'
-                      ? 'Triad Format 3-6-3: A picks 3, B picks 6, A picks 6, B picks 3'
+                      ? '3v3 Triad Swiss Format 3-6-3: A picks 3, B picks 6, A picks 6, B picks 3'
                       : newTournament.draftType === 'mode2'
-                        ? 'Triad Format 1-2-1: 10 phases with smaller alternating picks'
+                        ? '3v3 Triad Swiss Format 1-2-1: 10 phases with smaller alternating picks'
                         : newTournament.draftType === 'mode4'
-                          ? 'Ban Draft 1-2-1: Turn-based bans (1-2-2-1), then picks (1-2-2-1) with coin flip'
-                          : 'Deathmatch 3-3: Simultaneous picks from random pools (3 picks each)'}
+                          ? '1v1 Ban Draft 1-2-1: Turn-based bans (1-2-2-1), then picks (1-2-2-1) with coin flip'
+                          : '1v1 Deathmatch 3-3: Simultaneous picks from random pools (3 picks each)'}
                   </span>
                 </div>
 

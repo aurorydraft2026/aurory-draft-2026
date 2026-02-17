@@ -1882,6 +1882,13 @@
   object-fit: contain;
 }
 
+/* Smaller size for non-active (static) swords */
+.card-vs-badge:not(.vs-active) .vs-sword-gif {
+  width: 30px;
+  height: 30px;
+}
+
+
 /* ============================================================
    RIGHT SIDEBAR (Top Players + Match History)
    ============================================================ */
@@ -5118,6 +5125,11 @@
   .vs-sword-gif {
     width: 36px;
     height: 36px;
+  }
+
+  .card-vs-badge:not(.vs-active) .vs-sword-gif {
+    width: 28px;
+    height: 28px;
   }
 
   .rules-section {
