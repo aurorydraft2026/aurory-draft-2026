@@ -1275,53 +1275,7 @@ function HomePage() {
     return registeredUsers.find(u => u.id === userId);
   };
 
-  // Get team participants with display info from a tournament
-  const getTeamParticipants = (tournament) => {
-    const teamA = [];
-    const teamB = [];
-    if (tournament.permissions) {
-      Object.entries(tournament.permissions).forEach(([uid, perm]) => {
-        // Show A/B participants, OR spectators if the tournament is still waiting (pre-assigned)
-        if (perm === 'A' || perm === 'B' || (perm === 'spectator' && tournament.status === 'waiting')) {
-          const userData = getUserById(uid);
-          const participant = {
-            uid,
-            displayName: userData?.auroryPlayerName || userData?.displayName || userData?.username || 'Player',
-            photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
-            isLeader: false,
-          };
-          // Check if this user is a leader
-          if (tournament.preAssignedTeams) {
-            if (tournament.preAssignedTeams.team1?.leader === uid || tournament.preAssignedTeams.team2?.leader === uid) {
-              participant.isLeader = true;
-            }
-          }
 
-          // Assign to team based on permission OR preAssignedMTeams if they are spectator
-          if (perm === 'A') {
-            teamA.push(participant);
-          } else if (perm === 'B') {
-            teamB.push(participant);
-          } else if (perm === 'spectator' && tournament.status === 'waiting') {
-            // New logic: check preAssignedTeams to see which side they belong to
-            if (tournament.preAssignedTeams?.team1?.leader === uid ||
-              tournament.preAssignedTeams?.team1?.member1 === uid ||
-              tournament.preAssignedTeams?.team1?.member2 === uid) {
-              teamA.push(participant);
-            } else if (tournament.preAssignedTeams?.team2?.leader === uid ||
-              tournament.preAssignedTeams?.team2?.member1 === uid ||
-              tournament.preAssignedTeams?.team2?.member2 === uid) {
-              teamB.push(participant);
-            }
-          }
-        }
-      });
-    }
-    // Sort leaders first
-    teamA.sort((a, b) => (b.isLeader ? 1 : 0) - (a.isLeader ? 1 : 0));
-    teamB.sort((a, b) => (b.isLeader ? 1 : 0) - (a.isLeader ? 1 : 0));
-    return { teamA, teamB };
-  };
 
   // Handle banner image upload
   const handleBannerUpload = (teamNumber, event) => {
