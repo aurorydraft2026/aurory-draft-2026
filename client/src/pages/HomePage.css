@@ -1824,106 +1824,62 @@
   display: flex;
   align-items: stretch;
   gap: 0;
-  background: var(--bg-elevated);
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 1px solid var(--border-subtle);
+  height: 72px;
 }
 
 .card-team-side {
   flex: 1;
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.card-team-side:first-child {
-  border-right: 1px solid var(--border-subtle);
-}
-
-.card-team-name {
-  font-family: 'Exo 2', sans-serif;
-  font-weight: 700;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--accent-cyan);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.card-team-side:last-child .card-team-name {
-  color: var(--accent-purple);
-}
-
-.card-team-members {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.card-member {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
   min-width: 0;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--bg-elevated);
 }
 
-.card-member-avatar {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1.5px solid var(--border-default);
-  object-fit: cover;
-  flex-shrink: 0;
+.card-team-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.70) 100%);
 }
 
-.card-member.leader .card-member-avatar {
-  border-color: var(--accent-gold);
-  box-shadow: 0 0 6px var(--accent-gold-glow);
-}
-
-.card-member-name {
-  font-size: 0.72rem;
-  color: var(--text-secondary);
+.card-team-label {
+  position: relative;
+  z-index: 2;
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 800;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  min-width: 0;
-}
-
-.card-member.leader .card-member-name {
-  color: var(--text-bright);
-  font-weight: 600;
-}
-
-.card-leader-crown {
-  font-size: 0.65rem;
-  flex-shrink: 0;
+  padding: 0 10px;
+  max-width: 100%;
 }
 
 .card-vs-badge {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 10px;
-  font-family: 'Exo 2', sans-serif;
-  font-weight: 800;
-  font-size: 0.75rem;
-  letter-spacing: 1px;
-  color: var(--accent-gold);
-  background: rgba(240, 178, 50, 0.08);
+  padding: 0 2px;
+  background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%);
   flex-shrink: 0;
+  min-width: 42px;
 }
 
-.card-no-members {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  font-style: italic;
-  padding: 4px 0;
+.vs-sword-gif {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
 }
 
 /* ============================================================
@@ -5147,50 +5103,21 @@
 
   /* Teams matchup compact */
   .card-vs-matchup {
-    gap: 4px;
-    padding: 6px;
+    height: 56px;
   }
 
-  .card-team-side {
-    gap: 3px;
-  }
-
-  .card-team-name {
-    font-size: 0.6rem;
-    max-width: 60px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .card-member {
-    gap: 3px;
-  }
-
-  .card-member-avatar {
-    width: 16px !important;
-    height: 16px !important;
-  }
-
-  .card-member-name {
-    font-size: 0.58rem;
-    max-width: 42px;
-  }
-
-  .card-no-members {
-    font-size: 0.6rem;
-  }
-
-  .detail-item.participants {
-    margin-top: 8px;
+  .card-team-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.5px;
   }
 
   .card-vs-badge {
-    font-size: 0.6rem;
-    padding: 2px 6px;
-    min-width: auto;
-    width: 24px;
-    height: 24px;
+    min-width: 32px;
+  }
+
+  .vs-sword-gif {
+    width: 36px;
+    height: 36px;
   }
 
   .rules-section {

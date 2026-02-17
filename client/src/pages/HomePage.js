@@ -2450,58 +2450,56 @@ function HomePage() {
                               )}
 
                               {/* Team VS Team Participant Display */}
-                              <div className="card-vs-matchup">
-                                <div className="card-team-side">
-                                  <span className="card-team-name">{team1Name}</span>
-                                  <div className="card-team-members">
-                                    {teamParticipants.teamA.length > 0 ? (
-                                      teamParticipants.teamA.map((p) => (
-                                        <div key={p.uid} className={`card-member ${p.isLeader ? 'leader' : ''}`} title={p.displayName}>
-                                          <img
-                                            src={p.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
-                                            alt=""
-                                            className="card-member-avatar"
-                                            onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                                          />
-                                          <span className="card-member-name">{p.displayName}</span>
-                                          {p.isLeader && <span className="card-leader-crown">👑</span>}
-                                        </div>
-                                      ))
-                                    ) : (
-                                      <span className="card-no-members">No players yet</span>
-                                    )}
+                              {(() => {
+                                // Resolve leader photos from preAssignedTeams (stays in sync with teamNames)
+                                const team1LeaderUid = tournament.preAssignedTeams?.team1?.leader;
+                                const team2LeaderUid = tournament.preAssignedTeams?.team2?.leader;
+                                const team1Leader = team1LeaderUid ? getUserById(team1LeaderUid) : null;
+                                const team2Leader = team2LeaderUid ? getUserById(team2LeaderUid) : null;
+                                const team1Photo = team1Leader?.auroryProfilePicture || team1Leader?.photoURL || null;
+                                const team2Photo = team2Leader?.auroryProfilePicture || team2Leader?.photoURL || null;
+
+                                return (
+                                  <div className="card-vs-matchup">
+                                    <div
+                                      className="card-team-side team-a-side"
+                                      style={{
+                                        backgroundImage: tournament.teamBanners?.team1
+                                          ? `url(${tournament.teamBanners.team1})`
+                                          : team1Photo
+                                            ? `url(${team1Photo})`
+                                            : 'none'
+                                      }}
+                                    >
+                                      <div className="card-team-overlay"></div>
+                                      <span className="card-team-label">{team1Name}</span>
+                                    </div>
+
+                                    <div className={`card-vs-badge ${tournament.status === 'active' ? 'vs-active' : ''}`}>
+                                      <img
+                                        src={tournament.status === 'active' ? '/SwordFight.gif' : '/SwordFight.svg'}
+                                        alt="VS"
+                                        className="vs-sword-gif"
+                                      />
+                                    </div>
+
+                                    <div
+                                      className="card-team-side team-b-side"
+                                      style={{
+                                        backgroundImage: tournament.teamBanners?.team2
+                                          ? `url(${tournament.teamBanners.team2})`
+                                          : team2Photo
+                                            ? `url(${team2Photo})`
+                                            : 'none'
+                                      }}
+                                    >
+                                      <div className="card-team-overlay"></div>
+                                      <span className="card-team-label">{team2Name}</span>
+                                    </div>
                                   </div>
-                                </div>
+                                );
+                              })()}
 
-                                <div className="card-vs-badge">VS</div>
-
-                                <div className="card-team-side">
-                                  <span className="card-team-name">{team2Name}</span>
-                                  <div className="card-team-members">
-                                    {teamParticipants.teamB.length > 0 ? (
-                                      teamParticipants.teamB.map((p) => (
-                                        <div key={p.uid} className={`card-member ${p.isLeader ? 'leader' : ''}`} title={p.displayName}>
-                                          <img
-                                            src={p.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
-                                            alt=""
-                                            className="card-member-avatar"
-                                            onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                                          />
-                                          <span className="card-member-name">{p.displayName}</span>
-                                          {p.isLeader && <span className="card-leader-crown">👑</span>}
-                                        </div>
-                                      ))
-                                    ) : (
-                                      <span className="card-no-members">No players yet</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="detail-item participants">
-                                <span className="detail-icon">👥</span>
-                                <span>{getParticipantCount(tournament)} participants</span>
-                              </div>
                             </div>
 
                             <div className="tournament-footer">

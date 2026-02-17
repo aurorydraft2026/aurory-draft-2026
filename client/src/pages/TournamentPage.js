@@ -635,7 +635,7 @@ function TournamentPage() {
 
     // Validate at least 2 participants
     if (participants.length < 2) {
-      showAlert('Not Enough Participants', 'Please add at least 2 participants in Edit Tournament before starting the draft.');
+      showAlert('Not Enough Participants', 'Please add at least 2 participants in Edit Draft before starting the draft.');
       return;
     }
 
@@ -643,7 +643,7 @@ function TournamentPage() {
     const timerMs = draftState.timerDuration || 30 * 1000;
 
     if (timerMs <= 0) {
-      showAlert('Invalid Timer', 'Please set a timer duration greater than 0 in Edit Tournament.');
+      showAlert('Invalid Timer', 'Please set a timer duration greater than 0 in Edit Draft.');
       return;
     }
 
@@ -2994,7 +2994,7 @@ function TournamentPage() {
     setShowAdminPanel(false);
 
     showConfirm(
-      'Delete Tournament',
+      'Delete Draft',
       'Are you sure you want to delete this tournament? This action cannot be undone.',
       async () => {
         const draftRef = doc(db, 'drafts', DRAFT_ID);
@@ -3816,7 +3816,7 @@ function TournamentPage() {
                 </span>
                 {(userPermission === 'admin' || isSuperAdmin(getUserEmail(user))) && (
                   <button onClick={() => setShowAdminPanel(!showAdminPanel)} className="admin-panel-btn">
-                    ⚙️ Tournament Settings
+                    ⚙️ Draft Settings
                   </button>
                 )}
               </>
@@ -4256,7 +4256,7 @@ function TournamentPage() {
             <div className="modal-overlay" onClick={() => setShowAdminPanel(false)}>
               <div className="admin-panel-modal" onClick={e => e.stopPropagation()}>
                 <div className="admin-panel-header">
-                  <h3>⚙️ Tournament Settings</h3>
+                  <h3>⚙️ Draft Settings</h3>
                   <button onClick={() => setShowAdminPanel(false)} className="close-modal">✕</button>
                 </div>
 
@@ -4280,9 +4280,9 @@ function TournamentPage() {
                       </button>
                     )}
 
-                    {/* Edit Tournament */}
+                    {/* Edit Draft */}
                     <button onClick={openEditModal} className="action-btn edit">
-                      ✏️ Edit Tournament
+                      ✏️ Edit Draft
                     </button>
 
                     {/* Reset Tournament - Hidden for 1v1 modes */}
@@ -4292,9 +4292,9 @@ function TournamentPage() {
                       </button>
                     )}
 
-                    {/* Delete Tournament */}
+                    {/* Delete Draft */}
                     <button onClick={deleteTournament} className="action-btn delete">
-                      🗑️ Delete Tournament
+                      🗑️ Delete Draft
                     </button>
 
                     {/* Admin can force confirm if needed */}
@@ -4521,14 +4521,31 @@ function TournamentPage() {
                     return (
                       <>
                         {user && userPermission === draftState.currentTeam && (
-                          <p className="pick-instruction">
-                            👉 {currentPhaseConfig?.isBan ? 'Ban' : 'Select'} your {getOrdinalSuffix(getCurrentPickNumber())} Amiko
-                          </p>
+                          <div className="action-prompt">
+                            <div className="action-prompt-header">
+                              {currentPhaseConfig?.isBan ? '🚫' : '✅'}{' '}
+                              {currentPhaseConfig?.isBan ? 'BAN' : 'PICK'}{' '}
+                              {currentPhaseConfig?.count} AMIKO{currentPhaseConfig?.count > 1 ? 'S' : ''}
+                            </div>
+                            <div className="action-prompt-progress">
+                              <div className="progress-dots">
+                                {Array.from({ length: currentPhaseConfig?.count || 0 }).map((_, i) => (
+                                  <span
+                                    key={i}
+                                    className={`progress-dot ${i < (draftState.picksInPhase || 0) ? 'filled' : ''}`}
+                                  />
+                                ))}
+                              </div>
+                              <span className="progress-text">
+                                {draftState.picksInPhase || 0} of {currentPhaseConfig?.count || 0}
+                              </span>
+                            </div>
+                          </div>
                         )}
 
                         {user && userPermission && userPermission !== draftState.currentTeam && userPermission !== 'admin' && userPermission !== 'spectator' && (
                           <p className="waiting-message">
-                            ⏳ Waiting for {getTeamDisplayName(draftState.currentTeam)} to finish {currentPhaseConfig?.isBan ? 'banning' : 'picking'}...
+                            ⏳ Waiting for {getTeamDisplayName(draftState.currentTeam)} to {currentPhaseConfig?.isBan ? 'ban' : 'pick'} {currentPhaseConfig?.count} Amiko{currentPhaseConfig?.count > 1 ? 's' : ''}...
                           </p>
                         )}
                       </>
@@ -5079,13 +5096,13 @@ function TournamentPage() {
           )
         }
 
-        {/* Edit Tournament Modal */}
+        {/* Edit Draft Modal */}
         {
           showEditModal && (
             <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
               <div className="edit-modal" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                  <h3>✏️ Edit Tournament</h3>
+                  <h3>✏️ Edit Draft</h3>
                   <button className="close-modal" onClick={() => setShowEditModal(false)}>✕</button>
                 </div>
 
