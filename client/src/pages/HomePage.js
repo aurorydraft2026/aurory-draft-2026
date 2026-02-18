@@ -1313,13 +1313,11 @@ function HomePage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       alert('Please select an image file');
       return;
     }
 
-    // Validate file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
       alert('Image must be smaller than 2MB');
       return;
@@ -1327,11 +1325,39 @@ function HomePage() {
 
     const reader = new FileReader();
     reader.onloadend = () => {
-      if (teamNumber === 1) {
-        setTeam1Banner(reader.result);
-      } else {
-        setTeam2Banner(reader.result);
-      }
+      // Compress image to keep Firestore doc under 1MB
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 256;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height = Math.round((height * MAX_SIZE) / width);
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width = Math.round((width * MAX_SIZE) / height);
+            height = MAX_SIZE;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressed = canvas.toDataURL('image/jpeg', 0.7);
+        if (teamNumber === 1) {
+          setTeam1Banner(compressed);
+        } else {
+          setTeam2Banner(compressed);
+        }
+      };
+      img.src = reader.result;
     };
     reader.readAsDataURL(file);
   };
@@ -1461,12 +1487,9 @@ function HomePage() {
 
       // Build permissions object
       const permissions = {};
-      // Creator is admin only if they're NOT a player, otherwise they'll be assigned as A/B later
-      if (!is1v1 || (!creatorIsPlayer)) {
-        permissions[user.uid] = 'admin';
-      } else {
-        permissions[user.uid] = 'spectator'; // Will be upgraded when draft starts
-      }
+      // Creator ALWAYS gets admin — even if they're also a participant
+      // This ensures they can see Draft Settings (edit, delete, start) at all times
+      permissions[user.uid] = 'admin';
       getAssignedParticipants().forEach(uid => {
         if (!permissions[uid]) permissions[uid] = 'spectator';
       });

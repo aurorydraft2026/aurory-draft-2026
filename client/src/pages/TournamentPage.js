@@ -101,6 +101,7 @@ function TournamentPage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tournamentExists, setTournamentExists] = useState(true);
+  const tournamentExistsRef = useRef(true);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [registeredUsers, setRegisteredUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -316,10 +317,11 @@ function TournamentPage() {
   // Helper: Build initial permissions from assignments
   const getInitialPermissions = useCallback((existingPermissions, assignments) => {
     const permissions = { ...existingPermissions };
-    permissions[user.uid] = 'admin'; // Ensure admin has access
     assignments.forEach(assignment => {
       permissions[assignment.participant.uid || assignment.participant.id] = assignment.team;
     });
+    // Set admin LAST so it can't be overwritten if creator is also a participant
+    permissions[user.uid] = 'admin'; // Ensure admin has access
     return permissions;
   }, [user]);
 
@@ -457,6 +459,12 @@ function TournamentPage() {
   const finalizeDraft = useCallback(async (timerMs, assignments, leaders = {}) => {
     const draftRef = doc(db, 'drafts', DRAFT_ID);
 
+    // Skip if tournament was deleted (using REF for latest value in async closure)
+    if (!tournamentExistsRef.current) {
+      setShowRoulette(false);
+      return;
+    }
+
     try {
       const result = await runTransaction(db, async (transaction) => {
         const docSnap = await transaction.get(draftRef);
@@ -464,7 +472,9 @@ function TournamentPage() {
 
         const currentData = docSnap.data();
         // IDEMPOTENCY CHECK: If already active or completed, don't re-initialize
-        if (currentData.status !== 'waiting') {
+        // Note: 'coinFlip' is allowed for Mode 3 where players confirm readiness before active phase
+        const validProceedingStatuses = ['waiting', 'assignment', 'coinFlip'];
+        if (!validProceedingStatuses.includes(currentData.status)) {
           return { alreadyProcessed: true };
         }
 
@@ -508,7 +518,7 @@ function TournamentPage() {
           teamBLeader: leaders.teamBLeader || null,
           leaderNames: updatedLeaderNames,
           teamNames: currentData.teamNames || { team1: 'Team 1', team2: 'Team 2' },
-          teamBanners: currentData.teamBanners || { team1: null, team2: null },
+          //teamBanners: currentData.teamBanners || { team1: null, team2: null },
           teamColors: teamColors,
           matchPlayers: assignments.map(a => ({
             team: a.team,
@@ -539,8 +549,14 @@ function TournamentPage() {
       setShowRoulette(false);
       setSelectedParticipants([]);
     } catch (err) {
+      // Gracefully handle deletion race condition or already-finalized drafts
+      if (err.code === 'failed-precondition' || err.code === 'not-found' || err.message?.includes('not found')) {
+        console.warn('Draft finalization aborted (likely deleted):', err.message);
+        setShowRoulette(false);
+        return;
+      }
       console.error('Failed to finalize draft:', err);
-      showAlert('Error', 'Failed to start match. Please try again.');
+      showAlert('Error', 'Failed to start match.');
     }
   }, [registeredUsers, DRAFT_ID, getInitialPermissions, sendMatchStartNotifications, showAlert]);
 
@@ -625,13 +641,22 @@ function TournamentPage() {
     if (!user) return;
 
     // Get participants from permissions (exclude admins)
-    const participants = Object.entries(draftState.permissions || {})
-      .filter(([uid, perm]) => perm === 'spectator' || perm === 'A' || perm === 'B')
-      .filter(([uid, perm]) => {
-        const userObj = registeredUsers.find(u => u.id === uid || u.uid === uid);
-        return userObj && !isSuperAdmin(userObj.email);
-      })
-      .map(([uid]) => uid);
+    // For 1v1 modes (Mode 3/4), we also check preAssignedTeams slots
+    const is1v1 = draftState.draftType === 'mode3' || draftState.draftType === 'mode4';
+    let participants = [];
+
+    if (is1v1 && draftState.preAssignedTeams) {
+      if (draftState.preAssignedTeams.team1?.leader) participants.push(draftState.preAssignedTeams.team1.leader);
+      if (draftState.preAssignedTeams.team2?.leader) participants.push(draftState.preAssignedTeams.team2.leader);
+    } else {
+      participants = Object.entries(draftState.permissions || {})
+        .filter(([uid, perm]) => perm === 'spectator' || perm === 'A' || perm === 'B')
+        .filter(([uid, perm]) => {
+          const userObj = registeredUsers.find(u => u.id === uid || u.uid === uid);
+          return userObj && !isSuperAdmin(userObj.email);
+        })
+        .map(([uid]) => uid);
+    }
 
     // Validate at least 2 participants
     if (participants.length < 2) {
@@ -1368,9 +1393,11 @@ function TournamentPage() {
           setUserPermission('spectator');
         }
         setTournamentExists(true);
+        tournamentExistsRef.current = true;
       } else {
         // Tournament doesn't exist
         setTournamentExists(false);
+        tournamentExistsRef.current = false;
         setUserPermission('spectator');
       }
     }, (error) => {
@@ -2992,6 +3019,7 @@ function TournamentPage() {
     if (userPermission !== 'admin' && !isSuperAdmin(getUserEmail(user))) return;
 
     setShowAdminPanel(false);
+    setShowRoulette(false); // Stop UI animations immediately
 
     showConfirm(
       'Delete Draft',
@@ -4192,7 +4220,7 @@ function TournamentPage() {
                         );
                       })()}
                     </div>
-                    <p className="starting-text-summary">Draft starting...</p>
+                    <p className="starting-text-summary">Please wait...</p>
                   </div>
                 )}
 
