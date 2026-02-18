@@ -56,6 +56,7 @@ const Mode4Draft = ({
     const isPickPhase = !isBanPhase && draftState.status === 'active';
     const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
     const bannedAmikos = draftState.bannedAmikos || [];
+    const timerExpired = draftState.status === 'active' && currentTimerDisplay === '00:00:00';
 
     // Helper: Check if current user is a participant
     const isParticipant = user && draftState.preAssignedTeams && (
@@ -79,7 +80,7 @@ const Mode4Draft = ({
                     const amiko = amikoId && !isNoBan ? AMIKOS.find(a => a.id === amikoId) : null;
                     const locked = isBanLocked?.(team, i) || false;
                     const canRemove = isMyTeam && isCurrentTurn && !locked && (amiko || isNoBan) &&
-                        draftState.status === 'active' && !draftState.awaitingLockConfirmation && !isNoBan;
+                        draftState.status === 'active' && !draftState.awaitingLockConfirmation && !timerExpired && !isNoBan;
 
                     if (!amiko && !isNoBan) {
                         return (
@@ -136,7 +137,7 @@ const Mode4Draft = ({
                     const amiko = amikoId ? AMIKOS.find(a => a.id === amikoId) : null;
                     const locked = isPickLocked(team, i);
                     const canRemove = isMyTeam && isCurrentTurn && !locked && amiko &&
-                        draftState.status === 'active' && !draftState.awaitingLockConfirmation;
+                        draftState.status === 'active' && !draftState.awaitingLockConfirmation && !timerExpired;
 
                     if (!amiko) {
                         return (
@@ -243,7 +244,7 @@ const Mode4Draft = ({
                 const wouldDuplicateElement = myBannedElements.includes(amiko.element);
 
                 canPick = isMyTurn && !phaseComplete && !draftState.awaitingLockConfirmation &&
-                    myBans.length < 3 && !wouldDuplicateElement && (myTeam !== null);
+                    !timerExpired && myBans.length < 3 && !wouldDuplicateElement && (myTeam !== null);
 
                 if (wouldDuplicateElement && isMyTurn && !isBanned) {
                     cardClass = 'mode4-element-blocked';
@@ -267,7 +268,7 @@ const Mode4Draft = ({
                 const phaseComplete = picksInPhase >= currentPhaseCount;
 
                 canPick = isMyTurn && !phaseComplete && !draftState.awaitingLockConfirmation &&
-                    (myTeam !== null);
+                    !timerExpired && (myTeam !== null);
             }
         } else if (draftState.status === 'completed') {
             if (isBanned) {
@@ -618,7 +619,13 @@ const Mode4Draft = ({
                     </div>
                 )}
 
-                <div className={`amiko-grid ${draftState.status === 'completed' ? 'dimmed' : ''}`}>
+                <div className={`amiko-grid ${draftState.status === 'completed' ? 'dimmed' : ''} ${timerExpired ? 'dimmed' : ''}`}>
+                    {timerExpired && (
+                        <div className="preparation-overlay timer-expired-overlay">
+                            <div className="prep-spinner"></div>
+                            <p>⏱️ Time's up! Auto-locking selections...</p>
+                        </div>
+                    )}
                     {AMIKOS.map((amiko) => {
                         const { canPick, cardClass, overlay } = getCardState(amiko);
 

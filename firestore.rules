@@ -88,10 +88,16 @@ service cloud.firestore {
         // 1. Admins/SuperAdmins/Draft Creators can update everything
         isDraftAdmin(draftId) || 
         (
-          // 2. Participants can update their own team's picks/bans
+          // 2. Participants can update their own team's picks during active draft
           // Allow picking (status remains same or transitions to completed)
           (getRole(draftId) == 'A' && request.resource.data.teamA != resource.data.teamA && (request.resource.data.status == resource.data.status || request.resource.data.status == 'completed')) ||
           (getRole(draftId) == 'B' && request.resource.data.teamB != resource.data.teamB && (request.resource.data.status == resource.data.status || request.resource.data.status == 'completed')) ||
+          // 2b. Allow banning (mode4 - ban fields change during active)
+          (getRole(draftId) == 'A' && request.resource.data.teamABans != resource.data.teamABans && (request.resource.data.status == resource.data.status || request.resource.data.status == 'completed')) ||
+          (getRole(draftId) == 'B' && request.resource.data.teamBBans != resource.data.teamBBans && (request.resource.data.status == resource.data.status || request.resource.data.status == 'completed')) ||
+          // 2c. Allow participants to update game state during active phase
+          // (lock confirmation, phase transitions, 1v1 lock picks, preparation state)
+          (getRole(draftId) in ['A', 'B'] && resource.data.status == 'active' && (request.resource.data.status == 'active' || request.resource.data.status == 'completed')) ||
           // 3. Allow pre-draft and transition phases (joining, leaving, starting, shuffling)
           (resource.data.status in ['waiting', 'assignment', 'coinFlip', 'poolShuffle']) ||
           // 4. Allow concession in 1v1 matches (participants can only concede for themselves)
@@ -123,8 +129,8 @@ service cloud.firestore {
         allow update: if isAuthenticated() && 
                          (getRole(draftId) in ['A', 'admin'] || isSuperAdmin());
         
-        // Admins can delete messages
-        allow delete: if isSuperAdmin() || getRole(draftId) == 'admin';
+        // Admins and creators can delete messages
+        allow delete: if isDraftAdmin(draftId);
       }
       
       // -----------------------------------------
@@ -144,8 +150,8 @@ service cloud.firestore {
         allow update: if isAuthenticated() && 
                          (getRole(draftId) in ['B', 'admin'] || isSuperAdmin());
         
-        // Admins can delete messages
-        allow delete: if isSuperAdmin() || getRole(draftId) == 'admin';
+        // Admins and creators can delete messages
+        allow delete: if isDraftAdmin(draftId);
       }
       
       match /chatAll/{messageId} {
@@ -162,8 +168,8 @@ service cloud.firestore {
         allow update: if isAuthenticated() && 
                          (getRole(draftId) in ['A', 'B', 'admin'] || isSuperAdmin());
         
-        // Admins can delete messages
-        allow delete: if isSuperAdmin() || getRole(draftId) == 'admin';
+        // Admins and creators can delete messages
+        allow delete: if isDraftAdmin(draftId);
       }
 
       // -----------------------------------------
@@ -183,8 +189,8 @@ service cloud.firestore {
         allow update: if isAuthenticated() && 
                          (!(getRole(draftId) in ['A', 'B']) || isSuperAdmin());
         
-        // Admins can delete messages
-        allow delete: if isSuperAdmin() || getRole(draftId) == 'admin';
+        // Admins and creators can delete messages
+        allow delete: if isDraftAdmin(draftId);
       }
       
       // -----------------------------------------
@@ -195,7 +201,7 @@ service cloud.firestore {
                        (getRole(draftId) in ['A', 'admin'] || isSuperAdmin());
         allow write: if isAuthenticated() && 
                         (getRole(draftId) in ['A', 'admin'] || isSuperAdmin());
-        allow delete: if isSuperAdmin() || getRole(draftId) == 'admin';
+        allow delete: if isDraftAdmin(draftId);
       }
       
       match /typingB/{odId} {
@@ -203,7 +209,7 @@ service cloud.firestore {
                        (getRole(draftId) in ['B', 'admin'] || isSuperAdmin());
         allow write: if isAuthenticated() && 
                         (getRole(draftId) in ['B', 'admin'] || isSuperAdmin());
-        allow delete: if isSuperAdmin() || getRole(draftId) == 'admin';
+        allow delete: if isDraftAdmin(draftId);
       }
       
       match /typingAll/{odId} {
@@ -211,7 +217,7 @@ service cloud.firestore {
                        (getRole(draftId) in ['A', 'B', 'admin'] || isSuperAdmin());
         allow write: if isAuthenticated() && 
                         (getRole(draftId) in ['A', 'B', 'admin'] || isSuperAdmin());
-        allow delete: if isSuperAdmin() || getRole(draftId) == 'admin';
+        allow delete: if isDraftAdmin(draftId);
       }
 
       match /typingSpectators/{odId} {
@@ -219,7 +225,7 @@ service cloud.firestore {
                        (!(getRole(draftId) in ['A', 'B']) || isSuperAdmin());
         allow write: if isRealUser() &&
                         (!(getRole(draftId) in ['A', 'B']) || isSuperAdmin());
-        allow delete: if isSuperAdmin() || getRole(draftId) == 'admin';
+        allow delete: if isDraftAdmin(draftId);
       }
     }
     

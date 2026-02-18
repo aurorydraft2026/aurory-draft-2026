@@ -3883,6 +3883,34 @@
   gap: 8px;
 }
 
+.timer-expired-overlay {
+  flex-direction: column;
+  gap: 16px;
+  z-index: 20;
+}
+
+.timer-expired-overlay p {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+}
+
+.prep-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--accent-gold);
+  border-radius: 50%;
+  animation: spinLoader 0.8s linear infinite;
+}
+
+@keyframes spinLoader {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* =============================================
    INLINE OVERLAYS (1v1 coin flip, lock confirm, roulette)
    ============================================= */
@@ -4959,7 +4987,31 @@
    ============================================= */
 
 .coin-flip-overlay {
-  background: rgba(0, 0, 0, 0.9);
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.roulette-overlay {
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.coinflip-inline-overlay {
+  background: transparent !important;
+  backdrop-filter: none !important;
+}
+
+.roulette-inline-overlay {
+  background: transparent !important;
+  backdrop-filter: none !important;
+}
+
+.coinflip-inline-overlay .inline-overlay-content,
+.roulette-inline-overlay .inline-overlay-content {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-medium);
+  box-shadow: var(--shadow-lg);
 }
 
 .coin-flip-modal {
@@ -7410,4 +7462,58 @@
     padding: 8px 24px;
     font-size: 14px;
   }
+}
+
+/* Invitations */
+.match-slot.invited {
+  border: 1px dashed var(--border-subtle);
+  background: rgba(168, 85, 247, 0.05);
+}
+
+.slot-player.invited {
+  opacity: 0.7;
+}
+
+.slot-avatar.grayscale {
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+
+.slot-invited-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.status-badge.invite {
+  font-size: 10px;
+  background: var(--bg-elevated);
+  color: var(--accent-purple);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--accent-purple);
+  width: fit-content;
+}
+
+.join-buttons-group {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  justify-content: center;
+}
+
+.decline-invite-btn {
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  border: 1px solid #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.decline-invite-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+  transform: translateY(-2px);
 }

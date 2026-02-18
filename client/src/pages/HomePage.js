@@ -1494,19 +1494,26 @@ function HomePage() {
         if (!permissions[uid]) permissions[uid] = 'spectator';
       });
 
-      // Save team structure
-      const preAssignedTeams = {
-        team1: {
-          leader: team1.leader || null,
-          member1: team1.member1 || null,
-          member2: team1.member2 || null
-        },
-        team2: {
-          leader: team2.leader || null,
-          member1: team2.member1 || null,
-          member2: team2.member2 || null
-        }
+      // NEW: Invite System for paid 1v1 drafts
+      const pendingInvites = {};
+      const actualPreAssignedTeams = {
+        team1: { leader: team1.leader || null, member1: team1.member1 || null, member2: team1.member2 || null },
+        team2: { leader: team2.leader || null, member1: team2.member1 || null, member2: team2.member2 || null }
       };
+
+      if (is1v1 && !isFriendly && entryFee > 0) {
+        ['team1', 'team2'].forEach(slot => {
+          const leaderUid = slot === 'team1' ? team1.leader : team2.leader;
+          if (leaderUid && leaderUid !== user.uid) {
+            // Invite this user instead of adding directly
+            pendingInvites[leaderUid] = slot;
+            actualPreAssignedTeams[slot].leader = null;
+          }
+        });
+      }
+
+      // Save final team structure
+      const preAssignedTeams = actualPreAssignedTeams;
 
       // Get team names
       const team1LeaderUser = getUserById(team1.leader);
@@ -1522,9 +1529,9 @@ function HomePage() {
         team2: team2Banner || null,
       };
 
-      // Determine if 1v1 is joinable (has open player slots)
-      const bothPlayersAssigned = is1v1 && team1.leader && team2.leader;
-      const hasOpenSlots = is1v1 && (!team1.leader || !team2.leader);
+      // Determine if 1v1 is joinable (has open player slots or pending invites)
+      const bothPlayersAssigned = is1v1 && preAssignedTeams.team1.leader && preAssignedTeams.team2.leader;
+      const hasOpenSlots = is1v1 && (!preAssignedTeams.team1.leader || !preAssignedTeams.team2.leader);
 
       const tournamentData = {
         title: newTournament.title.trim(),
@@ -1544,6 +1551,7 @@ function HomePage() {
         status: bothPlayersAssigned ? 'coinFlip' : 'waiting',
         permissions: permissions,
         preAssignedTeams: preAssignedTeams,
+        pendingInvites: pendingInvites,
         teamNames: teamNames,
         teamBanners: teamBanners,
         lockedPhases: [],

@@ -20,8 +20,11 @@ const Mode1Draft = ({
     const {
         getTeamDisplayName,
         getTeamLeader,
-        getTeamMembers
+        getTeamMembers,
+        currentTimerDisplay
     } = utils;
+
+    const timerExpired = draftState.status === 'active' && currentTimerDisplay === '00:00:00';
 
     const renderPlayerSection = (team, playerIndex, picks) => {
         const leader = getTeamLeader(team);
@@ -47,6 +50,7 @@ const Mode1Draft = ({
                         const canRemove = user && draftState.status === 'active' &&
                             !locked &&
                             !draftState.awaitingLockConfirmation &&
+                            !timerExpired &&
                             userPermission === team;
 
                         if (!visible) {
@@ -178,7 +182,13 @@ const Mode1Draft = ({
                     </div>
                 )}
 
-                <div className={`amiko-grid ${draftState.status === 'completed' ? 'dimmed' : ''}`}>
+                <div className={`amiko-grid ${draftState.status === 'completed' ? 'dimmed' : ''} ${timerExpired ? 'dimmed' : ''}`}>
+                    {timerExpired && (
+                        <div className="preparation-overlay timer-expired-overlay">
+                            <div className="prep-spinner"></div>
+                            <p>⏱️ Time's up! Auto-locking selections...</p>
+                        </div>
+                    )}
                     {AMIKOS.map((amiko) => {
                         const picked = handlers.isAmikoPicked(amiko.id);
                         const pickVisible = picked && handlers.isAmikoPickVisible(amiko.id);
@@ -190,6 +200,7 @@ const Mode1Draft = ({
                             draftState.status === 'active' &&
                             !pickVisible &&
                             !draftState.awaitingLockConfirmation &&
+                            !timerExpired &&
                             !phaseComplete &&
                             (userPermission === draftState.currentTeam || isAdmin);
 

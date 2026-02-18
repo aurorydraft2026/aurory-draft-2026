@@ -41,8 +41,11 @@ const Mode3Draft = ({
         getTeamLeader,
         copyToClipboard,
         getUserProfilePicture,
-        DEFAULT_AVATAR
+        DEFAULT_AVATAR,
+        currentTimerDisplay
     } = utils;
+
+    const timerExpired = draftState.status === 'active' && currentTimerDisplay === '00:00:00';
 
     // Helper: Check if current user is a participant
     const isParticipant = user && draftState.preAssignedTeams && (
@@ -65,6 +68,7 @@ const Mode3Draft = ({
                         const visible = isPickVisibleToUser(team, index);
                         const canRemove = user && draftState.status === 'active' &&
                             !locked &&
+                            !timerExpired &&
                             !draftState.awaitingLockConfirmation &&
                             userPermission === team;
 
@@ -311,7 +315,13 @@ const Mode3Draft = ({
                     </div>
                 )}
 
-                <div className={`amiko-grid ${draftState.status === 'completed' ? 'dimmed' : ''}`}>
+                <div className={`amiko-grid ${draftState.status === 'completed' ? 'dimmed' : ''} ${timerExpired ? 'dimmed' : ''}`}>
+                    {timerExpired && (
+                        <div className="preparation-overlay timer-expired-overlay">
+                            <div className="prep-spinner"></div>
+                            <p>⏱️ Time's up! Auto-locking selections...</p>
+                        </div>
+                    )}
                     {AMIKOS.map((amiko) => {
                         const picked = isAmikoPicked(amiko.id);
                         const pickVisible = picked && isAmikoPickVisible(amiko.id);
@@ -376,6 +386,7 @@ const Mode3Draft = ({
                             draftState.status === 'active' &&
                             !pickVisible &&
                             !draftState.awaitingLockConfirmation &&
+                            !timerExpired &&
                             isSelectable &&
                             (draftState.simultaneousPicking || effectivePermission === draftState.currentTeam);
 

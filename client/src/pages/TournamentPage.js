@@ -323,6 +323,68 @@ function TournamentPage() {
     }
   });
 
+  // Format timer (HH:MM:SS)
+  const formatTime = (milliseconds) => {
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const getCurrentTimer = useCallback(() => {
+    const timerDuration = draftState.timerDuration || 30 * 1000;
+
+    if (draftState.status !== 'active') return formatTime(timerDuration);
+
+    // If in preparation phase, show starting message
+    if (draftState.inPreparation || showPreparation) {
+      return '⏳ Starting...';
+    }
+
+    // If manual timer start is enabled but timer hasn't started
+    if (draftState.manualTimerStart && !draftState.timerStarted) {
+      return '⏸️ Waiting';
+    }
+
+    const now = Date.now();
+    let remaining = timerDuration;
+
+    if (draftState.draftType === 'mode3' && draftState.sharedTimer) {
+      const elapsed = now - draftState.sharedTimer;
+      remaining = Math.max(0, timerDuration - elapsed);
+    } else if (draftState.currentTeam === 'A' && draftState.timerStartA) {
+      const elapsed = now - draftState.timerStartA;
+      remaining = Math.max(0, timerDuration - elapsed);
+    } else if (draftState.currentTeam === 'B' && draftState.timerStartB) {
+      const elapsed = now - draftState.timerStartB;
+      remaining = Math.max(0, timerDuration - elapsed);
+    }
+
+    return formatTime(remaining);
+  }, [draftState.status, draftState.currentTeam, draftState.timerStartA, draftState.timerStartB, draftState.timerDuration, draftState.manualTimerStart, draftState.timerStarted, draftState.inPreparation, showPreparation, draftState.draftType, draftState.sharedTimer]);
+
+  const [currentTimerDisplay, setCurrentTimerDisplay] = useState('24:00:00');
+
+  useEffect(() => {
+    const timerDuration = draftState.timerDuration || 30 * 1000;
+
+    if (draftState.status !== 'active') {
+      setCurrentTimerDisplay(formatTime(timerDuration));
+      return;
+    }
+
+    setCurrentTimerDisplay(getCurrentTimer());
+
+    const interval = setInterval(() => {
+      setCurrentTimerDisplay(getCurrentTimer());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [draftState.status, draftState.timerDuration, getCurrentTimer]);
+
+
   const [userPermission, setUserPermission] = useState(null);
 
   // Helper: Build initial permissions from assignments
@@ -911,7 +973,7 @@ function TournamentPage() {
 
   // Admin closes/cancels the coin flip
   const closeCoinFlip = async () => {
-    if (userPermission !== 'admin' && !isSuperAdmin(getUserEmail(user))) return;
+    if (userPermission !== 'admin' && !isCreator && !isSuperAdmin(getUserEmail(user))) return;
 
     const draftRef = doc(db, 'drafts', DRAFT_ID);
     await updateDoc(draftRef, {
@@ -939,12 +1001,38 @@ function TournamentPage() {
 
     const is1v1 = draftState.draftType === 'mode3' || draftState.draftType === 'mode4';
     if (!is1v1) return false;
+
     // Already a participant?
-    const teams = draftState.preAssignedTeams;
-    if (!teams) return false;
+    const teams = draftState.preAssignedTeams || { team1: {}, team2: {} };
     if (teams.team1?.leader === user.uid || teams.team2?.leader === user.uid) return false;
-    // Must have at least one open slot
-    return !teams.team1?.leader || !teams.team2?.leader;
+
+    const pendingInvites = draftState.pendingInvites || {};
+    // If I'm invited, I can join the reserved slot
+    if (pendingInvites[user.uid]) return true;
+
+    // If NOT invited, can only join if there's an open slot that isn't reserved for someone else
+    const reservedSlots = Object.values(pendingInvites);
+    const hasUnreservedOpenSlot =
+      (!teams.team1?.leader && !reservedSlots.includes('team1')) ||
+      (!teams.team2?.leader && !reservedSlots.includes('team2'));
+
+    return hasUnreservedOpenSlot;
+  };
+
+  // Handle declining an invitation
+  const handleDeclineInvite = async () => {
+    if (!user || !draftState.pendingInvites?.[user.uid]) return;
+
+    try {
+      const draftRef = doc(db, 'drafts', DRAFT_ID);
+      await updateDoc(draftRef, {
+        [`pendingInvites.${user.uid}`]: deleteField()
+      });
+      showAlert('Invitation Declined', 'You have declined the invitation to join this match.');
+    } catch (error) {
+      console.error('Error declining invite:', error);
+      showAlert('Error', 'Failed to decline invitation.');
+    }
   };
 
   // Handle joining a 1v1 draft
@@ -990,25 +1078,19 @@ function TournamentPage() {
         const draftSnap = await transaction.get(draftRef);
         if (!draftSnap.exists()) throw new Error('Draft not found');
 
-        logActivity({
-          user,
-          type: 'DRAFT',
-          action: 'join_draft',
-          metadata: {
-            draftId: DRAFT_ID,
-            entryFee: entryFee
-          }
-        });
-
         const data = draftSnap.data();
         if (!data.joinable || data.status !== 'waiting') throw new Error('Match is no longer joinable');
 
         const teams = data.preAssignedTeams || { team1: {}, team2: {} };
+        const pendingInvites = data.pendingInvites || {};
 
-        // Check slot availability again inside transaction
-        let slot = null;
-        if (!teams.team1?.leader) slot = 'team1';
-        else if (!teams.team2?.leader) slot = 'team2';
+        // 1. Determine slot: check pending invites first, then look for any open slot
+        let slot = pendingInvites[user.uid];
+        if (!slot) {
+          if (!teams.team1?.leader) slot = 'team1';
+          else if (!teams.team2?.leader) slot = 'team2';
+        }
+
         if (!slot) throw new Error('No open slots');
 
         // Check not already joined
@@ -1016,7 +1098,7 @@ function TournamentPage() {
           throw new Error('Already joined');
         }
 
-        // Deduct entry fee
+        // 2. Wallet deduction (inside transaction)
         if (!data.isFriendly && (data.entryFee || 0) > 0) {
           const walletRef = doc(db, 'wallets', user.uid);
           const walletSnap = await transaction.get(walletRef);
@@ -1038,7 +1120,7 @@ function TournamentPage() {
           });
         }
 
-        // Assign to slot
+        // 3. Update Draft Data
         const updatedTeams = { ...teams };
         updatedTeams[slot] = { ...updatedTeams[slot], leader: user.uid };
 
@@ -1051,16 +1133,15 @@ function TournamentPage() {
 
         const updateData = {
           preAssignedTeams: updatedTeams,
+          // Remove from pending invites
+          [`pendingInvites.${user.uid}`]: deleteField(),
           // Preserve admin permission if the joiner is the creator
           [`permissions.${user.uid}`]: data.createdBy === user.uid ? 'admin' : 'spectator',
-          // Update team name for the slot
           [`teamNames.${slot}`]: joinerName,
-          // Record entry paid
           [`entryPaid.${user.uid}`]: data.isFriendly ? 0 : (data.entryFee || 0)
         };
 
         if (bothFilled) {
-          // Both players in → transition to coinFlip for confirmation
           updateData.joinable = false;
           updateData.status = 'coinFlip';
           updateData.coinFlip = {
@@ -1074,9 +1155,20 @@ function TournamentPage() {
         }
 
         transaction.update(draftRef, updateData);
+
+        // Log locally
+        logActivity({
+          user,
+          type: 'DRAFT',
+          action: 'join_draft',
+          metadata: {
+            draftId: DRAFT_ID,
+            entryFee: data.entryFee || 0
+          }
+        });
       });
 
-      showAlert('🎮 Joined!', 'You have joined the match. Waiting for confirmation...');
+      // Join successful - no modal, UI updates via snapshot listener
     } catch (error) {
       console.error('Join error:', error);
       if (error.message === 'Insufficient balance') {
@@ -1364,6 +1456,16 @@ function TournamentPage() {
     }
   }, [draftState.teamA, draftState.teamB, draftState.teamABans, draftState.teamBBans, tempPick]);
 
+  // Safety timeout: auto-clear tempPick if stuck for more than 5 seconds
+  useEffect(() => {
+    if (!tempPick) return;
+    const timeout = setTimeout(() => {
+      console.warn('Safety: clearing stuck tempPick after timeout');
+      setTempPick(null);
+    }, 5000);
+    return () => clearTimeout(timeout);
+  }, [tempPick]);
+
   // Derived state including temp pick (for flicker-free rendering)
   const displayTeamA = [...draftState.teamA];
   if (tempPick && tempPick.team === 'A' && !displayTeamA.includes(tempPick.id)) {
@@ -1391,7 +1493,9 @@ function TournamentPage() {
   }
 
   // Helper: can this user see private battle codes?
-  const isParticipantOrAdmin = userPermission === 'A' || userPermission === 'B' || userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
+  // isCreator: true if this user created the draft (for settings access even when userPermission is a team letter)
+  const isCreator = user && draftState.createdBy === user.uid;
+  const isParticipantOrAdmin = userPermission === 'A' || userPermission === 'B' || userPermission === 'admin' || isCreator || isSuperAdmin(getUserEmail(user));
 
   // Listen to auth state
   // Listen for authentication state changes and user Firestore data
@@ -1544,9 +1648,32 @@ function TournamentPage() {
                 [`permissions.${user.uid}`]: 'admin'
               });
             }
-            setUserPermission('admin');
+
+            // SuperAdmin who is also a participant: override to team letter
+            // so picking, visibility, and locking all work correctly
+            let effectivePerm = 'admin';
+            if (data.matchPlayers && (data.status === 'active' || data.status === 'completed')) {
+              const playerEntry = data.matchPlayers.find(p => p.uid === user.uid);
+              if (playerEntry?.team) {
+                effectivePerm = playerEntry.team; // 'A' or 'B'
+              }
+            }
+            setUserPermission(effectivePerm);
           } else if (data.permissions) {
-            setUserPermission(data.permissions[user.uid] || 'spectator');
+            let effectivePermission = data.permissions[user.uid] || 'spectator';
+
+            // If user has 'admin' in Firestore but is also a participant,
+            // override to their team letter for picking/visibility/locking.
+            // Firestore keeps 'admin' for security rules (delete, chat access).
+            // Works for ALL modes (1v1 and 3v3).
+            if (effectivePermission === 'admin' && data.matchPlayers && (data.status === 'active' || data.status === 'completed')) {
+              const playerEntry = data.matchPlayers.find(p => p.uid === user.uid);
+              if (playerEntry?.team) {
+                effectivePermission = playerEntry.team; // 'A' or 'B'
+              }
+            }
+
+            setUserPermission(effectivePermission);
           } else {
             setUserPermission('spectator');
           }
@@ -2337,6 +2464,7 @@ function TournamentPage() {
     } catch (error) {
       console.error('Error executing pick:', error);
       showAlert('Error', 'Failed to pick Amiko. Please try again.');
+      throw error; // Re-throw so caller can clear tempPick
     }
   }, [DRAFT_ID, draftState, showAlert, user]);
 
@@ -2771,6 +2899,7 @@ function TournamentPage() {
     } catch (error) {
       console.error('Error executing ban:', error);
       showAlert('Error', 'Failed to ban Amiko. Please try again.');
+      throw error; // Re-throw so caller can clear tempPick
     }
   }, [DRAFT_ID, draftState, showAlert, user]);
 
@@ -3049,6 +3178,11 @@ function TournamentPage() {
       return;
     }
 
+    // Block picks when timer has expired (server will auto-lock)
+    if (currentTimerDisplay === '00:00:00') {
+      return;
+    }
+
     const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
     const userTeam = userPermission === 'A' ? 'A' : userPermission === 'B' ? 'B' : null;
 
@@ -3060,7 +3194,7 @@ function TournamentPage() {
     } else {
       await handleStandardSelection(amikoId, isAdmin);
     }
-  }, [user, draftState, userPermission, handleMode4Selection, handleMode3Selection, handleStandardSelection, showAlert, tempPick]);
+  }, [user, draftState, userPermission, handleMode4Selection, handleMode3Selection, handleStandardSelection, showAlert, tempPick, currentTimerDisplay]);
 
 
 
@@ -3109,7 +3243,7 @@ function TournamentPage() {
 
   // Reset draft
   const resetDraft = () => {
-    if (userPermission !== 'admin' && !isSuperAdmin(getUserEmail(user))) return;
+    if (userPermission !== 'admin' && !isCreator && !isSuperAdmin(getUserEmail(user))) return;
 
     setShowAdminPanel(false);
 
@@ -3186,7 +3320,7 @@ function TournamentPage() {
 
   // Start timer manually
   const startTimer = async () => {
-    if (userPermission !== 'admin' && !isSuperAdmin(getUserEmail(user))) return;
+    if (userPermission !== 'admin' && !isCreator && !isSuperAdmin(getUserEmail(user))) return;
     if (draftState.status !== 'active') return;
     if (draftState.timerStarted) return;
 
@@ -3206,7 +3340,7 @@ function TournamentPage() {
 
   // Delete tournament
   const deleteTournament = () => {
-    if (userPermission !== 'admin' && !isSuperAdmin(getUserEmail(user))) return;
+    if (userPermission !== 'admin' && !isCreator && !isSuperAdmin(getUserEmail(user))) return;
 
     setShowAdminPanel(false);
     setShowRoulette(false); // Stop UI animations immediately
@@ -3733,66 +3867,6 @@ function TournamentPage() {
 
 
 
-  // Format timer (HH:MM:SS)
-  const formatTime = (milliseconds) => {
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  const getCurrentTimer = useCallback(() => {
-    const timerDuration = draftState.timerDuration || 30 * 1000;
-
-    if (draftState.status !== 'active') return formatTime(timerDuration);
-
-    // If in preparation phase, show starting message
-    if (draftState.inPreparation || showPreparation) {
-      return '⏳ Starting...';
-    }
-
-    // If manual timer start is enabled but timer hasn't started
-    if (draftState.manualTimerStart && !draftState.timerStarted) {
-      return '⏸️ Waiting';
-    }
-
-    const now = Date.now();
-    let remaining = timerDuration;
-
-    if (draftState.draftType === 'mode3' && draftState.sharedTimer) {
-      const elapsed = now - draftState.sharedTimer;
-      remaining = Math.max(0, timerDuration - elapsed);
-    } else if (draftState.currentTeam === 'A' && draftState.timerStartA) {
-      const elapsed = now - draftState.timerStartA;
-      remaining = Math.max(0, timerDuration - elapsed);
-    } else if (draftState.currentTeam === 'B' && draftState.timerStartB) {
-      const elapsed = now - draftState.timerStartB;
-      remaining = Math.max(0, timerDuration - elapsed);
-    }
-
-    return formatTime(remaining);
-  }, [draftState.status, draftState.currentTeam, draftState.timerStartA, draftState.timerStartB, draftState.timerDuration, draftState.manualTimerStart, draftState.timerStarted, draftState.inPreparation, showPreparation, draftState.draftType, draftState.sharedTimer]);
-
-  const [currentTimerDisplay, setCurrentTimerDisplay] = useState('24:00:00');
-
-  useEffect(() => {
-    const timerDuration = draftState.timerDuration || 30 * 1000;
-
-    if (draftState.status !== 'active') {
-      setCurrentTimerDisplay(formatTime(timerDuration));
-      return;
-    }
-
-    setCurrentTimerDisplay(getCurrentTimer());
-
-    const interval = setInterval(() => {
-      setCurrentTimerDisplay(getCurrentTimer());
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [draftState.status, draftState.timerDuration, getCurrentTimer]);
 
   const isAmikoPicked = (amikoId) => {
     return [...draftState.teamA, ...draftState.teamB].includes(amikoId);
@@ -3995,7 +4069,8 @@ function TournamentPage() {
     ElementBadge,
     RankStars,
     getUserProfilePicture,
-    DEFAULT_AVATAR
+    DEFAULT_AVATAR,
+    currentTimerDisplay
   };
 
   return (
@@ -4045,7 +4120,7 @@ function TournamentPage() {
                         userPermission === 'B' ? `${draftState.teamColors?.teamB === 'blue' ? '🔵' : '🔴'} ${getUserDisplayName(user)}` : ''}
                   {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder" style={{ marginLeft: '4px' }}>🛡️</span>}
                 </span>
-                {(userPermission === 'admin' || isSuperAdmin(getUserEmail(user))) && (
+                {(userPermission === 'admin' || isCreator || isSuperAdmin(getUserEmail(user))) && (
                   (() => {
                     const is1v1 = ['mode3', 'mode4'].includes(draftState.draftType);
                     const isParticipant = user && draftState.preAssignedTeams && (
@@ -4193,7 +4268,7 @@ function TournamentPage() {
                   <div className="modal-header-actions">
                     <h2>{draftState.draftType === 'mode3' ? '✅ Please Confirm' : '🪙 Flip Coin'}</h2>
                     <div className="modal-header-actions-group">
-                      {(userPermission === 'admin' || isSuperAdmin(getUserEmail(user))) && (
+                      {(userPermission === 'admin' || isCreator || isSuperAdmin(getUserEmail(user))) && (
                         <button className="close-modal-btn" onClick={closeCoinFlip} title="Cancel Coin Flip">Close</button>
                       )}
                       <button className="hide-modal-btn" onClick={() => setIsCoinFlipHidden(true)}>Hide</button>
@@ -4497,7 +4572,7 @@ function TournamentPage() {
 
         {/* Admin Panel Modal */}
         {
-          (userPermission === 'admin' || isSuperAdmin(getUserEmail(user))) && showAdminPanel && (
+          (userPermission === 'admin' || isCreator || isSuperAdmin(getUserEmail(user))) && showAdminPanel && (
             <div className="modal-overlay" onClick={() => setShowAdminPanel(false)}>
               <div className="admin-panel-modal" onClick={e => e.stopPropagation()}>
                 <div className="admin-panel-header">
@@ -4619,6 +4694,13 @@ function TournamentPage() {
               const isPlayer = user && (p1Uid === user.uid || p2Uid === user.uid);
               const entryFeeDisplay = draftState.isFriendly ? 'Free' : `${formatAuryAmount(draftState.entryFee)} AURY`;
 
+              // Invitations
+              const pendingInvites = draftState.pendingInvites || {};
+              const p1InviteUid = Object.keys(pendingInvites).find(uid => pendingInvites[uid] === 'team1');
+              const p2InviteUid = Object.keys(pendingInvites).find(uid => pendingInvites[uid] === 'team2');
+              const p1Invited = p1InviteUid ? registeredUsers.find(u => u.uid === p1InviteUid || u.id === p1InviteUid) : null;
+              const p2Invited = p2InviteUid ? registeredUsers.find(u => u.uid === p2InviteUid || u.id === p2InviteUid) : null;
+
               return (
                 <div className="waiting-1v1-section">
                   <div className="match-info-banner">
@@ -4634,7 +4716,7 @@ function TournamentPage() {
                   </div>
 
                   <div className="match-slots">
-                    <div className={`match-slot ${p1 ? 'filled' : 'open'}`}>
+                    <div className={`match-slot ${p1 ? 'filled' : (p1Invited ? 'invited' : 'open')}`}>
                       {p1 ? (
                         <div className="slot-player">
                           <img
@@ -4646,6 +4728,18 @@ function TournamentPage() {
                           {p1Uid === draftState.createdBy && <span className="creator-badge">Creator</span>}
                           {draftState.entryPaid?.[p1Uid] > 0 && <span className="paid-badge">✓ Paid</span>}
                         </div>
+                      ) : p1Invited ? (
+                        <div className="slot-player invited">
+                          <img
+                            src={p1Invited.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                            alt="" className="slot-avatar grayscale"
+                            onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                          />
+                          <div className="slot-invited-info">
+                            <span className="slot-name">{p1Invited.auroryPlayerName || p1Invited.displayName || p1Invited.username || 'Player 1'}</span>
+                            <span className="status-badge invite">Invitation Sent</span>
+                          </div>
+                        </div>
                       ) : (
                         <div className="slot-empty">
                           <span className="slot-empty-icon">👤</span>
@@ -4656,7 +4750,7 @@ function TournamentPage() {
 
                     <div className="match-vs">VS</div>
 
-                    <div className={`match-slot ${p2 ? 'filled' : 'open'}`}>
+                    <div className={`match-slot ${p2 ? 'filled' : (p2Invited ? 'invited' : 'open')}`}>
                       {p2 ? (
                         <div className="slot-player">
                           <img
@@ -4668,6 +4762,18 @@ function TournamentPage() {
                           {p2Uid === draftState.createdBy && <span className="creator-badge">Creator</span>}
                           {draftState.entryPaid?.[p2Uid] > 0 && <span className="paid-badge">✓ Paid</span>}
                         </div>
+                      ) : p2Invited ? (
+                        <div className="slot-player invited">
+                          <img
+                            src={p2Invited.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                            alt="" className="slot-avatar grayscale"
+                            onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                          />
+                          <div className="slot-invited-info">
+                            <span className="slot-name">{p2Invited.auroryPlayerName || p2Invited.displayName || p2Invited.username || 'Player 2'}</span>
+                            <span className="status-badge invite">Invitation Sent</span>
+                          </div>
+                        </div>
                       ) : (
                         <div className="slot-empty">
                           <span className="slot-empty-icon">👤</span>
@@ -4676,49 +4782,71 @@ function TournamentPage() {
                       )}
                     </div>
                   </div>
-
                   {/* Join button for non-participants when there's an open slot */}
-                  {canJoinDraft() && (
-                    <div className="join-section">
-                      {!draftState.isFriendly && draftState.entryFee > 0 && (
-                        <p className="join-fee-notice">
-                          Entry Fee: <strong>{entryFeeDisplay}</strong>
-                          <span className="join-balance">Your Balance: {formatAuryAmount(walletBalance)} AURY</span>
-                          {walletBalance < draftState.entryFee && <span className="insufficient-warning">⚠️ Insufficient balance</span>}
-                        </p>
-                      )}
-                      <button
-                        className="join-match-btn"
-                        onClick={handleJoinDraft}
-                        disabled={isJoining || (!draftState.isFriendly && walletBalance < draftState.entryFee)}
-                      >
-                        {isJoining ? '⏳ Joining...' : '⚔️ Join Match'}
-                      </button>
-                    </div>
-                  )}
+                  {
+                    canJoinDraft() && (
+                      <div className="join-section">
+                        {!draftState.isFriendly && draftState.entryFee > 0 && (
+                          <p className="join-fee-notice">
+                            Entry Fee: <strong>{entryFeeDisplay}</strong>
+                            <span className="join-balance">Your Balance: {formatAuryAmount(walletBalance)} AURY</span>
+                            {walletBalance < draftState.entryFee && <span className="insufficient-warning">⚠️ Insufficient balance</span>}
+                          </p>
+                        )}
+                        <div className="join-buttons-group">
+                          <button
+                            className="join-match-btn"
+                            onClick={handleJoinDraft}
+                            disabled={isJoining || (!draftState.isFriendly && walletBalance < draftState.entryFee)}
+                          >
+                            {isJoining ? '⏳ Joining...' : '⚔️ Join Match'}
+                          </button>
+                          {draftState.pendingInvites?.[user.uid] && (
+                            <button
+                              className="decline-invite-btn"
+                              onClick={handleDeclineInvite}
+                              disabled={isJoining}
+                            >
+                              ❌ Decline
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  }
 
                   {/* Info for participants already in */}
-                  {isPlayer && (!p1 || !p2) && (
-                    <p className="waiting-notice">Waiting for your opponent to join...</p>
-                  )}
-                  {isPlayer && p1 && p2 && (
-                    <p className="waiting-notice">Both players ready! Preparing confirmation...</p>
-                  )}
+                  {
+                    isPlayer && (!p1 || !p2) && (
+                      <p className="waiting-notice">Waiting for your opponent to join...</p>
+                    )
+                  }
+                  {
+                    isPlayer && p1 && p2 && (
+                      <p className="waiting-notice">Both players ready! Preparing confirmation...</p>
+                    )
+                  }
 
                   {/* Self-remove button for participants */}
-                  {isPlayer && (
-                    <button className="self-remove-btn" onClick={handleSelfRemove}>
-                      🚪 Leave Match
-                    </button>
-                  )}
+                  {
+                    isPlayer && (
+                      <button className="self-remove-btn" onClick={handleSelfRemove}>
+                        🚪 Leave Match
+                      </button>
+                    )
+                  }
 
                   {/* Info for spectators */}
-                  {!user && (
-                    <p className="login-join-notice">👋 Log in to join this match!</p>
-                  )}
-                  {user && !isPlayer && !canJoinDraft() && !draftState.joinable && (
-                    <p className="waiting-notice">Waiting for both players to confirm...</p>
-                  )}
+                  {
+                    !user && (
+                      <p className="login-join-notice">👋 Log in to join this match!</p>
+                    )
+                  }
+                  {
+                    user && !isPlayer && !canJoinDraft() && !draftState.joinable && (
+                      <p className="waiting-notice">Waiting for both players to confirm...</p>
+                    )
+                  }
                 </div>
               );
             }
@@ -4842,7 +4970,7 @@ function TournamentPage() {
             <div className="match-verification-section">
               <div className="verification-header">
                 <h3>⚔️ Match Results</h3>
-                {(userPermission === 'admin' || isSuperAdmin(getUserEmail(user))) && (
+                {(userPermission === 'admin' || isCreator || isSuperAdmin(getUserEmail(user))) && (
                   <button
                     className="verify-btn"
                     onClick={handleVerifyMatch}
@@ -5899,7 +6027,7 @@ function TournamentPage() {
           onClose={() => setShowRulesModal(false)}
           draftType={draftState.draftType}
         />
-      </div> {/* End of tournament-page */}
+      </div > {/* End of tournament-page */}
     </>
   );
 }
