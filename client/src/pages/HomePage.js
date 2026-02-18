@@ -4,7 +4,7 @@ import { auth, db, discordProvider, googleProvider } from '../firebase';
 import { signInWithPopup, getAdditionalUserInfo, signOut, onAuthStateChanged } from 'firebase/auth';
 import {
   collection, onSnapshot, doc, setDoc, serverTimestamp, getDocs,
-  addDoc, query, orderBy, limit, runTransaction, writeBatch, where
+  addDoc, query, orderBy, limit, runTransaction, writeBatch, where, increment
 } from 'firebase/firestore';
 import { isSuperAdmin } from '../config/admins';
 import { createNotification } from '../services/notifications';
@@ -2596,6 +2596,14 @@ function HomePage() {
                       onClick={() => {
                         setSelectedNews(item);
                         setShowNewsModal(true);
+                        // Increment view count
+                        try {
+                          updateDoc(doc(db, 'news', item.id), {
+                            viewCount: increment(1)
+                          });
+                        } catch (error) {
+                          console.error('Error incrementing news view count:', error);
+                        }
                         // Mark news as seen
                         if (news.length > 0) {
                           localStorage.setItem('lastSeenNewsId', news[0].id);
@@ -2614,6 +2622,12 @@ function HomePage() {
                           <span className="news-date">
                             {item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Recently'}
                           </span>
+                          {item.viewCount !== undefined && (
+                            <>
+                              <span className="news-dot">•</span>
+                              <span className="news-views">👁️ {item.viewCount || 0}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -3926,14 +3940,19 @@ function HomePage() {
                   <span className="author-label">Posted by</span>
                   <span className="author-name">{selectedNews.authorName}</span>
                 </div>
-                <span className="news-modal-date">
-                  {selectedNews.createdAt?.toDate ? selectedNews.createdAt.toDate().toLocaleDateString(undefined, {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  }) : 'Recently'}
-                </span>
+                <div className="news-modal-stats">
+                  {selectedNews.viewCount !== undefined && (
+                    <span className="news-views">👁️ {selectedNews.viewCount || 0} views</span>
+                  )}
+                  <span className="news-modal-date">
+                    {selectedNews.createdAt?.toDate ? selectedNews.createdAt.toDate().toLocaleDateString(undefined, {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    }) : 'Recently'}
+                  </span>
+                </div>
               </div>
               <div
                 className="news-modal-body"

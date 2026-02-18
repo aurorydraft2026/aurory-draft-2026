@@ -6376,6 +6376,21 @@ input[type="file"] {
   color: var(--accent-cyan);
 }
 
+.news-views {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent-cyan);
+  font-weight: 500;
+}
+
+.news-modal-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
 .news-modal-date {
   color: var(--text-muted);
   font-size: 0.9rem;
