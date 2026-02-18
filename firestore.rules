@@ -59,6 +59,14 @@ service cloud.firestore {
              : 'spectator';
     }
 
+    // Check if user is the draft creator or has admin role in that draft
+    function isDraftAdmin(draftId) {
+      let draft = get(/databases/$(database)/documents/drafts/$(draftId)).data;
+      return isSuperAdmin() || 
+             getRole(draftId) == 'admin' || 
+             (request.auth != null && draft.createdBy == request.auth.uid);
+    }
+
     // Helper function to check if user is truly logged in (not anonymous)
     function isRealUser() {
       return request.auth != null && 
@@ -76,10 +84,27 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       
       // Authenticated users can update drafts
-      allow update: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        // 1. Admins/SuperAdmins/Draft Creators can update everything
+        isDraftAdmin(draftId) || 
+        (
+          // 2. Participants can update their own team's picks/bans
+          // Allow picking (status remains same or transitions to completed)
+          (getRole(draftId) == 'A' && request.resource.data.teamA != resource.data.teamA && (request.resource.data.status == resource.data.status || request.resource.data.status == 'completed')) ||
+          (getRole(draftId) == 'B' && request.resource.data.teamB != resource.data.teamB && (request.resource.data.status == resource.data.status || request.resource.data.status == 'completed')) ||
+          // 3. Allow pre-draft and transition phases (joining, leaving, starting, shuffling)
+          (resource.data.status in ['waiting', 'assignment', 'coinFlip', 'poolShuffle']) ||
+          // 4. Allow concession in 1v1 matches (participants can only concede for themselves)
+          (resource.data.draftType in ['mode3', 'mode4'] && 
+           (resource.data.status == 'active' || resource.data.status == 'completed') && 
+           request.resource.data.status == 'completed' && 
+           request.resource.data.concededBy == getRole(draftId) &&
+           !('concededBy' in resource.data))
+        )
+      );
       
-      // Only admins can delete drafts
-      allow delete: if isSuperAdmin() || resource.data.permissions[request.auth.uid] == 'admin';
+      // Only admins and creators can delete drafts
+      allow delete: if isDraftAdmin(draftId);
       
       // -----------------------------------------
       // TEAM A CHAT SUBCOLLECTION

@@ -26,14 +26,31 @@ const Mode3Draft = ({
         handleCardMouseLeave,
         getCardTransform,
         hoveredCard,
-        shuffleHighlights
+        shuffleHighlights,
+        // 1v1 inline overlay handlers
+        handleSelfRemove,
+        lockRoll,
+        showRoulette,
+        roulettePhase,
+        walletBalance,
+        formatAuryAmount
     } = handlers;
 
     const {
         getTeamDisplayName,
         getTeamLeader,
-        copyToClipboard
+        copyToClipboard,
+        getUserProfilePicture,
+        DEFAULT_AVATAR
     } = utils;
+
+    // Helper: Check if current user is a participant
+    const isParticipant = user && draftState.preAssignedTeams && (
+        user.uid === draftState.preAssignedTeams.team1?.leader ||
+        user.uid === draftState.preAssignedTeams.team2?.leader
+    );
+    const isTeam1Leader = user && user.uid === draftState.preAssignedTeams?.team1?.leader;
+    const isTeam2Leader = user && user.uid === draftState.preAssignedTeams?.team2?.leader;
 
     const renderPlayerSection = (team, picks) => {
         const leader = getTeamLeader(team);
@@ -88,7 +105,7 @@ const Mode3Draft = ({
         );
     };
 
-    const renderTeamPanel = (team) => {
+    const renderPlayerPanel = (team) => {
         const isTeamA = team === 'A';
         const teamColor = isTeamA ? (draftState.teamColors?.teamA || 'blue') : (draftState.teamColors?.teamB || 'red');
         const displayPicks = isTeamA ? displayTeamA : displayTeamB;
@@ -97,35 +114,28 @@ const Mode3Draft = ({
             ? (draftState.teamColors?.teamA === 'blue' ? draftState.teamBanners?.team1 : draftState.teamBanners?.team2)
             : (draftState.teamColors?.teamB === 'blue' ? draftState.teamBanners?.team1 : draftState.teamBanners?.team2);
 
-        const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
+        const leaderImage = leader ? (getUserProfilePicture ? getUserProfilePicture(leader) : (leader.photoURL || DEFAULT_AVATAR)) : DEFAULT_AVATAR;
+        const playerBanner = teamBanner || leaderImage;
+
 
         return (
             <div className={`team-panel team-${teamColor}`}>
-                {teamBanner && (
-                    <div className="team-banner-circle">
-                        <img src={teamBanner} alt={getTeamDisplayName(team)} />
-                    </div>
-                )}
+                <div className="team-banner-circle">
+                    <img
+                        src={playerBanner}
+                        alt={getTeamDisplayName(team)}
+                        onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_AVATAR || 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                    />
+                </div>
                 <h2 className={`team-heading team-${teamColor}-heading`}>
                     {getTeamDisplayName(team)}
                 </h2>
-                {leader && (
-                    <div className="team-leader">
-                        <img
-                            src={leader.photoURL && leader.photoURL !== '' ? leader.photoURL : 'https://cdn.discordapp.com/embed/avatars/0.png'}
-                            alt=""
-                            className="leader-avatar"
-                            onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                        />
-                        <span className="leader-name">{leader.displayName}</span>
-                    </div>
-                )}
                 <div className="team-picks-container">
                     {renderPlayerSection(team, displayPicks)}
                 </div>
 
-                {/* 1v1 Mode Lock Button */}
-                {(userPermission === team || isAdmin) && (
+                {/* Lock Button - Participant Only */}
+                {userPermission === team && (
                     <div className="team-lock-actions">
                         {displayPicks.length >= 3 && !isTeamLocked(team) && (
                             <button className="confirm-lock-btn" onClick={() => lock1v1Picks(team)}>
@@ -141,16 +151,126 @@ const Mode3Draft = ({
         );
     };
 
+    // ─── COIN FLIP INLINE OVERLAY (Mode3 = readiness check) ───
+    const renderCoinFlipOverlay = () => {
+        if (draftState.status !== 'coinFlip' || !draftState.coinFlip) return null;
+
+        const p1Name = draftState.teamNames?.team1 || 'Player 1';
+        const p2Name = draftState.teamNames?.team2 || 'Player 2';
+
+        return (
+            <div className="inline-overlay coinflip-inline-overlay">
+                <div className="inline-overlay-content">
+                    <h3>✅ Ready Check</h3>
+
+                    {/* Rolling Phase - Readiness check */}
+                    {draftState.coinFlip.phase === 'rolling' && (
+                        <div className="roll-section">
+                            <p className="roll-instruction">Confirm when you are ready to start the draft.</p>
+
+                            <div className="roll-status">
+                                <div className={`roll-status-item ${draftState.coinFlip.team1Locked ? 'locked' : ''}`}>
+                                    <span className="player-color blue">🔵 {p1Name}</span>
+                                    <span className={`lock-status ${draftState.coinFlip.team1Locked ? 'locked' : 'waiting'}`}>
+                                        {draftState.coinFlip.team1Locked ? '✓ Ready' : 'Waiting...'}
+                                    </span>
+                                </div>
+                                <div className={`roll-status-item ${draftState.coinFlip.team2Locked ? 'locked' : ''}`}>
+                                    <span className="player-color red">🔴 {p2Name}</span>
+                                    <span className={`lock-status ${draftState.coinFlip.team2Locked ? 'locked' : 'waiting'}`}>
+                                        {draftState.coinFlip.team2Locked ? '✓ Ready' : 'Waiting...'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Entry fee notice */}
+                            {user && !draftState.isFriendly && (draftState.entryFee || 0) > 0 && !draftState.entryPaid?.[user.uid] && isParticipant && (
+                                <div className="entry-fee-notice">
+                                    <p>💰 Entry Fee: <strong>{formatAuryAmount(draftState.entryFee)} AURY</strong></p>
+                                    <p className="fee-balance">Your Balance: {formatAuryAmount(walletBalance)} AURY</p>
+                                    {walletBalance < draftState.entryFee && (
+                                        <p className="fee-insufficient">⚠️ Insufficient balance</p>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Ready button */}
+                            {user && (
+                                (isTeam1Leader && !draftState.coinFlip.team1Locked) ||
+                                (isTeam2Leader && !draftState.coinFlip.team2Locked)
+                            ) && (
+                                    <button className="roll-btn" onClick={lockRoll}
+                                        disabled={!draftState.isFriendly && (draftState.entryFee || 0) > 0 && !draftState.entryPaid?.[user.uid] && walletBalance < draftState.entryFee}
+                                    >
+                                        I'm Ready
+                                    </button>
+                                )}
+
+                            {/* Already confirmed */}
+                            {user && (
+                                (isTeam1Leader && draftState.coinFlip.team1Locked) ||
+                                (isTeam2Leader && draftState.coinFlip.team2Locked)
+                            ) && (
+                                    <p className="locked-message">✓ You are ready! Waiting for opponent...</p>
+                                )}
+
+                            {/* Self-remove button */}
+                            {isParticipant && (
+                                <button className="self-remove-btn inline-self-remove" onClick={handleSelfRemove}>
+                                    🚪 Leave Match
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Done/Starting phase */}
+                    {draftState.coinFlip.phase !== 'rolling' && (
+                        <div className="coin-done-simple">
+                            <p>🚀 Starting draft...</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    // ─── ROULETTE INLINE OVERLAY ───
+    const renderRouletteOverlay = () => {
+        if (!showRoulette) return null;
+
+        return (
+            <div className="inline-overlay roulette-inline-overlay">
+                <div className="inline-overlay-content">
+                    <h3>⚔️ Match Starting</h3>
+                    {roulettePhase === 'scrambling' && (
+                        <p className="scramble-text">🎲 Shuffling Amiko Pools...</p>
+                    )}
+                    {roulettePhase === 'done' && (
+                        <div className="roulette-done">
+                            <p>🚀 Starting draft...</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
     return (
         <>
-            {renderTeamPanel('A')}
+            {renderPlayerPanel('A')}
 
             <div className="amiko-selection-wrapper">
+                {/* Coin Flip Inline Overlay */}
+                {renderCoinFlipOverlay()}
+
+                {/* Roulette Inline Overlay */}
+                {renderRouletteOverlay()}
+
                 {/* Preparation overlay */}
                 {(handlers.showPreparation || draftState.inPreparation) && (userPermission === 'A' || userPermission === 'B') && (
                     <div className="preparation-overlay">
                         <div className="preparation-content">
-                            <span>⏳ Team {handlers.nextTeamAfterPrep || draftState.currentTeam}'s turn starting...</span>
+                            <span>⏳ {getTeamDisplayName(handlers.nextTeamAfterPrep || draftState.currentTeam)}'s turn starting...</span>
                         </div>
                     </div>
                 )}
@@ -195,7 +315,6 @@ const Mode3Draft = ({
                     {AMIKOS.map((amiko) => {
                         const picked = isAmikoPicked(amiko.id);
                         const pickVisible = picked && isAmikoPickVisible(amiko.id);
-                        const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
 
                         // 1v1 specific pool logic
                         let mode3Class = '';
@@ -211,7 +330,12 @@ const Mode3Draft = ({
                                 }
                                 isSelectable = false;
                             } else {
-                                const userTeam = userPermission === 'A' ? 'A' : userPermission === 'B' ? 'B' : null;
+                                let userTeam = userPermission === 'A' ? 'A' : userPermission === 'B' ? 'B' : null;
+                                if (!userTeam && userPermission === 'admin') {
+                                    if (draftState.preAssignedTeams?.team1?.leader === user?.uid) userTeam = 'A';
+                                    else if (draftState.preAssignedTeams?.team2?.leader === user?.uid) userTeam = 'B';
+                                }
+
                                 const myPool = userTeam === 'A' ? draftState.playerAPool : userTeam === 'B' ? draftState.playerBPool : [];
                                 const opponentPool = userTeam === 'A' ? draftState.playerBPool : userTeam === 'B' ? draftState.playerAPool : [];
 
@@ -229,10 +353,10 @@ const Mode3Draft = ({
                                 } else {
                                     if (draftState.playerAPool?.includes(amiko.id)) {
                                         mode3Class = 'team-a-pool';
-                                        isSelectable = isAdmin;
+                                        isSelectable = false;
                                     } else if (draftState.playerBPool?.includes(amiko.id)) {
                                         mode3Class = 'team-b-pool';
-                                        isSelectable = isAdmin;
+                                        isSelectable = false;
                                     } else {
                                         mode3Class = 'unassigned';
                                         isSelectable = false;
@@ -241,12 +365,19 @@ const Mode3Draft = ({
                             }
                         }
 
+                        // Derive effective team for pickability if user is an admin participant
+                        let effectivePermission = userPermission;
+                        if (effectivePermission === 'admin') {
+                            if (draftState.preAssignedTeams?.team1?.leader === user?.uid) effectivePermission = 'A';
+                            else if (draftState.preAssignedTeams?.team2?.leader === user?.uid) effectivePermission = 'B';
+                        }
+
                         const canPick = user &&
                             draftState.status === 'active' &&
                             !pickVisible &&
                             !draftState.awaitingLockConfirmation &&
                             isSelectable &&
-                            (draftState.simultaneousPicking || userPermission === draftState.currentTeam || isAdmin);
+                            (draftState.simultaneousPicking || effectivePermission === draftState.currentTeam);
 
                         return (
                             <div
@@ -258,19 +389,6 @@ const Mode3Draft = ({
                                 onMouseLeave={handleCardMouseLeave}
                                 style={canPick ? getCardTransform(amiko.id) : {}}
                             >
-                                {/*}
-                                {amiko.element && (
-                                    <div className="amiko-element-badge">
-                                        <ElementBadge element={amiko.element} size="small" />
-                                    </div>
-                                )}
-
-                                {amiko.seekerRank && (
-                                    <div className="amiko-rank-stars">
-                                        <RankStars rank={amiko.seekerRank} size="small" />
-                                    </div>
-                                )}*/}
-
                                 <img src={amiko.image} alt={amiko.name} />
                                 <span className="amiko-name">{amiko.name}</span>
                                 {pickVisible && <div className="picked-overlay">✓</div>}
@@ -280,7 +398,7 @@ const Mode3Draft = ({
                 </div>
             </div>
 
-            {renderTeamPanel('B')}
+            {renderPlayerPanel('B')}
         </>
     );
 };

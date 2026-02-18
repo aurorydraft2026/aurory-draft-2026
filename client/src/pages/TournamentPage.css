@@ -433,6 +433,63 @@
   border-color: var(--border-medium);
 }
 
+/* Concede Buttons */
+.concede-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.central-concede-area {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  width: 100%;
+}
+
+.concede-btn {
+  background: #ef4444;
+  border: 1px solid #dc2626;
+  color: white;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-family: var(--font-primary);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  backdrop-filter: blur(4px);
+}
+
+.concede-btn:hover {
+  background: #dc2626;
+  border-color: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+}
+
+.concede-btn:active {
+  transform: translateY(0);
+}
+
+.concede-btn.team-A {
+  background: #ef4444;
+  border-color: #dc2626;
+  color: white;
+}
+
+.concede-btn.team-B {
+  background: #ef4444;
+  border-color: #dc2626;
+  color: white;
+}
+
 /* =============================================
    TOURNAMENT INFO BAR
    ============================================= */
@@ -793,7 +850,7 @@
 }
 
 .ready-to-lock-btn {
-  background: linear-gradient(135deg, var(--success) 0%, #16a34a 100%);
+  background: #22c55e;
   color: white;
   border: none;
   padding: 10px 24px;
@@ -2040,6 +2097,29 @@
 }
 
 .app-modal-btn.secondary:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.app-modal-btn.confirm {
+  background: #22c55e;
+  color: white;
+  border: none;
+}
+
+.app-modal-btn.confirm:hover {
+  background: #16a34a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+}
+
+.app-modal-btn.cancel {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+.app-modal-btn.cancel:hover {
   background: var(--bg-elevated);
   color: var(--text-primary);
 }
@@ -3804,6 +3884,329 @@
 }
 
 /* =============================================
+   INLINE OVERLAYS (1v1 coin flip, lock confirm, roulette)
+   ============================================= */
+
+.inline-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(10, 10, 15, 0.9);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 15;
+  border-radius: var(--radius-lg);
+}
+
+.inline-overlay-content {
+  text-align: center;
+  padding: 24px 32px;
+  max-width: 420px;
+  width: 100%;
+}
+
+.inline-overlay-content h3 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.inline-overlay .roll-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.inline-overlay .roll-instruction {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.inline-overlay .roll-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.inline-overlay .roll-status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.3s;
+}
+
+.inline-overlay .roll-status-item.locked {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+.inline-overlay .player-color {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.inline-overlay .player-color.blue {
+  color: var(--accent-blue);
+}
+
+.inline-overlay .player-color.red {
+  color: var(--accent-red);
+}
+
+.inline-overlay .lock-status {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.inline-overlay .lock-status.waiting {
+  color: var(--text-muted);
+}
+
+.inline-overlay .lock-status.locked {
+  color: var(--accent-green);
+}
+
+.inline-overlay .roll-btn {
+  padding: 10px 32px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: #22c55e;
+  color: white;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 4px;
+}
+
+.inline-overlay .roll-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.3);
+}
+
+.inline-overlay .roll-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.inline-overlay .locked-message {
+  color: var(--accent-green);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.inline-overlay .entry-fee-notice {
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  font-size: 13px;
+}
+
+.inline-overlay .entry-fee-notice .fee-balance {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.inline-overlay .entry-fee-notice .fee-insufficient {
+  color: var(--error);
+  font-weight: 600;
+}
+
+.inline-overlay .coin-display-inline {
+  margin: 12px auto;
+  transform: scale(0.85);
+}
+
+/* Turn choice inside inline overlay */
+.inline-overlay .turn-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.inline-overlay .turn-choice-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.inline-overlay .turn-choice-btn {
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.inline-overlay .turn-choice-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent-purple);
+  transform: translateY(-2px);
+}
+
+.inline-overlay .winner-text,
+.inline-overlay .winner-banner {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.inline-overlay .winner-text.blue,
+.inline-overlay .winner-banner.blue {
+  color: var(--accent-blue);
+}
+
+.inline-overlay .winner-text.red,
+.inline-overlay .winner-banner.red {
+  color: var(--accent-red);
+}
+
+.inline-overlay .choice-text {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.inline-overlay .spin-text {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  animation: prepPulse 1s ease-in-out infinite;
+}
+
+.inline-overlay .coin-done-simple p,
+.inline-overlay .roulette-done p {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent-green);
+  animation: prepPulse 1.5s ease-in-out infinite;
+}
+
+/* Lock Confirmation Inline */
+.lock-confirm-inline-overlay .phase-picks-preview {
+  margin: 12px 0;
+}
+
+.lock-confirm-inline-overlay .picks-grid {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.lock-confirm-inline-overlay .auto-lock-notice {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.inline-overlay-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.inline-overlay-actions .confirm-lock-btn {
+  padding: 10px 24px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: linear-gradient(135deg, var(--accent-green), #059669);
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.inline-overlay-actions .confirm-lock-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+}
+
+.inline-overlay-actions .cancel-lock-btn {
+  padding: 10px 24px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.inline-overlay-actions .cancel-lock-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.inline-overlay-actions .confirm-lock-btn.disabled,
+.inline-overlay-actions .cancel-lock-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Roulette Inline */
+.roulette-inline-overlay .winner-summary {
+  margin: 12px 0;
+}
+
+.roulette-inline-overlay .winner-summary h4 {
+  font-size: 18px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.roulette-inline-overlay .choice-summary {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* =============================================
+   SELF-REMOVE BUTTON
+   ============================================= */
+
+.self-remove-btn {
+  padding: 8px 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.08);
+  color: #f87171;
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 8px;
+}
+
+.self-remove-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.inline-self-remove {
+  margin-top: 12px;
+}
+
+/* =============================================
    TIMER EXPIRED STYLES
    ============================================= */
 
@@ -4752,7 +5155,7 @@
   padding: 20px 60px;
   font-size: 24px;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--accent-purple) 0%, #7c3aed 100%);
+  background: #22c55e;
   color: white;
   border: none;
   border-radius: var(--radius-lg);
@@ -4761,12 +5164,13 @@
   font-family: var(--font-primary);
   text-transform: uppercase;
   letter-spacing: 2px;
-  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
+  box-shadow: 0 4px 20px rgba(34, 197, 94, 0.4);
 }
 
 .roll-btn:hover {
+  background: #16a34a;
   transform: translateY(-4px) scale(1.05);
-  box-shadow: 0 8px 30px rgba(139, 92, 246, 0.6);
+  box-shadow: 0 8px 30px rgba(34, 197, 94, 0.6);
 }
 
 .roll-btn:active {
@@ -6957,4 +7361,53 @@
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+/* =============================================
+   INLINE OVERLAY MOBILE RESPONSIVE
+   ============================================= */
+
+@media (max-width: 768px) {
+  .inline-overlay-content {
+    padding: 16px 20px;
+  }
+
+  .inline-overlay-content h3 {
+    font-size: 17px;
+  }
+
+  .inline-overlay .turn-choice-buttons {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .inline-overlay .coin-display-inline {
+    transform: scale(0.7);
+  }
+
+  .inline-overlay-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .self-remove-btn {
+    font-size: 12px;
+    padding: 6px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .inline-overlay-content {
+    padding: 12px 16px;
+  }
+
+  .inline-overlay .roll-status-item {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .inline-overlay .roll-btn {
+    padding: 8px 24px;
+    font-size: 14px;
+  }
 }

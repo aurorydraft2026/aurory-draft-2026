@@ -251,14 +251,17 @@ function TournamentPage() {
     });
   }, []);
 
-  // Show confirm modal
-  const showConfirm = useCallback((title, message, onConfirm) => {
-    setAppModal({
-      show: true,
-      type: 'confirm',
-      title,
-      message,
-      onConfirm
+  // Show confirm modal (returns Promise)
+  const showConfirm = useCallback((title, message) => {
+    return new Promise((resolve) => {
+      setAppModal({
+        show: true,
+        type: 'confirm',
+        title,
+        message,
+        onConfirm: () => resolve(true),
+        onCancel: () => resolve(false)
+      });
     });
   }, []);
 
@@ -271,6 +274,14 @@ function TournamentPage() {
   const handleAppModalConfirm = () => {
     if (appModal.onConfirm) {
       appModal.onConfirm();
+    }
+    closeAppModal();
+  };
+
+  // Handle cancel action
+  const handleAppModalCancel = () => {
+    if (appModal.onCancel) {
+      appModal.onCancel();
     }
     closeAppModal();
   };
@@ -318,12 +329,20 @@ function TournamentPage() {
   const getInitialPermissions = useCallback((existingPermissions, assignments) => {
     const permissions = { ...existingPermissions };
     assignments.forEach(assignment => {
+      // For participants, we store their team in permissions
       permissions[assignment.participant.uid || assignment.participant.id] = assignment.team;
     });
-    // Set admin LAST so it can't be overwritten if creator is also a participant
-    permissions[user.uid] = 'admin'; // Ensure admin has access
+
+    // ENSURE CREATOR/ADMIN ALWAYS HAS ADMIN PERMISSION (for settings access)
+    // This will overwrite their team permission in the state, so we must derive 
+    // their team from assignments when picking.
+    const adminUid = user.uid;
+    if (draftState?.createdBy === adminUid || existingPermissions?.[adminUid] === 'admin') {
+      permissions[adminUid] = 'admin';
+    }
+
     return permissions;
-  }, [user]);
+  }, [user, draftState?.createdBy]);
 
   // Helper: Initialize mode-specific data (pools, battle codes)
   const initializeModeSpecificData = (draftType, timerMs, manualTimer, existingDraft) => {
@@ -568,6 +587,64 @@ function TournamentPage() {
 
   // PRODUCTION VERSION of handleVerifyMatch (no debug logging)
   // This ensures matchPlayers is ordered correctly: [Leader, Member1, Member2]
+
+  // Handle Concede
+  const handleConcede = async (teamToConcede) => {
+    if (!user) return;
+
+    const teamLabel = teamToConcede === 'A' ? getTeamDisplayName('A') : getTeamDisplayName('B');
+    const opponentTeam = teamToConcede === 'A' ? 'B' : 'A';
+    const opponentLabel = getTeamDisplayName(opponentTeam);
+
+    const isSA = isSuperAdmin(getUserEmail(user));
+    const confirmMessage = isSA
+      ? `Are you sure you want to concede for ${teamLabel}? This will end the match and award the win to ${opponentLabel}.`
+      : `Are you sure you want to concede? This will end the match and award the win to your opponent.`;
+
+    const confirmed = await showConfirm('Confirm Concede', confirmMessage);
+    if (!confirmed) return;
+
+    try {
+      const draftRef = doc(db, 'drafts', DRAFT_ID);
+      const winner = opponentTeam;
+
+      await updateDoc(draftRef, {
+        status: 'completed',
+        verificationStatus: 'complete',
+        overallWinner: winner,
+        score: winner === 'A' ? '1-0' : '0-1',
+        concededBy: teamToConcede,
+        concededAt: serverTimestamp(),
+        verifiedAt: serverTimestamp(),
+        completedAt: serverTimestamp(),
+        matchResults: [{
+          battleIndex: 0,
+          status: 'conceded',
+          winner: winner,
+          winnerName: opponentLabel,
+          loserName: teamLabel,
+          concededBy: teamToConcede,
+          matchTimestamp: new Date().toISOString()
+        }]
+      });
+
+      logActivity({
+        user,
+        type: 'DRAFT',
+        action: 'concede_match',
+        metadata: {
+          draftId: DRAFT_ID,
+          concededBy: teamToConcede,
+          winner: winner
+        }
+      });
+
+      showAlert('Match Ended', `${teamLabel} has conceded. ${opponentLabel} wins!`);
+    } catch (error) {
+      console.error('Error conceding match:', error);
+      showAlert('Error', 'Failed to concede match: ' + error.message);
+    }
+  };
 
   const handleVerifyMatch = async () => {
     let draftDataForVerification = draftState;
@@ -898,119 +975,204 @@ function TournamentPage() {
 
     // Show confirmation
     const feeText = isFriendly ? 'Free (Friendly Match)' : `${formatAuryAmount(entryFee)} AURY`;
-    showConfirm(
+    const confirmed = await showConfirm(
       '⚔️ Join Match',
-      `Entry Fee: ${feeText}\n\nAre you sure you want to join this match?${!isFriendly && entryFee > 0 ? `\n\n${formatAuryAmount(entryFee)} AURY will be deducted from your wallet.` : ''}`,
-      async () => {
-        setIsJoining(true);
-        try {
-          const draftRef = doc(db, 'drafts', DRAFT_ID);
-
-          await runTransaction(db, async (transaction) => {
-            const draftSnap = await transaction.get(draftRef);
-            if (!draftSnap.exists()) throw new Error('Draft not found');
-
-            logActivity({
-              user,
-              type: 'DRAFT',
-              action: 'join_draft',
-              metadata: {
-                draftId: DRAFT_ID,
-                entryFee: entryFee
-              }
-            });
-
-            const data = draftSnap.data();
-            if (!data.joinable || data.status !== 'waiting') throw new Error('Match is no longer joinable');
-
-            const teams = data.preAssignedTeams || { team1: {}, team2: {} };
-
-            // Check slot availability again inside transaction
-            let slot = null;
-            if (!teams.team1?.leader) slot = 'team1';
-            else if (!teams.team2?.leader) slot = 'team2';
-            if (!slot) throw new Error('No open slots');
-
-            // Check not already joined
-            if (teams.team1?.leader === user.uid || teams.team2?.leader === user.uid) {
-              throw new Error('Already joined');
-            }
-
-            // Deduct entry fee
-            if (!data.isFriendly && (data.entryFee || 0) > 0) {
-              const walletRef = doc(db, 'wallets', user.uid);
-              const walletSnap = await transaction.get(walletRef);
-              const balance = walletSnap.exists() ? (walletSnap.data().balance || 0) : 0;
-              if (balance < data.entryFee) throw new Error('Insufficient balance');
-
-              transaction.update(walletRef, {
-                balance: balance - data.entryFee,
-                updatedAt: serverTimestamp()
-              });
-              // Record transaction
-              const txRef = doc(collection(db, 'wallets', user.uid, 'transactions'));
-              transaction.set(txRef, {
-                type: 'entry_fee',
-                amount: data.entryFee,
-                draftId: DRAFT_ID,
-                draftTitle: data.title || 'Untitled Match',
-                timestamp: serverTimestamp()
-              });
-            }
-
-            // Assign to slot
-            const updatedTeams = { ...teams };
-            updatedTeams[slot] = { ...updatedTeams[slot], leader: user.uid };
-
-            // Check if both slots now filled
-            const bothFilled = updatedTeams.team1?.leader && updatedTeams.team2?.leader;
-
-            // Build display names
-            const joinerUser = registeredUsers.find(u => u.uid === user.uid || u.id === user.uid);
-            const joinerName = joinerUser?.username || joinerUser?.displayName || user.displayName || 'Player';
-
-            const updateData = {
-              preAssignedTeams: updatedTeams,
-              // Preserve admin permission if the joiner is the creator
-              [`permissions.${user.uid}`]: data.createdBy === user.uid ? 'admin' : 'spectator',
-              // Update team name for the slot
-              [`teamNames.${slot}`]: joinerName,
-              // Record entry paid
-              [`entryPaid.${user.uid}`]: data.isFriendly ? 0 : (data.entryFee || 0)
-            };
-
-            if (bothFilled) {
-              // Both players in → transition to coinFlip for confirmation
-              updateData.joinable = false;
-              updateData.status = 'coinFlip';
-              updateData.coinFlip = {
-                phase: 'rolling',
-                team1Locked: false,
-                team2Locked: false,
-                result: null,
-                winner: null,
-                winnerTurnChoice: null
-              };
-            }
-
-            transaction.update(draftRef, updateData);
-          });
-
-          showAlert('🎮 Joined!', 'You have joined the match. Waiting for confirmation...');
-        } catch (error) {
-          console.error('Join error:', error);
-          if (error.message === 'Insufficient balance') {
-            showAlert('Insufficient Balance', `You need ${formatAuryAmount(entryFee)} AURY to join.`);
-          } else if (error.message === 'Already joined') {
-            showAlert('Already Joined', 'You are already in this match.');
-          } else {
-            showAlert('Error', error.message || 'Failed to join. Please try again.');
-          }
-        } finally {
-          setIsJoining(false);
-        }
-      }
+      `Entry Fee: ${feeText}\n\nAre you sure you want to join this match?${!isFriendly && entryFee > 0 ? `\n\n${formatAuryAmount(entryFee)} AURY will be deducted from your wallet.` : ''}`
     );
+
+    if (!confirmed) return;
+
+    setIsJoining(true);
+    try {
+      const draftRef = doc(db, 'drafts', DRAFT_ID);
+
+      await runTransaction(db, async (transaction) => {
+        const draftSnap = await transaction.get(draftRef);
+        if (!draftSnap.exists()) throw new Error('Draft not found');
+
+        logActivity({
+          user,
+          type: 'DRAFT',
+          action: 'join_draft',
+          metadata: {
+            draftId: DRAFT_ID,
+            entryFee: entryFee
+          }
+        });
+
+        const data = draftSnap.data();
+        if (!data.joinable || data.status !== 'waiting') throw new Error('Match is no longer joinable');
+
+        const teams = data.preAssignedTeams || { team1: {}, team2: {} };
+
+        // Check slot availability again inside transaction
+        let slot = null;
+        if (!teams.team1?.leader) slot = 'team1';
+        else if (!teams.team2?.leader) slot = 'team2';
+        if (!slot) throw new Error('No open slots');
+
+        // Check not already joined
+        if (teams.team1?.leader === user.uid || teams.team2?.leader === user.uid) {
+          throw new Error('Already joined');
+        }
+
+        // Deduct entry fee
+        if (!data.isFriendly && (data.entryFee || 0) > 0) {
+          const walletRef = doc(db, 'wallets', user.uid);
+          const walletSnap = await transaction.get(walletRef);
+          const balance = walletSnap.exists() ? (walletSnap.data().balance || 0) : 0;
+          if (balance < data.entryFee) throw new Error('Insufficient balance');
+
+          transaction.update(walletRef, {
+            balance: balance - data.entryFee,
+            updatedAt: serverTimestamp()
+          });
+          // Record transaction
+          const txRef = doc(collection(db, 'wallets', user.uid, 'transactions'));
+          transaction.set(txRef, {
+            type: 'entry_fee',
+            amount: data.entryFee,
+            draftId: DRAFT_ID,
+            draftTitle: data.title || 'Untitled Match',
+            timestamp: serverTimestamp()
+          });
+        }
+
+        // Assign to slot
+        const updatedTeams = { ...teams };
+        updatedTeams[slot] = { ...updatedTeams[slot], leader: user.uid };
+
+        // Check if both slots now filled
+        const bothFilled = updatedTeams.team1?.leader && updatedTeams.team2?.leader;
+
+        // Build display names
+        const joinerUser = registeredUsers.find(u => u.uid === user.uid || u.id === user.uid);
+        const joinerName = joinerUser?.username || joinerUser?.displayName || user.displayName || 'Player';
+
+        const updateData = {
+          preAssignedTeams: updatedTeams,
+          // Preserve admin permission if the joiner is the creator
+          [`permissions.${user.uid}`]: data.createdBy === user.uid ? 'admin' : 'spectator',
+          // Update team name for the slot
+          [`teamNames.${slot}`]: joinerName,
+          // Record entry paid
+          [`entryPaid.${user.uid}`]: data.isFriendly ? 0 : (data.entryFee || 0)
+        };
+
+        if (bothFilled) {
+          // Both players in → transition to coinFlip for confirmation
+          updateData.joinable = false;
+          updateData.status = 'coinFlip';
+          updateData.coinFlip = {
+            phase: 'rolling',
+            team1Locked: false,
+            team2Locked: false,
+            result: null,
+            winner: null,
+            winnerTurnChoice: null
+          };
+        }
+
+        transaction.update(draftRef, updateData);
+      });
+
+      showAlert('🎮 Joined!', 'You have joined the match. Waiting for confirmation...');
+    } catch (error) {
+      console.error('Join error:', error);
+      if (error.message === 'Insufficient balance') {
+        showAlert('Insufficient Balance', `You need ${formatAuryAmount(entryFee)} AURY to join.`);
+      } else if (error.message === 'Already joined') {
+        showAlert('Already Joined', 'You are already in this match.');
+      } else {
+        showAlert('Error', error.message || 'Failed to join. Please try again.');
+      }
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  // Handle self-removal from a 1v1 draft (mode3/mode4)
+  const handleSelfRemove = async () => {
+    if (!user) return;
+    const is1v1 = draftState.draftType === 'mode3' || draftState.draftType === 'mode4';
+    if (!is1v1) return;
+    // Only allow during waiting or coinFlip phases
+    if (draftState.status !== 'waiting' && draftState.status !== 'coinFlip') return;
+
+    const teams = draftState.preAssignedTeams || {};
+    const isTeam1 = teams.team1?.leader === user.uid;
+    const isTeam2 = teams.team2?.leader === user.uid;
+    if (!isTeam1 && !isTeam2) return;
+
+    const confirmed = await showConfirm(
+      '🚪 Leave Match',
+      'Are you sure you want to leave this match? Your slot will be opened for another player.' +
+      (!draftState.isFriendly && draftState.entryPaid?.[user.uid] > 0
+        ? `\n\nYour entry fee of ${formatAuryAmount(draftState.entryPaid[user.uid])} AURY will be refunded.`
+        : '')
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const draftRef = doc(db, 'drafts', DRAFT_ID);
+
+      await runTransaction(db, async (transaction) => {
+        const draftSnap = await transaction.get(draftRef);
+        if (!draftSnap.exists()) throw new Error('Draft not found');
+        const data = draftSnap.data();
+
+        // Only allow removal during waiting/coinFlip
+        if (data.status !== 'waiting' && data.status !== 'coinFlip') {
+          throw new Error('Cannot leave after draft has started');
+        }
+
+        const slot = isTeam1 ? 'team1' : 'team2';
+
+        // NOTE: Refunds are now handled exclusively by background Cloud Functions 
+        // triggered by document updates. We keep the entryPaid count for the user 
+        // so the function can see it was paid and process the refund.
+
+        // Clear the slot
+        const updatedTeams = { ...(data.preAssignedTeams || {}) };
+        updatedTeams[slot] = { ...updatedTeams[slot], leader: null };
+
+        const updateData = {
+          preAssignedTeams: updatedTeams,
+          status: 'waiting',
+          joinable: true,
+          // DO NOT delete field entryPaid - Cloud Function needs it to remain in the 
+          // 'after' state to trigger the refund before it eventually sets it to 0.
+          [`permissions.${user.uid}`]: data.createdBy === user.uid ? 'admin' : 'spectator',
+          [`teamNames.${slot}`]: slot === 'team1' ? 'Player 1' : 'Player 2',
+          coinFlip: {
+            phase: 'rolling',
+            team1Locked: false,
+            team2Locked: false,
+            result: null,
+            winner: null,
+            winnerTurnChoice: null
+          }
+        };
+
+        transaction.update(draftRef, updateData);
+      });
+
+      logActivity({
+        user,
+        type: 'DRAFT',
+        action: 'self_remove',
+        metadata: { draftId: DRAFT_ID }
+      });
+
+      showAlert('👋 Left Match', 'You have left the match.' +
+        (!draftState.isFriendly && draftState.entryPaid?.[user.uid] > 0
+          ? ' Your entry fee has been refunded.'
+          : ''));
+    } catch (error) {
+      console.error('Self-remove error:', error);
+      showAlert('Error', error.message || 'Failed to leave match. Please try again.');
+    }
   };
 
   // Called after spin animation completes (3s) to move to result phase
@@ -2483,8 +2645,18 @@ function TournamentPage() {
 
   // Execute a pick in 1v1 mode
   const execute1v1Pick = useCallback(async (amikoId, team) => {
+    // If team is null (e.g. non-participant admin try to pick), derive it from assignments
+    let effectiveTeam = team;
+    if (!effectiveTeam) {
+      const teams = draftState.preAssignedTeams || {};
+      if (teams.team1?.leader === user.uid) effectiveTeam = 'A';
+      else if (teams.team2?.leader === user.uid) effectiveTeam = 'B';
+    }
+
+    if (!effectiveTeam) return;
+
     const draftRef = doc(db, 'drafts', DRAFT_ID);
-    const teamKey = team === 'A' ? 'teamA' : 'teamB';
+    const teamKey = effectiveTeam === 'A' ? 'teamA' : 'teamB';
     const currentPicks = [...(draftState[teamKey] || [])];
 
     currentPicks.push(amikoId);
@@ -2735,9 +2907,17 @@ function TournamentPage() {
 
   // Mode 3: Simultaneous Picking logic
   const handleMode3Selection = useCallback(async (amikoId, userTeam, isAdmin) => {
+    // Derive effective team from assignments if user is an admin or userTeam is null
+    let effectiveTeam = userTeam;
+    if (!effectiveTeam || isAdmin) {
+      const teams = draftState.preAssignedTeams || {};
+      if (teams.team1?.leader === user.uid) effectiveTeam = 'A';
+      else if (teams.team2?.leader === user.uid) effectiveTeam = 'B';
+    }
+
     // In 1v1 mode, check if user is a participant
-    if (!userTeam && !isAdmin) {
-      showAlert('Not a Participant', 'Only the two draft participants can pick!');
+    if (!effectiveTeam) {
+      showAlert('Not a Participant', 'Only the draft participants can pick!');
       return;
     }
 
@@ -2748,11 +2928,11 @@ function TournamentPage() {
     }
 
     // Get the user's pool and their current picks
-    const myPool = userTeam === 'A' ? draftState.playerAPool : draftState.playerBPool;
-    const myPicks = userTeam === 'A' ? draftState.teamA : draftState.teamB;
+    const myPool = effectiveTeam === 'A' ? draftState.playerAPool : draftState.playerBPool;
+    const myPicks = effectiveTeam === 'A' ? draftState.teamA : draftState.teamB;
 
     // Check if user is trying to pick from their own pool
-    if (!myPool?.includes(amikoId) && !isAdmin) {
+    if (!myPool?.includes(amikoId)) {
       showAlert('Not Your Amiko', 'You can only pick from your assigned Amikos!');
       return;
     }
@@ -2774,18 +2954,18 @@ function TournamentPage() {
     isPickingRef.current = true;
 
     // OPTIMISTIC UI for 1v1
-    setTempPick({ id: amikoId, team: userTeam });
+    setTempPick({ id: amikoId, team: effectiveTeam });
     playPickSound();
 
     try {
-      await execute1v1Pick(amikoId, userTeam);
+      await execute1v1Pick(amikoId, effectiveTeam);
     } catch (error) {
       setTempPick(null);
       console.log('Pick failed:', error);
     } finally {
       isPickingRef.current = false;
     }
-  }, [draftState, execute1v1Pick, isTeamLocked, playPickSound, showAlert]);
+  }, [user, draftState, execute1v1Pick, isTeamLocked, playPickSound, showAlert]);
 
   // Standard Turn-based Selection logic (Mode 1 & 2)
   const handleStandardSelection = useCallback(async (amikoId, isAdmin) => {
@@ -2797,7 +2977,15 @@ function TournamentPage() {
     }
 
     // Check if it's the current team's turn
-    if (userPermission !== draftState.currentTeam && !isAdmin) {
+    // Derive effective team for admins
+    let effectiveTeam = userPermission;
+    if (isAdmin) {
+      const teams = draftState.preAssignedTeams || {};
+      if (teams.team1?.leader === user.uid) effectiveTeam = 'A';
+      else if (teams.team2?.leader === user.uid) effectiveTeam = 'B';
+    }
+
+    if (effectiveTeam !== draftState.currentTeam) {
       showAlert('Not Your Turn', `Only Team ${draftState.currentTeam} members can pick now!`);
       return;
     }
@@ -2806,7 +2994,7 @@ function TournamentPage() {
     const isTeamLeader = (draftState.currentTeam === 'A' && user.uid === draftState.teamALeader) ||
       (draftState.currentTeam === 'B' && user.uid === draftState.teamBLeader);
 
-    if (!isTeamLeader && !isAdmin) {
+    if (!isTeamLeader) {
       showAlert('Captain Only', 'Only the team captain can make picks. Suggest picks in team chat!');
       return;
     }
@@ -2893,7 +3081,7 @@ function TournamentPage() {
     const isTeamLeader = (team === 'A' && user.uid === draftState.teamALeader) ||
       (team === 'B' && user.uid === draftState.teamBLeader);
 
-    if (!isTeamLeader && !isAdmin) {
+    if (!isTeamLeader) {
       showAlert('Captain Only', 'Only the team captain can modify picks.');
       return;
     }
@@ -2986,11 +3174,13 @@ function TournamentPage() {
     if (isSuperAdmin(getUserEmail(user))) {
       performReset();
     } else {
-      showConfirm(
-        'Reset Tournament',
-        'Are you sure you want to reset the tournament? This will clear all picks and reset team assignments.',
-        performReset
-      );
+      (async () => {
+        const confirmed = await showConfirm(
+          'Reset Tournament',
+          'Are you sure you want to reset the tournament? This will clear all picks and reset team assignments.'
+        );
+        if (confirmed) performReset();
+      })();
     }
   };
 
@@ -3021,61 +3211,64 @@ function TournamentPage() {
     setShowAdminPanel(false);
     setShowRoulette(false); // Stop UI animations immediately
 
-    showConfirm(
-      'Delete Draft',
-      'Are you sure you want to delete this tournament? This action cannot be undone.',
-      async () => {
-        const draftRef = doc(db, 'drafts', DRAFT_ID);
+    (async () => {
+      const confirmed = await showConfirm(
+        'Delete Draft',
+        'Are you sure you want to delete this tournament? This action cannot be undone.'
+      );
 
-        // Delete Team A chat messages
-        try {
-          const chatARef = collection(db, 'drafts', DRAFT_ID, 'chatA');
-          const chatASnapshot = await getDocs(chatARef);
-          const deleteAPromises = chatASnapshot.docs.map(doc => deleteDoc(doc.ref));
-          await Promise.all(deleteAPromises);
-        } catch (error) {
-          console.error('Error deleting Team A chat:', error);
-        }
+      if (!confirmed) return;
 
-        // Delete Team B chat messages
-        try {
-          const chatBRef = collection(db, 'drafts', DRAFT_ID, 'chatB');
-          const chatBSnapshot = await getDocs(chatBRef);
-          const deleteBPromises = chatBSnapshot.docs.map(doc => deleteDoc(doc.ref));
-          await Promise.all(deleteBPromises);
-        } catch (error) {
-          console.error('Error deleting Team B chat:', error);
-        }
+      const draftRef = doc(db, 'drafts', DRAFT_ID);
 
-        // Delete Free For All chat messages
-        try {
-          const chatAllRef = collection(db, 'drafts', DRAFT_ID, 'chatAll');
-          const chatAllSnapshot = await getDocs(chatAllRef);
-          const deleteAllPromises = chatAllSnapshot.docs.map(doc => deleteDoc(doc.ref));
-          await Promise.all(deleteAllPromises);
-        } catch (error) {
-          console.error('Error deleting Free For All chat:', error);
-        }
-
-        // Delete typing indicators
-        try {
-          const typingCollections = ['typingA', 'typingB', 'typingAll'];
-          for (const colName of typingCollections) {
-            const colRef = collection(db, 'drafts', DRAFT_ID, colName);
-            const snapshot = await getDocs(colRef);
-            const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-            await Promise.all(deletePromises);
-          }
-        } catch (error) {
-          console.error('Error deleting typing indicators:', error);
-        }
-
-
-        // Delete the tournament document
-        await deleteDoc(draftRef);
-        navigate('/');
+      // Delete Team A chat messages
+      try {
+        const chatARef = collection(db, 'drafts', DRAFT_ID, 'chatA');
+        const chatASnapshot = await getDocs(chatARef);
+        const deleteAPromises = chatASnapshot.docs.map(doc => deleteDoc(doc.ref));
+        await Promise.all(deleteAPromises);
+      } catch (error) {
+        console.error('Error deleting Team A chat:', error);
       }
-    );
+
+      // Delete Team B chat messages
+      try {
+        const chatBRef = collection(db, 'drafts', DRAFT_ID, 'chatB');
+        const chatBSnapshot = await getDocs(chatBRef);
+        const deleteBPromises = chatBSnapshot.docs.map(doc => deleteDoc(doc.ref));
+        await Promise.all(deleteBPromises);
+      } catch (error) {
+        console.error('Error deleting Team B chat:', error);
+      }
+
+      // Delete Free For All chat messages
+      try {
+        const chatAllRef = collection(db, 'drafts', DRAFT_ID, 'chatAll');
+        const chatAllSnapshot = await getDocs(chatAllRef);
+        const deleteAllPromises = chatAllSnapshot.docs.map(doc => deleteDoc(doc.ref));
+        await Promise.all(deleteAllPromises);
+      } catch (error) {
+        console.error('Error deleting Free For All chat:', error);
+      }
+
+      // Delete typing indicators
+      try {
+        const typingCollections = ['typingA', 'typingB', 'typingAll'];
+        for (const colName of typingCollections) {
+          const colRef = collection(db, 'drafts', DRAFT_ID, colName);
+          const snapshot = await getDocs(colRef);
+          const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+          await Promise.all(deletePromises);
+        }
+      } catch (error) {
+        console.error('Error deleting typing indicators:', error);
+      }
+
+
+      // Delete the tournament document
+      await deleteDoc(draftRef);
+      navigate('/');
+    })();
   };
 
 
@@ -3771,7 +3964,27 @@ function TournamentPage() {
     shuffleHighlights,
     // Mode4 ban handlers
     removeBan,
-    isBanLocked
+    isBanLocked,
+    // 1v1 inline overlay handlers
+    handleSelfRemove,
+    lockRoll,
+    selectTurnOrder,
+    closeCoinFlip,
+    showLockConfirmation,
+    confirmLockPicks,
+    cancelLockConfirmation,
+    triggerLockConfirmation,
+    getCurrentPhasePicks,
+    currentTimerDisplay,
+    walletBalance,
+    formatAuryAmount,
+    showRoulette,
+    roulettePhase,
+    teamAssignments,
+    isCoinFlipHidden,
+    setIsCoinFlipHidden,
+    registeredUsers,
+    isAccountLinked
   };
 
   const draftUtils = {
@@ -3833,9 +4046,23 @@ function TournamentPage() {
                   {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder" style={{ marginLeft: '4px' }}>🛡️</span>}
                 </span>
                 {(userPermission === 'admin' || isSuperAdmin(getUserEmail(user))) && (
-                  <button onClick={() => setShowAdminPanel(!showAdminPanel)} className="admin-panel-btn">
-                    ⚙️ Draft Settings
-                  </button>
+                  (() => {
+                    const is1v1 = ['mode3', 'mode4'].includes(draftState.draftType);
+                    const isParticipant = user && draftState.preAssignedTeams && (
+                      user.uid === draftState.preAssignedTeams.team1?.leader ||
+                      user.uid === draftState.preAssignedTeams.team2?.leader
+                    );
+                    const isDraftActive = draftState.status === 'active';
+                    const hideSettings = is1v1 && isParticipant && isDraftActive && !isSuperAdmin(getUserEmail(user));
+
+                    if (hideSettings) return null;
+
+                    return (
+                      <button onClick={() => setShowAdminPanel(!showAdminPanel)} className="admin-panel-btn">
+                        ⚙️ Draft Settings
+                      </button>
+                    );
+                  })()
                 )}
               </>
             ) : (
@@ -3847,9 +4074,9 @@ function TournamentPage() {
           </div>
         </header>
 
-        {/* Lock Confirmation Modal */}
+        {/* Lock Confirmation Modal - Only for 3v3 modes (1v1 uses inline confirm) */}
         {
-          showLockConfirmation && (
+          showLockConfirmation && draftState.draftType !== 'mode3' && draftState.draftType !== 'mode4' && (
             <div className="modal-overlay">
               <div className="lock-confirmation-modal">
                 <h3>{getPICK_ORDER(draftState.draftType)[draftState.currentPhase]?.isBan ? '🚫 Confirm Your Bans' : '🔒 Confirm Your Picks'}</h3>
@@ -3938,7 +4165,7 @@ function TournamentPage() {
                       <button onClick={handleAppModalConfirm} className="app-modal-btn confirm">
                         Yes, Continue
                       </button>
-                      <button onClick={closeAppModal} className="app-modal-btn cancel">
+                      <button onClick={handleAppModalCancel} className="app-modal-btn cancel">
                         Cancel
                       </button>
                     </>
@@ -3953,9 +4180,9 @@ function TournamentPage() {
           )
         }
 
-        {/* Coin Flip Modal - Blue/Red Roll System */}
+        {/* Coin Flip Modal - Blue/Red Roll System (3v3 only, 1v1 uses inline) */}
         {
-          draftState.status === 'coinFlip' && draftState.coinFlip && (
+          draftState.status === 'coinFlip' && draftState.coinFlip && draftState.draftType !== 'mode3' && draftState.draftType !== 'mode4' && (
             <div className={`modal-overlay coin-flip-overlay ${isCoinFlipHidden ? 'hidden-minimized' : ''}`}>
               {isCoinFlipHidden ? (
                 <button className="show-flip-btn" onClick={() => setIsCoinFlipHidden(false)}>
@@ -4180,9 +4407,9 @@ function TournamentPage() {
           )
         }
 
-        {/* Roulette Animation Modal */}
+        {/* Roulette Animation Modal (3v3 only, 1v1 uses inline) */}
         {
-          showRoulette && (
+          showRoulette && draftState.draftType !== 'mode3' && draftState.draftType !== 'mode4' && (
             <div className="modal-overlay roulette-overlay">
               <div className="roulette-modal">
                 <h2>🪙 Team Assignment</h2>
@@ -4478,6 +4705,13 @@ function TournamentPage() {
                     <p className="waiting-notice">Both players ready! Preparing confirmation...</p>
                   )}
 
+                  {/* Self-remove button for participants */}
+                  {isPlayer && (
+                    <button className="self-remove-btn" onClick={handleSelfRemove}>
+                      🚪 Leave Match
+                    </button>
+                  )}
+
                   {/* Info for spectators */}
                   {!user && (
                     <p className="login-join-notice">👋 Log in to join this match!</p>
@@ -4573,6 +4807,32 @@ function TournamentPage() {
               )}
             </>
           )}
+
+          {/* New Central Concede Area (Outside status loops for Mode 3/4) */}
+          {['mode3', 'mode4'].includes(draftState.draftType) &&
+            (draftState.status === 'active' || (draftState.status === 'completed' && !draftState.overallWinner)) && (
+              <div className="central-concede-area">
+                {(userPermission === 'A' || isSuperAdmin(getUserEmail(user))) && (
+                  <button
+                    className="concede-btn team-A"
+                    onClick={() => handleConcede('A')}
+                    title={isSuperAdmin(getUserEmail(user)) ? `Concede for ${getTeamDisplayName('A')}` : "Concede Match"}
+                  >
+                    🏳️ {isSuperAdmin(getUserEmail(user)) ? `Concede ${getTeamDisplayName('A')}` : "Concede"}
+                  </button>
+                )}
+                {(userPermission === 'B' || isSuperAdmin(getUserEmail(user))) && (
+                  <button
+                    className="concede-btn team-B"
+                    onClick={() => handleConcede('B')}
+                    title={isSuperAdmin(getUserEmail(user)) ? `Concede for ${getTeamDisplayName('B')}` : "Concede Match"}
+                  >
+                    🏳️ {isSuperAdmin(getUserEmail(user)) ? `Concede ${getTeamDisplayName('B')}` : "Concede"}
+                  </button>
+                )}
+              </div>
+            )}
+
           {draftState.status === 'completed' && (
             <p className="completed">✅ Draft Completed!</p>
           )}
@@ -5639,7 +5899,7 @@ function TournamentPage() {
           onClose={() => setShowRulesModal(false)}
           draftType={draftState.draftType}
         />
-      </div > {/* End of tournament-page */}
+      </div> {/* End of tournament-page */}
     </>
   );
 }
