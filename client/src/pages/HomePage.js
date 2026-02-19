@@ -14,7 +14,6 @@ import {
   syncAuroryName
 } from '../services/auroryProfileService';
 import { fetchVerifiedMatches, scanAndVerifyCompletedDrafts } from '../services/matchVerificationService';
-import { auroryFetch } from '../services/auroryProxyClient';
 import { AMIKOS } from '../data/amikos';
 import { logActivity } from '../services/activityService';
 import LoadingScreen from '../components/LoadingScreen';
@@ -149,7 +148,10 @@ function HomePage() {
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [selectedTournamentForRules, setSelectedTournamentForRules] = useState(null);
 
-  const [tokenStats, setTokenStats] = useState(null);
+  const [recentWinners, setRecentWinners] = useState([]);
+  const [showWinnerTicker, setShowWinnerTicker] = useState(false);
+  const tickerTimerRef = useRef(null);
+  const lastVerifiedAtRef = useRef(null);
 
   // News State
   const [news, setNews] = useState([]);
@@ -539,20 +541,63 @@ function HomePage() {
     return () => unsubscribe();
   }, []);
 
-  // Fetch Token Stats from Aurory API via Proxy
+  // Fetch Recent Winners from Firestore
   useEffect(() => {
-    const fetchTokenStats = async () => {
-      try {
-        const data = await auroryFetch('/v1/token-stats');
-        setTokenStats(data);
-      } catch (err) {
-        console.error('Error fetching token stats:', err);
-      }
-    };
+    const q = query(
+      collection(db, 'drafts'),
+      where('verificationStatus', '==', 'complete'),
+      orderBy('verifiedAt', 'desc'),
+      limit(5)
+    );
 
-    fetchTokenStats();
-    const interval = setInterval(fetchTokenStats, 10 * 60 * 1000); // Update every 10 mins
-    return () => clearInterval(interval);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (snapshot.empty) return;
+
+      const winnerData = snapshot.docs[0].data();
+      let winnerName = 'Unknown';
+      let loserName = 'Unknown';
+
+      if (winnerData.overallWinner) {
+        const teamKeyWinner = winnerData.overallWinner === 'A' ? 'teamA' : 'teamB';
+        const teamKeyLoser = winnerData.overallWinner === 'A' ? 'teamB' : 'teamA';
+
+        winnerName = winnerData.leaderNames?.[teamKeyWinner] ||
+          winnerData.leaderNames?.[winnerData.overallWinner === 'A' ? 'team1' : 'team2'] ||
+          'A Winner';
+
+        loserName = winnerData.leaderNames?.[teamKeyLoser] ||
+          winnerData.leaderNames?.[winnerData.overallWinner === 'A' ? 'team2' : 'team1'] ||
+          'An Opponent';
+      }
+
+      const latest = {
+        id: snapshot.docs[0].id,
+        winnerName,
+        loserName,
+        title: winnerData.title || 'Untitled Draft',
+        verifiedAt: winnerData.verifiedAt?.toMillis() || 0
+      };
+
+      // Check if we have a NEW winner
+      if (latest && (!lastVerifiedAtRef.current || latest.verifiedAt > lastVerifiedAtRef.current)) {
+        lastVerifiedAtRef.current = latest.verifiedAt;
+
+        // Show the ticker
+        setRecentWinners([latest]);
+        setShowWinnerTicker(true);
+
+        // Reset/Start 10s auto-hide timer
+        if (tickerTimerRef.current) clearTimeout(tickerTimerRef.current);
+        tickerTimerRef.current = setTimeout(() => {
+          setShowWinnerTicker(false);
+        }, 10000);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      if (tickerTimerRef.current) clearTimeout(tickerTimerRef.current);
+    };
   }, []);
 
   // Handle Scroll to auto-hide ticker
@@ -2098,29 +2143,16 @@ function HomePage() {
               </>
             )}
           </div>
-          {tokenStats && (
-            <div className="token-stats-fixed">
-              <span className="announcement-icon">📊</span>
+          {recentWinners.length > 0 && (
+            <div className={`winner-stats-fixed ${showWinnerTicker ? 'visible' : 'hidden'}`}>
+              <span className="announcement-icon">🏆</span>
               <div className="stats-scroll-container">
-                <span className="stat-group">
-                  <span className="stat-label">$AURY:</span>
-                  <span className="highlight-text">${tokenStats.aury?.current_price?.toFixed(3)}</span>
-                </span>
-                <span className="stat-divider">|</span>
-                <span className="stat-group">
-                  <span className="stat-label">SOL:</span>
-                  <span className="highlight-text">${tokenStats.sol?.current_price?.toFixed(2)}</span>
-                </span>
-                <span className="stat-divider">|</span>
-                <span className="stat-group">
-                  <span className="stat-label">USDC:</span>
-                  <span className="highlight-text">$1.00</span>
-                </span>
-                <span className="stat-divider">|</span>
-                <span className="stat-group">
-                  <span className="stat-label">Aurorian Floor:</span>
-                  <span className="highlight-text">{(tokenStats.aurorian?.floor_price / 1000000000).toFixed(2)} SOL</span>
-                </span>
+                <div className="winner-static-content">
+                  <span className="winner-name-highlight">{recentWinners[0].winnerName}</span>
+                  <span className="winner-meta">won against</span>
+                  <span className="winner-name-highlight">{recentWinners[0].loserName}</span>
+                  <span className="winner-meta">in "{recentWinners[0].title}"</span>
+                </div>
               </div>
             </div>
           )}
@@ -2132,14 +2164,14 @@ function HomePage() {
         {/* Welcome Header - Full Width Above Grid */}
         <div className="hero-section">
           <h2>Welcome to Aurory Draft</h2>
-          <p>Competitive Amiko drafting for your matches</p>
+          <p>Competitive Ami drafting for your matches</p>
         </div>
 
         <div className="content-wrapper">
-          <div className="main-column">
+          <div className="main-cn">
             {announcementSlides.length > 0 && (
               <div className="main-column-inner">
-                {/* Announcement Banner */}
+                {/* Announct Banner */}
                 <div
                   className="announcement-banner"
                   onTouchStart={onTouchStart}

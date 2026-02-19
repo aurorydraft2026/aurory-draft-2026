@@ -5775,44 +5775,12 @@ input[type="file"] {
 
 
 @media (max-width: 768px) {
-  .token-stats-fixed {
-    display: none;
-    /* Hide fixed stats on small mobile to give room for text */
-  }
-
   .announcement-bar::after {
     display: block !important;
     /* Restore gradient for mobile */
   }
 }
 
-
-/* Token Stats Ticker Styles (Fixed on Right) */
-.token-stats-fixed {
-  background: #000;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 0 15px;
-  position: absolute;
-  right: 0;
-  top: 0;
-  z-index: 10;
-  border-left: 1px solid rgba(168, 85, 247, 0.3);
-  box-shadow: -15px 0 30px rgba(0, 0, 0, 0.8);
-}
-
-.token-stats-fixed::before {
-  content: "";
-  position: absolute;
-  left: -100px;
-  top: 0;
-  bottom: 0;
-  width: 100px;
-  background: linear-gradient(-90deg, #000000 0%, transparent 100%);
-  pointer-events: none;
-}
 
 .stats-scroll-container {
   display: flex;
@@ -5835,11 +5803,6 @@ input[type="file"] {
   letter-spacing: 0.5px;
 }
 
-.token-stats-fixed .highlight-text {
-  font-size: 0.72rem;
-  font-weight: 600;
-}
-
 .stat-divider {
   color: rgba(255, 255, 255, 0.2);
   font-weight: 300;
@@ -5852,10 +5815,6 @@ input[type="file"] {
 }
 
 @media (max-width: 1024px) {
-  .token-stats-fixed {
-    padding: 0 15px;
-  }
-
   .stat-label {
     font-size: 0.65rem;
   }
@@ -5866,17 +5825,86 @@ input[type="file"] {
 }
 
 @media (max-width: 768px) {
-  .token-stats-fixed {
-    display: none;
-    /* Hide fixed stats on small mobile to give room for text */
-  }
-
   .announcement-bar::after {
     display: block !important;
     /* Restore gradient for mobile */
   }
 }
 
+
+/* Winner Stats Ticker Styles (Slides Down on Update) */
+.winner-stats-fixed {
+  background: linear-gradient(90deg, #000 0%, rgba(13, 17, 28, 0.95) 100%);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 0 15px 0 30px;
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 10;
+  border-left: 1px solid var(--accent-cyan);
+  box-shadow: -15px 0 30px rgba(0, 0, 0, 0.8);
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
+  overflow: hidden;
+}
+
+.winner-stats-fixed.hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.winner-stats-fixed.visible {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.winner-stats-fixed::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 40px;
+  background: linear-gradient(90deg, #000000 0%, transparent 100%);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.winner-static-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.winner-name-highlight {
+  color: #fff;
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(0, 208, 255, 0.5);
+  font-size: 0.68rem;
+}
+
+.winner-meta {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.62rem;
+}
+
+@media (max-width: 1024px) {
+  .winner-stats-fixed {
+    padding-left: 15px;
+  }
+}
+
+@media (max-width: 768px) {
+  .winner-stats-fixed {
+    display: none;
+  }
+}
 
 
 .team-avatar-stack .top-player-avatar {
