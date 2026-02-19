@@ -139,11 +139,11 @@ export async function scanAndVerifyDrafts(): Promise<number> {
 // ─── PAYOUT PROCESSING ───
 
 const SUPER_ADMIN_UID = 'fWp7xeLNvuTD9axrPtJpp4afC1g2';
-const TAX_RATE = 0.025; // 2.5% tax on winnings
+const TAX_RATE = 0; // Tax removed, winners receive 100%
 
 /**
  * Process prize payouts for a verified 1v1 match
- * Winner receives poolAmount * 0.975, tax (2.5%) goes to super admin wallet
+ * Winner receives 100% of the poolAmount.
  */
 // Export for manual trigger
 export async function processPayouts(draftId: string, draftData: any, overallWinner: string): Promise<string> {
@@ -233,9 +233,6 @@ export async function processPayouts(draftId: string, draftData: any, overallWin
       const winnerWalletRef = db.doc(`wallets/${winnerUid}`);
       const winnerWallet = await tx.get(winnerWalletRef);
 
-      const adminWalletRef = db.doc(`wallets/${SUPER_ADMIN_UID}`);
-      const adminWallet = await tx.get(adminWalletRef);
-
       // 2. WRITES
       // Credit winner
       const winnerBalance = winnerWallet.exists ? (winnerWallet.data()?.balance || 0) : 0;
@@ -260,31 +257,6 @@ export async function processPayouts(draftId: string, draftData: any, overallWin
         taxAmount: taxAmount,
         draftId: draftId,
         draftTitle: draftData.title || 'Untitled Match',
-        timestamp: admin.firestore.FieldValue.serverTimestamp()
-      });
-
-      // Credit tax to super admin
-      const adminBalance = adminWallet.exists ? (adminWallet.data()?.balance || 0) : 0;
-      if (adminWallet.exists) {
-        tx.update(adminWalletRef, {
-          balance: adminBalance + taxAmount,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-      } else {
-        tx.set(adminWalletRef, {
-          balance: taxAmount,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-      }
-
-      // Record tax transaction
-      const adminTxRef = db.collection(`wallets/${SUPER_ADMIN_UID}/transactions`).doc();
-      tx.set(adminTxRef, {
-        type: 'tax_collected',
-        amount: taxAmount,
-        draftId: draftId,
-        draftTitle: draftData.title || 'Untitled Match',
-        fromUser: winnerUid,
         timestamp: admin.firestore.FieldValue.serverTimestamp()
       });
 

@@ -3083,8 +3083,8 @@ function HomePage() {
                         <span className="input-hint">
                           {newTournament.poolAmount && parseFloat(newTournament.poolAmount) > 0
                             ? (newTournament.requiresEntryFee !== false
-                              ? `Entry fee: ${(parseFloat(newTournament.poolAmount) / 2).toFixed(2)} AURY per player • Winner takes ${(parseFloat(newTournament.poolAmount) * 0.975).toFixed(2)} AURY (2.5% tax)`
-                              : `Sponsored: You pay ${(parseFloat(newTournament.poolAmount)).toFixed(2)} AURY. Entry is FREE for players. Winner takes ${(parseFloat(newTournament.poolAmount) * 0.975).toFixed(2)} AURY`)
+                              ? `Entry fee: ${(parseFloat(newTournament.poolAmount) / 2).toFixed(2)} AURY per player • Winner takes ${(parseFloat(newTournament.poolAmount)).toFixed(2)} AURY`
+                              : `Sponsored: You pay ${(parseFloat(newTournament.poolAmount)).toFixed(2)} AURY. Entry is FREE for players. Winner takes ${(parseFloat(newTournament.poolAmount)).toFixed(2)} AURY`)
                             : (newTournament.requiresEntryFee !== false
                               ? 'Total pool will be split equally. Each player pays half as entry fee.'
                               : 'You pay the full pool amount. Players join for free.')}

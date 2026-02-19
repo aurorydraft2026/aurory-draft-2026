@@ -1,22 +1,3 @@
-/**
- * auroryProxyClient.js
- * Client-side helper for calling the Aurory API through Cloud Functions proxy.
- * Drop-in replacement for corsproxy.io usage.
- *
- * Usage:
- *   import { auroryFetch } from '../services/auroryProxyClient';
- *
- *   // Instead of: fetch(`${CORS_PROXY}${encodeURIComponent(apiUrl)}`)
- *   // Use:        auroryFetch('/v1/matches', 'battle_code=12345')
- */
-
-// ─── CONFIGURE THIS ───
-// After deploying Cloud Functions, replace with your actual function URL.
-// Format: https://<region>-<project-id>.cloudfunctions.net/auroryProxy
-//
-// For local development with emulator:
-//   const PROXY_URL = 'http://127.0.0.1:5001/<project-id>/us-central1/auroryProxy';
-//
 const PROXY_URL = process.env.REACT_APP_AURORY_PROXY_URL
   || 'https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net/auroryProxy';
 
