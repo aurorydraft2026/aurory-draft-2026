@@ -503,8 +503,11 @@
   }
 }
 
-.login-welcome-text {
-  padding: 0 24px 20px;
+.login-welcome-text,
+.login-intro {
+  padding: 0 24px;
+  margin-top: 15px;
+  margin-bottom: 25px;
   text-align: center;
   color: var(--text-muted);
   font-size: 0.95rem;
@@ -516,6 +519,13 @@
   flex-direction: column;
   gap: 12px;
   padding: 0 24px 24px;
+}
+
+.modal-action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+  pointer-events: none;
 }
 
 .modal-action-btn.discord {
@@ -571,11 +581,29 @@
 
 .success-icon-wrapper {
   margin-bottom: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.success-gif {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  border-radius: var(--radius-lg);
 }
 
 .success-icon {
   font-size: 4rem;
   animation: iconBounce 0.6s ease infinite alternate;
+}
+
+.login-success-modal.logout-success {
+  border-color: var(--border-danger-faint, rgba(255, 100, 100, 0.2));
+}
+
+.login-success-modal.logout-success h3 {
+  color: var(--text-bright);
 }
 
 @keyframes iconBounce {
@@ -1898,9 +1926,6 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  position: sticky;
-  top: calc(var(--header-height) + 16px);
-  align-self: flex-start;
 }
 
 /* --- Top Players of the Month --- */
@@ -4338,7 +4363,18 @@
   font-size: 1.3rem;
   flex-shrink: 0;
   width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
+}
+
+.modal-action-btn .btn-icon-img,
+.modal-action-btn .btn-icon svg {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
 }
 
 .modal-action-btn .btn-text {

@@ -25,6 +25,10 @@ export const logActivity = async ({ user, type, action, metadata = {} }) => {
             path: window.location.pathname
         });
     } catch (error) {
-        console.error('Error logging activity:', error);
+        if (error.code === 'already-exists') {
+            console.log('Activity log already exists (duplicate suppressed)');
+        } else {
+            console.error('Error logging activity:', error);
+        }
     }
 };

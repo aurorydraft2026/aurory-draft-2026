@@ -1,49 +1,65 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { auth, db, discordProvider, googleProvider } from '../firebase';
-import { signInWithPopup, getAdditionalUserInfo, signOut, onAuthStateChanged } from 'firebase/auth';
 import {
-  collection, onSnapshot, doc, setDoc, serverTimestamp, getDocs,
-  addDoc, query, orderBy, limit, runTransaction, writeBatch, where, increment
+  collection, onSnapshot, doc
 } from 'firebase/firestore';
-import { isSuperAdmin } from '../config/admins';
-import { createNotification } from '../services/notifications';
-import { updateDoc } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth, db } from '../firebase';
 import AuroryAccountLink from '../components/AuroryAccountLink';
 import {
   syncAuroryName
 } from '../services/auroryProfileService';
-import { fetchVerifiedMatches, scanAndVerifyCompletedDrafts } from '../services/matchVerificationService';
 import { AMIKOS } from '../data/amikos';
-import { logActivity } from '../services/activityService';
+import { isSuperAdmin } from '../config/admins';
 import LoadingScreen from '../components/LoadingScreen';
 import DraftRulesModal from '../components/DraftRulesModal';
+import { useTournamentCreation } from '../hooks/useTournamentCreation';
+import { useWallet } from '../hooks/useWallet';
+import { useLeaderboard } from '../hooks/useLeaderboard';
+import { useAuth } from '../hooks/useAuth';
+import { useNotifications } from '../hooks/useNotifications';
+import { useAppContent } from '../hooks/useAppContent';
 import './HomePage.css';
 
 // Your AURY deposit wallet address (replace with your actual address)
 const DEPOSIT_WALLET_ADDRESS = 'Gx8pDnqYwn7pb5bWQMGsmTVbpB1EPrPEBCgKVZJGKqTo';
 
-// Helper function to get user email
-const getUserEmail = (user) => {
-  if (!user) return null;
-  if (user.email) return user.email;
-  if (user.providerData && user.providerData.length > 0) {
-    return user.providerData[0].email;
-  }
-  return null;
-};
+
 
 
 
 function HomePage() {
-  const [user, setUser] = useState(null);
+  const navigate = useNavigate();
+
+  const {
+    user, setUser,
+    showUserModal, setShowUserModal,
+    showLoginModal, setShowLoginModal,
+    showLoginSuccessModal, setShowLoginSuccessModal,
+    showLogoutConfirm,
+    showLogoutSuccessModal, setShowLogoutSuccessModal,
+    registeredUsers,
+    fetchRegisteredUsers,
+    isSuperAdminUser,
+    isAdminUser,
+    renderUserProfileContent,
+    renderLoginModalContent,
+    renderLoginSuccessModal,
+    renderLogoutSuccessModal,
+    renderLogoutConfirmModal,
+    profileMenuRef
+  } = useAuth(navigate);
+
+  const isAdmin = isAdminUser;
+
   const [loading, setLoading] = useState(true);
   const syncInProgressRef = React.useRef(false); // Guard for infinite sync loops
   const [tournaments, setTournaments] = useState([]);
+  const [tournamentFilter, setTournamentFilter] = useState('active');
+  const [draftModeFilter, setDraftModeFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [isCreatingDraft, setIsCreatingDraft] = useState(false);
-  const [registeredUsers, setRegisteredUsers] = useState([]);
-  const [participantSearchQuery, setParticipantSearchQuery] = useState('');
+  const [showAuroryModal, setShowAuroryModal] = useState(false);
+  const DRAFTS_PER_PAGE = 32;
   const hasRedirectedRef = useRef(false);
   const [seenTabs, setSeenTabs] = useState(() => {
     try {
@@ -53,259 +69,83 @@ function HomePage() {
     }
   });
 
-  // Team assignment state (3 players per team)
-  const [team1, setTeam1] = useState({ leader: null, member1: null, member2: null });
-  const [team2, setTeam2] = useState({ leader: null, member1: null, member2: null });
-  const [assigningSlot, setAssigningSlot] = useState(null); // e.g., { team: 1, role: 'leader' }
-
-  // Team names and banners
-  const [team1Name, setTeam1Name] = useState('');
-  const [team2Name, setTeam2Name] = useState('');
-  const [team1Banner, setTeam1Banner] = useState(null); // base64 image data
-  const [team2Banner, setTeam2Banner] = useState(null);
-
-  const [announcementSlides, setAnnouncementSlides] = useState([]);
-  const [currentSlide, setCurrentSlide] = useState(0); // Banner slide state
-
-  // Rules Carousel State
-  const [rulesCurrentSlide, setRulesCurrentSlide] = useState(0);
-  const [itemsPerView, setItemsPerView] = useState(4);
-
-  const rules = [
-    {
-      icon: "📅",
-      title: "Match Scheduling",
-      color: "teal",
-      content: "All official match schedules will be announced in the Triad Tourney Channel. Teams are responsible for monitoring the channel and adhering to all posted schedules. Any updates, adjustments, or clarifications will be communicated by tournament organizers through the same channel."
-    },
-    {
-      icon: "🎓",
-      title: "Draft Eligibility & Authority",
-      color: "purple",
-      content: "Only designated and registered team coaches are authorized to make and finalize draft selections. Players who are not registered as coaches may not make or finalize draft picks during the draft phase. Non-coach players are permitted to communicate and strategize with their team captain or designated coach via the chat feature on the drafting page. All draft selections must be completed through the official draft system."
-    },
-    {
-      icon: "🃏",
-      title: "Draft Order & Selection Rules",
-      color: "gold",
-      content: "The first pick will be determined through a randomization process. Following the first pick, teams will select two (2) Amikos per round, adhering to the established draft order. Mirror Amikos are not allowed. Once an Amiko has been selected by a team, it may not be selected by the opposing team for that match. All selections are locked immediately upon confirmation."
-    },
-    {
-      icon: "⏲️",
-      title: "Draft Timer & Enforcement",
-      color: "danger",
-      content: "Each draft phase will have a strict time limit, which will be announced prior to the draft. Teams must complete their selections within the allotted time. Failure to make a selection before the timer expires will result in a random Amiko being assigned to the team. Randomly assigned selections are final and may not be appealed."
-    },
-    {
-      icon: "✅",
-      title: "Draft Stage Completion",
-      color: "teal",
-      content: "Teams are given a maximum of two (2) days to complete each scheduled draft stage. The draft stage is considered complete once all required Amikos have been successfully selected and locked by both teams. No changes, substitutions, or re-drafts are permitted after draft completion unless explicitly authorized by tournament organizers."
-    },
-    {
-      icon: "⚠️",
-      title: "Match Duration & Completion",
-      color: "purple",
-      content: "Teams are given a maximum of two (2) days to complete each scheduled match. Both teams are expected to coordinate promptly to ensure completion within the assigned timeframe. Failure to complete a match within the allotted period may result in penalties, forfeiture, or organizer intervention."
-    },
-    {
-      icon: "📊",
-      title: "Match Reporting",
-      color: "gold",
-      content: "Upon match completion, an official Amiko.gg tournament link will be generated. This link will be shared in the Triad Tourney Channel and will serve as the official record of the match. Only results submitted through the official tournament link will be recognized as valid."
-    },
-    {
-      icon: "👑",
-      title: "Organizer Authority",
-      color: "danger",
-      content: "Draft organizers reserve the right to interpret and enforce all rules outlined in this section. Any situations not explicitly covered will be resolved at the discretion of the organizers. All organizer decisions are final."
-    }
-  ];
-
-  const totalRulesPages = Math.ceil(rules.length / itemsPerView);
-
-  const nextRules = () => {
-    setRulesCurrentSlide((prev) => (prev + 1) % totalRulesPages);
-  };
-
-  const prevRules = () => {
-    setRulesCurrentSlide((prev) => (prev - 1 + totalRulesPages) % totalRulesPages);
-  };
-
-  // Banner swipe state (original)
-  const [touchStart, setTouchStart] = useState(null);
-  const [touchEnd, setTouchEnd] = useState(null);
-
-  // Minimum swipe distance (in px)
-  const minSwipeDistance = 50;
-
-  // Announcement Ticker State
-  const [tickerAnnouncements, setTickerAnnouncements] = useState([]);
-  const [showTicker, setShowTicker] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
-
-  // Draft Rules Modal State for HomePage Join
-  const [showRulesModal, setShowRulesModal] = useState(false);
-  const [selectedTournamentForRules, setSelectedTournamentForRules] = useState(null);
-
-  const [recentWinners, setRecentWinners] = useState([]);
-  const [showWinnerTicker, setShowWinnerTicker] = useState(false);
-  const tickerTimerRef = useRef(null);
-  const lastVerifiedAtRef = useRef(null);
-
-  // News State
-  const [news, setNews] = useState([]);
-  const [newsLoading, setNewsLoading] = useState(true);
-  const [selectedNews, setSelectedNews] = useState(null);
-  const [showNewsModal, setShowNewsModal] = useState(false);
-  const [hasNewNews, setHasNewNews] = useState(false);
-
-  const onTouchStart = (e) => {
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
-  };
-
-  const onTouchMove = (e) => {
-    setTouchEnd(e.targetTouches[0].clientX);
-  };
-
-  const onTouchEnd = () => {
-    if (!touchStart || !touchEnd) return;
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > minSwipeDistance;
-    const isRightSwipe = distance < -minSwipeDistance;
-
-    if (isLeftSwipe) {
-      setCurrentSlide((prev) => (prev + 1) % announcementSlides.length);
-    } else if (isRightSwipe) {
-      setCurrentSlide((prev) => (prev - 1 + announcementSlides.length) % announcementSlides.length);
-    }
-    setTouchStart(null);
-    setTouchEnd(null);
-  };
-
-  // Rules position-based drag state (KEEP THIS)
-  const rulesRef = useRef(null);
-  const [rulesDrag, setRulesDrag] = useState({
-    isDragging: false,
-    startX: 0,
-    currentX: 0,
-    offset: 0
-  });
-
-  // Rules drag handlers (KEEP THIS)
-  const handleRulesStart = (e) => {
-    const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
-    setRulesDrag({
-      isDragging: true,
-      startX: clientX,
-      currentX: clientX,
-      offset: -rulesCurrentSlide * 100
-    });
-  };
-
-  const handleRulesMove = (e) => {
-    if (!rulesDrag.isDragging) return;
-    const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
-    setRulesDrag(prev => ({ ...prev, currentX: clientX }));
-  };
-
-  const handleRulesEnd = () => {
-    if (!rulesDrag.isDragging) return;
-
-    const diff = rulesDrag.currentX - rulesDrag.startX;
-    const threshold = 50;
-
-    if (diff > threshold && rulesCurrentSlide > 0) {
-      prevRules();
-    } else if (diff < -threshold && rulesCurrentSlide < totalRulesPages - 1) {
-      nextRules();
-    }
-
-    setRulesDrag({
-      isDragging: false,
-      startX: 0,
-      currentX: 0,
-      offset: 0
-    });
-  };
-
-  // Calculate rules transform (KEEP THIS)
-  const getRulesTransform = () => {
-    if (!rulesDrag.isDragging) {
-      return `translateX(-${rulesCurrentSlide * 100}%)`;
-    }
-    const diff = rulesDrag.currentX - rulesDrag.startX;
-    const containerWidth = rulesRef.current?.offsetWidth || 1;
-    const percentDiff = (diff / containerWidth) * 100;
-    const newOffset = rulesDrag.offset + percentDiff;
-    return `translateX(${newOffset}%)`;
-  };
-
-  // Auto-rotate banner slides
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % announcementSlides.length);
-    }, 8000);
-    return () => clearInterval(timer);
-  }, [announcementSlides.length]);
+  const {
+    announcementSlides,
+    currentSlide, setCurrentSlide,
+    onTouchStart, onTouchMove, onTouchEnd,
+    rules, rulesCurrentSlide, setRulesCurrentSlide, itemsPerView, totalRulesPages,
+    handleRulesStart, handleRulesMove, handleRulesEnd,
+    getRulesTransform, rulesRef, showRulesModal, setShowRulesModal,
+    rulesDrag,
+    selectedTournamentForRules, setSelectedTournamentForRules,
+    tickerAnnouncements, showTicker, recentWinners, showWinnerTicker,
+    news, newsLoading, selectedNews,
+    showNewsModal, setShowNewsModal, hasNewNews, handleNewsClick
+  } = useAppContent(db);
 
   const [currentTime, setCurrentTime] = useState(Date.now());
 
-  // Wallet state
-  const [walletBalance, setWalletBalance] = useState(0);
-  const [showWalletModal, setShowWalletModal] = useState(false);
-  const [walletTab, setWalletTab] = useState('deposit'); // 'deposit', 'withdraw', 'history'
-  const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [withdrawAddress, setWithdrawAddress] = useState('');
-  const [transactions, setTransactions] = useState([]);
-  const [walletLoading, setWalletLoading] = useState(false);
-  const [copySuccess, setCopySuccess] = useState('');
 
-  const [depositTxSignature, setDepositTxSignature] = useState('');
-  const [depositAmount, setDepositAmount] = useState('');
-  const [depositNote, setDepositNote] = useState('');
 
-  // Notifications State
-  const [notifications, setNotifications] = useState([]);
-  const [showNotificationPanel, setShowNotificationPanel] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  // Aurory Account Link State
-  const [showAuroryModal, setShowAuroryModal] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [showLoginSuccessModal, setShowLoginSuccessModal] = useState(false);
-
-  // Match History state
-  const [matchHistory, setMatchHistory] = useState([]);
-  const [matchHistoryLoading, setMatchHistoryLoading] = useState(true);
-  const [matchHistoryFilter, setMatchHistoryFilter] = useState('all'); // 'all', 'mode1', 'mode2', 'mode3'
-  const [expandedMatch, setExpandedMatch] = useState(null); // draftId of expanded match
-  const [showUserModal, setShowUserModal] = useState(false);
-  const profileMenuRef = useRef(null);
-  const notificationMenuRef = useRef(null);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [tournamentFilter, setTournamentFilter] = useState('active');
-  const [draftModeFilter, setDraftModeFilter] = useState('all'); // 'all','mode1','mode2','mode3'
   const [draftsExpanded, setDraftsExpanded] = useState(false);
-  const [leaderboardMode, setLeaderboardMode] = useState('individual'); // 'individual' or 'team'
-  const DRAFTS_PER_PAGE = 6;
+  const {
+    walletBalance,
+    showWalletModal, setShowWalletModal,
+    walletTab, setWalletTab,
+    withdrawAmount, setWithdrawAmount,
+    withdrawAddress, setWithdrawAddress,
+    transactions,
+    walletLoading,
+    copySuccess,
+    depositTxSignature, setDepositTxSignature,
+    depositAmount, setDepositAmount,
+    depositNote, setDepositNote,
+    formatAuryAmount,
+    formatTransactionTime,
+    submitWithdrawal,
+    submitDepositNotification,
+    copyToClipboard
+  } = useWallet(user);
 
-  const [newTournament, setNewTournament] = useState({
-    title: '',
-    description: '',
-    prizePool: '',
-    draftType: 'mode1', // NEW: Default to Draft Mode 1
-    timerDays: 0,
-    timerHours: 0,
-    timerMinutes: 1,
-    timerSeconds: 0,
-    manualTimerStart: false,
-    poolAmount: '',  // AURY pool amount (human-readable, e.g. "100")
-    isFriendly: false, // No-cost match
-    requiresEntryFee: true // If true, players pay half. If false, creator pays full.
-  });
-  const navigate = useNavigate();
+  const {
+    matchHistory,
+    matchHistoryLoading,
+    matchHistoryFilter, setMatchHistoryFilter,
+    expandedMatch, setExpandedMatch,
+    leaderboardMode, setLeaderboardMode,
+    topPlayers
+  } = useLeaderboard(registeredUsers);
+
+  const {
+    newTournament, setNewTournament,
+    team1,
+    team2,
+    team1Name, setTeam1Name,
+    team2Name, setTeam2Name,
+    team1Banner, setTeam1Banner,
+    team2Banner, setTeam2Banner,
+    assigningSlot, setAssigningSlot,
+    participantSearchQuery, setParticipantSearchQuery,
+    isCreatingDraft,
+    handleCreateTournament,
+    assignParticipant,
+    removeFromSlot,
+    handleDeselectDuringFlow,
+    handleBannerUpload,
+    getAssignedParticipants,
+    areTeamsComplete,
+    getAssignedCount,
+    getUserById
+  } = useTournamentCreation(user, walletBalance, registeredUsers, setShowCreateModal);
+
+  const {
+    showNotificationPanel,
+    setShowNotificationPanel,
+    unreadCount,
+    notificationMenuRef,
+    markAllAsRead,
+    renderNotificationPanelContent
+  } = useNotifications(user, navigate, formatTransactionTime);
 
   // Listen for authentication state changes and user Firestore data
   useEffect(() => {
@@ -360,29 +200,9 @@ function HomePage() {
       unsubscribeAuth();
       if (unsubscribeUserDoc) unsubscribeUserDoc();
     };
-  }, []);
+  }, [setUser]);
 
-  // Handle click outside for profile dropdown
-  useEffect(() => {
-    function handleClickOutside(event) {
-      // Only handle click-outside for desktop dropdown
-      if (window.innerWidth <= 768) return;
 
-      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
-        setShowUserModal(false);
-      }
-
-      if (notificationMenuRef.current && !notificationMenuRef.current.contains(event.target)) {
-        setShowNotificationPanel(false);
-      }
-    }
-    if (showUserModal || showNotificationPanel) {
-      document.addEventListener('click', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('click', handleClickOutside);
-    };
-  }, [showUserModal, showNotificationPanel]);
 
   // Listen for tournaments
   useEffect(() => {
@@ -435,243 +255,15 @@ function HomePage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Listen for wallet balance and transactions
-  useEffect(() => {
-    if (!user) {
-      setWalletBalance(0);
-      setTransactions([]);
-      return;
-    }
 
-    // Listen to wallet balance
-    const walletRef = doc(db, 'wallets', user.uid);
-    const unsubscribeWallet = onSnapshot(walletRef, (doc) => {
-      if (doc.exists()) {
-        setWalletBalance(doc.data().balance || 0);
-      } else {
-        // Initialize wallet if doesn't exist
-        setDoc(walletRef, {
-          balance: 0,
-          pendingDeposits: 0,
-          createdAt: serverTimestamp()
-        });
-        setWalletBalance(0);
-      }
-    });
-
-    // Listen to transactions
-    const transactionsRef = collection(db, 'wallets', user.uid, 'transactions');
-    const transactionsQuery = query(transactionsRef, orderBy('timestamp', 'desc'), limit(50));
-    const unsubscribeTransactions = onSnapshot(transactionsQuery, (snapshot) => {
-      const txList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setTransactions(txList);
-    });
-
-    return () => {
-      unsubscribeWallet();
-      unsubscribeTransactions();
-    };
-  }, [user]);
-
-  // Read User Notifications
-  useEffect(() => {
-    if (!user) {
-      setNotifications([]);
-      setUnreadCount(0);
-      return;
-    }
-
-    const notificationsRef = collection(db, 'users', user.uid, 'notifications');
-    const q = query(notificationsRef, orderBy('createdAt', 'desc'), limit(20));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const activeNotifications = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setNotifications(activeNotifications);
-      setUnreadCount(activeNotifications.filter(n => !n.read).length);
-    }, (error) => {
-      console.error("Error fetching notifications:", error);
-    });
-
-    return () => unsubscribe();
-  }, [user]);
-
-  // Fetch News - Top 3
-  useEffect(() => {
-    const newsRef = collection(db, 'news');
-    const q = query(newsRef, orderBy('createdAt', 'desc'), limit(3));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const newsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setNews(newsData);
-      setNewsLoading(false);
-
-      if (newsData.length > 0) {
-        const lastSeenId = localStorage.getItem('lastSeenNewsId');
-        if (lastSeenId !== newsData[0].id) {
-          setHasNewNews(true);
-        }
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // Fetch Ticker Announcements from Firestore
-  useEffect(() => {
-    const q = query(
-      collection(db, 'settings'),
-      where('type', '==', 'ticker_announcement'),
-      orderBy('createdAt', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setTickerAnnouncements(docs);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // Fetch Recent Winners from Firestore
-  useEffect(() => {
-    const q = query(
-      collection(db, 'drafts'),
-      where('verificationStatus', '==', 'complete'),
-      orderBy('verifiedAt', 'desc'),
-      limit(5)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (snapshot.empty) return;
-
-      const winnerData = snapshot.docs[0].data();
-      let winnerName = 'Unknown';
-      let loserName = 'Unknown';
-
-      if (winnerData.overallWinner) {
-        const teamKeyWinner = winnerData.overallWinner === 'A' ? 'teamA' : 'teamB';
-        const teamKeyLoser = winnerData.overallWinner === 'A' ? 'teamB' : 'teamA';
-
-        winnerName = winnerData.leaderNames?.[teamKeyWinner] ||
-          winnerData.leaderNames?.[winnerData.overallWinner === 'A' ? 'team1' : 'team2'] ||
-          'A Winner';
-
-        loserName = winnerData.leaderNames?.[teamKeyLoser] ||
-          winnerData.leaderNames?.[winnerData.overallWinner === 'A' ? 'team2' : 'team1'] ||
-          'An Opponent';
-      }
-
-      const latest = {
-        id: snapshot.docs[0].id,
-        winnerName,
-        loserName,
-        title: winnerData.title || 'Untitled Draft',
-        verifiedAt: winnerData.verifiedAt?.toMillis() || 0
-      };
-
-      // Check if we have a NEW winner
-      if (latest && (!lastVerifiedAtRef.current || latest.verifiedAt > lastVerifiedAtRef.current)) {
-        lastVerifiedAtRef.current = latest.verifiedAt;
-
-        // Show the ticker
-        setRecentWinners([latest]);
-        setShowWinnerTicker(true);
-
-        // Reset/Start 10s auto-hide timer
-        if (tickerTimerRef.current) clearTimeout(tickerTimerRef.current);
-        tickerTimerRef.current = setTimeout(() => {
-          setShowWinnerTicker(false);
-        }, 10000);
-      }
-    });
-
-    return () => {
-      unsubscribe();
-      if (tickerTimerRef.current) clearTimeout(tickerTimerRef.current);
-    };
-  }, []);
-
-  // Handle Scroll to auto-hide ticker
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-
-      // If scrolling down and past 100px, hide ticker
-      if (currentScrollY > lastScrollY && currentScrollY > 100) {
-        setShowTicker(false);
-      }
-      // If scrolling up, show ticker
-      else if (currentScrollY < lastScrollY) {
-        setShowTicker(true);
-      }
-
-      setLastScrollY(currentScrollY);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
 
 
 
-  // Mark notifications as read
-  const markAllAsRead = async () => {
-    if (!user || unreadCount === 0) return;
+  // Handle Scroll to auto-hide ticker
 
-    try {
-      // Get all unread notification IDs
-      const unread = notifications.filter(n => !n.read);
 
-      // Update them one by one (batch update would be better but this is simpler for 20 items)
-      await Promise.all(unread.map(n =>
-        updateDoc(doc(db, 'users', user.uid, 'notifications', n.id), { read: true })
-      ));
 
-      setUnreadCount(0);
-    } catch (error) {
-      console.error("Error marking as read:", error);
-    }
-  };
 
-  // Delete all notifications
-  const deleteAllNotifications = async () => {
-    if (!user) return;
-
-    if (!window.confirm('Are you sure you want to delete all notifications? This will clear your entire history and cannot be undone.')) {
-      return;
-    }
-
-    try {
-      // Fetch ALL notification documents, not just the ones in state
-      const notificationsRef = collection(db, 'users', user.uid, 'notifications');
-      const snapshot = await getDocs(notificationsRef);
-
-      if (snapshot.empty) {
-        console.log('No notifications to delete');
-        return;
-      }
-
-      const batch = writeBatch(db);
-      snapshot.docs.forEach(notifDoc => {
-        batch.delete(notifDoc.ref);
-      });
-
-      await batch.commit();
-      console.log(`✅ All ${snapshot.size} notifications deleted`);
-    } catch (error) {
-      console.error("Error deleting notifications:", error);
-      alert('Failed to delete notifications. Please try again.');
-    }
-  };
 
   // Calculate remaining time for a tournament
   const getTournamentTimer = (tournament) => {
@@ -723,504 +315,17 @@ function HomePage() {
     return `${h}:${m}:${s}`;
   };
 
-  // Handle Discord Login
-  const handleDiscordLogin = async () => {
-    try {
-      const result = await signInWithPopup(auth, discordProvider);
-
-      // Get Discord profile data
-      const additionalInfo = getAdditionalUserInfo(result);
-      const discordData = additionalInfo?.profile;
-
-      let userEmail = result.user.email;
-      if (!userEmail && result.user.providerData && result.user.providerData.length > 0) {
-        userEmail = result.user.providerData[0].email;
-      }
-
-      let displayName = result.user.displayName;
-      if (!displayName && result.user.providerData && result.user.providerData.length > 0) {
-        displayName = result.user.providerData[0].displayName ||
-          result.user.providerData[0].uid ||
-          userEmail?.split('@')[0];
-      }
-
-      const username = discordData?.username || displayName || 'Discord User';
-
-      const enhancedUser = {
-        ...result.user,
-        email: userEmail || '',
-        displayName: displayName || 'Discord User'
-      };
-
-      // ✨ CRITICAL: Save user to Firestore IMMEDIATELY
-      try {
-        await setDoc(doc(db, 'users', result.user.uid), {
-          uid: result.user.uid,
-          username: username,
-          discordUsername: discordData?.username || displayName,
-          discordId: discordData?.id || '',
-          avatar: discordData?.avatar
-            ? `https://cdn.discordapp.com/avatars/${discordData.id}/${discordData.avatar}.png`
-            : result.user.photoURL || null,
-          discriminator: discordData?.discriminator || '',
-          email: userEmail || '',
-          displayName: displayName || 'Discord User',
-          lastLogin: new Date(),
-          createdAt: new Date()
-        }, { merge: true });
-
-        console.log('✅ User saved to Firestore on login:', result.user.uid);
-      } catch (firestoreError) {
-        console.error('❌ Failed to save user to Firestore:', firestoreError);
-        // Don't block login if Firestore save fails
-      }
-
-      setUser(enhancedUser);
-      logActivity({
-        user: enhancedUser,
-        type: 'AUTH',
-        action: 'login_discord'
-      });
-      setShowLoginSuccessModal(true);
-    } catch (error) {
-      console.error('Login error:', error);
-      alert('Login failed: ' + error.message);
-    }
-  };
-
-  // Handle Google Login
-  const handleGoogleLogin = async () => {
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-
-      const userEmail = result.user.email;
-      const displayName = result.user.displayName || userEmail?.split('@')[0] || 'User';
-
-      const enhancedUser = {
-        ...result.user,
-        email: userEmail || '',
-        displayName: displayName
-      };
-
-      // Save user to Firestore
-      try {
-        await setDoc(doc(db, 'users', result.user.uid), {
-          uid: result.user.uid,
-          email: userEmail || '',
-          displayName: displayName,
-          photoURL: result.user.photoURL || null,
-          lastLogin: new Date(),
-          createdAt: new Date()
-        }, { merge: true });
-
-        console.log('✅ User saved to Firestore on Google login:', result.user.uid);
-      } catch (firestoreError) {
-        console.error('❌ Failed to save user to Firestore:', firestoreError);
-      }
-
-      setUser(enhancedUser);
-      logActivity({
-        user: enhancedUser,
-        type: 'AUTH',
-        action: 'login_google'
-      });
-      setShowLoginSuccessModal(true);
-    } catch (error) {
-      console.error('Google login error:', error);
-      alert('Google login failed: ' + error.message);
-    }
-  };
-
-  // Handle Logout
-  const handleLogout = async () => {
-    try {
-      logActivity({
-        user,
-        type: 'AUTH',
-        action: 'logout'
-      });
-      await signOut(auth);
-      setUser(null);
-    } catch (error) {
-      console.error('Logout error:', error.message);
-    }
-  };
-
-  // Copy text to clipboard
-  const copyToClipboard = async (text, type) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopySuccess(type);
-      setTimeout(() => setCopySuccess(''), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
-  };
-
-  // Format AURY amount (assuming 9 decimals like SOL)
-  const formatAuryAmount = (amount) => {
-    return (amount / 1e9).toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 4
-    });
-  };
-
-  // Submit withdrawal request - IMMEDIATELY DEDUCTS BALANCE
-  const submitWithdrawal = async () => {
-    if (!user) return;
-
-    const amount = parseFloat(withdrawAmount);
-    if (isNaN(amount) || amount <= 0) {
-      alert('Please enter a valid amount');
-      return;
-    }
-
-    logActivity({
-      user,
-      type: 'WALLET',
-      action: 'withdraw_request',
-      metadata: {
-        amount: amount,
-        address: withdrawAddress
-      }
-    });
-
-    // Convert to smallest unit (9 decimals)
-    const amountInSmallestUnit = Math.floor(amount * 1e9);
-
-    if (amountInSmallestUnit > walletBalance) {
-      alert('Insufficient balance');
-      return;
-    }
-
-    if (!withdrawAddress || withdrawAddress.length < 32) {
-      alert('Please enter a valid Solana wallet address');
-      return;
-    }
-
-    setWalletLoading(true);
-    try {
-      const walletRef = doc(db, 'wallets', user.uid);
-
-      // Use transaction to atomically deduct balance and create withdrawal request
-      await runTransaction(db, async (transaction) => {
-        const walletDoc = await transaction.get(walletRef);
-
-        if (!walletDoc.exists()) {
-          throw new Error('Wallet not found');
-        }
-
-        const currentBalance = walletDoc.data().balance || 0;
-
-        if (currentBalance < amountInSmallestUnit) {
-          throw new Error('Insufficient balance');
-        }
-
-        // Deduct balance immediately
-        transaction.update(walletRef, {
-          balance: currentBalance - amountInSmallestUnit,
-          updatedAt: serverTimestamp()
-        });
-
-        // Create withdrawal request
-        const withdrawalRef = doc(collection(db, 'withdrawals'));
-        transaction.set(withdrawalRef, {
-          userId: user.uid,
-          userEmail: user.email,
-          userName: user.displayName,
-          amount: amountInSmallestUnit,
-          walletAddress: withdrawAddress,
-          status: 'pending',
-          createdAt: serverTimestamp()
-        });
-      });
-
-      // Add to user's transaction history (outside transaction for simplicity)
-      const txRef = collection(db, 'wallets', user.uid, 'transactions');
-      await addDoc(txRef, {
-        type: 'withdrawal_pending',
-        amount: amountInSmallestUnit,
-        walletAddress: withdrawAddress,
-        status: 'pending',
-        timestamp: serverTimestamp()
-      });
-
-      alert('Withdrawal request submitted! Balance deducted. It will be processed within 24 hours.');
-
-      // Notify User
-      await createNotification(user.uid, {
-        type: 'withdrawal',
-        title: 'Withdrawal Requested',
-        message: `Your withdrawal for ${amount} AURY has been submitted for approval.`,
-        link: '#'
-      });
-
-      setWithdrawAmount('');
-      setWithdrawAddress('');
-      setWalletTab('history');
-    } catch (error) {
-      console.error('Withdrawal error:', error);
-      alert('Failed to submit withdrawal request: ' + error.message);
-    }
-    setWalletLoading(false);
-  };
-
-  // Submit deposit notification to admin
-  const submitDepositNotification = async () => {
-    if (!user) return;
-
-    const amount = parseFloat(depositAmount);
-    if (isNaN(amount) || amount <= 0) {
-      alert('Please enter a valid amount');
-      return;
-    }
-
-    logActivity({
-      user,
-      type: 'WALLET',
-      action: 'deposit_notify',
-      metadata: {
-        amount: amount,
-        signature: depositTxSignature,
-        note: depositNote
-      }
-    });
-
-    setWalletLoading(true);
-    try {
-      // Create deposit notification request
-      const notificationRef = collection(db, 'depositNotifications');
-      await addDoc(notificationRef, {
-        userId: user.uid,
-        userEmail: user.email,
-        userName: user.displayName,
-        createdAt: serverTimestamp(),
-        amount: amount,
-        txSignature: depositTxSignature || '',
-        note: depositNote || '',
-        status: 'pending' // pending, processed
-      });
-
-      alert('✅ Admin has been notified! Your deposit will be credited soon.');
-
-      // Notify User
-      await createNotification(user.uid, {
-        type: 'deposit',
-        title: 'Deposit Notified',
-        message: `Admin has been notified of your ${amount} AURY deposit. It will be credited soon.`,
-        link: '#'
-      });
-
-      // Clear the form
-      setDepositTxSignature('');
-      setDepositAmount('');
-      setDepositNote('');
-
-    } catch (error) {
-      console.error('Notification error:', error);
-      alert('Failed to send notification. Please try again.');
-    }
-    setWalletLoading(false);
-  };
-
-  // Format timestamp
-  const formatTransactionTime = (timestamp) => {
-    if (!timestamp) return 'Pending';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  // Fetch registered users for participant selection
-  const fetchRegisteredUsers = async () => {
-    try {
-      const usersCollection = collection(db, 'users');
-      const snapshot = await getDocs(usersCollection);
-      const users = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }))
-        // Filter out users without any identifier (uid is required)
-        .filter(user => user.uid);
-
-      setRegisteredUsers(users);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    }
-  };
-
-  // Fetch users on mount (for tournament card participant display)
-  // and also refresh when modal opens
-  useEffect(() => {
-    if (user) {
-      fetchRegisteredUsers();
-    }
-  }, [user]);
-
   useEffect(() => {
     if (showCreateModal) {
       fetchRegisteredUsers();
       // Non-admins can only create 1v1 modes - default to mode3
-      const isAdmin = user && (isSuperAdmin(getUserEmail(user)) || user.role === 'admin');
       if (!isAdmin && newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') {
         setNewTournament(prev => ({ ...prev, draftType: 'mode3' }));
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showCreateModal]);
+  }, [showCreateModal, isAdmin]);
 
-  // Fetch match history (verified matches from all tournaments)
-  useEffect(() => {
-    const loadMatchHistory = async () => {
-      setMatchHistoryLoading(true);
-      try {
-        const modeParam = matchHistoryFilter === 'all' ? null : matchHistoryFilter;
-
-        // 1. Load existing verified matches immediately
-        let matches = await fetchVerifiedMatches(50, modeParam);
-        setMatchHistory(matches);
-        setMatchHistoryLoading(false);
-
-        // 2. Scan for unverified completed drafts in background
-        const newlyVerified = await scanAndVerifyCompletedDrafts();
-
-        // 3. If scan found new results, refetch
-        if (newlyVerified > 0) {
-          matches = await fetchVerifiedMatches(50, modeParam);
-          setMatchHistory(matches);
-        }
-      } catch (error) {
-        console.error('Error loading match history:', error);
-        setMatchHistory([]);
-        setMatchHistoryLoading(false);
-      }
-    };
-
-    loadMatchHistory();
-  }, [matchHistoryFilter]);
-
-  // Compute top players of the month by wins
-  const topPlayers = useMemo(() => {
-    if (!matchHistory || matchHistory.length === 0) return [];
-
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
-    const winCounts = {}; // uid -> { wins, losses, displayName, photoURL }
-
-    matchHistory.forEach(match => {
-      // Filter to current month only
-      if (match.verifiedAt) {
-        const matchDate = new Date(match.verifiedAt);
-        if (matchDate.getMonth() !== currentMonth || matchDate.getFullYear() !== currentYear) return;
-      }
-
-      if (!match.overallWinner) return;
-
-      if (leaderboardMode === 'team') {
-        // --- TEAM MODE: Group by leader + members set ---
-        // Skip 1v1 matches in team leaderboard
-        if (match.draftType === 'mode3' || match.draftType === 'mode4') return;
-
-        const teams = ['A', 'B'];
-        teams.forEach(tCode => {
-          const teamPlayers = match.matchPlayers?.filter(p => p.team === tCode) || [];
-          if (teamPlayers.length === 0) return;
-
-          // Identity: First player is leader, rest are members
-          const leader = teamPlayers[0];
-          const members = teamPlayers.slice(1).map(p => p.uid).sort();
-          const teamKey = `${leader.uid}|${members.join(',')}`;
-
-          const teamName = match.teamNames?.[tCode === 'A' ? 'team1' : 'team2'] || 'Team';
-          const bannerUrl = match.teamBanners?.[tCode === 'A' ? 'team1' : 'team2'] || null;
-          const matchTime = match.verifiedAt?.seconds || (new Date(match.verifiedAt).getTime() / 1000) || 0;
-
-          if (!winCounts[teamKey]) {
-            winCounts[teamKey] = {
-              teamKey,
-              teamName,
-              bannerUrl,
-              wins: 0,
-              losses: 0,
-              lastUpdated: matchTime,
-              members: teamPlayers.map(p => {
-                const userData = registeredUsers.find(u => u.id === p.uid);
-                return {
-                  uid: p.uid,
-                  displayName: p.auroryPlayerName || p.displayName || userData?.displayName || 'Player',
-                  photoURL: userData?.auroryProfilePicture || userData?.photoURL || null
-                };
-              })
-            };
-          } else {
-            // Update to latest team name and banner if match is newer
-            if (matchTime > winCounts[teamKey].lastUpdated) {
-              winCounts[teamKey].teamName = teamName;
-              winCounts[teamKey].bannerUrl = bannerUrl;
-              winCounts[teamKey].lastUpdated = matchTime;
-            }
-          }
-
-          if (tCode === match.overallWinner) {
-            winCounts[teamKey].wins += 1;
-          } else {
-            winCounts[teamKey].losses += 1;
-          }
-        });
-
-      } else {
-        // --- INDIVIDUAL MODE: Use individual battle results ---
-        // Iterate through each battle result
-        (match.matchResults || []).forEach(result => {
-          if (!result.winner || !result.playerA || !result.playerB) return;
-
-          // Process Player A
-          const uidA = match.matchPlayers?.find(mp => mp.auroryPlayerId === result.playerA.playerId || mp.displayName === result.playerA.displayName)?.uid;
-          if (uidA) {
-            if (!winCounts[uidA]) {
-              const userData = registeredUsers.find(u => u.id === uidA);
-              winCounts[uidA] = {
-                uid: uidA,
-                displayName: userData?.auroryPlayerName || result.playerA.displayName || userData?.displayName || 'Player',
-                photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
-                wins: 0,
-                losses: 0
-              };
-            }
-            if (result.winner === 'A') winCounts[uidA].wins += 1;
-            else winCounts[uidA].losses += 1;
-          }
-
-          // Process Player B
-          const uidB = match.matchPlayers?.find(mp => mp.auroryPlayerId === result.playerB.playerId || mp.displayName === result.playerB.displayName)?.uid;
-          if (uidB) {
-            if (!winCounts[uidB]) {
-              const userData = registeredUsers.find(u => u.id === uidB);
-              winCounts[uidB] = {
-                uid: uidB,
-                displayName: userData?.auroryPlayerName || result.playerB.displayName || userData?.displayName || 'Player',
-                photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
-                wins: 0,
-                losses: 0
-              };
-            }
-            if (result.winner === 'B') winCounts[uidB].wins += 1;
-            else winCounts[uidB].losses += 1;
-          }
-        });
-      }
-    });
-
-    return Object.values(winCounts)
-      .sort((a, b) => b.wins - a.wins || a.losses - b.losses)
-      .slice(0, 10);
-  }, [matchHistory, registeredUsers, leaderboardMode]); // Added leaderboardMode dependency
 
   // Filter tournaments based on selected tab + mode
   const filteredTournaments = useMemo(() => {
@@ -1262,151 +367,6 @@ function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournaments, tournamentFilter, draftModeFilter, user, currentTime]);
 
-  // Get all assigned participant IDs
-  const getAssignedParticipants = () => {
-    const assigned = [];
-    if (team1.leader) assigned.push(team1.leader);
-    if (team1.member1) assigned.push(team1.member1);
-    if (team1.member2) assigned.push(team1.member2);
-    if (team2.leader) assigned.push(team2.leader);
-    if (team2.member1) assigned.push(team2.member1);
-    if (team2.member2) assigned.push(team2.member2);
-    return assigned;
-  };
-
-  // Check if both teams are complete (all 6 slots filled)
-  const areTeamsComplete = () => {
-    if (newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') {
-      return team1.leader && team2.leader;
-    }
-    return team1.leader && team1.member1 && team1.member2 &&
-      team2.leader && team2.member1 && team2.member2;
-  };
-
-  // Get count of assigned players
-  const getAssignedCount = () => {
-    return getAssignedParticipants().length;
-  };
-
-  // Assign a participant to a slot
-  const assignParticipant = (userId) => {
-    if (!assigningSlot) return;
-
-    const { team, roles, sessionRoles } = assigningSlot;
-    const currentRole = roles[0];
-
-    const targetUser = getUserById(userId);
-    if (!targetUser?.auroryPlayerId) {
-      alert('This user has not linked an Aurory account and cannot participate in the draft.');
-      return;
-    }
-
-    if (team === 1) {
-      setTeam1(prev => ({ ...prev, [currentRole]: userId }));
-    } else {
-      setTeam2(prev => ({ ...prev, [currentRole]: userId }));
-    }
-
-    const remainingRoles = roles.slice(1);
-    if (remainingRoles.length > 0) {
-      setAssigningSlot({ team, roles: remainingRoles, sessionRoles });
-    } else {
-      setAssigningSlot(null);
-    }
-    setParticipantSearchQuery('');
-  };
-
-  // NEW: Deselect a participant during selection flow
-  const handleDeselectDuringFlow = (role) => {
-    if (!assigningSlot) return;
-    const { team, roles, sessionRoles } = assigningSlot;
-
-    if (team === 1) {
-      setTeam1(prev => ({ ...prev, [role]: null }));
-    } else {
-      setTeam2(prev => ({ ...prev, [role]: null }));
-    }
-
-    // Put role back if it's part of the original session but not in current roles
-    if (sessionRoles.includes(role) && !roles.includes(role)) {
-      setAssigningSlot({
-        team,
-        roles: [role, ...roles],
-        sessionRoles
-      });
-    }
-  };
-
-  // Remove a participant from a slot
-  const removeFromSlot = (team, role) => {
-    if (team === 1) {
-      setTeam1(prev => ({ ...prev, [role]: null }));
-    } else {
-      setTeam2(prev => ({ ...prev, [role]: null }));
-    }
-  };
-
-  // Get user info by ID
-  const getUserById = (userId) => {
-    return registeredUsers.find(u => u.id === userId);
-  };
-
-
-
-  // Handle banner image upload
-  const handleBannerUpload = (teamNumber, event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
-      return;
-    }
-
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Image must be smaller than 2MB');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      // Compress image to keep Firestore doc under 1MB
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_SIZE = 256;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > MAX_SIZE) {
-            height = Math.round((height * MAX_SIZE) / width);
-            width = MAX_SIZE;
-          }
-        } else {
-          if (height > MAX_SIZE) {
-            width = Math.round((width * MAX_SIZE) / height);
-            height = MAX_SIZE;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-
-        const compressed = canvas.toDataURL('image/jpeg', 0.7);
-        if (teamNumber === 1) {
-          setTeam1Banner(compressed);
-        } else {
-          setTeam2Banner(compressed);
-        }
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  };
-
   // Filter users for search (exclude already assigned)
   const filteredUsers = registeredUsers.filter(u => {
     // Exclude super admins and assigned admins
@@ -1423,318 +383,6 @@ function HomePage() {
   });
 
   // Create new tournament
-  const handleCreateTournament = async () => {
-    if (isCreatingDraft) return;
-
-    if (!newTournament.title.trim()) {
-      alert('Please enter a draft title');
-      return;
-    }
-
-    const is1v1 = newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4';
-
-    const timerMs = (
-      (newTournament.timerDays * 24 * 60 * 60 * 1000) +
-      (newTournament.timerHours * 60 * 60 * 1000) +
-      (newTournament.timerMinutes * 60 * 1000) +
-      (newTournament.timerSeconds * 1000)
-    );
-
-    if (timerMs <= 0) {
-      alert('Please set a timer duration greater than 0');
-      return;
-    }
-
-    // 1v1: Enforce minimum 30-second timer
-    if (is1v1 && timerMs < 30 * 1000) {
-      alert('1v1 drafts require a minimum timer of 30 seconds so both players have time to prepare.');
-      return;
-    }
-
-    // 3v3: If not using manual timer start, participants are required
-    if (!is1v1 && !newTournament.manualTimerStart && !areTeamsComplete()) {
-      alert('Please assign all 6 participants, or check "Start timer manually" to add participants later.');
-      return;
-    }
-
-    // 1v1 Pool validation
-    const isFriendly = is1v1 ? newTournament.isFriendly : true;
-    const requiresEntryFee = is1v1 && !isFriendly ? (newTournament.requiresEntryFee !== false) : true;
-    const poolAmountAury = is1v1 && !isFriendly ? parseFloat(newTournament.poolAmount) || 0 : 0;
-    const poolAmountSmallest = Math.floor(poolAmountAury * 1e9); // Convert to smallest unit
-
-    // If requires fee: Entry is half the pool.
-    // If sponsored (no fee): Entry is 0 for joiners.
-    const entryFee = requiresEntryFee ? Math.floor(poolAmountSmallest / 2) : 0;
-
-    if (is1v1 && !isFriendly && poolAmountAury <= 0) {
-      alert('Please enter a pool amount greater than 0, or check "Friendly Match".');
-      return;
-    }
-
-    // Check if creator is self-assigned as a player
-    const creatorIsPlayer1 = team1.leader === user.uid;
-    const creatorIsPlayer2 = team2.leader === user.uid;
-    const creatorIsPlayer = creatorIsPlayer1 || creatorIsPlayer2;
-
-    // Calculate how much the creator needs to pay NOW
-    // If sponsored: Creator pays FULL pool.
-    // If split: Creator pays their share (only if they are playing).
-    let creatorDeduction = 0;
-    if (is1v1 && !isFriendly) {
-      if (!requiresEntryFee) {
-        // Sponsored: Creator pays everything
-        creatorDeduction = poolAmountSmallest;
-      } else if (creatorIsPlayer) {
-        // Split: Creator pays their share
-        creatorDeduction = entryFee;
-      }
-    }
-
-    // Wallet balance check for ALL non-friendly 1v1 drafts
-    if (creatorDeduction > 0) {
-      if (walletBalance < creatorDeduction) {
-        alert(`Insufficient balance to create this match. You need at least ${(creatorDeduction / 1e9).toFixed(2)} AURY.`);
-        return;
-      }
-    }
-
-    try {
-      setIsCreatingDraft(true);
-      // Generate unique tournament ID
-      const tournamentId = `tournament_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const draftRef = doc(db, 'drafts', tournamentId);
-
-      // Deduct from creator's wallet
-      if (creatorDeduction > 0) {
-        const walletRef = doc(db, 'wallets', user.uid);
-        await runTransaction(db, async (transaction) => {
-          const walletDoc = await transaction.get(walletRef);
-          const currentBalance = walletDoc.exists() ? (walletDoc.data().balance || 0) : 0;
-          if (currentBalance < creatorDeduction) {
-            throw new Error('Insufficient balance');
-          }
-          transaction.update(walletRef, {
-            balance: currentBalance - creatorDeduction,
-            updatedAt: serverTimestamp()
-          });
-          // Record transaction
-          const txRef = doc(collection(db, 'wallets', user.uid, 'transactions'));
-          transaction.set(txRef, {
-            type: !requiresEntryFee ? 'sponsored_pool' : 'entry_fee',
-            amount: creatorDeduction,
-            draftId: tournamentId,
-            draftTitle: newTournament.title.trim(),
-            timestamp: serverTimestamp()
-          });
-        });
-      }
-
-      // Build permissions object
-      const permissions = {};
-      // Creator ALWAYS gets admin — even if they're also a participant
-      // This ensures they can see Draft Settings (edit, delete, start) at all times
-      permissions[user.uid] = 'admin';
-      getAssignedParticipants().forEach(uid => {
-        if (!permissions[uid]) permissions[uid] = 'spectator';
-      });
-
-      // NEW: Invite System for paid 1v1 drafts
-      const pendingInvites = {};
-      const actualPreAssignedTeams = {
-        team1: { leader: team1.leader || null, member1: team1.member1 || null, member2: team1.member2 || null },
-        team2: { leader: team2.leader || null, member1: team2.member1 || null, member2: team2.member2 || null }
-      };
-
-      if (is1v1 && !isFriendly && entryFee > 0) {
-        ['team1', 'team2'].forEach(slot => {
-          const leaderUid = slot === 'team1' ? team1.leader : team2.leader;
-          if (leaderUid && leaderUid !== user.uid) {
-            // Invite this user instead of adding directly
-            pendingInvites[leaderUid] = slot;
-            actualPreAssignedTeams[slot].leader = null;
-          }
-        });
-      }
-
-      // Save final team structure
-      const preAssignedTeams = actualPreAssignedTeams;
-
-      // Get team names
-      const team1LeaderUser = getUserById(team1.leader);
-      const team2LeaderUser = getUserById(team2.leader);
-      const teamNames = {
-        team1: team1Name.trim() || team1LeaderUser?.auroryPlayerName || team1LeaderUser?.displayName || team1LeaderUser?.username || 'Player 1',
-        team2: team2Name.trim() || team2LeaderUser?.auroryPlayerName || team2LeaderUser?.displayName || team2LeaderUser?.username || 'Player 2',
-      };
-
-      // Store team banners
-      const teamBanners = {
-        team1: team1Banner || null,
-        team2: team2Banner || null,
-      };
-
-      // Determine if 1v1 is joinable (has open player slots or pending invites)
-      const bothPlayersAssigned = is1v1 && preAssignedTeams.team1.leader && preAssignedTeams.team2.leader;
-      const hasOpenSlots = is1v1 && (!preAssignedTeams.team1.leader || !preAssignedTeams.team2.leader);
-
-      const tournamentData = {
-        title: newTournament.title.trim(),
-        description: newTournament.description.trim(),
-        prizePool: is1v1 ? (isFriendly ? 'Friendly' : `${poolAmountAury} AURY`) : newTournament.prizePool.trim(),
-        draftType: newTournament.draftType,
-        timerDuration: timerMs,
-        manualTimerStart: is1v1 ? false : newTournament.manualTimerStart, // 1v1 always auto-starts timer
-        timerStarted: false,
-        teamA: [],
-        teamB: [],
-        currentPhase: 0,
-        currentTeam: 'A',
-        picksInPhase: 0,
-        timerStartA: null,
-        timerStartB: null,
-        status: bothPlayersAssigned ? 'coinFlip' : 'waiting',
-        permissions: permissions,
-        preAssignedTeams: preAssignedTeams,
-        pendingInvites: pendingInvites,
-        teamNames: teamNames,
-        teamBanners: teamBanners,
-        lockedPhases: [],
-        awaitingLockConfirmation: false,
-        activeViewers: {},
-        createdAt: serverTimestamp(),
-        createdBy: user.uid,
-        creatorDisplayName: user.auroryPlayerName || user.displayName || user.email || 'Unknown',
-        // 1v1 pool fields
-        poolAmount: poolAmountSmallest,
-        entryFee: entryFee,
-        isFriendly: isFriendly,
-        joinable: hasOpenSlots, // Open for others to join
-        entryPaid: creatorDeduction > 0 ? { [user.uid]: creatorDeduction } : {}
-      };
-
-      // Generate private code for 1v1 mode
-      if (is1v1) {
-        tournamentData.privateCode = Math.floor(10000 + Math.random() * 90000).toString();
-      }
-
-      // If both players assigned, set up coinFlip phase for immediate confirmation
-      if (bothPlayersAssigned) {
-        tournamentData.coinFlip = {
-          phase: 'rolling',
-          team1Locked: false,
-          team2Locked: false,
-          result: null,
-          winner: null,
-          winnerTurnChoice: null
-        };
-      }
-
-      await setDoc(draftRef, tournamentData);
-
-      logActivity({
-        user,
-        type: 'DRAFT',
-        action: 'create_draft',
-        metadata: {
-          draftId: tournamentId,
-          title: tournamentData.title,
-          draftType: tournamentData.draftType,
-          prizePool: tournamentData.prizePool
-        }
-      });
-
-      // Reset form and close modal
-      setNewTournament({
-        title: '',
-        description: '',
-        prizePool: '',
-        draftType: isAdminUser ? 'mode1' : 'mode3',
-        timerDays: 0,
-        timerHours: 0,
-        timerMinutes: 1,
-        timerSeconds: 0,
-        manualTimerStart: false,
-        poolAmount: '',
-        isFriendly: false
-      });
-      setTeam1({ leader: null, member1: null, member2: null });
-      setTeam2({ leader: null, member1: null, member2: null });
-      setTeam1Name('');
-      setTeam2Name('');
-      setTeam1Banner(null);
-      setTeam2Banner(null);
-      setAssigningSlot(null);
-      setParticipantSearchQuery('');
-      setIsCreatingDraft(false);
-      setShowCreateModal(false);
-
-      // Notify all assigned participants
-      const assignedUids = getAssignedParticipants();
-      for (const uid of assignedUids) {
-        if (uid === user.uid) continue;
-        await createNotification(uid, {
-          type: 'invite',
-          title: is1v1 ? '1v1 Challenge!' : 'Draft Invitation',
-          message: is1v1
-            ? `You've been challenged to a 1v1 match: "${newTournament.title.trim()}"${!isFriendly ? ` (Entry: ${(entryFee / 1e9).toFixed(2)} AURY)` : ' (Friendly)'}`
-            : `You have been invited to participate in "${newTournament.title.trim()}".`,
-          link: `/tournament/${tournamentId}`
-        });
-      }
-
-      // Navigate to the new tournament
-      navigate(`/tournament/${tournamentId}`, {
-        state: { autoStart: !is1v1 && !newTournament.manualTimerStart }
-      });
-    } catch (error) {
-      setIsCreatingDraft(false);
-      console.error('Error creating tournament:', error);
-      alert('Failed to create draft: ' + error.message);
-    }
-  };
-
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1200) setItemsPerView(4);
-      else if (window.innerWidth >= 768) setItemsPerView(2);
-      else setItemsPerView(1);
-    };
-
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Fetch dynamic banners
-  useEffect(() => {
-    const bannersRef = collection(db, 'banners');
-    const q = query(bannersRef, orderBy('order', 'asc'), orderBy('createdAt', 'desc'));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const AMIKO_LEGENDS_BANNER = {
-        id: 'amiko-legends-static',
-        tag: 'Amiko Legends',
-        title: 'Enter the Amiko Realm',
-        text: 'Venture into dangerous, ever-shifting realms where every decision matters. Collect and bond with powerful Amiko, overcome relentless enemies, and forge your path through a rogue-like adventure where only true legends endure.',
-        image: 'https://app.aurory.io/images/sot-dashboard/sot-logo.png',
-        video: '/amiko-vid.mp4',
-        isStatic: true
-      };
-
-      if (!snapshot.empty) {
-        const bannerData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setAnnouncementSlides([AMIKO_LEGENDS_BANNER, ...bannerData]);
-      } else {
-        setAnnouncementSlides([AMIKO_LEGENDS_BANNER]);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
 
   // Navigate to Tournament page
   const goToTournament = (tournamentId) => {
@@ -1786,237 +434,11 @@ function HomePage() {
     }
   };
 
-  const isSuperAdminUser = user && isSuperAdmin(getUserEmail(user));
-  const isAdminUser = user && (isSuperAdminUser || user.role === 'admin');
-  const isAdmin = isAdminUser; // Preserve for backwards compatibility within this file
 
-  // Helper to render profile menu content (shared between mobile modal and desktop dropdown)
-  const renderUserProfileContent = () => {
-    if (!user) return null;
-    return (
-      <div
-        className="user-profile-modal"
-        onClick={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="modal-header">
-          <h3>👤 User Profile</h3>
-          <button className="close-modal" onClick={() => setShowUserModal(false)}>✖</button>
-        </div>
 
-        <div className="user-modal-content">
-          <div className="user-header-info">
-            <img
-              src={user.auroryProfilePicture || user.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
-              alt="Profile"
-              className="modal-profile-pic"
-              onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-            />
-            <div className="user-text-info">
-              <span className="modal-username">
-                {user.displayName}
-                {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}
-              </span>
-              <span className="modal-email">{user.email}</span>
-              {isSuperAdminUser ? (
-                <span className="modal-admin-badge">⭐Super Admin</span>
-              ) : isAdminUser ? (
-                <span className="modal-admin-badge admin-staff">⭐Admin</span>
-              ) : null}
 
-              {user.isAurorian && <span className="aurorian-tag">Aurorian Holder</span>}
-            </div>
-          </div>
 
-          <div className="user-modal-actions">
-            <button
-              className="modal-action-btn aurory"
-              onClick={() => {
-                setShowUserModal(false);
-                setShowAuroryModal(true);
-              }}
-            >
-              <span className="btn-icon">🎮</span>
-              <div className="btn-text">
-                <span className="btn-title">Aurory Account</span>
-                <span className="btn-desc">Link your game account</span>
-              </div>
-            </button>
 
-            {isAdmin && (
-              <button
-                className="modal-action-btn admin"
-                onClick={() => {
-                  setShowUserModal(false);
-                  navigate('/admin/panel');
-                }}
-              >
-                <span className="btn-icon">💼</span>
-                <div className="btn-text">
-                  <span className="btn-title">Admin Panel</span>
-                  <span className="btn-desc">Manage wallets & deposits</span>
-                </div>
-              </button>
-            )}
-
-            <div className="modal-divider"></div>
-
-            <button
-              className="modal-action-btn logout"
-              onClick={() => {
-                setShowUserModal(false);
-                setShowLogoutConfirm(true);
-              }}
-            >
-              <span className="btn-icon">🚪</span>
-              <div className="btn-text">
-                <span className="btn-title">Logout</span>
-                <span className="btn-desc">Sign out of your account</span>
-              </div>
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Helper to render notification panel content (shared between mobile modal and desktop dropdown)
-  const renderNotificationPanelContent = () => {
-    return (
-      <div className="notification-panel" onClick={(e) => e.stopPropagation()}>
-        <div className="notification-panel-header">
-          <div className="header-left">
-            <h3>Notifications</h3>
-            {notifications.length > 0 && (
-              <button
-                className="delete-all-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteAllNotifications();
-                }}
-                title="Delete all notifications"
-              >
-                🗑️ Clear All
-              </button>
-            )}
-          </div>
-          <button className="close-panel-btn" onClick={() => setShowNotificationPanel(false)}>✖</button>
-        </div>
-        <div className="notification-list">
-          {notifications.length === 0 ? (
-            <div className="no-notifications">No new notifications</div>
-          ) : (
-            notifications.map(notif => (
-              <div
-                key={notif.id}
-                className={`notification-item ${!notif.read ? 'unread' : ''} ${notif.type}`}
-                onClick={() => {
-                  if (notif.link && notif.link !== '#') navigate(notif.link);
-                  setShowNotificationPanel(false);
-                }}
-              >
-                <div className="notification-icon">
-                  {notif.type === 'invite' ? '🎮' :
-                    notif.type === 'deposit' ? '📥' :
-                      notif.type === 'withdrawal' ? '📤' : '🔔'}
-                </div>
-                <div className="notification-content">
-                  <div className="notification-title">{notif.title}</div>
-                  <div className="notification-message">{notif.message}</div>
-                  <div className="notification-time">
-                    {formatTransactionTime(notif.createdAt)}
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const renderLoginModalContent = () => {
-    return (
-      <div className="login-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>🔍 Welcome to Asgard Duels</h3>
-          <button className="close-modal" onClick={() => setShowLoginModal(false)}>✖</button>
-        </div>
-        <div className="modal-body">
-          <div className="login-welcome-text">
-            <p>Connect your account to start participating in drafts and managing your wallet.</p>
-          </div>
-          <div className="login-options">
-            <button
-              className="modal-action-btn discord"
-              onClick={() => {
-                setShowLoginModal(false);
-                handleDiscordLogin();
-              }}
-            >
-              <span className="btn-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z" />
-                </svg>
-              </span>
-              <div className="btn-text">
-                <span className="btn-title">Continue with Discord</span>
-                <span className="btn-desc">Fastest way to join tournaments</span>
-              </div>
-            </button>
-            <button
-              className="modal-action-btn google"
-              onClick={() => {
-                setShowLoginModal(false);
-                handleGoogleLogin();
-              }}
-            >
-              <span className="btn-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 12-4.53z" fill="#EA4335" />
-                </svg>
-              </span>
-              <div className="btn-text">
-                <span className="btn-title">Continue with Google</span>
-                <span className="btn-desc">Secure access via your Google account</span>
-              </div>
-            </button>
-          </div>
-          <div className="login-footer">
-            <p>
-              By logging in, you agree to our{' '}
-              <Link to="/terms" onClick={() => setShowLoginModal(false)}>Terms of Service</Link>
-              {' '}and{' '}
-              <Link to="/privacy" onClick={() => setShowLoginModal(false)}>Privacy Policy</Link>.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderLoginSuccessModal = () => {
-    return (
-      <div className="login-success-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-body">
-          <div className="success-icon-wrapper">
-            <div className="success-icon">🎉</div>
-          </div>
-          <h3>Login Successful!</h3>
-          <p>Welcome back! You're now connected and ready to explore Asgard Duels.</p>
-          <button
-            className="btn-primary awesome-btn"
-            onClick={() => setShowLoginSuccessModal(false)}
-          >
-            Awesome!
-          </button>
-        </div>
-      </div>
-    );
-  };
 
 
   if (loading) {
@@ -2105,7 +527,7 @@ function HomePage() {
 
                 {showUserModal && (
                   <div className="desktop-profile-dropdown">
-                    {renderUserProfileContent()}
+                    {renderUserProfileContent({ setShowAuroryModal })}
                   </div>
                 )}
               </div>
@@ -2625,23 +1047,7 @@ function HomePage() {
                     <div
                       key={item.id}
                       className="news-item"
-                      onClick={() => {
-                        setSelectedNews(item);
-                        setShowNewsModal(true);
-                        // Increment view count
-                        try {
-                          updateDoc(doc(db, 'news', item.id), {
-                            viewCount: increment(1)
-                          });
-                        } catch (error) {
-                          console.error('Error incrementing news view count:', error);
-                        }
-                        // Mark news as seen
-                        if (news.length > 0) {
-                          localStorage.setItem('lastSeenNewsId', news[0].id);
-                          setHasNewNews(false);
-                        }
-                      }}
+                      onClick={() => handleNewsClick(item)}
                     >
                       <div className="news-item-banner">
                         <img src={item.banner} alt="" />
@@ -3824,13 +2230,12 @@ function HomePage() {
       }
 
       {/* Mobile User Profile Modal (Root level to avoid header clipping) */}
-      {
-        showUserModal && window.innerWidth <= 768 && (
-          <div className="modal-overlay mobile-profile-modal-overlay" onClick={() => setShowUserModal(false)}>
-            {renderUserProfileContent()}
-          </div>
-        )
-      }
+      {/* Mobile User Profile Modal */}
+      {showUserModal && window.innerWidth <= 768 && (
+        <div className="modal-overlay mobile-profile-modal-overlay" onClick={() => setShowUserModal(false)}>
+          {renderUserProfileContent({ setShowAuroryModal })}
+        </div>
+      )}
 
       {/* Aurory Account Link Modal */}
       <AuroryAccountLink
@@ -3857,62 +2262,25 @@ function HomePage() {
         }}
       />
 
-      {/* Login Modal */}
-      {
-        showLoginModal && (
-          <div className="modal-overlay" onClick={() => setShowLoginModal(false)}>
-            {renderLoginModalContent()}
-          </div>
-        )
-      }
-
-      {/* Login Success Modal */}
+      {/* Authentication Modals from useAuth hook */}
+      {showLoginModal && renderLoginModalContent()}
       {showLoginSuccessModal && (
         <div className="modal-overlay success-overlay" onClick={() => setShowLoginSuccessModal(false)}>
           {renderLoginSuccessModal()}
         </div>
       )}
+      {showLogoutSuccessModal && (
+        <div className="modal-overlay success-overlay" onClick={() => setShowLogoutSuccessModal(false)}>
+          {renderLogoutSuccessModal()}
+        </div>
+      )}
+      {showLogoutConfirm && renderLogoutConfirmModal()}
 
       {/* Mobile Notification Modal (Root level to avoid header clipping) */}
       {
         showNotificationPanel && window.innerWidth <= 768 && (
           <div className="modal-overlay mobile-notification-modal-overlay" onClick={() => setShowNotificationPanel(false)}>
             {renderNotificationPanelContent()}
-          </div>
-        )
-      }
-
-      {/* Logout Confirmation Modal */}
-      {
-        showLogoutConfirm && (
-          <div className="modal-overlay" onClick={() => setShowLogoutConfirm(false)}>
-            <div className="confirmation-modal logout-confirm" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h3>🚪 Confirm Logout</h3>
-                <button className="close-modal" onClick={() => setShowLogoutConfirm(false)}>✖</button>
-              </div>
-              <div className="modal-body">
-                <div className="confirm-icon">🚪</div>
-                <p>Are you sure you want to log out of Asgard Duels?</p>
-                <div className="confirm-actions">
-                  <button
-                    className="btn-secondary"
-                    onClick={() => setShowLogoutConfirm(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className="btn-danger"
-                    onClick={() => {
-                      setShowLogoutConfirm(false);
-                      handleLogout();
-                    }}
-                  >
-                    Yes, Log Out
-                  </button>
-                </div>
-              </div>
-            </div>
           </div>
         )
       }
