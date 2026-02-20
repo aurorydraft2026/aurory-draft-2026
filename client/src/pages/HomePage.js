@@ -1939,7 +1939,7 @@ function HomePage() {
     return (
       <div className="login-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>🔍 Welcome to Aurory Draft</h3>
+          <h3>🔍 Welcome to Asgard Duels</h3>
           <button className="close-modal" onClick={() => setShowLoginModal(false)}>✖</button>
         </div>
         <div className="modal-body">
@@ -2006,7 +2006,7 @@ function HomePage() {
             <div className="success-icon">🎉</div>
           </div>
           <h3>Login Successful!</h3>
-          <p>Welcome back! You're now connected and ready to explore Aurory Draft.</p>
+          <p>Welcome back! You're now connected and ready to explore Asgard Duels.</p>
           <button
             className="btn-primary awesome-btn"
             onClick={() => setShowLoginSuccessModal(false)}
@@ -2029,13 +2029,13 @@ function HomePage() {
       <header className="header">
         <div className="logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
           <img
-            src="/Aurorydraft logos/Aurory Draft Logo_color-white text_Horizontal.svg"
-            alt="Aurory Draft"
+            src="/AsgardDuels logos/Asgard Duels Logo_color-white text_Horizontal.svg"
+            alt="Asgard Duels"
             className="logo-desktop"
           />
           <img
-            src="/Aurorydraft logos/AD_logo_mobile_colored.svg"
-            alt="Aurory Draft"
+            src="/AsgardDuels logos/AD_logo_mobile_colored.svg"
+            alt="Asgard Duels"
             className="logo-mobile"
           />
         </div>
@@ -2163,12 +2163,12 @@ function HomePage() {
       <main className="main-content">
         {/* Welcome Header - Full Width Above Grid */}
         <div className="hero-section">
-          <h2>Welcome to Aurory Draft</h2>
+          <h2>Welcome to Asgard Duels</h2>
           <p>Competitive Ami drafting for your matches</p>
         </div>
 
         <div className="content-wrapper">
-          <div className="main-cn">
+          <div className="main-column">
             {announcementSlides.length > 0 && (
               <div className="main-column-inner">
                 {/* Announct Banner */}
@@ -3893,7 +3893,7 @@ function HomePage() {
               </div>
               <div className="modal-body">
                 <div className="confirm-icon">🚪</div>
-                <p>Are you sure you want to log out of Aurory Draft?</p>
+                <p>Are you sure you want to log out of Asgard Duels?</p>
                 <div className="confirm-actions">
                   <button
                     className="btn-secondary"

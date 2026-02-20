@@ -1,5 +1,5 @@
 // matchVerificationService.js
-// Automatic match verification for Aurory Draft tournaments
+// Automatic match verification for Asgard Duels tournaments
 // Uses Cloud Functions proxy to call /v1/matches global endpoint
 
 import {

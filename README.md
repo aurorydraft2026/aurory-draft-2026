@@ -1,9 +1,9 @@
 # aurory-draft-2026
-Aurory Draft for Aurory Tournament Communities
+Asgard Duels for Aurory Tournament Communities
 
-# Aurory Draft Project
+# Asgard Duels Project
 
-Project for managing Aurory drafts, tournament tracking, and match history.
+Project for managing Asgard Duels, tournament tracking, and match history.
 
 ## Architecture
 - **Frontend**: React (located in `/client`)

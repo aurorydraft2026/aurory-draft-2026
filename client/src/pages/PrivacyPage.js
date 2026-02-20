@@ -27,7 +27,7 @@ const PrivacyPage = () => {
                     <h2>2. Use of Information</h2>
                     <p>Your data is used to:</p>
                     <ul>
-                        <li>Generate and maintain your Aurory Draft profile.</li>
+                        <li>Generate and maintain your Asgard Duels profile.</li>
                         <li>Track match history, tournament standings, and win rates.</li>
                         <li>Facilitate secure AURY prize distributions.</li>
                         <li>Monitor for fair play and anti-cheat compliance.</li>
@@ -36,7 +36,7 @@ const PrivacyPage = () => {
 
                 <section>
                     <h2>3. Data Visibility & Public Records</h2>
-                    <p>By using Aurory Draft, you acknowledge that certain information is <strong>publicly visible</strong>. This includes your username, match history, tournament results, and public wallet address for transparency on the Solana blockchain.</p>
+                    <p>By using Asgard Duels, you acknowledge that certain information is <strong>publicly visible</strong>. This includes your username, match history, tournament results, and public wallet address for transparency on the Solana blockchain.</p>
                 </section>
 
                 <section>

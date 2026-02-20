@@ -1,5 +1,4 @@
 // List of all available Amikos - Enriched with Aurory API data
-// API Endpoint: https://aggregator-api.live.aurory.io/v1/nefties/index
 
 // ========================================
 // ELEMENT CONFIGURATION

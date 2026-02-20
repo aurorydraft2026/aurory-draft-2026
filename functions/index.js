@@ -1,5 +1,5 @@
 // functions/index.js
-// Firebase Cloud Functions for Aurory Draft
+// Firebase Cloud Functions for Asgard Duels
 // Includes proxy for Aurory API to avoid CORS issues
 
 const functions = require('firebase-functions');

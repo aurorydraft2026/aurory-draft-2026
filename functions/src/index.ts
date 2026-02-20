@@ -1,5 +1,5 @@
 /**
- * Aurory Draft - Cloud Functions
+ * Asgard Duels - Cloud Functions
  *
  * 1. checkTimers      — Runs every 15s, handles timer expiry + auto-pick + phase advance
  * 2. auroryProxy      — HTTP proxy to Aurory API (no CORS issues)

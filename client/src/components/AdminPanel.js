@@ -743,28 +743,9 @@ function AdminPanel() {
 
     setPayoutLoading(true);
     try {
-      // Direct call to Cloud Function via URL (since we aren't using httpsCallable in this file yet)
-      // Note: In a production app, use httpsCallable from firebase/functions
-      // For now, we'll use a fetch to the location where functions are hosted (or assumes similar setup to auroryProxy)
-      // Actually, let's use the provided `auroryProxy` pattern but for our own function
-      // OR better, since we didn't inject `functions` instance here, we can try to use `httpsCallable` if we import it
-      // Let's rely on standard fetch to the function URL if we know it, OR import functions.
 
-      // Since we didn't see `functions` imported in AdminPanel, let's import it now or use a direct fetch pattern if `auroryProxy` is any indication.
-      // However, `auroryProxy` is an exported generic proxy. `manualPayout` is a callable function.
-      // Let's assume standard `httpsCallable` is the way. 
-      // We need to add `getFunctions, httpsCallable` to imports first.
-
-      // WAIT: I shouldn't add imports in this block. 
-      // I'll implement the logic here assuming I will add imports in a separate step or just use `fetch` to the likely URL.
-      // Given the environment, maybe `fetch` is safer if I don't want to mess with top-level imports yet.
-      // BUT `manualPayout` is `onCall`, which requires `firebase-functions` client SDK to handle auth tokens automatically.
-      // If I use `fetch`, I have to attach the token manually.
-
-      // Let's use `auth.currentUser.getIdToken()` and fetch.
       const token = await auth.currentUser.getIdToken();
-      // URL format: https://us-central1-<project-id>.cloudfunctions.net/manualPayout
-      // I need the project ID. It's usually in `auth.app.options.projectId`.
+
       const projectId = auth.app.options.projectId;
       const response = await fetch(`https://us-central1-${projectId}.cloudfunctions.net/manualPayout`, {
         method: 'POST',
@@ -841,7 +822,7 @@ function AdminPanel() {
     setProcessingId('restore_ticker_defaults');
     try {
       const defaults = [
-        { icon: '📢', text: 'Welcome to **Aurory Draft** — The ultimate esports platform for the **Aurory Community**! 🎮🔴' },
+        { icon: '📢', text: 'Welcome to **Asgard Duels** — The ultimate esports platform for the **Aurory Community**! 🎮🔴' },
         { icon: '⚔️', text: 'New **Swiss Triad Drafts** are now live! Test your strategy in the latest competitive formats.' },
         { icon: '🎁', text: 'Join our **Official Discord** for tournament announcements and exclusive giveaways! 🚀' }
       ];

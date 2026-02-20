@@ -19,7 +19,7 @@ const TermsPage = () => {
             <main className="legal-content">
                 <section>
                     <h2>1. Acceptance of Terms</h2>
-                    <p>By accessing or using <strong>Aurory Draft</strong>, you agree to be bound by these Terms of Service. If you do not agree, please do not use the application. We reserve the right to modify these terms at any time, and your continued use constitutes acceptance of those changes.</p>
+                    <p>By accessing or using <strong>Asgard Duels</strong>, you agree to be bound by these Terms of Service. If you do not agree, please do not use the application. We reserve the right to modify these terms at any time, and your continued use constitutes acceptance of those changes.</p>
                 </section>
 
                 <section>
@@ -30,7 +30,7 @@ const TermsPage = () => {
 
                 <section>
                     <h2>3. Wallet & AURY Transactions</h2>
-                    <p>Aurory Draft facilitates match pools using <strong>AURY</strong> tokens. By depositing tokens to our designated wallet, you acknowledge that these funds are used for tournament entry and prize distribution.</p>
+                    <p>Asgard Duels facilitates match pools using <strong>AURY</strong> tokens. By depositing tokens to our designated wallet, you acknowledge that these funds are used for tournament entry and prize distribution.</p>
                     <p><strong>Withdrawals</strong> are processed after match verification. While we strive for instant automation, some payouts may require manual verification by an administrator to ensure fair play.</p>
                 </section>
 
@@ -52,7 +52,7 @@ const TermsPage = () => {
 
                 <section>
                     <h2>7. Limitation of Liability</h2>
-                    <p>In no event shall Aurory Draft be liable for any indirect, incidental, or consequential damages resulting from your use of the service, including loss of tokens due to user error or blockchain-related failures.</p>
+                    <p>In no event shall Asgard Duels be liable for any indirect, incidental, or consequential damages resulting from your use of the service, including loss of tokens due to user error or blockchain-related failures.</p>
                 </section>
 
                 <section>

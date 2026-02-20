@@ -1,5 +1,5 @@
 /* ============================================================
-   AURORY DRAFT - ESPORTS PLATFORM UI
+   ASGARD DUELS - ESPORTS PLATFORM UI
    Inspired by competitive gaming tournament platforms
    ============================================================ */
 
@@ -4877,15 +4877,24 @@
 
   .announcement-banner {
     width: 100%;
-    min-height: 380px;
+    min-height: 280px;
     height: auto;
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-lg);
     border: 1px solid var(--border-subtle);
     overflow: hidden;
     position: relative;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
+  }
+
+  .banner-content {
+    padding: 24px 20px;
+    justify-content: flex-end;
+  }
+
+  .banner-title {
+    font-size: 1.4rem;
   }
 
   .banner-slide {
@@ -5029,7 +5038,7 @@
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     gap: 12px;
-    padding: 10px 0 20px;
+    padding: 10px 4px 20px;
     scrollbar-width: none;
     -ms-overflow-style: none;
     -webkit-overflow-scrolling: touch;
@@ -5306,6 +5315,7 @@
     margin-top: 8px;
     font-size: 0.72rem;
     box-sizing: border-box;
+    padding: 8px 30px 8px 12px;
   }
 
   .tournaments-grid {

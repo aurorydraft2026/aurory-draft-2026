@@ -4080,15 +4080,15 @@ function TournamentPage() {
           <div className="header-brand">
             {(draftState.draftType === 'mode1' || draftState.draftType === 'mode2') && (
               <img
-                src="/Aurorydraft logos/Triad_logo.png"
+                src="/AsgardDuels logos/Triad_logo.png"
                 alt="Triad Logo"
                 className="triad-logo-header"
               />
             )}
             <div className="header-title">
-              <h1>{draftState.title || 'Aurory Draft'}</h1>
+              <h1>{draftState.title || 'Asgard Duels'}</h1>
               <div className="header-meta-row">
-                {draftState.title && <span className="tournament-subtitle">Aurory Draft Tournament</span>}
+                {draftState.title && <span className="tournament-subtitle">Asgard Duels Tournament</span>}
                 <span
                   className="header-draft-id"
                   onClick={() => copyToClipboard(DRAFT_ID, 'Draft ID')}
@@ -4639,7 +4639,7 @@ function TournamentPage() {
               {(draftState.draftType === 'mode1' || draftState.draftType === 'mode2') && (
                 <div className="info-logo-container">
                   <img
-                    src="/Aurorydraft logos/Triad_logo.png"
+                    src="/AsgardDuels logos/Triad_logo.png"
                     alt="Triad Logo"
                     className="triad-logo-large"
                   />
