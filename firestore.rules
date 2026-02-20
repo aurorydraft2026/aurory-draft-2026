@@ -105,7 +105,9 @@ service cloud.firestore {
            (resource.data.status == 'active' || resource.data.status == 'completed') && 
            request.resource.data.status == 'completed' && 
            request.resource.data.concededBy == getRole(draftId) &&
-           !('concededBy' in resource.data))
+           !('concededBy' in resource.data)) ||
+          // 5. Allow voting for any viewer
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes']))
         )
       );
       

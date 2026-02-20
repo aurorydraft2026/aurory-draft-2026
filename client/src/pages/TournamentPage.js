@@ -33,6 +33,7 @@ import Mode1Draft from '../components/drafts/Mode1Draft';
 import Mode2Draft from '../components/drafts/Mode2Draft';
 import Mode3Draft from '../components/drafts/Mode3Draft';
 import Mode4Draft from '../components/drafts/Mode4Draft';
+import LineupPreviewModal from '../components/LineupPreviewModal';
 import '../components/drafts/Mode4Draft.css';
 import { verifyDraftBattles, saveVerificationResults } from '../services/matchVerificationService';
 import { logActivity } from '../services/activityService';
@@ -5880,147 +5881,24 @@ function TournamentPage() {
         }
 
         {/* Lineup Preview Modal */}
-        {
-          showLineupPreview && (
-            <div className="modal-overlay" onClick={() => setShowLineupPreview(false)}>
-              <div className="lineup-preview-modal" onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                  <h3>⚔️ Final Lineup</h3>
-                  <button className="close-modal" onClick={() => setShowLineupPreview(false)}>✕</button>
-                </div>
+        <LineupPreviewModal
+          isOpen={showLineupPreview}
+          onClose={() => setShowLineupPreview(false)}
+          draftState={draftState}
+          registeredUsers={registeredUsers}
+          user={user}
+          userVote={userVote}
+          isParticipantOrAdmin={isParticipantOrAdmin}
+          getTeamDisplayName={getTeamDisplayName}
+          getTeamLeader={getTeamLeader}
+          getTeamMembers={getTeamMembers}
+          getVoteCount={getVoteCount}
+          voteForTeam={voteForTeam}
+          copyToClipboard={copyToClipboard}
+          getUserProfilePicture={getUserProfilePicture}
+          DEFAULT_AVATAR={DEFAULT_AVATAR}
+        />
 
-                <div className="lineup-content-v2">
-                  {/* Top VS Section */}
-                  <div className="lineup-top-header">
-                    <div className="vs-badge">VS</div>
-                    {(draftState.draftType === 'mode3' || draftState.draftType === 'mode4') && draftState.privateCode && isParticipantOrAdmin && (
-                      <div
-                        className="private-code-top copyable"
-                        onClick={() => copyToClipboard(draftState.privateCode, 'Private Code')}
-                        title="Click to copy Private Code"
-                      >
-                        <span className="code-label">Private Code</span>
-                        <span className="code-value">{draftState.privateCode}</span>
-                        <span className="copy-hint">📋 Click to copy</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Team Column Headers */}
-                  <div className="lineup-team-headers">
-                    <div className={`team-header team-${draftState.teamColors?.teamA || 'blue'}`}>
-                      {(draftState.draftType === 'mode3' || draftState.draftType === 'mode4')
-                        ? <>{getTeamLeader('A')?.auroryPlayerName || getTeamLeader('A')?.displayName || 'Player 1'}{getTeamLeader('A')?.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}</>
-                        : (draftState.teamColors?.teamA === 'blue' ? (draftState.teamNames?.team1 || 'Team 1') : (draftState.teamNames?.team2 || 'Team 2'))}
-                    </div>
-                    <div className="spacer"></div>
-                    <div className={`team-header team-${draftState.teamColors?.teamB || 'red'}`}>
-                      {(draftState.draftType === 'mode3' || draftState.draftType === 'mode4')
-                        ? <>{getTeamLeader('B')?.auroryPlayerName || getTeamLeader('B')?.displayName || 'Player 2'}{getTeamLeader('B')?.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}</>
-                        : (draftState.teamColors?.teamB === 'blue' ? (draftState.teamNames?.team1 || 'Team 1') : (draftState.teamNames?.team2 || 'Team 2'))}
-                    </div>
-                  </div>
-
-                  {/* Player Rows with Aligned Codes */}
-                  <div className="lineup-rows-container">
-                    {((draftState.draftType === 'mode3' || draftState.draftType === 'mode4') ? [0] : [0, 1, 2]).map(playerIndex => (
-                      <div key={`row-${playerIndex}`} className="lineup-match-row">
-                        {/* Team A Player */}
-                        <div className="lineup-player-column">
-                          <div className="lineup-player">
-                            {draftState.draftType !== 'mode3' && draftState.draftType !== 'mode4' && <span className="player-number">P{playerIndex + 1}</span>}
-                            <div className="player-amikos">
-                              {draftState.teamA.slice(playerIndex * 3, playerIndex * 3 + 3).map((amikoId, idx) => {
-                                const amiko = AMIKOS.find(a => a.id === amikoId);
-                                return amiko ? (
-                                  <div key={idx} className="lineup-amiko">
-                                    {amiko.element && (
-                                      <span className="lineup-element-icon" title={amiko.element}>
-                                        {ELEMENTS[amiko.element]?.icon}
-                                      </span>
-                                    )}
-                                    <img src={amiko.image} alt={amiko.name} />
-                                    <span>{amiko.name}</span>
-                                  </div>
-                                ) : null;
-                              })}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Centered Code (for 3v3) */}
-                        <div className="lineup-code-column">
-                          {(draftState.draftType === 'mode1' || draftState.draftType === 'mode2') && draftState.privateCodes && draftState.privateCodes[playerIndex] && isParticipantOrAdmin && (
-                            <div
-                              className="private-code-display row-aligned copyable"
-                              onClick={() => copyToClipboard(draftState.privateCodes[playerIndex], `Battle Code ${playerIndex + 1}`)}
-                              title={`Click to copy Battle Code ${playerIndex + 1}`}
-                            >
-                              <span className="code-label">BATTLE {playerIndex + 1}</span>
-                              <span className="code-value">{draftState.privateCodes[playerIndex]}</span>
-                              <span className="copy-icon-row">📋</span>
-                            </div>
-                          )}
-                          {(draftState.draftType !== 'mode1' && draftState.draftType !== 'mode2') && <div className="row-divider-line"></div>}
-                        </div>
-
-                        {/* Team B Player */}
-                        <div className="lineup-player-column">
-                          <div className="lineup-player">
-                            {draftState.draftType !== 'mode3' && draftState.draftType !== 'mode4' && <span className="player-number">P{playerIndex + 1}</span>}
-                            <div className="player-amikos">
-                              {draftState.teamB.slice(playerIndex * 3, playerIndex * 3 + 3).map((amikoId, idx) => {
-                                const amiko = AMIKOS.find(a => a.id === amikoId);
-                                return amiko ? (
-                                  <div key={idx} className="lineup-amiko">
-                                    {amiko.element && (
-                                      <span className="lineup-element-icon" title={amiko.element}>
-                                        {ELEMENTS[amiko.element]?.icon}
-                                      </span>
-                                    )}
-                                    <img src={amiko.image} alt={amiko.name} />
-                                    <span>{amiko.name}</span>
-                                  </div>
-                                ) : null;
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Vote Actions Footer */}
-                  <div className="lineup-footer-actions">
-                    <button
-                      className={`vote-btn vote-team-${draftState.teamColors?.teamA || 'blue'} ${userVote === 'A' ? 'voted' : ''}`}
-                      onClick={() => voteForTeam('A')}
-                    >
-                      <span className="vote-icon">{userVote === 'A' ? '❤️' : '🤍'}</span>
-                      <span className="vote-count">{getVoteCount('A')}</span>
-                      <span className="vote-label">Vote {draftState.teamColors?.teamA === 'blue' ? (draftState.teamNames?.team1 || 'Team 1') : (draftState.teamNames?.team2 || 'Team 2')}</span>
-                    </button>
-                    <div className="spacer"></div>
-                    <button
-                      className={`vote-btn vote-team-${draftState.teamColors?.teamB || 'red'} ${userVote === 'B' ? 'voted' : ''}`}
-                      onClick={() => voteForTeam('B')}
-                    >
-                      <span className="vote-icon">{userVote === 'B' ? '❤️' : '🤍'}</span>
-                      <span className="vote-count">{getVoteCount('B')}</span>
-                      <span className="vote-label">Vote {draftState.teamColors?.teamB === 'blue' ? (draftState.teamNames?.team1 || 'Team 1') : (draftState.teamNames?.team2 || 'Team 2')}</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="modal-footer">
-                  <button className="close-lineup-btn" onClick={() => setShowLineupPreview(false)}>
-                    Close Preview
-                  </button>
-                </div>
-              </div>
-            </div>
-          )
-        }
         {/* Draft Rules Modal */}
         <DraftRulesModal
           isOpen={showRulesModal}
