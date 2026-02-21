@@ -34,6 +34,7 @@ import Mode2Draft from '../components/drafts/Mode2Draft';
 import Mode3Draft from '../components/drafts/Mode3Draft';
 import Mode4Draft from '../components/drafts/Mode4Draft';
 import LineupPreviewModal from '../components/LineupPreviewModal';
+import MatchResultsBoard from '../components/MatchResultsBoard';
 import '../components/drafts/Mode4Draft.css';
 import { verifyDraftBattles, saveVerificationResults } from '../services/matchVerificationService';
 import { logActivity } from '../services/activityService';
@@ -4563,7 +4564,7 @@ function TournamentPage() {
 
                 {roulettePhase === 'done' && (
                   <div className="roulette-done">
-                    <p>🚀 Starting draft...</p>
+                    <p>Starting draft...</p>
                   </div>
                 )}
               </div>
@@ -4874,7 +4875,7 @@ function TournamentPage() {
 
               {draftState.awaitingLockConfirmation ? (
                 <p className="lock-pending">
-                  🔒 {getTeamDisplayName(draftState.currentTeam)} is confirming their {getPICK_ORDER(draftState.draftType)[draftState.currentPhase]?.isBan ? 'bans' : 'picks'}...
+                  🔒 {getTeamDisplayName(draftState.currentTeam)} is confirming {getPICK_ORDER(draftState.draftType)[draftState.currentPhase]?.isBan ? 'bans' : 'picks'}...
                 </p>
               ) : (
                 <>
@@ -4966,169 +4967,77 @@ function TournamentPage() {
             <p className="completed">✅ Draft Completed!</p>
           )}
 
-          {/* Match Verification Results */}
-          {draftState.status === 'completed' && (draftState.privateCode || draftState.privateCodes) && (
-            <div className="match-verification-section">
-              <div className="verification-header">
-                <h3>⚔️ Match Results</h3>
-                {(userPermission === 'admin' || isCreator || isSuperAdmin(getUserEmail(user))) && (
-                  <button
-                    className="verify-btn"
-                    onClick={handleVerifyMatch}
-                    disabled={isVerifying}
-                  >
-                    {isVerifying ? '⏳ Verifying...' : '🔄 Verify Now'}
-                  </button>
-                )}
-              </div>
 
-              {/* Overall Winner Banner */}
-              {draftState.overallWinner && draftState.overallWinner !== 'draw' && (
-                <div className={`winner-announcement team-${draftState.overallWinner === 'A' ? (draftState.teamColors?.teamA || 'blue') : (draftState.teamColors?.teamB || 'red')}`}>
-                  <span className="trophy">🏆</span>
-                  <span className="winner-text">
-                    {draftState.overallWinner === 'A' ? getTeamDisplayName('A') : getTeamDisplayName('B')} Wins!
-                  </span>
-                </div>
-              )}
-              {draftState.overallWinner === 'draw' && (
-                <div className="winner-announcement draw">
-                  <span className="trophy">🤝</span>
-                  <span className="winner-text">Draw!</span>
-                </div>
-              )}
+          {/* Match Results Board */}
+          <MatchResultsBoard
+            draftState={draftState}
+            isVerifying={isVerifying}
+            handleVerifyMatch={handleVerifyMatch}
+            getTeamDisplayName={getTeamDisplayName}
+            isParticipantOrAdmin={isParticipantOrAdmin}
+            user={user}
+            getUserEmail={getUserEmail}
+            isCreator={isCreator}
+            isSuperAdmin={isSuperAdmin}
+            AMIKOS={AMIKOS}
+            DEFAULT_AVATAR={DEFAULT_AVATAR}
+          />
 
-              {/* Individual Battle Results */}
-              {draftState.matchResults ? (
-                <div className="battle-results-list">
-                  {draftState.matchResults.map((result, idx) => (
-                    <div key={idx} className={`battle-result-card ${result.status}`}>
-                      <div className="battle-result-header">
-                        <span className="battle-label">
-                          {(draftState.draftType === 'mode3' || draftState.draftType === 'mode4') ? 'Match' : `Battle ${idx + 1}`}
-                        </span>
-                        {isParticipantOrAdmin && (
-                          <span className="battle-code">Code: {result.battleCode}</span>
-                        )}
-                        <span className={`battle-status status-${result.status}`}>
-                          {result.status === 'verified' && '✅ Verified'}
-                          {result.status === 'disqualified_A' && '⛔ DQ'}
-                          {result.status === 'disqualified_B' && '⛔ DQ'}
-                          {result.status === 'both_disqualified' && '⛔ Both DQ'}
-                          {result.status === 'not_found' && '⏳ Pending'}
-                          {result.status === 'error' && '❌ Error'}
-                          {result.status === 'player_mismatch' && '⛔ Wrong Player'}
-                          {result.status === 'wrong_players' && '⛔ Wrong Players'}
-                        </span>
-                      </div>
-
-                      {(result.status === 'verified' || result.status === 'disqualified_A' || result.status === 'disqualified_B') && (
-                        <div className="battle-result-body">
-                          <div className={`battle-player ${result.winner === 'A' ? 'winner' : 'loser'}`}>
-                            <span className="player-outcome">{result.winner === 'A' ? '🏆' : '💀'}</span>
-                            <span className="player-name">{result.playerA?.displayName || 'Player A'}</span>
-                            {!result.playerA?.lineupValid && <span className="dq-badge">DQ</span>}
-                            <div className="battle-amikos">
-                              {(result.playerA?.usedAmikos || []).map((amikoId, i) => {
-                                const amiko = AMIKOS.find(a => a.id === amikoId);
-                                return amiko ? (
-                                  <img key={i} src={amiko.image} alt={amiko.name} title={amiko.name} className="battle-amiko-img" />
-                                ) : <span key={i} className="unknown-amiko">{amikoId}</span>;
-                              })}
-                            </div>
-                          </div>
-                          <span className="vs-divider">VS</span>
-                          <div className={`battle-player ${result.winner === 'B' ? 'winner' : 'loser'}`}>
-                            <span className="player-outcome">{result.winner === 'B' ? '🏆' : '💀'}</span>
-                            <span className="player-name">{result.playerB?.displayName || 'Player B'}</span>
-                            {!result.playerB?.lineupValid && <span className="dq-badge">DQ</span>}
-                            <div className="battle-amikos">
-                              {(result.playerB?.usedAmikos || []).map((amikoId, i) => {
-                                const amiko = AMIKOS.find(a => a.id === amikoId);
-                                return amiko ? (
-                                  <img key={i} src={amiko.image} alt={amiko.name} title={amiko.name} className="battle-amiko-img" />
-                                ) : <span key={i} className="unknown-amiko">{amikoId}</span>;
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {result.disqualificationReason && (
-                        <div className="dq-reason">⚠️ {result.disqualificationReason}</div>
-                      )}
-
-                      {result.status === 'not_found' && (
-                        <div className="pending-message">Waiting for match to be played in-game...</div>
-                      )}
-
-                      {result.error && result.status === 'error' && (
-                        <div className="error-message">{result.error}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="verification-pending">
-                  <p>⏳ Waiting for matches to be played in-game...</p>
-                  <p className="verification-hint">Matches are checked automatically every 60 seconds.</p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        </div >
 
         {/* Main Draft Area */}
-        <div className="draft-container">
-          {draftState.draftType === 'mode4' ? (
-            <Mode4Draft
-              draftState={draftState}
-              user={user}
-              userPermission={userPermission}
-              displayTeamA={displayTeamA}
-              displayTeamB={displayTeamB}
-              displayTeamABans={displayTeamABans}
-              displayTeamBBans={displayTeamBBans}
-              tempPick={tempPick}
-              handlers={draftHandlers}
-              utils={draftUtils}
-            />
-          ) : draftState.draftType === 'mode3' ? (
-            <Mode3Draft
-              draftState={draftState}
-              user={user}
-              userPermission={userPermission}
-              displayTeamA={displayTeamA}
-              displayTeamB={displayTeamB}
-              tempPick={tempPick}
-              handlers={draftHandlers}
-              utils={draftUtils}
-            />
-          ) : draftState.draftType === 'mode2' ? (
-            <Mode2Draft
-              draftState={draftState}
-              user={user}
-              userPermission={userPermission}
-              displayTeamA={displayTeamA}
-              displayTeamB={displayTeamB}
-              tempPick={tempPick}
-              handlers={draftHandlers}
-              utils={draftUtils}
-            />
-          ) : (
-            <Mode1Draft
-              draftState={draftState}
-              user={user}
-              userPermission={userPermission}
-              displayTeamA={displayTeamA}
-              displayTeamB={displayTeamB}
-              tempPick={tempPick}
-              handlers={draftHandlers}
-              utils={draftUtils}
-            />
-          )}
+        < div className="draft-container" >
+          {
+            draftState.draftType === 'mode4' ? (
+              <Mode4Draft
+                draftState={draftState}
+                user={user}
+                userPermission={userPermission}
+                displayTeamA={displayTeamA}
+                displayTeamB={displayTeamB}
+                displayTeamABans={displayTeamABans}
+                displayTeamBBans={displayTeamBBans}
+                tempPick={tempPick}
+                handlers={draftHandlers}
+                utils={draftUtils}
+              />
+            ) : draftState.draftType === 'mode3' ? (
+              <Mode3Draft
+                draftState={draftState}
+                user={user}
+                userPermission={userPermission}
+                displayTeamA={displayTeamA}
+                displayTeamB={displayTeamB}
+                tempPick={tempPick}
+                handlers={draftHandlers}
+                utils={draftUtils}
+              />
+            ) : draftState.draftType === 'mode2' ? (
+              <Mode2Draft
+                draftState={draftState}
+                user={user}
+                userPermission={userPermission}
+                displayTeamA={displayTeamA}
+                displayTeamB={displayTeamB}
+                tempPick={tempPick}
+                handlers={draftHandlers}
+                utils={draftUtils}
+              />
+            ) : (
+              <Mode1Draft
+                draftState={draftState}
+                user={user}
+                userPermission={userPermission}
+                displayTeamA={displayTeamA}
+                displayTeamB={displayTeamB}
+                tempPick={tempPick}
+                handlers={draftHandlers}
+                utils={draftUtils}
+              />
+            )
+          }
 
-        </div>
+        </div >
 
 
         {/* Chat System - Team Chat for members, Free For All visible to everyone */}

@@ -3618,6 +3618,15 @@
   font-size: 14px;
 }
 
+.inline-overlay .spin-text,
+.inline-overlay .spinning-section,
+.inline-overlay .coin-done-simple,
+.inline-overlay .roulette-done {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
 .inline-overlay .spin-text {
   font-size: 18px;
   font-weight: 600;
@@ -3631,6 +3640,7 @@
   font-weight: 600;
   color: var(--accent-green);
   animation: prepPulse 1.5s ease-in-out infinite;
+  background: transparent !important;
 }
 
 /* Lock Confirmation Inline */
@@ -3655,6 +3665,7 @@
   display: flex;
   gap: 10px;
   justify-content: center;
+  align-items: center;
   flex-wrap: wrap;
 }
 
@@ -5514,303 +5525,6 @@
   }
 }
 
-/* ============================================================================
-   MATCH VERIFICATION SECTION
-   ============================================================================ */
-
-.match-verification-section {
-  margin: 20px 0;
-  padding: 20px;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.verification-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.verification-header h3 {
-  margin: 0;
-  font-size: 1.2rem;
-  color: #e0e0e0;
-}
-
-.verify-btn {
-  background: rgba(102, 126, 234, 0.2);
-  border: 1px solid rgba(102, 126, 234, 0.4);
-  color: #667eea;
-  padding: 8px 16px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  transition: all 0.2s;
-}
-
-.verify-btn:hover:not(:disabled) {
-  background: rgba(102, 126, 234, 0.3);
-}
-
-.verify-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Winner Announcement Banner */
-.winner-announcement {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 16px;
-  border-radius: 10px;
-  margin-bottom: 16px;
-  font-size: 1.3rem;
-  font-weight: 700;
-  animation: winnerGlow 2s ease-in-out infinite alternate;
-}
-
-.winner-announcement.team-blue {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(59, 130, 246, 0.1));
-  border: 1px solid rgba(59, 130, 246, 0.5);
-  color: #60a5fa;
-}
-
-.winner-announcement.team-red {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(239, 68, 68, 0.1));
-  border: 1px solid rgba(239, 68, 68, 0.5);
-  color: #f87171;
-}
-
-.winner-announcement.draw {
-  background: linear-gradient(135deg, rgba(168, 162, 158, 0.3), rgba(168, 162, 158, 0.1));
-  border: 1px solid rgba(168, 162, 158, 0.5);
-  color: #a8a29e;
-}
-
-.winner-announcement .trophy {
-  font-size: 1.8rem;
-}
-
-@keyframes winnerGlow {
-  0% {
-    box-shadow: 0 0 10px rgba(255, 215, 0, 0.1);
-  }
-
-  100% {
-    box-shadow: 0 0 25px rgba(255, 215, 0, 0.25);
-  }
-}
-
-/* Battle Results List */
-.battle-results-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.battle-result-card {
-  background: rgba(0, 0, 0, 0.25);
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  overflow: hidden;
-}
-
-.battle-result-card.verified {
-  border-color: rgba(34, 197, 94, 0.3);
-}
-
-.battle-result-card.disqualified_A,
-.battle-result-card.disqualified_B,
-.battle-result-card.both_disqualified,
-.battle-result-card.player_mismatch,
-.battle-result-card.wrong_players {
-  border-color: rgba(239, 68, 68, 0.3);
-}
-
-.battle-result-card.not_found {
-  border-color: rgba(234, 179, 8, 0.3);
-  opacity: 0.7;
-}
-
-.battle-result-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.battle-label {
-  font-weight: 600;
-  color: #e0e0e0;
-  font-size: 0.9rem;
-}
-
-.battle-code {
-  font-family: 'Courier New', monospace;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.battle-status {
-  margin-left: auto;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.battle-status.status-verified {
-  color: #22c55e;
-}
-
-.battle-status.status-disqualified_A,
-.battle-status.status-disqualified_B,
-.battle-status.status-both_disqualified,
-.battle-status.status-player_mismatch,
-.battle-status.status-wrong_players {
-  color: #ef4444;
-}
-
-.battle-status.status-not_found {
-  color: #eab308;
-}
-
-.battle-status.status-error {
-  color: #ef4444;
-}
-
-/* Battle Result Body (Players) */
-.battle-result-body {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px;
-  gap: 12px;
-}
-
-.battle-player {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-}
-
-.battle-player.winner {
-  opacity: 1;
-}
-
-.battle-player.loser {
-  opacity: 0.55;
-}
-
-.battle-player .player-outcome {
-  font-size: 1.2rem;
-}
-
-.battle-player .player-name {
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: #e0e0e0;
-}
-
-.dq-badge {
-  background: rgba(239, 68, 68, 0.3);
-  color: #f87171;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.vs-divider {
-  font-weight: 800;
-  color: rgba(255, 255, 255, 0.2);
-  font-size: 0.8rem;
-  flex-shrink: 0;
-}
-
-.battle-amikos {
-  display: flex;
-  gap: 4px;
-  margin-left: auto;
-}
-
-.battle-amiko-img {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.unknown-amiko {
-  font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.05);
-  padding: 4px 6px;
-  border-radius: 4px;
-}
-
-.dq-reason {
-  padding: 8px 14px;
-  background: rgba(239, 68, 68, 0.1);
-  color: #fca5a5;
-  font-size: 0.8rem;
-  border-top: 1px solid rgba(239, 68, 68, 0.15);
-}
-
-.pending-message {
-  padding: 12px 14px;
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 0.85rem;
-  text-align: center;
-}
-
-.error-message {
-  padding: 8px 14px;
-  color: #fca5a5;
-  font-size: 0.8rem;
-}
-
-.verification-pending {
-  text-align: center;
-  padding: 24px;
-  color: rgba(255, 255, 255, 0.4);
-}
-
-.verification-pending .verification-hint {
-  font-size: 0.8rem;
-  margin-top: 8px;
-  color: rgba(255, 255, 255, 0.25);
-}
-
-/* Mobile responsive */
-@media (max-width: 600px) {
-  .battle-result-body {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .battle-player {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .battle-amikos {
-    margin-left: 0;
-  }
-
-  .vs-divider {
-    margin: 4px 0;
-  }
-}
 
 /* ═══════════════════════════════════════════
    1v1 JOIN / WAITING SECTION
@@ -6945,11 +6659,84 @@
   .inline-overlay-actions {
     flex-direction: column;
     gap: 8px;
+    align-items: center;
+  }
+
+  .inline-overlay-actions .confirm-lock-btn,
+  .inline-overlay-actions .cancel-lock-btn {
+    width: 100%;
+    max-width: 280px;
   }
 
   .self-remove-btn {
     font-size: 12px;
     padding: 6px 16px;
+  }
+
+  /* 3v3 Battle Codes Mobile Refinements */
+  .completed-overlay {
+    backdrop-filter: blur(8px);
+    background: rgba(10, 10, 15, 0.92);
+  }
+
+  .completed-content {
+    padding: 20px 15px;
+    width: 95%;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+
+  .completed-content h3 {
+    font-size: 18px;
+    margin-bottom: 4px;
+  }
+
+  .completed-content p {
+    font-size: 12px;
+    margin-bottom: 12px;
+  }
+
+  .codes-intro {
+    font-size: 10px;
+    margin-bottom: 8px;
+    opacity: 0.8;
+  }
+
+  .codes-stack {
+    gap: 8px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    width: 100%;
+    margin-bottom: 16px;
+  }
+
+  /* Center the 3rd card in 3v3 if it wraps */
+  .codes-stack .code-display-compact:nth-child(3):last-child {
+    grid-column: span 2;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .code-display-compact {
+    padding: 8px 12px;
+    min-width: unset;
+  }
+
+  .code-display-compact .code-value {
+    font-size: 18px;
+    letter-spacing: 2px;
+  }
+
+  .code-display-compact .code-label {
+    font-size: 9px;
+    margin-bottom: 2px;
+  }
+
+  .preview-lineup-btn {
+    padding: 10px 24px;
+    font-size: 13px;
+    width: 100%;
+    max-width: 250px;
   }
 }
 
@@ -6966,6 +6753,41 @@
   .inline-overlay .roll-btn {
     padding: 8px 24px;
     font-size: 14px;
+  }
+
+  /* Extra compact codes for very small screens */
+  .codes-stack {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .codes-stack .code-display-compact:nth-child(3):last-child {
+    grid-column: span 1;
+    max-width: 100%;
+  }
+
+  .code-display-compact {
+    flex-direction: row;
+    justify-content: center;
+    gap: 12px;
+    padding: 10px;
+  }
+
+  .code-display-compact .code-label {
+    margin-bottom: 0;
+  }
+
+  .code-display-compact .code-value {
+    font-size: 16px;
+    letter-spacing: 1px;
+  }
+
+  .copy-hint {
+    display: none;
+  }
+
+  .completed-content {
+    padding: 15px 10px;
   }
 }
 
