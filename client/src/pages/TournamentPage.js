@@ -942,11 +942,28 @@ function TournamentPage() {
             ...teamBUsers.map(u => ({ participant: u, team: 'B' }))
           ];
 
-          await finalizeDraft(timerMs, finalAssignments, {
-            teamALeader: team1?.leader,
-            teamBLeader: team2?.leader,
-            teamAIsOriginalTeam1: true
-          });
+          const userEmail = getUserEmail(user);
+          const isAdmin = userPermission === 'admin' || isSuperAdmin(userEmail);
+          const isTeamALeader = user.uid === team1?.leader;
+          const isTeamBLeader = user.uid === team2?.leader;
+
+          if (isAdmin || isTeamALeader || isTeamBLeader) {
+            let delayMs = 0;
+            if (!isAdmin) {
+              if (isTeamALeader) delayMs = 1500;
+              else if (isTeamBLeader) delayMs = 3000;
+            }
+
+            if (delayMs > 0) {
+              await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+
+            await finalizeDraft(timerMs, finalAssignments, {
+              teamALeader: team1?.leader,
+              teamBLeader: team2?.leader,
+              teamAIsOriginalTeam1: true
+            });
+          }
         } else {
           // Normal mode: Start coin flip animation
           const result = Math.random() < 0.5 ? 'blue' : 'red';
@@ -2210,6 +2227,18 @@ function TournamentPage() {
         const isTeamBLeader = user.uid === draftState.assignmentLeaders?.teamBLeader;
 
         if (isAdmin || isTeamALeader || isTeamBLeader) {
+          // Stagger finalization to prevent Firestore transaction collisions
+          // which cause scary (but harmless) "failed-precondition" console logs
+          let delayMs = 0;
+          if (!isAdmin) {
+            if (isTeamALeader) delayMs = 1500;
+            else if (isTeamBLeader) delayMs = 3000;
+          }
+
+          if (delayMs > 0) {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+          }
+
           const timerMs = draftState.timerDuration || 30 * 1000;
           await finalizeDraft(timerMs, draftState.finalAssignments, draftState.assignmentLeaders);
         }

@@ -1343,10 +1343,27 @@
 }
 
 .filter-tab-count.count-highlight {
-  background: var(--accent-cyan);
-  color: var(--bg-deepest);
-  box-shadow: 0 0 10px var(--accent-cyan-glow);
-  animation: countPulse 2s infinite;
+  background: var(--accent-red);
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+  animation: countPulseRed 2s infinite;
+}
+
+@keyframes countPulseRed {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 5px rgba(239, 68, 68, 0.4);
+  }
+
+  50% {
+    transform: scale(1.2);
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.8);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 5px rgba(239, 68, 68, 0.4);
+  }
 }
 
 @keyframes countPulse {
