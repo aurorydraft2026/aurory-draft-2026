@@ -1891,7 +1891,20 @@
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: linear-gradient(135deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.70) 100%);
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.85) 100%);
+  transition: opacity 0.3s ease;
+}
+
+.team-a-side .card-team-overlay {
+  background: linear-gradient(135deg, rgba(0, 200, 255, 0.45) 0%, rgba(9, 9, 21, 0.9) 100%);
+}
+
+.team-b-side .card-team-overlay {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.35) 0%, rgba(9, 9, 21, 0.9) 100%);
+}
+
+.tournament-card:hover .card-team-overlay {
+  opacity: 0.85;
 }
 
 .card-team-label {
