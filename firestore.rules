@@ -295,8 +295,11 @@ service cloud.firestore {
         allow create: if isOwner(walletId) || isAdmin();
 
 
-        // Transactions are immutable
-        allow update, delete: if false;
+        // Transactions are immutable (no updates)
+        allow update: if false;
+        
+        // Only Super Admins can delete transaction history
+        allow delete: if isSuperAdmin();
       }
     }
     

@@ -110,6 +110,12 @@ function AdminPanel() {
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsError, setLogsError] = useState(null);
 
+  // Wallet History Tab State
+  const [walletHistoryUserSearch, setWalletHistoryUserSearch] = useState('');
+  const [selectedWalletHistoryUser, setSelectedWalletHistoryUser] = useState(null);
+  const [walletHistoryTransactions, setWalletHistoryTransactions] = useState([]);
+  const [walletHistoryLoading, setWalletHistoryLoading] = useState(false);
+
   // Ticker Announcements state
   const [tickerAnnouncements, setTickerAnnouncements] = useState([]);
   const [tickerText, setTickerText] = useState('');
@@ -470,6 +476,56 @@ function AdminPanel() {
       return () => unsubscribe();
     }
   }, [activeTab]);
+
+  // Fetch Wallet History
+  useEffect(() => {
+    if (activeTab !== 'walletHistory' || !selectedWalletHistoryUser || !isSuperAdminUser) {
+      setWalletHistoryTransactions([]);
+      return;
+    }
+
+    setWalletHistoryLoading(true);
+    const txRef = collection(db, 'wallets', selectedWalletHistoryUser.id, 'transactions');
+    const q = query(txRef, orderBy('timestamp', 'desc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const txs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setWalletHistoryTransactions(txs);
+      setWalletHistoryLoading(false);
+    }, (error) => {
+      console.error('Error fetching wallet history:', error);
+      alert('Error fetching wallet history: ' + error.message);
+      setWalletHistoryLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [activeTab, selectedWalletHistoryUser, isSuperAdminUser]);
+
+  const handleDeleteWalletTransaction = async (txId, userId) => {
+    if (!window.confirm('Are you sure you want to delete this transaction record? This will NOT refund or deduct any balance, it only removes the history log.')) return;
+
+    try {
+      setProcessingId(`del-tx-${txId}`);
+      await deleteDoc(doc(db, 'wallets', userId, 'transactions', txId));
+
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'delete_wallet_transaction',
+        metadata: { txId, userId }
+      });
+
+      alert('Transaction record deleted successfully.');
+    } catch (error) {
+      console.error('Error deleting transaction:', error);
+      alert('Error deleting transaction: ' + error.message);
+    } finally {
+      setProcessingId(null);
+    }
+  };
 
   // News management functions
   const handleSaveNews = async () => {
@@ -1630,6 +1686,14 @@ function AdminPanel() {
                   }}
                 >
                   📊 Activity Logs
+                </button>
+              )}
+              {isSuperAdminUser && (
+                <button
+                  className={`admin-tab ${activeTab === 'walletHistory' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('walletHistory')}
+                >
+                  💼 Wallet History
                 </button>
               )}
             </div>
@@ -3016,6 +3080,145 @@ function AdminPanel() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'walletHistory' && isSuperAdminUser && (
+            <div className="wallet-history-section admin-category-section" style={{ padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px' }}>
+              <div className="section-header" style={{ marginBottom: '20px' }}>
+                <h2 style={{ fontSize: '1.5em', margin: '0 0 10px 0' }}>💼 Wallet History</h2>
+                <div className="header-actions">
+                  <p style={{ margin: 0, opacity: 0.8 }}>View user wallet transaction history and delete erroneous records. Deleting a record here does NOT change the user's AURY balance.</p>
+                </div>
+              </div>
+
+              <div className="search-bar" style={{ marginBottom: '20px' }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Search users by name or email to view their wallet history..."
+                  value={walletHistoryUserSearch}
+                  onChange={(e) => setWalletHistoryUserSearch(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    fontSize: '14px',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '8px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    color: 'white'
+                  }}
+                />
+              </div>
+
+              {!selectedWalletHistoryUser ? (
+                walletHistoryUserSearch && (
+                  <div className="participants-list" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '10px' }}>
+                    {allUsers
+                      .filter(u => {
+                        const query = walletHistoryUserSearch.toLowerCase();
+                        const name = (u.displayName || '').toLowerCase();
+                        const email = (u.email || '').toLowerCase();
+                        return name.includes(query) || email.includes(query);
+                      })
+                      .slice(0, 10)
+                      .map(u => (
+                        <div
+                          key={u.id}
+                          className="participant-item"
+                          onClick={() => {
+                            setSelectedWalletHistoryUser(u);
+                            setWalletHistoryUserSearch('');
+                          }}
+                          style={{ cursor: 'pointer', padding: '10px', display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)' }}
+                        >
+                          <img src={u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%', marginRight: '10px' }} />
+                          <div className="participant-info" style={{ flex: 1 }}>
+                            <span className="participant-name" style={{ display: 'block', fontWeight: 'bold' }}>{u.displayName || 'Unknown'}</span>
+                            <span className="participant-email" style={{ fontSize: '0.9em', color: '#aaa' }}>{u.email}</span>
+                          </div>
+                          <div className="participant-balance">
+                            {formatAuryAmount(u.balance || 0)} AURY
+                          </div>
+                        </div>
+                      ))}
+                    {allUsers.filter(u => {
+                      const query = walletHistoryUserSearch.toLowerCase();
+                      return (u.displayName || '').toLowerCase().includes(query) || (u.email || '').toLowerCase().includes(query);
+                    }).length === 0 && (
+                        <p style={{ padding: '10px', margin: 0, opacity: 0.7 }}>No users found matching "{walletHistoryUserSearch}"</p>
+                      )}
+                  </div>
+                )
+              ) : (
+                <div className="wallet-history-content">
+                  <div className="selected-user-header" style={{ display: 'flex', alignItems: 'center', gap: '15px', background: 'rgba(0,0,0,0.2)', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+                    <img src={selectedWalletHistoryUser.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" style={{ width: '50px', height: '50px', borderRadius: '50%' }} />
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{ margin: '0 0 5px 0' }}>{selectedWalletHistoryUser.displayName || 'Unknown'}</h3>
+                      <p style={{ margin: 0, color: '#aaa' }}>{selectedWalletHistoryUser.email}</p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '1.2em', fontWeight: 'bold', color: '#ef4444' }}>{formatAuryAmount(selectedWalletHistoryUser.balance || 0)} AURY</div>
+                      <button className="secondary-btn small" onClick={() => setSelectedWalletHistoryUser(null)} style={{ marginTop: '5px' }}>
+                        Change User
+                      </button>
+                    </div>
+                  </div>
+
+                  {walletHistoryLoading ? (
+                    <LoadingScreen message="Loading transactions..." />
+                  ) : walletHistoryTransactions.length === 0 ? (
+                    <div className="empty-state" style={{ padding: '20px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                      <p style={{ margin: 0, opacity: 0.8 }}>📭 No wallet history found for this user.</p>
+                    </div>
+                  ) : (
+                    <div className="logs-table-container">
+                      <table className="logs-table">
+                        <thead>
+                          <tr>
+                            <th>Time</th>
+                            <th>Type</th>
+                            <th>Amount (AURY)</th>
+                            <th>Reason/Status</th>
+                            <th>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {walletHistoryTransactions.map(tx => (
+                            <tr key={tx.id}>
+                              <td className="log-time">{formatTime(tx.timestamp)}</td>
+                              <td className="log-type">
+                                <span className={`type-tag tag-${(tx.type || 'unknown').toLowerCase()}`}>
+                                  {tx.type}
+                                </span>
+                              </td>
+                              <td className="log-action">
+                                {tx.amount ? formatAuryAmount(tx.amount) : 'N/A'}
+                              </td>
+                              <td className="log-details">
+                                <div>
+                                  {tx.status && <span style={{ marginRight: '8px', opacity: 0.8 }}>[{tx.status.toUpperCase()}]</span>}
+                                  {tx.reason || tx.txSignature || 'N/A'}
+                                </div>
+                              </td>
+                              <td>
+                                <button
+                                  className="delete-btn"
+                                  onClick={() => handleDeleteWalletTransaction(tx.id, selectedWalletHistoryUser.id)}
+                                  disabled={processingId === `del-tx-${tx.id}`}
+                                  style={{ padding: '6px 12px', fontSize: '0.85em', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', opacity: processingId === `del-tx-${tx.id}` ? 0.5 : 1 }}
+                                >
+                                  {processingId === `del-tx-${tx.id}` ? 'Deleting...' : 'Delete'}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

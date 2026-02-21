@@ -80,7 +80,8 @@ function HomePage() {
     selectedTournamentForRules, setSelectedTournamentForRules,
     tickerAnnouncements, showTicker, recentWinners, showWinnerTicker,
     news, newsLoading, selectedNews,
-    showNewsModal, setShowNewsModal, hasNewNews, handleNewsClick
+    showNewsModal, setShowNewsModal, hasNewNews, handleNewsClick,
+    allNews, allNewsLoading, showAllNewsModal, setShowAllNewsModal, fetchAllNews
   } = useAppContent(db);
 
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -586,7 +587,7 @@ function HomePage() {
         {/* Welcome Header - Full Width Above Grid */}
         <div className="hero-section">
           <h2>Welcome to Asgard Duels</h2>
-          <p>Competitive Ami drafting for your matches</p>
+          <p>The ultimate competitive tactical PvP drafting platform for Amiko Legends.</p>
         </div>
 
         <div className="content-wrapper">
@@ -1029,9 +1030,29 @@ function HomePage() {
           <div className="right-sidebar">
             {/* News Section */}
             <div className="news-section">
-              <div className="news-section-header">
-                <h3>📰 Latest News</h3>
-                {hasNewNews && <span className="news-count-badge">NEW</span>}
+              <div className="news-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h3>📰 Latest News</h3>
+                  {hasNewNews && <span className="news-count-badge">NEW</span>}
+                </div>
+                <button
+                  className="view-all-news-btn"
+                  onClick={() => {
+                    fetchAllNews();
+                    setShowAllNewsModal(true);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#cbd5e1',
+                    fontSize: '0.9em',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: 0
+                  }}
+                >
+                  View All
+                </button>
               </div>
               <div className="news-list">
                 {newsLoading ? (
@@ -1063,13 +1084,90 @@ function HomePage() {
                           {item.viewCount !== undefined && (
                             <>
                               <span className="news-dot">•</span>
-                              <span className="news-views">👁️ {item.viewCount || 0}</span>
+                              <span className="news-views">{item.viewCount || 0} clicks</span>
                             </>
                           )}
                         </div>
                       </div>
                     </div>
                   ))
+                )}
+              </div>
+            </div>
+            {/* Best Player of the Month */}
+            <div className="top-players-section">
+              <div className="top-players-header">
+                <h3>🏆 Best Players</h3>
+                <span className="top-players-month">
+                  {new Date().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                </span>
+                <select
+                  className="leaderboard-mode-select"
+                  value={leaderboardMode}
+                  onChange={(e) => setLeaderboardMode(e.target.value)}
+                >
+                  <option value="individual">Individual</option>
+                  <option value="team">Team</option>
+                </select>
+              </div>
+              <div className="top-players-list">
+                {topPlayers.length === 0 ? (
+                  <div className="top-players-empty">
+                    <p>No matches this month</p>
+                  </div>
+                ) : (
+                  topPlayers.map((item, idx) => {
+                    const isTeam = leaderboardMode === 'team';
+                    return (
+                      <div key={isTeam ? item.teamKey : item.uid} className={`top-player-row ${idx < 3 ? `rank-${idx + 1}` : ''} ${isTeam ? 'team-row' : ''}`}>
+                        {isTeam && item.bannerUrl && (
+                          <div
+                            className="top-player-banner-bg"
+                            style={{ backgroundImage: `url(${item.bannerUrl})` }}
+                          />
+                        )}
+                        <span className="top-player-rank">
+                          {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
+                        </span>
+
+                        {isTeam ? (
+                          <div className="team-avatar-stack">
+                            {item.members.map((m, mIdx) => (
+                              <img
+                                key={m.uid}
+                                src={m.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                alt=""
+                                className={`top-player-avatar ${mIdx === 0 ? 'leader-avatar' : 'member-avatar'}`}
+                                style={{
+                                  zIndex: 10 - mIdx
+                                }}
+                                onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <img
+                            src={item.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                            alt=""
+                            className="top-player-avatar"
+                            onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                          />
+                        )}
+
+                        <div className="top-player-info">
+                          <span className="top-player-name">{isTeam ? item.teamName : item.displayName}</span>
+                          <span className="top-player-record">
+                            <span className="record-wins">{item.wins}W</span>
+                            <span className="record-sep">·</span>
+                            <span className="record-losses">{item.losses}L</span>
+                          </span>
+                        </div>
+                        <div className="top-player-winrate">
+                          {Math.round((item.wins / (item.wins + item.losses || 1)) * 100)}%
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -1265,83 +1363,6 @@ function HomePage() {
               </div>
             </div>
 
-            {/* Best Player of the Month */}
-            <div className="top-players-section">
-              <div className="top-players-header">
-                <h3>🏆 Best Players</h3>
-                <span className="top-players-month">
-                  {new Date().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-                </span>
-                <select
-                  className="leaderboard-mode-select"
-                  value={leaderboardMode}
-                  onChange={(e) => setLeaderboardMode(e.target.value)}
-                >
-                  <option value="individual">Individual</option>
-                  <option value="team">Team</option>
-                </select>
-              </div>
-              <div className="top-players-list">
-                {topPlayers.length === 0 ? (
-                  <div className="top-players-empty">
-                    <p>No matches this month</p>
-                  </div>
-                ) : (
-                  topPlayers.map((item, idx) => {
-                    const isTeam = leaderboardMode === 'team';
-                    return (
-                      <div key={isTeam ? item.teamKey : item.uid} className={`top-player-row ${idx < 3 ? `rank-${idx + 1}` : ''} ${isTeam ? 'team-row' : ''}`}>
-                        {isTeam && item.bannerUrl && (
-                          <div
-                            className="top-player-banner-bg"
-                            style={{ backgroundImage: `url(${item.bannerUrl})` }}
-                          />
-                        )}
-                        <span className="top-player-rank">
-                          {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
-                        </span>
-
-                        {isTeam ? (
-                          <div className="team-avatar-stack">
-                            {item.members.map((m, mIdx) => (
-                              <img
-                                key={m.uid}
-                                src={m.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
-                                alt=""
-                                className={`top-player-avatar ${mIdx === 0 ? 'leader-avatar' : 'member-avatar'}`}
-                                style={{
-                                  zIndex: 10 - mIdx
-                                }}
-                                onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                              />
-                            ))}
-                          </div>
-                        ) : (
-                          <img
-                            src={item.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
-                            alt=""
-                            className="top-player-avatar"
-                            onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                          />
-                        )}
-
-                        <div className="top-player-info">
-                          <span className="top-player-name">{isTeam ? item.teamName : item.displayName}</span>
-                          <span className="top-player-record">
-                            <span className="record-wins">{item.wins}W</span>
-                            <span className="record-sep">·</span>
-                            <span className="record-losses">{item.losses}L</span>
-                          </span>
-                        </div>
-                        <div className="top-player-winrate">
-                          {Math.round((item.wins / (item.wins + item.losses || 1)) * 100)}%
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
 
           </div>
         </div>{/* end content-wrapper */}
@@ -2229,6 +2250,57 @@ function HomePage() {
         )
       }
 
+      {/* View All News Modal */}
+      {showAllNewsModal && (
+        <div className="modal-overlay all-news-overlay">
+          <div className="all-news-modal">
+            <div className="news-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2>📰 All News</h2>
+              <button className="close-modal" onClick={() => setShowAllNewsModal(false)}>✖</button>
+            </div>
+
+            <div className="all-news-content">
+              {allNewsLoading ? (
+                <div className="news-loading"><div className="news-spinner"></div></div>
+              ) : allNews.length === 0 ? (
+                <div className="news-empty"><p>No news history available.</p></div>
+              ) : (
+                <div className="all-news-grid">
+                  {allNews.map((item) => (
+                    <div
+                      key={item.id}
+                      className="news-item"
+                      onClick={() => handleNewsClick(item)}
+                    >
+                      <div className="news-item-banner">
+                        <img src={item.banner} alt={item.title} loading="lazy" />
+                        <div className="news-item-overlay"></div>
+                      </div>
+                      <div className="news-item-info">
+                        <h4 className="news-item-title">{item.title}</h4>
+                        <div className="news-item-meta">
+                          <span className="news-author">{item.authorName}</span>
+                          <span className="news-dot">•</span>
+                          <span className="news-date">
+                            {item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown'}
+                          </span>
+                          {item.viewCount !== undefined && (
+                            <>
+                              <span className="news-dot">•</span>
+                              <span className="news-views">{item.viewCount || 0} clicks</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile User Profile Modal (Root level to avoid header clipping) */}
       {/* Mobile User Profile Modal */}
       {showUserModal && window.innerWidth <= 768 && (
@@ -2342,7 +2414,7 @@ function HomePage() {
                 </div>
                 <div className="news-modal-stats">
                   {selectedNews.viewCount !== undefined && (
-                    <span className="news-views">👁️ {selectedNews.viewCount || 0} views</span>
+                    <span className="news-views">{selectedNews.viewCount || 0} clicks</span>
                   )}
                   <span className="news-modal-date">
                     {selectedNews.createdAt?.toDate ? selectedNews.createdAt.toDate().toLocaleDateString(undefined, {

@@ -293,6 +293,12 @@ export const useAppContent = (db) => {
     const [showNewsModal, setShowNewsModal] = useState(false);
     const [hasNewNews, setHasNewNews] = useState(false);
 
+    // View All News State
+    const [allNews, setAllNews] = useState([]);
+    const [allNewsLoading, setAllNewsLoading] = useState(false);
+    const [showAllNewsModal, setShowAllNewsModal] = useState(false);
+    const hasFetchedAllNewsRef = useRef(false);
+
     useEffect(() => {
         const newsRef = collection(db, 'news');
         const q = query(newsRef, orderBy('createdAt', 'desc'), limit(3));
@@ -329,6 +335,29 @@ export const useAppContent = (db) => {
         }
     };
 
+    const fetchAllNews = () => {
+        if (hasFetchedAllNewsRef.current) return; // Already listening
+
+        hasFetchedAllNewsRef.current = true;
+        setAllNewsLoading(true);
+
+        const newsRef = collection(db, 'news');
+        const q = query(newsRef, orderBy('createdAt', 'desc'));
+
+        // Use onSnapshot so that view counts update in real-time within the modal
+        onSnapshot(q, (snapshot) => {
+            const newsData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            setAllNews(newsData);
+            setAllNewsLoading(false);
+        }, (error) => {
+            console.error('Error listening to all news:', error);
+            setAllNewsLoading(false);
+        });
+    };
+
     return {
         // Banners
         announcementSlides, setAnnouncementSlides,
@@ -344,6 +373,7 @@ export const useAppContent = (db) => {
         tickerAnnouncements, showTicker, recentWinners, showWinnerTicker,
         // News
         news, newsLoading, selectedNews, setSelectedNews,
-        showNewsModal, setShowNewsModal, hasNewNews, handleNewsClick
+        showNewsModal, setShowNewsModal, hasNewNews, handleNewsClick,
+        allNews, allNewsLoading, showAllNewsModal, setShowAllNewsModal, fetchAllNews
     };
 };
