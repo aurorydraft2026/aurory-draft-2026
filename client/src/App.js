@@ -7,6 +7,7 @@ import HomePage from './pages/HomePage';
 import TournamentPage from './pages/TournamentPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
+import MatchupPage from './pages/MatchupPage';
 import './App.css';
 import AdminPanel from './components/AdminPanel';
 
@@ -75,6 +76,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/tournament/:tournamentId" element={<TournamentPage />} />
           <Route path="/admin/panel" element={<AdminPanel />} />
+          <Route path="/matchup/:matchupId" element={<MatchupPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
         </Routes>

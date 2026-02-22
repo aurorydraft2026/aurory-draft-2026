@@ -19,6 +19,7 @@ import { useLeaderboard } from '../hooks/useLeaderboard';
 import { useAuth } from '../hooks/useAuth';
 import { useNotifications } from '../hooks/useNotifications';
 import { useAppContent } from '../hooks/useAppContent';
+import MatchupsSection from '../components/MatchupsSection';
 import './HomePage.css';
 
 // Your AURY deposit wallet address (replace with your actual address)
@@ -719,6 +720,9 @@ function HomePage() {
                 </div>
               </div>
             )}
+
+            {/* Matchups Section */}
+            <MatchupsSection user={user} isAdmin={isAdmin} />
 
             {/* Drafts Grid */}
             <div className="tournaments-section">
@@ -1664,7 +1668,7 @@ function HomePage() {
                             ) : (
                               <div className="banner-placeholder">
                                 <span>📷</span>
-                                <span>Upload Logo</span>
+                                <span>Upload Banner</span>
                               </div>
                             )}
                             <input
@@ -1773,7 +1777,7 @@ function HomePage() {
                             ) : (
                               <div className="banner-placeholder">
                                 <span>📷</span>
-                                <span>Upload Logo</span>
+                                <span>Upload Banner</span>
                               </div>
                             )}
                             <input

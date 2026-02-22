@@ -1,0 +1,221 @@
+.matchup-card {
+    position: relative;
+    background: var(--bg-card);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    backdrop-filter: blur(10px);
+    z-index: 1;
+}
+
+/* Premium Border Animation Wrapper */
+.matchup-card::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    /* Large square to cover diagonal */
+    /* Long, opposite dual beam effect */
+    background: conic-gradient(from 0deg,
+            transparent 0%,
+            var(--accent-cyan) 5%,
+            var(--accent-purple) 20%,
+            transparent 25%,
+            transparent 50%,
+            var(--accent-teal) 55%,
+            var(--accent-gold) 70%,
+            transparent 75%,
+            transparent 100%);
+    animation: rotateBorder 6s linear infinite;
+    z-index: -1;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+    filter: blur(5px);
+}
+
+/* Inner overlay to mask the center of the conic gradient */
+.matchup-card::after {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    /* Adjust for desired border thickness */
+    background: var(--bg-card);
+    border-radius: calc(var(--radius-lg) - 2px);
+    z-index: -1;
+}
+
+@keyframes rotateBorder {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.matchup-card:hover {
+    transform: translateY(-4px);
+    box-shadow:
+        0 10px 40px rgba(0, 0, 0, 0.5),
+        0 0 20px rgba(0, 242, 255, 0.2);
+}
+
+.matchup-card:hover::before {
+    opacity: 1;
+    animation-duration: 2s;
+    /* Speed up on hover */
+}
+
+.card-content {
+    padding: 18px 20px;
+}
+
+.tournament-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.matchup-title {
+    font-family: 'Exo 2', sans-serif;
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--text-bright);
+    margin: 0;
+    line-height: 1.3;
+    flex: 1;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.card-badges {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+.status-badge {
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 0.68rem;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.status-badge.waiting {
+    background: rgba(240, 178, 50, 0.15);
+    color: var(--accent-gold);
+    border: 1px solid rgba(240, 178, 50, 0.3);
+}
+
+.status-badge.active {
+    background: rgba(0, 200, 255, 0.15);
+    color: var(--accent-cyan);
+    border: 1px solid rgba(0, 200, 255, 0.3);
+}
+
+.mode-badge {
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 0.62rem;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    background: rgba(139, 92, 246, 0.12);
+    color: var(--accent-purple);
+    border: 1px solid rgba(139, 92, 246, 0.25);
+}
+
+.mode-badge.mode-mode1 {
+    background: rgba(0, 200, 255, 0.1);
+    color: var(--accent-cyan);
+}
+
+.matchup-description {
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    line-height: 1.5;
+    margin: 0 0 12px 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.matchup-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.detail-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-family: 'Outfit', sans-serif;
+}
+
+.detail-item.prize {
+    color: var(--accent-gold);
+    font-weight: 600;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.9rem;
+}
+
+.detail-icon {
+    font-size: 0.9rem;
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.matchup-footer {
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 12px;
+    margin-top: auto;
+}
+
+.progress-info {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+}
+
+.progress-bar {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+    border-radius: 999px;
+    transition: width 0.4s ease;
+    box-shadow: 0 0 10px var(--accent-cyan-glow);
+}

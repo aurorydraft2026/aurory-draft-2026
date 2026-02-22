@@ -37,7 +37,10 @@ service cloud.firestore {
     
     // Check if user has staff privileges (Super Admin OR assigned Admin role)
     function isAdmin() {
-      return isSuperAdmin() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isSuperAdmin() || (
+        isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'superadmin']
+      );
     }
 
     
@@ -54,7 +57,7 @@ service cloud.firestore {
     // Helper function to get user role in a draft safely
     function getRole(draftId) {
       let draft = get(/databases/$(database)/documents/drafts/$(draftId)).data;
-      return (draft.permissions != null && request.auth.uid in draft.permissions) 
+      return (isAuthenticated() && draft.permissions != null && request.auth.uid in draft.permissions) 
              ? draft.permissions[request.auth.uid] 
              : 'spectator';
     }
@@ -398,12 +401,38 @@ service cloud.firestore {
     // =============================================
     // SETTINGS (Global Announcements, etc.)
     // =============================================
-    match /settings/{docId} {
+    match /settings/{settingId} {
       // Anyone can read settings
       allow read: if true;
       
       // Only admins can manage settings
       allow write: if isAdmin();
+    }
+    // LINEUPS
+    // =============================================
+    match /lineups/{lineupId} {
+      // Anyone can read lineups
+      allow read: if true;
+      
+      // Only admins can manage lineups
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+      
+      // Update logic for joining/leaving
+      allow update: if isAdmin() || (
+        isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('auroryPlayerId', null) != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['participants', 'participantUids']) &&
+        request.resource.data.get('participantUids', []).size() <= resource.data.get('maxParticipants', 8) * 3 &&
+        (
+          // Join case: User is now in participantUids but wasn't before
+          (request.auth.uid in request.resource.data.get('participantUids', []) &&
+           !(request.auth.uid in resource.data.get('participantUids', []))) ||
+          // Leave case: User is no longer in participantUids but was before
+          (!(request.auth.uid in request.resource.data.get('participantUids', [])) &&
+           request.auth.uid in resource.data.get('participantUids', []))
+        )
+      );
     }
   }
 }
