@@ -1,7 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAuth, OAuthProvider, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 
 // TODO: Replace with your Firebase project configuration
 // Get this from Firebase Console > Project Settings > Your apps > Web app
@@ -23,7 +23,11 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
 // Initialize Cloud Firestore and get a reference to the service
-export const db = getFirestore(app);
+// Use initializeFirestore to set experimentalForceLongPolling: true
+// This fixes the internal "BloomFilter error" and transient stream issues in v12 sdk
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true
+});
 
 // Create Discord OAuth provider
 export const discordProvider = new OAuthProvider('oidc.discord');

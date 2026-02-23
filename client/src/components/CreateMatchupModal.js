@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -75,140 +76,150 @@ const CreateMatchupModal = ({ isOpen, onClose, user }) => {
             });
         } catch (err) {
             console.error('Error creating matchup:', err);
-            setError('Failed to create matchup. Please try again.');
+            setError('Failed to create tournament. Please try again.');
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="create-matchup-modal" onClick={e => e.stopPropagation()}>
+    return ReactDOM.createPortal(
+        <div className="modal-overlay">
+            <div className="create-modal create-matchup-modal">
                 <div className="modal-header">
-                    <h3>Create New Matchup</h3>
-                    <button className="close-modal" onClick={onClose}>×</button>
+                    <h3>➕ Create New Tournament</h3>
+                    <button className="close-modal" onClick={onClose}>✖</button>
                 </div>
-                <form onSubmit={handleSubmit} className="modal-body">
-                    {error && <div className="error-message">{error}</div>}
+                <div className="modal-body">
+                    <form onSubmit={handleSubmit}>
+                        {error && <div className="error-message">{error}</div>}
 
-                    <div className="form-group">
-                        <label>Title</label>
-                        <input
-                            type="text"
-                            name="title"
-                            value={formData.title}
-                            onChange={handleChange}
-                            placeholder="Matchup Title"
-                            required
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Description</label>
-                        <textarea
-                            name="description"
-                            value={formData.description}
-                            onChange={handleChange}
-                            placeholder="Description (Format, rules, etc.)"
-                            rows="3"
-                        ></textarea>
-                    </div>
-
-                    <div className="form-row">
                         <div className="form-group">
-                            <label>Pool Prize (AURY)</label>
+                            <label>Title *</label>
                             <input
-                                type="number"
-                                name="poolPrize"
-                                value={formData.poolPrize}
+                                type="text"
+                                name="title"
+                                value={formData.title}
                                 onChange={handleChange}
-                                placeholder="0.00"
-                                step="0.01"
+                                placeholder="Tournament Title"
+                                className="form-input"
                                 required
                             />
                         </div>
-                        <div className="form-group">
-                            <label>Max Participants</label>
-                            <input
-                                type="number"
-                                name="maxParticipants"
-                                value={formData.maxParticipants}
-                                onChange={handleChange}
-                                min="2"
-                                required
-                            />
-                        </div>
-                    </div>
 
-                    <div className="form-row">
                         <div className="form-group">
-                            <label>Format</label>
-                            <select
-                                name="format"
-                                value={formData.format}
+                            <label>Description</label>
+                            <textarea
+                                name="description"
+                                value={formData.description}
                                 onChange={handleChange}
-                            >
-                                <option value="individual">Individual</option>
-                                <option value="teams">Teams</option>
-                            </select>
+                                placeholder="Description (Format, rules, etc.)"
+                                className="form-textarea"
+                                rows="3"
+                            ></textarea>
                         </div>
-                        <div className="form-group">
-                            <label>Draft Mode</label>
-                            <select
-                                name="draftType"
-                                value={formData.draftType}
-                                onChange={handleChange}
-                            >
-                                {formData.format === 'teams' ? (
-                                    <>
-                                        <option value="mode1">3v3 Triad (3-6-3)</option>
-                                        <option value="mode2">3v3 Triad (1-2-1)</option>
-                                    </>
-                                ) : (
-                                    <>
-                                        <option value="mode3">1v1 Deathmatch (3-3)</option>
-                                        <option value="mode4">1v1 Ban Draft (1-2-1)</option>
-                                    </>
-                                )}
-                            </select>
-                        </div>
-                    </div>
 
-                    <div className="form-row">
-                        <div className="form-group">
-                            <label>Start Date</label>
-                            <input
-                                type="datetime-local"
-                                name="startDate"
-                                value={formData.startDate}
-                                onChange={handleChange}
-                                required
-                            />
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label>Pool Prize (AURY) *</label>
+                                <input
+                                    type="number"
+                                    name="poolPrize"
+                                    value={formData.poolPrize}
+                                    onChange={handleChange}
+                                    placeholder="0.00"
+                                    step="0.01"
+                                    className="form-input"
+                                    required
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Max Participants *</label>
+                                <input
+                                    type="number"
+                                    name="maxParticipants"
+                                    value={formData.maxParticipants}
+                                    onChange={handleChange}
+                                    min="2"
+                                    className="form-input"
+                                    required
+                                />
+                            </div>
                         </div>
-                        <div className="form-group">
-                            <label>Tournament Type</label>
-                            <select
-                                name="tournamentType"
-                                value={formData.tournamentType}
-                                onChange={handleChange}
-                            >
-                                <option value="single_elimination">Single Elimination</option>
-                                <option value="round_robin">Round Robin</option>
-                            </select>
-                        </div>
-                    </div>
 
-                    <div className="modal-footer">
-                        <button type="button" className="btn-secondary" onClick={onClose} disabled={isSubmitting}>
-                            Cancel
-                        </button>
-                        <button type="submit" className="btn-primary" disabled={isSubmitting}>
-                            {isSubmitting ? 'Creating...' : 'Create Matchup'}
-                        </button>
-                    </div>
-                </form>
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label>Format</label>
+                                <select
+                                    name="format"
+                                    value={formData.format}
+                                    onChange={handleChange}
+                                    className="form-input"
+                                >
+                                    <option value="individual">Individual</option>
+                                    <option value="teams">Teams</option>
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>Draft Mode</label>
+                                <select
+                                    name="draftType"
+                                    value={formData.draftType}
+                                    onChange={handleChange}
+                                    className="form-input"
+                                >
+                                    {formData.format === 'teams' ? (
+                                        <>
+                                            <option value="mode1">3v3 Triad (3-6-3)</option>
+                                            <option value="mode2">3v3 Triad (1-2-1)</option>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <option value="mode3">1v1 Deathmatch (3-3)</option>
+                                            <option value="mode4">1v1 Ban Draft (1-2-1)</option>
+                                        </>
+                                    )}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label>Start Date *</label>
+                                <input
+                                    type="datetime-local"
+                                    name="startDate"
+                                    value={formData.startDate}
+                                    onChange={handleChange}
+                                    className="form-input"
+                                    required
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Tournament Type</label>
+                                <select
+                                    name="tournamentType"
+                                    value={formData.tournamentType}
+                                    onChange={handleChange}
+                                    className="form-input"
+                                >
+                                    <option value="single_elimination">Single Elimination</option>
+                                    <option value="round_robin">Round Robin</option>
+                                </select>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div className="modal-footer">
+                    <button type="button" className="cancel-btn" onClick={onClose} disabled={isSubmitting}>
+                        Cancel
+                    </button>
+                    <button type="submit" className="create-btn" onClick={handleSubmit} disabled={isSubmitting}>
+                        {isSubmitting ? 'Creating...' : '🚀 Create Tournament'}
+                    </button>
+                </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

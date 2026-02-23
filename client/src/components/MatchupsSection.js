@@ -33,12 +33,12 @@ const MatchupsSection = ({ user, isAdmin }) => {
         <section className="matchups-section">
             <div className="section-header">
                 <div className="header-title-group">
-                    <h3>🏆 All Matchups</h3>
-                    <p className="section-subtitle">Join upcoming matchups and earn rewards</p>
+                    <h3>🏆 Tournaments</h3>
+                    <p className="section-subtitle">Join upcoming tournaments and earn rewards</p>
                 </div>
                 {isAdmin && (
                     <button onClick={() => setShowCreateModal(true)} className="create-matchup-btn-primary">
-                        <span className="plus-icon">+</span> Create Matchup
+                        <span className="plus-icon">+</span> Create Tournament
                     </button>
                 )}
             </div>
@@ -63,7 +63,7 @@ const MatchupsSection = ({ user, isAdmin }) => {
                 <div className="no-matchups">
                     <div className="empty-icon">🎮</div>
                     <p>No active matchups yet.</p>
-                    {isAdmin && <p className="admin-hint">Click "Create Matchup" to start the first one!</p>}
+                    {isAdmin && <p className="admin-hint">Click "Create Tournament" to start the first one!</p>}
                 </div>
             )}
 
