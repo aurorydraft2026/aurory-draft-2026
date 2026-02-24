@@ -1,0 +1,84 @@
+﻿2026-02-23T22:11:04.364900Z ? verifymatches:   ΓÅ¡∩╕Å Skip tournament_1770655768844_pdzagiufj: Already verified and no pending payout.
+
+2026-02-23T22:11:04.364983Z ? verifymatches: 
+≡ƒôä Checking draft tournament_1771092918596_oquccjisv (Status: completed, Verification: complete)...
+
+2026-02-23T22:11:04.365014Z ? verifymatches:   ΓÅ¡∩╕Å Skip tournament_1771092918596_oquccjisv: Already verified and no pending payout.
+
+2026-02-23T22:11:04.365096Z ? verifymatches: 
+≡ƒôä Checking draft tournament_1771099316037_8f5hzfn07 (Status: completed, Verification: complete)...
+
+2026-02-23T22:11:04.365122Z ? verifymatches:   ΓÅ¡∩╕Å Skip tournament_1771099316037_8f5hzfn07: Already verified and no pending payout.
+
+2026-02-23T22:11:04.365193Z ? verifymatches: 
+≡ƒôä Checking draft tournament_1771115469537_f7pqv98ro (Status: completed, Verification: complete)...
+
+2026-02-23T22:11:04.365316Z ? verifymatches:   ΓÅ¡∩╕Å Skip tournament_1771115469537_f7pqv98ro: Already verified and no pending payout.
+
+2026-02-23T22:11:04.365481Z ? verifymatches: 
+≡ƒôä Checking draft tournament_1771115550468_k2r6nxt1y (Status: completed, Verification: complete)...
+
+2026-02-23T22:11:04.365568Z ? verifymatches:   ΓÅ¡∩╕Å Skip tournament_1771115550468_k2r6nxt1y: Already verified and no pending payout.
+
+2026-02-23T22:11:04.365581Z ? verifymatches: 
+≡ƒôä Checking draft tournament_1771154278346_av393g2p5 (Status: completed, Verification: complete)...
+
+2026-02-23T22:11:04.365622Z ? verifymatches:   ΓÅ¡∩╕Å Skip tournament_1771154278346_av393g2p5: Already verified and no pending payout.
+
+2026-02-23T22:11:04.365692Z ? verifymatches: 
+≡ƒôä Checking draft tournament_1771157876125_bm47tbn3f (Status: completed, Verification: complete)...
+
+2026-02-23T22:11:04.365754Z ? verifymatches:   ΓÅ¡∩╕Å Skip tournament_1771157876125_bm47tbn3f: Already verified and no pending payout.
+
+2026-02-23T22:11:04.365852Z ? verifymatches: 
+≡ƒôä Checking draft tournament_1771162995319_0h8a72sil (Status: completed, Verification: complete)...
+
+2026-02-23T22:11:04.365959Z ? verifymatches:   ΓÅ¡∩╕Å Skip tournament_1771162995319_0h8a72sil: Already verified and no pending payout.
+
+2026-02-23T22:11:04.366001Z ? verifymatches: 
+≡ƒôä Checking draft tournament_1771163780785_f7bbe85kv (Status: completed, Verification: complete)...
+
+2026-02-23T22:11:04.366036Z ? verifymatches:   ΓÅ¡∩╕Å Skip tournament_1771163780785_f7bbe85kv: Already verified and no pending payout.
+
+2026-02-23T22:11:04.366102Z ? verifymatches: 
+≡ƒôä Checking draft tournament_1771163829021_7fw24oz7p (Status: completed, Verification: complete)...
+
+2026-02-23T22:11:04.366136Z ? verifymatches:   ΓÅ¡∩╕Å Skip tournament_1771163829021_7fw24oz7p: Already verified and no pending payout.
+
+2026-02-23T22:11:04.366215Z ? verifymatches: 
+≡ƒôä Checking draft tournament_1771203165648_tr9yddafy (Status: completed, Verification: complete)...
+
+2026-02-23T22:11:04.366268Z ? verifymatches:   ΓÅ¡∩╕Å Skip tournament_1771203165648_tr9yddafy: Already verified and no pending payout.
+
+2026-02-23T22:11:04.366505Z ? verifymatches: 
+≡ƒôä Checking draft tournament_1771253546239_kae48fymx (Status: completed, Verification: undefined)...
+
+2026-02-23T22:11:04.366515Z ? verifymatches: ≡ƒöì Verifying draft tournament_1771253546239_kae48fymx...
+
+2026-02-23T22:11:04.366675Z ? verifymatches: 
+≡ƒôä Checking draft tournament_1771636994451_o4tai8fib (Status: completed, Verification: complete)...
+
+2026-02-23T22:11:04.366716Z ? verifymatches:   ΓÅ¡∩╕Å Skip tournament_1771636994451_o4tai8fib: Already verified and no pending payout.
+
+2026-02-23T22:11:04.366919Z ? verifymatches: 
+≡ƒôä Checking draft tournament_1771852694681_qf3okueld (Status: completed, Verification: complete)...
+
+2026-02-23T22:11:04.366936Z ? verifymatches:   ΓÅ¡∩╕Å Skip tournament_1771852694681_qf3okueld: Already verified and no pending payout.
+
+2026-02-23T22:11:04.366988Z ? verifymatches: 
+≡ƒôä Checking draft tournament_1771853647312_790qto7w7 (Status: completed, Verification: complete)...
+
+2026-02-23T22:11:04.367066Z ? verifymatches:   ΓÅ¡∩╕Å Skip tournament_1771853647312_790qto7w7: Already verified and no pending payout.
+
+2026-02-23T22:11:04.367217Z ? verifymatches: 
+≡ƒôä Checking draft tournament_1771854644791_1eyp4yik7 (Status: completed, Verification: complete)...
+
+2026-02-23T22:11:04.367229Z ? verifymatches:   ΓÅ¡∩╕Å Skip tournament_1771854644791_1eyp4yik7: Already verified and no pending payout.
+
+2026-02-23T22:11:04.367238Z ? verifymatches: 
+≡ƒôä Checking draft tournament_1771856968571_t53qd1g4o (Status: completed, Verification: undefined)...
+
+2026-02-23T22:11:04.367319Z ? verifymatches: ≡ƒöì Verifying draft tournament_1771856968571_t53qd1g4o...
+
+2026-02-23T22:11:05.534358975Z D tournamentUpdateRefund: Function execution started
+2026-02-23T22:11:05.539089374Z D tournamentUpdateRefund: Function execution took 4 ms, finished with status: 'ok'

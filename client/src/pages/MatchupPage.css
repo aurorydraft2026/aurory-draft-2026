@@ -681,29 +681,60 @@
     border: 1px solid rgba(168, 85, 247, 0.3);
 }
 
-/* Linear Bracket Container */
+/* =============================================
+   BRACKET — CSS Custom Properties
+   All connector offsets derive from these.
+   Change one value → everything stays in sync.
+   ============================================= */
 .bracket-container {
+    --match-w: 220px;
+    --match-h: 100px;
+    --bracket-gap: 100px;
+    --connector-color: var(--border-bright);
+    --connector-thickness: 2px;
+
     display: flex;
     justify-content: flex-start;
     align-items: stretch;
-    /* Ensure all rounds are same height */
-    gap: 120px;
-    /* Increased gap for longer connectors */
-    padding: 100px 60px;
+    gap: 0;
+    padding: 80px 60px 60px;
     min-width: max-content;
 }
 
+/* Scrollable / draggable viewport */
+.bracket-viewport {
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
+    max-height: 80vh;
+    border-radius: var(--radius-md);
+    position: relative;
+}
+
+.bracket-viewport.dragging {
+    cursor: grabbing !important;
+}
+
+.bracket-viewport:not(.dragging) {
+    cursor: grab;
+}
+
+/* ── Round Column ── */
 .bracket-round {
     display: flex;
     flex-direction: column;
-    width: 220px;
+    width: var(--match-w);
+    margin-right: var(--bracket-gap);
     position: relative;
     z-index: 2;
 }
 
+.bracket-round:last-child {
+    margin-right: 0;
+}
+
 .round-title {
     height: 40px;
-    /* Fixed height for title */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -721,20 +752,17 @@
     display: flex;
     flex-direction: column;
     justify-content: space-around;
-    /* This is key for alignment */
     flex: 1;
-    /* Take all available height */
     position: relative;
 }
 
-/* Match Card */
+/* ── Match Card ── */
 .bracket-match {
     background: var(--bg-card);
     border: 1px solid var(--border-bright);
     border-radius: 8px;
-    width: 220px;
-    height: 100px;
-    /* Fixed height */
+    width: var(--match-w);
+    height: var(--match-h);
     position: relative;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     z-index: 5;
@@ -743,71 +771,63 @@
     box-sizing: border-box;
 }
 
-.bracket-viewport.dragging {
-    cursor: grabbing !important;
-}
-
-.bracket-viewport:not(.dragging) {
-    cursor: grab;
-}
-
-/* Match Pair Group for precise connectors */
+/* ── Match Pair Group ── */
 .match-pair-group {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     position: relative;
-    min-height: 280px;
-    /* Minimum space for a pair + connector logic */
+    min-height: calc(var(--match-h) * 2 + 80px);
 }
 
-/* Connectors - Forward flowing lines (Horizontal from match) */
+/* ── CONNECTOR 1: Horizontal arm from each match → vertical bar ── */
+/* Starts at the match's right edge, extends half the gap to the right */
 .bracket-match:not(.finals)::after {
     content: '';
     position: absolute;
-    right: -60px;
-    top: 49px;
-    /* (100 - 2) / 2 */
-    width: 60px;
-    height: 2px;
-    background: var(--border-bright);
+    left: 100%;
+    top: calc(var(--match-h) / 2 - var(--connector-thickness) / 2);
+    width: calc(var(--bracket-gap) / 2);
+    height: var(--connector-thickness);
+    background: var(--connector-color);
     pointer-events: none;
+    z-index: 1;
 }
 
-/* Vertical Bar for connection branching */
+/* ── CONNECTOR 2: Vertical bar linking a pair of matches ── */
+/* Positioned at the midpoint of the gap (half-gap from pair's right edge) */
 .match-pair-group::after {
     content: '';
     position: absolute;
-    right: -60px;
-    top: 50px;
-    /* Match 1 midpoint */
-    bottom: 50px;
-    /* Match 2 midpoint */
-    width: 2px;
-    background: var(--border-bright);
+    left: calc(var(--match-w) + var(--bracket-gap) / 2);
+    top: calc(var(--match-h) / 2);
+    bottom: calc(var(--match-h) / 2);
+    width: var(--connector-thickness);
+    background: var(--connector-color);
     z-index: 1;
     pointer-events: none;
 }
 
-/* Horizontal Connector to next round from the vertical bar */
+/* ── CONNECTOR 3: Horizontal arm from vertical bar → next round ── */
+/* Starts at the gap midpoint, extends to the start of the next round */
 .match-pair-group::before {
     content: '';
     position: absolute;
-    right: -120px;
-    /* Full gap (60+60) */
+    left: calc(var(--match-w) + var(--bracket-gap) / 2);
     top: 50%;
-    /* Center of the pair */
-    width: 60px;
-    height: 2px;
-    background: var(--border-bright);
+    transform: translateY(-50%);
+    width: calc(var(--bracket-gap) / 2);
+    height: var(--connector-thickness);
+    background: var(--connector-color);
     z-index: 1;
     pointer-events: none;
 }
 
+/* ── Finals ── */
 .bracket-match.finals {
     border: 2px solid var(--accent-gold);
     box-shadow: 0 0 30px rgba(251, 191, 36, 0.2);
-    transform: scale(1.1);
+    transform: scale(1.05);
 }
 
 .trophy-icon-mini {
@@ -1372,10 +1392,100 @@
 /* Responsive Bracket */
 @media (max-width: 768px) {
     .bracket-container {
-        gap: 30px;
+        --match-w: 170px;
+        --match-h: 85px;
+        --bracket-gap: 70px;
+        padding: 50px 24px 40px;
     }
 
     .bracket-round {
-        min-width: 180px;
+        width: var(--match-w);
+    }
+
+    .bracket-match {
+        width: var(--match-w);
+        height: var(--match-h);
+    }
+
+    .match-player {
+        padding: 6px 10px;
+        min-height: 36px;
+        font-size: 0.78rem;
+    }
+
+    .player-name {
+        max-width: 100px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .vs-label {
+        font-size: 0.6rem;
+        width: 22px;
+        height: 14px;
+        line-height: 14px;
+        margin: -7px auto;
+    }
+
+    .round-title {
+        font-size: 0.65rem;
+        letter-spacing: 1px;
+        margin-bottom: 16px;
+        height: 30px;
+    }
+
+    .bracket-match.finals {
+        transform: scale(1);
+    }
+
+    .trophy-icon-mini {
+        font-size: 1.4rem;
+        top: -35px;
+    }
+
+    .zoom-controls {
+        gap: 4px;
+    }
+
+    .control-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 0.8rem;
+    }
+
+    .zoom-value {
+        font-size: 0.7rem;
+    }
+
+    .bracket-viewport {
+        max-height: 60vh;
+    }
+
+    .match-pair-group {
+        min-height: calc(var(--match-h) * 2 + 50px);
+    }
+}
+
+@media (max-width: 480px) {
+    .bracket-container {
+        --match-w: 150px;
+        --match-h: 78px;
+        --bracket-gap: 56px;
+        padding: 40px 12px 30px;
+    }
+
+    .match-player {
+        padding: 5px 8px;
+        min-height: 32px;
+        font-size: 0.72rem;
+    }
+
+    .player-name {
+        max-width: 80px;
+    }
+
+    .bracket-viewport {
+        max-height: 55vh;
     }
 }

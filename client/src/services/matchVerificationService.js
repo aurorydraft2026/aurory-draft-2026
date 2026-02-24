@@ -344,8 +344,21 @@ export async function verifyDraftBattles(draftData, registeredUsers) {
     });
   }
 
+  // Preserve conceded battles from existing matchResults
+  const existingResults = draftData.matchResults || [];
+  for (const existing of existingResults) {
+    if (existing.status === 'conceded') {
+      const idx = results.findIndex(r => r.battleIndex === existing.battleIndex);
+      if (idx >= 0) {
+        results[idx] = existing;
+      } else {
+        results.push(existing);
+      }
+    }
+  }
+
   const allVerified = results.every(r =>
-    r.status === 'verified' || r.status === 'disqualified_A' || r.status === 'disqualified_B' || r.status === 'both_disqualified'
+    r.status === 'verified' || r.status === 'conceded' || r.status === 'disqualified_A' || r.status === 'disqualified_B' || r.status === 'both_disqualified'
   );
 
   // Determine overall tournament winner and score for 3v3

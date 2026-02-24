@@ -710,6 +710,115 @@ function TournamentPage() {
     }
   };
 
+  // Handle Per-Battle Concede (3v3 modes only)
+  const handleConcedeBattle = async (battleIndex, teamToConcede) => {
+    if (!user) return;
+
+    const matchPlayers = draftState.matchPlayers || [];
+    const teamAPlayers = matchPlayers.filter(p => p.team === 'A');
+    const teamBPlayers = matchPlayers.filter(p => p.team === 'B');
+    const playerA = teamAPlayers[battleIndex];
+    const playerB = teamBPlayers[battleIndex];
+
+    if (!playerA || !playerB) {
+      showAlert('Error', `Cannot find players for Battle ${battleIndex + 1}.`);
+      return;
+    }
+
+    const concedePlayerName = teamToConcede === 'A'
+      ? (playerA.auroryPlayerName || playerA.displayName || 'Team A Player')
+      : (playerB.auroryPlayerName || playerB.displayName || 'Team B Player');
+    const winnerTeam = teamToConcede === 'A' ? 'B' : 'A';
+    const winnerPlayerName = teamToConcede === 'A'
+      ? (playerB.auroryPlayerName || playerB.displayName || 'Team B Player')
+      : (playerA.auroryPlayerName || playerA.displayName || 'Team A Player');
+
+    const confirmed = await showConfirm(
+      'Concede Battle',
+      `Concede Battle ${battleIndex + 1} for ${concedePlayerName}? This awards the win to ${winnerPlayerName}.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const draftRef = doc(db, 'drafts', DRAFT_ID);
+      const currentResults = [...(draftState.matchResults || [])];
+
+      // Check if this battle is already resolved
+      const existingIdx = currentResults.findIndex(r => r.battleIndex === battleIndex);
+      if (existingIdx >= 0) {
+        const existing = currentResults[existingIdx];
+        if (['verified', 'conceded', 'disqualified_A', 'disqualified_B', 'both_disqualified'].includes(existing.status)) {
+          showAlert('Already Resolved', `Battle ${battleIndex + 1} has already been resolved.`);
+          return;
+        }
+      }
+
+      const concededResult = {
+        battleIndex,
+        status: 'conceded',
+        winner: winnerTeam,
+        winnerName: winnerPlayerName,
+        loserName: concedePlayerName,
+        concededBy: teamToConcede,
+        concededByAdmin: user.uid,
+        battleCode: draftState.privateCodes?.[battleIndex] || null,
+        matchTimestamp: new Date().toISOString(),
+        playerA: { displayName: playerA.auroryPlayerName || playerA.displayName },
+        playerB: { displayName: playerB.auroryPlayerName || playerB.displayName }
+      };
+
+      if (existingIdx >= 0) {
+        currentResults[existingIdx] = concededResult;
+      } else {
+        currentResults.push(concededResult);
+      }
+
+      // Check if all 3 battles are now resolved
+      const resolvedStatuses = ['verified', 'conceded', 'disqualified_A', 'disqualified_B', 'both_disqualified'];
+      const resolvedResults = currentResults.filter(r => resolvedStatuses.includes(r.status));
+
+      const updateData = { matchResults: currentResults };
+
+      if (resolvedResults.length >= 3) {
+        const teamAWins = resolvedResults.filter(r => r.winner === 'A').length;
+        const teamBWins = resolvedResults.filter(r => r.winner === 'B').length;
+        updateData.overallWinner = teamAWins > teamBWins ? 'A' : teamBWins > teamAWins ? 'B' : 'draw';
+        updateData.score = `${teamAWins}-${teamBWins}`;
+        updateData.verificationStatus = 'complete';
+        updateData.verifiedAt = serverTimestamp();
+        updateData.completedAt = serverTimestamp();
+      }
+
+      await updateDoc(draftRef, updateData);
+
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'concede_battle',
+        metadata: {
+          draftId: DRAFT_ID,
+          battleIndex,
+          concededBy: teamToConcede,
+          winner: winnerTeam,
+          concedePlayerName,
+          winnerPlayerName
+        }
+      });
+
+      if (resolvedResults.length >= 3) {
+        const teamAWins = resolvedResults.filter(r => r.winner === 'A').length;
+        const teamBWins = resolvedResults.filter(r => r.winner === 'B').length;
+        const overallLabel = teamAWins > teamBWins ? getTeamDisplayName('A') : teamBWins > teamAWins ? getTeamDisplayName('B') : 'Draw';
+        showAlert('Battle Conceded', `Battle ${battleIndex + 1} conceded. All battles resolved — Winner: ${overallLabel} (${teamAWins}-${teamBWins})`);
+      } else {
+        showAlert('Battle Conceded', `Battle ${battleIndex + 1}: ${concedePlayerName} conceded. ${winnerPlayerName} wins this battle.`);
+      }
+    } catch (error) {
+      console.error('Error conceding battle:', error);
+      showAlert('Error', 'Failed to concede battle: ' + error.message);
+    }
+  };
+
   const handleVerifyMatch = async () => {
     let draftDataForVerification = draftState;
 
@@ -4655,6 +4764,68 @@ function TournamentPage() {
                       </button>
                     )}
 
+                    {/* Mock Complete - Super Admin only, 3v3 modes only */}
+                    {isSuperAdmin(getUserEmail(user)) && ['mode1', 'mode2'].includes(draftState.draftType) && draftState.status !== 'completed' && (
+                      <button
+                        onClick={async () => {
+                          const confirmed = await showConfirm('Mock Complete', 'Populate this draft with mock teams and skip to completed state? This is for testing only.');
+                          if (!confirmed) return;
+
+                          try {
+                            const draftRef = doc(db, 'drafts', DRAFT_ID);
+
+                            // 6 mock players
+                            const mockPlayers = [
+                              { team: 'A', uid: 'mock-a1', displayName: 'MockPlayer_A1', auroryPlayerId: 'mock-api-a1', auroryPlayerName: 'MockPlayer_A1' },
+                              { team: 'A', uid: 'mock-a2', displayName: 'MockPlayer_A2', auroryPlayerId: 'mock-api-a2', auroryPlayerName: 'MockPlayer_A2' },
+                              { team: 'A', uid: 'mock-a3', displayName: 'MockPlayer_A3', auroryPlayerId: 'mock-api-a3', auroryPlayerName: 'MockPlayer_A3' },
+                              { team: 'B', uid: 'mock-b1', displayName: 'MockPlayer_B1', auroryPlayerId: 'mock-api-b1', auroryPlayerName: 'MockPlayer_B1' },
+                              { team: 'B', uid: 'mock-b2', displayName: 'MockPlayer_B2', auroryPlayerId: 'mock-api-b2', auroryPlayerName: 'MockPlayer_B2' },
+                              { team: 'B', uid: 'mock-b3', displayName: 'MockPlayer_B3', auroryPlayerId: 'mock-api-b3', auroryPlayerName: 'MockPlayer_B3' },
+                            ];
+
+                            // Pick 18 random amikos (9 per team, no mirrors)
+                            const shuffled = [...AMIKOS].sort(() => Math.random() - 0.5);
+                            const teamAPicks = shuffled.slice(0, 9).map(a => a.id);
+                            const teamBPicks = shuffled.slice(9, 18).map(a => a.id);
+
+                            // 3 battle codes
+                            const codes = [];
+                            while (codes.length < 3) {
+                              const code = Math.floor(10000 + Math.random() * 90000).toString();
+                              if (!codes.includes(code)) codes.push(code);
+                            }
+
+                            await updateDoc(draftRef, {
+                              status: 'completed',
+                              matchPlayers: mockPlayers,
+                              teamA: teamAPicks,
+                              teamB: teamBPicks,
+                              privateCodes: codes,
+                              currentPhase: 999,
+                              lockedPhases: [0, 1, 2, 3],
+                              teamALeader: 'mock-a1',
+                              teamBLeader: 'mock-b1',
+                              completedAt: serverTimestamp(),
+                              permissions: {
+                                ...(draftState.permissions || {}),
+                                'mock-a1': 'A', 'mock-a2': 'A', 'mock-a3': 'A',
+                                'mock-b1': 'B', 'mock-b2': 'B', 'mock-b3': 'B',
+                              }
+                            });
+
+                            showAlert('🧪 Mock Complete', 'Draft populated with mock teams and set to completed. You can now test per-battle concede.');
+                          } catch (error) {
+                            console.error('Error creating mock data:', error);
+                            showAlert('Error', 'Failed to mock complete: ' + error.message);
+                          }
+                        }}
+                        className="action-btn reset"
+                      >
+                        🧪 Mock Complete (Test)
+                      </button>
+                    )}
+
 
                   </div>
                 </div>
@@ -5002,6 +5173,7 @@ function TournamentPage() {
             draftState={draftState}
             isVerifying={isVerifying}
             handleVerifyMatch={handleVerifyMatch}
+            handleConcedeBattle={handleConcedeBattle}
             getTeamDisplayName={getTeamDisplayName}
             isParticipantOrAdmin={isParticipantOrAdmin}
             user={user}

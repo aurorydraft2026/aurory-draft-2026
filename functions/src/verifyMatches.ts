@@ -89,7 +89,8 @@ export async function scanAndVerifyDrafts(): Promise<number> {
 
     try {
       console.log(`🔍 Verifying draft ${draftId}...`);
-      const verificationData = await verifyDraftBattles(data);
+      const existingResults = data.matchResults || [];
+      const verificationData = await verifyDraftBattles(data, existingResults);
 
       if (verificationData.results && verificationData.results.length > 0) {
         const hasResults = verificationData.results.some(
@@ -477,7 +478,7 @@ function verifyLineup(drafted: string[], actual: string[]): boolean {
   return sortedDrafted.every((val, idx) => val === sortedActual[idx]);
 }
 
-async function verifyDraftBattles(draftData: any): Promise<any> {
+async function verifyDraftBattles(draftData: any, existingResults: any[] = []): Promise<any> {
   const { draftType, privateCode, privateCodes, matchPlayers, finalAssignments, teamA = [], teamB = [] } = draftData;
 
   let teamAPlayers: any[], teamBPlayers: any[];
@@ -549,8 +550,21 @@ async function verifyDraftBattles(draftData: any): Promise<any> {
     results.push({ battleIndex: config.battleIndex, battleCode: config.battleCode, playerAUid: config.playerAUid, playerBUid: config.playerBUid, ...result });
   }
 
+  // Merge: carry forward any conceded battles from existing results
+  for (const existing of existingResults) {
+    if (existing.status === 'conceded') {
+      const idx = results.findIndex((r: any) => r.battleIndex === existing.battleIndex);
+      if (idx >= 0) {
+        // Replace the API result with the conceded result
+        results[idx] = existing;
+      } else {
+        results.push(existing);
+      }
+    }
+  }
+
   const allVerified = results.every((r: any) =>
-    ['verified', 'disqualified_A', 'disqualified_B', 'both_disqualified'].includes(r.status)
+    ['verified', 'conceded', 'disqualified_A', 'disqualified_B', 'both_disqualified'].includes(r.status)
   );
 
   let overallWinner = null;

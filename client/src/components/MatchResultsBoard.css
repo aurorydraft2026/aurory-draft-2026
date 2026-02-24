@@ -289,6 +289,55 @@
     color: rgba(255, 255, 255, 0.25);
 }
 
+/* Per-Battle Concede Controls (3v3 admin) */
+.battle-concede-controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    padding: 10px 14px 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.battle-concede-btn {
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid;
+}
+
+.battle-concede-btn.team-A {
+    background: rgba(59, 130, 246, 0.12);
+    border-color: rgba(59, 130, 246, 0.35);
+    color: #60a5fa;
+}
+
+.battle-concede-btn.team-A:hover {
+    background: rgba(59, 130, 246, 0.25);
+    border-color: rgba(59, 130, 246, 0.6);
+}
+
+.battle-concede-btn.team-B {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #f87171;
+}
+
+.battle-concede-btn.team-B:hover {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: rgba(239, 68, 68, 0.6);
+}
+
+.battle-result-card.conceded {
+    border-color: rgba(234, 179, 8, 0.3);
+}
+
+.battle-status.status-conceded {
+    color: #eab308;
+}
+
 /* Mobile responsive */
 @media (max-width: 600px) {
     .battle-result-body {

@@ -356,6 +356,32 @@ const MatchupPage = () => {
         viewportRef.current.scrollTop = scrollTop - walkY;
     };
 
+    // Touch handlers for mobile bracket panning
+    const handleTouchStart = (e) => {
+        if (!viewportRef.current) return;
+        const touch = e.touches[0];
+        setIsDragging(true);
+        setStartX(touch.pageX - viewportRef.current.offsetLeft);
+        setStartY(touch.pageY - viewportRef.current.offsetTop);
+        setScrollLeft(viewportRef.current.scrollLeft);
+        setScrollTop(viewportRef.current.scrollTop);
+    };
+
+    const handleTouchMove = (e) => {
+        if (!isDragging || !viewportRef.current) return;
+        const touch = e.touches[0];
+        const x = touch.pageX - viewportRef.current.offsetLeft;
+        const y = touch.pageY - viewportRef.current.offsetTop;
+        const walkX = (x - startX) * 1.5;
+        const walkY = (y - startY) * 1.5;
+        viewportRef.current.scrollLeft = scrollLeft - walkX;
+        viewportRef.current.scrollTop = scrollTop - walkY;
+    };
+
+    const handleTouchEnd = () => {
+        setIsDragging(false);
+    };
+
     const getUserById = (id) => {
         if (!id) return null;
         if (typeof id === 'object') return id;
@@ -639,6 +665,9 @@ const MatchupPage = () => {
                                 onMouseLeave={handleMouseLeave}
                                 onMouseUp={handleMouseUp}
                                 onMouseMove={handleMouseMove}
+                                onTouchStart={handleTouchStart}
+                                onTouchMove={handleTouchMove}
+                                onTouchEnd={handleTouchEnd}
                             >
                                 <div className="bracket-container" style={{ transform: `scale(${zoom})`, transformOrigin: 'left top' }}>
                                     {matchup.matchupStructure.map((round, rIndex) => (

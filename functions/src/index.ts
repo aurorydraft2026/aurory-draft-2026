@@ -25,12 +25,17 @@ export const checkTimers = onSchedule(
         region: 'us-central1'
     },
     async () => {
-        // Run 4 checks within the 1-minute window (every ~15s)
+        // Run up to 4 checks within the 1-minute window (every ~15s)
+        // If no active drafts are found on the first check, exit early to save compute costs
         for (let i = 0; i < 4; i++) {
             try {
                 const processed = await processActiveTimers();
                 if (processed > 0) {
                     console.log(`Timer check ${i + 1}/4: processed ${processed} draft(s)`);
+                } else if (i === 0) {
+                    // No active drafts found on first check — exit early
+                    // (saves ~45s of idle sleep per invocation)
+                    return;
                 }
             } catch (err) {
                 console.error(`Timer check ${i + 1}/4 error:`, err);
