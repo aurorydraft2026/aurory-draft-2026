@@ -121,6 +121,86 @@ export async function scanAndVerifyDrafts(): Promise<number> {
             } else {
               await processPayouts(draftId, freshData, verificationData.overallWinner);
             }
+
+            // ─── Matchup bracket feedback ───
+            // If this draft is linked to a matchup, report the winner back to the bracket
+            if (freshData.matchupId && freshData.matchRoundIndex !== undefined && freshData.matchMatchIndex !== undefined) {
+              try {
+                const matchupRef = db.collection('matchups').doc(freshData.matchupId);
+                const matchupDoc = await matchupRef.get();
+                if (matchupDoc.exists) {
+                  const matchupData = matchupDoc.data()!;
+                  const structure = JSON.parse(JSON.stringify(matchupData.matchupStructure || []));
+                  const roundIdx = freshData.matchRoundIndex;
+                  const matchIdx = freshData.matchMatchIndex;
+
+                  if (structure[roundIdx]?.matches?.[matchIdx]) {
+                    const bracketMatch = structure[roundIdx].matches[matchIdx];
+                    // Determine which bracket participant won
+                    const winnerTeam = verificationData.overallWinner; // 'A' or 'B'
+                    const winnerParticipant = winnerTeam === 'A' ? bracketMatch.player1 : bracketMatch.player2;
+                    const winnerId = matchupData.format === 'teams'
+                      ? winnerParticipant?.leader
+                      : (typeof winnerParticipant === 'object' ? winnerParticipant.uid : winnerParticipant);
+
+                    if (winnerId) {
+                      bracketMatch.winner = winnerId;
+
+                      // For single elimination, propagate winner to next round
+                      if (matchupData.tournamentType === 'single_elimination' && roundIdx < structure.length - 1) {
+                        const nextRound = structure[roundIdx + 1];
+                        const nextMatchIndex = Math.floor(matchIdx / 2);
+                        const isFirstInPair = matchIdx % 2 === 0;
+                        if (nextRound?.matches?.[nextMatchIndex]) {
+                          if (isFirstInPair) {
+                            nextRound.matches[nextMatchIndex].player1 = winnerParticipant;
+                          } else {
+                            nextRound.matches[nextMatchIndex].player2 = winnerParticipant;
+                          }
+                        }
+                      }
+
+                      // Build player score updates
+                      // Use preAssignedTeams UIDs (which match matchup participant UIDs)
+                      const scoreUpdates: Record<string, any> = {};
+                      const is1v1 = freshData.draftType === 'mode3' || freshData.draftType === 'mode4';
+                      const matchResults = freshData.matchResults || [];
+                      const resolvedStatuses = ['verified', 'conceded', 'disqualified_A', 'disqualified_B', 'both_disqualified'];
+                      const team1 = freshData.preAssignedTeams?.team1;
+                      const team2 = freshData.preAssignedTeams?.team2;
+
+                      if (is1v1) {
+                        const winUid = verificationData.overallWinner === 'A' ? team1?.leader : team2?.leader;
+                        if (winUid) {
+                          scoreUpdates[`playerScores.${winUid}`] = admin.firestore.FieldValue.increment(1);
+                        }
+                      } else if (team1 && team2) {
+                        const teamAUids = [team1.leader, team1.member1, team1.member2].filter(Boolean);
+                        const teamBUids = [team2.leader, team2.member1, team2.member2].filter(Boolean);
+                        matchResults.forEach((result: any) => {
+                          if (!resolvedStatuses.includes(result.status)) return;
+                          const bIdx = result.battleIndex;
+                          let winUid: string | null = null;
+                          if (result.winner === 'A' && teamAUids[bIdx]) {
+                            winUid = teamAUids[bIdx];
+                          } else if (result.winner === 'B' && teamBUids[bIdx]) {
+                            winUid = teamBUids[bIdx];
+                          }
+                          if (winUid) {
+                            scoreUpdates[`playerScores.${winUid}`] = admin.firestore.FieldValue.increment(1);
+                          }
+                        });
+                      }
+
+                      await matchupRef.update({ matchupStructure: structure, ...scoreUpdates });
+                      console.log(`  🏆 Reported winner + scores to matchup ${freshData.matchupId} R${roundIdx} M${matchIdx}`);
+                    }
+                  }
+                }
+              } catch (matchupErr) {
+                console.error(`  ⚠️ Failed to update matchup bracket:`, matchupErr);
+              }
+            }
           }
         } else {
           // Update timestamp to throttle retries

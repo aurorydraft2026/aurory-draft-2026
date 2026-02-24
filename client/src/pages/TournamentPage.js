@@ -5,6 +5,7 @@ import {
   collection,
   doc,
   setDoc,
+  getDoc,
   onSnapshot,
   updateDoc,
   serverTimestamp,
@@ -652,6 +653,96 @@ function TournamentPage() {
   // PRODUCTION VERSION of handleVerifyMatch (no debug logging)
   // This ensures matchPlayers is ordered correctly: [Leader, Member1, Member2]
 
+  // ─── Reusable: Update matchup bracket after winner is determined ───
+  const updateMatchupBracket = async (overallWinner, freshMatchResults) => {
+    if (!draftState.matchupId || draftState.matchRoundIndex === undefined || draftState.matchMatchIndex === undefined) return;
+    if (!overallWinner || overallWinner === 'draw' || overallWinner === 'both_disqualified') return;
+
+    try {
+      const matchupRef = doc(db, 'matchups', draftState.matchupId);
+      const matchupSnap = await getDoc(matchupRef);
+      if (!matchupSnap.exists()) return;
+
+      const matchupData = matchupSnap.data();
+      const structure = JSON.parse(JSON.stringify(matchupData.matchupStructure || []));
+      const roundIdx = draftState.matchRoundIndex;
+      const matchIdx = draftState.matchMatchIndex;
+
+      if (!structure[roundIdx]?.matches?.[matchIdx]) return;
+
+      const bracketMatch = structure[roundIdx].matches[matchIdx];
+      const winnerParticipant = overallWinner === 'A' ? bracketMatch.player1 : bracketMatch.player2;
+      const winnerId = matchupData.format === 'teams'
+        ? winnerParticipant?.leader
+        : (typeof winnerParticipant === 'object' ? winnerParticipant.uid : winnerParticipant);
+
+      if (!winnerId) return;
+
+      bracketMatch.winner = winnerId;
+
+      // For single elimination, propagate winner to next round
+      if (matchupData.tournamentType === 'single_elimination' && roundIdx < structure.length - 1) {
+        const nextRound = structure[roundIdx + 1];
+        const nextMatchIndex = Math.floor(matchIdx / 2);
+        const isFirstInPair = matchIdx % 2 === 0;
+        if (nextRound?.matches?.[nextMatchIndex]) {
+          if (isFirstInPair) {
+            nextRound.matches[nextMatchIndex].player1 = winnerParticipant;
+          } else {
+            nextRound.matches[nextMatchIndex].player2 = winnerParticipant;
+          }
+        }
+      }
+
+      // ─── Update player scores ───
+      // Use preAssignedTeams UIDs (which match matchup participant UIDs)
+      // NOT matchPlayers UIDs (which are draft-internal)
+      const scoreUpdates = {};
+      const is1v1 = draftState.draftType === 'mode3' || draftState.draftType === 'mode4';
+      const matchResults = freshMatchResults || draftState.matchResults || [];
+      const resolvedStatuses = ['verified', 'conceded', 'disqualified_A', 'disqualified_B', 'both_disqualified'];
+      const team1 = draftState.preAssignedTeams?.team1;
+      const team2 = draftState.preAssignedTeams?.team2;
+
+      if (is1v1) {
+        // 1v1: winner gets +1 point
+        const winnerUid = overallWinner === 'A' ? team1?.leader : team2?.leader;
+        if (winnerUid) {
+          scoreUpdates[`playerScores.${winnerUid}`] = increment(1);
+        }
+      } else if (team1 && team2) {
+        // 3v3: map battle index to preAssignedTeams UIDs
+        // Index 0 = leader, 1 = member1, 2 = member2
+        const teamAUids = [team1.leader, team1.member1, team1.member2].filter(Boolean);
+        const teamBUids = [team2.leader, team2.member1, team2.member2].filter(Boolean);
+
+        matchResults.forEach(result => {
+          if (!resolvedStatuses.includes(result.status)) return;
+          const bIdx = result.battleIndex;
+          let winnerUid = null;
+
+          if (result.winner === 'A' && teamAUids[bIdx]) {
+            winnerUid = teamAUids[bIdx];
+          } else if (result.winner === 'B' && teamBUids[bIdx]) {
+            winnerUid = teamBUids[bIdx];
+          }
+
+          if (winnerUid) {
+            scoreUpdates[`playerScores.${winnerUid}`] = increment(1);
+          }
+        });
+      }
+
+      await updateDoc(matchupRef, {
+        matchupStructure: structure,
+        ...scoreUpdates
+      });
+      console.log('🏆 Updated matchup bracket with winner and player scores');
+    } catch (matchupErr) {
+      console.error('Failed to update matchup bracket:', matchupErr);
+    }
+  };
+
   // Handle Concede
   const handleConcede = async (teamToConcede) => {
     if (!user) return;
@@ -704,6 +795,14 @@ function TournamentPage() {
       });
 
       showAlert('Match Ended', `${teamLabel} has conceded. ${opponentLabel} wins!`);
+
+      // Update matchup bracket — pass the concede result as fresh matchResults
+      await updateMatchupBracket(winner, [{
+        battleIndex: 0,
+        status: 'conceded',
+        winner: winner,
+        concededBy: teamToConcede
+      }]);
     } catch (error) {
       console.error('Error conceding match:', error);
       showAlert('Error', 'Failed to concede match: ' + error.message);
@@ -810,6 +909,10 @@ function TournamentPage() {
         const teamBWins = resolvedResults.filter(r => r.winner === 'B').length;
         const overallLabel = teamAWins > teamBWins ? getTeamDisplayName('A') : teamBWins > teamAWins ? getTeamDisplayName('B') : 'Draw';
         showAlert('Battle Conceded', `Battle ${battleIndex + 1} conceded. All battles resolved — Winner: ${overallLabel} (${teamAWins}-${teamBWins})`);
+
+        // Update matchup bracket — pass fresh currentResults
+        const overallWinner = teamAWins > teamBWins ? 'A' : teamBWins > teamAWins ? 'B' : 'draw';
+        await updateMatchupBracket(overallWinner, currentResults);
       } else {
         showAlert('Battle Conceded', `Battle ${battleIndex + 1}: ${concedePlayerName} conceded. ${winnerPlayerName} wins this battle.`);
       }
@@ -869,6 +972,10 @@ function TournamentPage() {
             ? getTeamDisplayName('B')
             : 'Draw';
         showAlert('✅ Matches Verified!', `All battles verified. Winner: ${winnerLabel}`);
+
+        // Update matchup bracket
+        // Update matchup bracket
+        await updateMatchupBracket(verificationData.overallWinner, verificationData.results);
       } else {
         const verified = verificationData.results.filter(r => r.status !== 'not_found' && r.status !== 'error').length;
         const total = verificationData.results.length;
