@@ -7,11 +7,11 @@
 // All 27 Amiko IDs (must stay in sync with client amikos.js)
 export const AMIKO_IDS: string[] = [
   'axobubble', 'beeblock', 'bitebit', 'block-choy', 'bloomtail',
-  'chocomint', 'chocorex', 'cybertooth', 'dinobit', 'dinotusk',
-  'dipking', 'dodorex', 'dracurve', 'ghouliath', 'hollowoo',
-  'keybab', 'number-9', 'oogrock', 'raccoin', 'shiba-ignite',
-  'shibark', 'tokoma', 'unika', 'unikirin', 'walpuff',
-  'wassie', 'zzoo'
+  'bubble-popper', 'chocomint', 'chocorex', 'clicktin', 'cybertooth',
+  'dinobit', 'dinotusk', 'dipking', 'dodorex', 'dracurve', 'ghouliath',
+  'hollowoo', 'keybab', 'logator', 'lucky', 'number-9', 'oogrock',
+  'pandata', 'raccoin', 'shiba-ignite', 'shibark', 'tokoma', 'unika',
+  'unikirin', 'walpuff', 'wassie', 'znix', 'zzoo'
 ];
 
 // Pick order definitions (mirrors client-side getPICK_ORDER)

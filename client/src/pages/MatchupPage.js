@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
 import { doc, onSnapshot, updateDoc, setDoc, arrayUnion, arrayRemove, deleteDoc, collection, getDocs, query, where, documentId, serverTimestamp } from 'firebase/firestore';
@@ -18,15 +18,8 @@ const MatchupPage = () => {
     const [user, setUser] = useState(null);
     const [profile, setProfile] = useState(null);
     const [isAdmin, setIsAdmin] = useState(false);
-    const [zoom, setZoom] = useState(1);
     const [showJoinTeamModal, setShowJoinTeamModal] = useState(false);
     const [registeredUsers, setRegisteredUsers] = useState([]);
-    const viewportRef = useRef(null);
-    const [isDragging, setIsDragging] = useState(false);
-    const [startX, setStartX] = useState(0);
-    const [startY, setStartY] = useState(0);
-    const [scrollLeft, setScrollLeft] = useState(0);
-    const [scrollTop, setScrollTop] = useState(0);
     const [activeTab, setActiveTab] = useState('matches');
     const [expandedRounds, setExpandedRounds] = useState({});
 
@@ -469,67 +462,7 @@ const MatchupPage = () => {
         }
     };
 
-    const handleZoom = (direction) => {
-        setZoom(prev => {
-            if (direction === 'in') return Math.min(prev + 0.1, 1.5);
-            if (direction === 'out') return Math.max(prev - 0.1, 0.5);
-            return 1;
-        });
-    };
 
-    const handleMouseDown = (e) => {
-        if (!viewportRef.current) return;
-        setIsDragging(true);
-        setStartX(e.pageX - viewportRef.current.offsetLeft);
-        setStartY(e.pageY - viewportRef.current.offsetTop);
-        setScrollLeft(viewportRef.current.scrollLeft);
-        setScrollTop(viewportRef.current.scrollTop);
-    };
-
-    const handleMouseLeave = () => {
-        setIsDragging(false);
-    };
-
-    const handleMouseUp = () => {
-        setIsDragging(false);
-    };
-
-    const handleMouseMove = (e) => {
-        if (!isDragging || !viewportRef.current) return;
-        e.preventDefault();
-        const x = e.pageX - viewportRef.current.offsetLeft;
-        const y = e.pageY - viewportRef.current.offsetTop;
-        const walkX = (x - startX) * 2;
-        const walkY = (y - startY) * 2;
-        viewportRef.current.scrollLeft = scrollLeft - walkX;
-        viewportRef.current.scrollTop = scrollTop - walkY;
-    };
-
-    // Touch handlers for mobile bracket panning
-    const handleTouchStart = (e) => {
-        if (!viewportRef.current) return;
-        const touch = e.touches[0];
-        setIsDragging(true);
-        setStartX(touch.pageX - viewportRef.current.offsetLeft);
-        setStartY(touch.pageY - viewportRef.current.offsetTop);
-        setScrollLeft(viewportRef.current.scrollLeft);
-        setScrollTop(viewportRef.current.scrollTop);
-    };
-
-    const handleTouchMove = (e) => {
-        if (!isDragging || !viewportRef.current) return;
-        const touch = e.touches[0];
-        const x = touch.pageX - viewportRef.current.offsetLeft;
-        const y = touch.pageY - viewportRef.current.offsetTop;
-        const walkX = (x - startX) * 1.5;
-        const walkY = (y - startY) * 1.5;
-        viewportRef.current.scrollLeft = scrollLeft - walkX;
-        viewportRef.current.scrollTop = scrollTop - walkY;
-    };
-
-    const handleTouchEnd = () => {
-        setIsDragging(false);
-    };
 
     const getUserById = (id) => {
         if (!id) return null;
@@ -543,54 +476,7 @@ const MatchupPage = () => {
         return { uid: id, displayName: id.startsWith('mock-') ? 'Mock Player' : 'Unknown' };
     };
 
-    const renderMatch = (match, rIndex, mIndex, isFinalRound) => {
-        const p1 = matchup.format === 'teams' ? match.player1 : getUserById(match.player1);
-        const p2 = matchup.format === 'teams' ? match.player2 : getUserById(match.player2);
-        const winner = match.winner;
 
-        const getDisplayName = (p) => {
-            if (!p) return 'TBD';
-            if (matchup.format === 'teams') return p.teamName;
-            return p.auroryPlayerName || p.displayName;
-        };
-
-        const getUID = (p) => {
-            if (!p) return null;
-            return matchup.format === 'teams' ? p.leader : (p.uid || p);
-        };
-
-        return (
-            <div key={match.id} className={`bracket-match ${match.isBye ? 'is-bye' : ''} ${isFinalRound ? 'finals' : ''}`}>
-                {isFinalRound && <div className="trophy-icon-mini">🏆</div>}
-                <div className={`match-player top ${winner && winner === getUID(p1) ? 'winner' : ''}`}>
-                    <div className="player-info">
-                        <span className="player-name">{getDisplayName(p1)}</span>
-                    </div>
-                    {isAdmin && p1 && !winner && (
-                        <button className="win-btn" onClick={() => handleReportWinner(rIndex, mIndex, getUID(p1))}>W</button>
-                    )}
-                </div>
-                <div className="vs-label">VS</div>
-                <div className={`match-player bottom ${winner && winner === getUID(p2) ? 'winner' : ''}`}>
-                    <div className="player-info">
-                        <span className="player-name">{getDisplayName(p2)}</span>
-                    </div>
-                    {isAdmin && p2 && !winner && (
-                        <button className="win-btn" onClick={() => handleReportWinner(rIndex, mIndex, getUID(p2))}>W</button>
-                    )}
-                </div>
-                {/* Draft integration */}
-                {!match.isBye && p1 && p2 && !winner && !match.draftId && isAdmin && (
-                    <button className="create-draft-btn" onClick={() => handleCreateDraftFromMatch(rIndex, mIndex)}>⚔️ Create Draft</button>
-                )}
-                {match.draftId && (
-                    <button className="view-draft-btn" onClick={() => navigate(`/tournament/${match.draftId}`)}>
-                        {winner ? '📋 View Draft' : '🎮 Open Draft'}
-                    </button>
-                )}
-            </div>
-        );
-    };
 
     if (loading) return (
         <div className="tournament-page">
@@ -876,55 +762,103 @@ const MatchupPage = () => {
                     <div className="tab-content-panel">
                         <div className="tab-content-header">
                             <h3>{matchup.tournamentType === 'single_elimination' ? '🏆 Bracket' : '🔄 Round Robin Fixtures'}</h3>
-                            {matchup.tournamentType === 'single_elimination' && (
-                                <div className="zoom-controls">
-                                    <button className="control-btn" onClick={() => handleZoom('out')}>-</button>
-                                    <span className="zoom-value">{Math.round(zoom * 100)}%</span>
-                                    <button className="control-btn" onClick={() => handleZoom('in')}>+</button>
-                                    <button className="control-btn reset" onClick={() => handleZoom('reset')}>Reset</button>
-                                </div>
-                            )}
                         </div>
 
                         {matchup.tournamentType === 'single_elimination' ? (
-                            <div
-                                className={`bracket-viewport ${isDragging ? 'dragging' : ''}`}
-                                ref={viewportRef}
-                                onMouseDown={handleMouseDown}
-                                onMouseLeave={handleMouseLeave}
-                                onMouseUp={handleMouseUp}
-                                onMouseMove={handleMouseMove}
-                                onTouchStart={handleTouchStart}
-                                onTouchMove={handleTouchMove}
-                                onTouchEnd={handleTouchEnd}
-                            >
-                                <div className="bracket-container" style={{ transform: `scale(${zoom})`, transformOrigin: 'left top' }}>
-                                    {matchup.matchupStructure.map((round, rIndex) => (
-                                        <div key={round.id} className="bracket-round">
-                                            <div className="round-title">{round.title}</div>
-                                            <div className="round-matches">
-                                                {(() => {
-                                                    const matches = round.matches;
-                                                    const isFinalRound = rIndex === matchup.matchupStructure.length - 1;
-                                                    if (isFinalRound) return matches.map((match, mIndex) => renderMatch(match, rIndex, mIndex, true));
+                            /* ── Single Elimination: Stacked Round Cards ── */
+                            <div className="rr-accordion se-bracket-accordion">
+                                {matchup.matchupStructure.map((round, rIndex) => {
+                                    const stats = roundStats(round);
+                                    const expanded = isRoundExpanded(round.id);
+                                    const isFinalRound = rIndex === matchup.matchupStructure.length - 1;
 
-                                                    const pairs = [];
-                                                    for (let i = 0; i < matches.length; i += 2) {
-                                                        pairs.push(matches.slice(i, i + 2));
-                                                    }
-                                                    return pairs.map((pair, pIndex) => (
-                                                        <div key={`pair-${rIndex}-${pIndex}`} className="match-pair-group">
-                                                            {pair.map((match, mInPairIndex) => {
-                                                                const mIndex = pIndex * 2 + mInPairIndex;
-                                                                return renderMatch(match, rIndex, mIndex, false);
-                                                            })}
-                                                        </div>
-                                                    ));
-                                                })()}
-                                            </div>
+                                    // Determine round status for visual indicators
+                                    const isCompleted = stats.resolved === stats.total;
+                                    const hasUnresolved = stats.resolved < stats.total;
+                                    const isPreviousComplete = rIndex === 0 || (() => {
+                                        const prevStats = roundStats(matchup.matchupStructure[rIndex - 1]);
+                                        return prevStats.resolved === prevStats.total;
+                                    })();
+                                    const isActive = hasUnresolved && isPreviousComplete;
+
+                                    return (
+                                        <div key={round.id} className={`rr-round-accordion se-round ${expanded ? 'expanded' : ''} ${isFinalRound ? 'se-finals' : ''} ${isActive ? 'se-active' : ''} ${isCompleted ? 'se-completed' : ''}`}>
+                                            <button className="rr-round-header se-round-header" onClick={() => toggleRound(round.id)}>
+                                                <div className="rr-round-title-group">
+                                                    <span className="rr-round-chevron">{expanded ? '▾' : '▸'}</span>
+                                                    <span className="se-round-icon">{isFinalRound ? '🏆' : isCompleted ? '✅' : isActive ? '⚔️' : '⏳'}</span>
+                                                    <span className="rr-round-label">{round.title}</span>
+                                                </div>
+                                                <span className={`rr-round-badge ${isCompleted ? 'complete' : ''}`}>
+                                                    {stats.resolved}/{stats.total}
+                                                </span>
+                                            </button>
+
+                                            {expanded && (
+                                                <div className="rr-round-body se-round-body">
+                                                    {round.matches.map((match, mIndex) => {
+                                                        const p1 = matchup.format === 'teams' ? match.player1 : getUserById(match.player1);
+                                                        const p2 = matchup.format === 'teams' ? match.player2 : getUserById(match.player2);
+                                                        const winner = match.winner;
+
+                                                        const getName = (p) => {
+                                                            if (!p) return 'TBD';
+                                                            if (matchup.format === 'teams') return p.teamName;
+                                                            return p.auroryPlayerName || p.displayName || 'Unknown';
+                                                        };
+                                                        const getAvatar = (p) => {
+                                                            if (!p) return 'https://cdn.discordapp.com/embed/avatars/0.png';
+                                                            if (matchup.format === 'teams') {
+                                                                const leader = getUserById(p.leader);
+                                                                return p.banner || leader?.auroryProfilePicture || 'https://cdn.discordapp.com/embed/avatars/0.png';
+                                                            }
+                                                            return p.auroryProfilePicture || p.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png';
+                                                        };
+                                                        const getUID = (p) => {
+                                                            if (!p) return null;
+                                                            return matchup.format === 'teams' ? p.leader : (p.uid || p);
+                                                        };
+
+                                                        return (
+                                                            <div key={match.id} className={`rr-compact-row se-match-row ${winner ? 'resolved' : ''} ${match.isBye ? 'is-bye' : ''}`}>
+                                                                <span className="rr-row-id">M{mIndex + 1}</span>
+
+                                                                <div className={`rr-row-player ${winner && winner === getUID(p1) ? 'winner' : ''} ${winner && winner !== getUID(p1) ? 'loser' : ''}`}>
+                                                                    <img className="rr-row-avatar" src={getAvatar(p1)} alt="" />
+                                                                    <span className="rr-row-name">{getName(p1)}</span>
+                                                                    {isAdmin && p1 && !winner && (
+                                                                        <button className="rr-row-win-btn" onClick={() => handleReportWinner(rIndex, mIndex, getUID(p1))} title="Report as winner">✓</button>
+                                                                    )}
+                                                                </div>
+
+                                                                <span className="rr-row-vs">vs</span>
+
+                                                                <div className={`rr-row-player ${winner && winner === getUID(p2) ? 'winner' : ''} ${winner && winner !== getUID(p2) ? 'loser' : ''}`}>
+                                                                    <img className="rr-row-avatar" src={getAvatar(p2)} alt="" />
+                                                                    <span className="rr-row-name">{getName(p2)}</span>
+                                                                    {isAdmin && p2 && !winner && (
+                                                                        <button className="rr-row-win-btn" onClick={() => handleReportWinner(rIndex, mIndex, getUID(p2))} title="Report as winner">✓</button>
+                                                                    )}
+                                                                </div>
+
+                                                                <div className="rr-row-actions">
+                                                                    {p1 && p2 && !winner && !match.draftId && isAdmin && (
+                                                                        <button className="rr-row-draft-btn create" onClick={() => handleCreateDraftFromMatch(rIndex, mIndex)} title="Create Draft">⚔️</button>
+                                                                    )}
+                                                                    {match.draftId && (
+                                                                        <button className="rr-row-draft-btn view" onClick={() => navigate(`/tournament/${match.draftId}`)} title={winner ? 'View Draft' : 'Open Draft'}>
+                                                                            {winner ? '📋' : '🎮'}
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
-                                    ))}
-                                </div>
+                                    );
+                                })}
                             </div>
                         ) : (
                             /* ── Round Robin: Collapsible Rounds with Compact Rows ── */

@@ -143,6 +143,21 @@ export const AMIKOS = [
     maxWeight: 50.1
   },
   {
+    id: 'bubble-popper',
+    name: 'Bubble Popper',
+    image: '/amikos/bubble-popper.png',
+    apiId: 'id_Bubble Popper_Basic',
+    index: 26,
+    element: 'Water',
+    seekerRank: 'SeekTier_1',
+    location: 'meadows',
+    locationStage: 1,
+    minHeight: null,
+    maxHeight: null,
+    minWeight: null,
+    maxWeight: null
+  },
+  {
     id: 'chocomint',
     name: 'Chocomint',
     image: '/amikos/chocomint.png',
@@ -171,6 +186,21 @@ export const AMIKOS = [
     maxHeight: 43.6,
     minWeight: 198.1,
     maxWeight: 203.6
+  },
+  {
+    id: 'clicktin',
+    name: 'Clicktin',
+    image: '/amikos/clicktin.png',
+    apiId: 'id_Clicktin_Basic',
+    index: 29,
+    element: 'Thunder',
+    seekerRank: 'SeekTier_3',
+    location: 'swamp',
+    locationStage: 3,
+    minHeight: null,
+    maxHeight: null,
+    minWeight: null,
+    maxWeight: null
   },
   {
     id: 'cybertooth',
@@ -311,6 +341,36 @@ export const AMIKOS = [
     maxWeight: 36.2
   },
   {
+    id: 'logator',
+    name: 'Logator',
+    image: '/amikos/logator.png',
+    apiId: 'id_Logator_Basic',
+    index: 28,
+    element: 'Plant',
+    seekerRank: 'SeekTier_1',
+    location: 'swamp',
+    locationStage: 1,
+    minHeight: null,
+    maxHeight: null,
+    minWeight: null,
+    maxWeight: null
+  },
+  {
+    id: 'lucky',
+    name: 'Lucky',
+    image: '/amikos/lucky.png',
+    apiId: 'id_Lucky_Basic',
+    index: 31,
+    element: 'Wind',
+    seekerRank: 'SeekTier_2',
+    location: 'desert',
+    locationStage: 1,
+    minHeight: null,
+    maxHeight: null,
+    minWeight: null,
+    maxWeight: null
+  },
+  {
     id: 'number-9',
     name: 'Number 9',
     image: '/amikos/number-9.png',
@@ -339,6 +399,21 @@ export const AMIKOS = [
     maxHeight: 24.7,
     minWeight: 100,
     maxWeight: 107.7
+  },
+  {
+    id: 'pandata',
+    name: 'Pandata',
+    image: '/amikos/pandata.png',
+    apiId: 'id_Pandata_Basic',
+    index: 30,
+    element: 'Ground',
+    seekerRank: 'SeekTier_3',
+    location: 'desert',
+    locationStage: 1,
+    minHeight: null,
+    maxHeight: null,
+    minWeight: null,
+    maxWeight: null
   },
   {
     id: 'raccoin',
@@ -459,6 +534,21 @@ export const AMIKOS = [
     maxHeight: 26.1,
     minWeight: 66.6,
     maxWeight: 69.9
+  },
+  {
+    id: 'znix',
+    name: 'Znix',
+    image: '/amikos/znix.png',
+    apiId: 'id_Znix_Basic',
+    index: 34,
+    element: 'Fire',
+    seekerRank: 'SeekTier_1',
+    location: 'desert',
+    locationStage: 1,
+    minHeight: null,
+    maxHeight: null,
+    minWeight: null,
+    maxWeight: null
   },
   {
     id: 'zzoo',

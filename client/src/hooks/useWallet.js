@@ -81,13 +81,17 @@ export const useWallet = (user) => {
             return;
         }
 
+        const taxRate = 0.05;
+        const netAmount = amount * (1 - taxRate);
+
         logActivity({
             user,
             type: 'WALLET',
             action: 'withdraw_request',
             metadata: {
                 amount: amount,
-                address: withdrawAddress
+                address: withdrawAddress,
+                calculation: `${amount} - 5% tax = ${netAmount.toFixed(4)} (Available withdrawal)`
             }
         });
 
@@ -120,6 +124,10 @@ export const useWallet = (user) => {
                     throw new Error('Insufficient balance');
                 }
 
+                const taxRate = 0.05;
+                const taxAmount = Math.floor(amountInSmallestUnit * taxRate);
+                const netAmount = amountInSmallestUnit - taxAmount;
+
                 transaction.update(walletRef, {
                     balance: currentBalance - amountInSmallestUnit,
                     updatedAt: serverTimestamp()
@@ -130,7 +138,9 @@ export const useWallet = (user) => {
                     userId: user.uid,
                     userEmail: user.email,
                     userName: user.displayName,
-                    amount: amountInSmallestUnit,
+                    amount: amountInSmallestUnit, // Gross amount deducted
+                    taxAmount: taxAmount,
+                    netAmount: netAmount,         // Amount user will actually receive
                     walletAddress: withdrawAddress,
                     status: 'pending',
                     createdAt: serverTimestamp()
@@ -138,9 +148,15 @@ export const useWallet = (user) => {
             });
 
             const txRef = collection(db, 'wallets', user.uid, 'transactions');
+            const taxRate = 0.05;
+            const taxAmount = Math.floor(amountInSmallestUnit * taxRate);
+            const netAmount = amountInSmallestUnit - taxAmount;
+
             await addDoc(txRef, {
                 type: 'withdrawal_pending',
                 amount: amountInSmallestUnit,
+                taxAmount: taxAmount,
+                netAmount: netAmount,
                 walletAddress: withdrawAddress,
                 status: 'pending',
                 timestamp: serverTimestamp()

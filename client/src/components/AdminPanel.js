@@ -960,7 +960,7 @@ function AdminPanel() {
         await createNotification(withdrawal.userId, {
           type: 'withdrawal',
           title: 'Withdrawal Approved',
-          message: `Your withdrawal of ${formatAuryAmount(withdrawal.amount)} AURY has been approved.`,
+          message: `Your withdrawal has been approved. You should receive ${formatAuryAmount(withdrawal.netAmount || (withdrawal.amount * 0.95))} AURY (after 5% tax).`,
           link: '#'
         });
 
@@ -1005,7 +1005,7 @@ function AdminPanel() {
         await createNotification(withdrawal.userId, {
           type: 'withdrawal',
           title: 'Withdrawal Rejected',
-          message: `Your withdrawal of ${formatAuryAmount(withdrawal.amount)} AURY was rejected. Balance has been refunded.`,
+          message: `Your withdrawal of ${formatAuryAmount(withdrawal.amount)} AURY (before tax) was rejected. Balance has been refunded.`,
           link: '#'
         });
       }
@@ -2223,11 +2223,19 @@ function AdminPanel() {
 
                       <div className="withdrawal-details">
                         <div className="detail-row">
-                          <span className="label">Amount:</span>
+                          <span className="label">Requested (Gross):</span>
                           <span className="value amount">{formatAuryAmount(withdrawal.amount)} AURY</span>
                         </div>
+                        <div className="detail-row tax-highlight">
+                          <span className="label">Tax (5%):</span>
+                          <span className="value">-{formatAuryAmount(withdrawal.taxAmount || (withdrawal.amount * 0.05))} AURY</span>
+                        </div>
+                        <div className="detail-row net-highlight">
+                          <span className="label">SEND TO USER (Net):</span>
+                          <span className="value received">{formatAuryAmount(withdrawal.netAmount || (withdrawal.amount * 0.95))} AURY</span>
+                        </div>
                         <div className="detail-row">
-                          <span className="label">Send to:</span>
+                          <span className="label">Wallet Address:</span>
                           <span className="value mono">{withdrawal.walletAddress}</span>
                         </div>
                         <div className="detail-row">
