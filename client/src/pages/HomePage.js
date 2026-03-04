@@ -20,6 +20,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useNotifications } from '../hooks/useNotifications';
 import { useAppContent } from '../hooks/useAppContent';
 import MatchupsSection from '../components/MatchupsSection';
+import MajorAnnouncementModal from '../components/MajorAnnouncementModal';
 import './HomePage.css';
 
 // Your AURY deposit wallet address (replace with your actual address)
@@ -115,6 +116,8 @@ function HomePage() {
     matchHistoryFilter, setMatchHistoryFilter,
     expandedMatch, setExpandedMatch,
     leaderboardMode, setLeaderboardMode,
+    selectedMonth, setSelectedMonth,
+    availableMonths,
     topPlayers
   } = useLeaderboard(registeredUsers);
 
@@ -148,6 +151,10 @@ function HomePage() {
     markAllAsRead,
     renderNotificationPanelContent
   } = useNotifications(user, navigate, formatTransactionTime);
+
+  // Major Announcement State
+  const [majorAnnouncement, setMajorAnnouncement] = useState(null);
+  const [showMajorAnnouncement, setShowMajorAnnouncement] = useState(false);
 
   // Listen for authentication state changes and user Firestore data
   useEffect(() => {
@@ -224,6 +231,29 @@ function HomePage() {
       });
 
       setTournaments(tournamentList);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Major Announcement Fetch & Logic
+  useEffect(() => {
+    const docRef = doc(db, 'settings', 'major_announcement');
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setMajorAnnouncement(data);
+
+        // Logic to show: enabled AND not dismissed in current session
+        const isDismissed = sessionStorage.getItem('major_announcement_dismissed');
+        if (data.enabled && !isDismissed) {
+          // Delay slightly to not overwhelm on initial load
+          const timer = setTimeout(() => setShowMajorAnnouncement(true), 1500);
+          return () => clearTimeout(timer);
+        } else {
+          setShowMajorAnnouncement(false);
+        }
+      }
     });
 
     return () => unsubscribe();
@@ -1102,9 +1132,22 @@ function HomePage() {
             <div className="top-players-section">
               <div className="top-players-header">
                 <h3>🏆 Best Players</h3>
-                <span className="top-players-month">
-                  {new Date().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-                </span>
+                <select
+                  className="leaderboard-month-select"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                >
+                  {availableMonths.map(monthKey => {
+                    const [year, month] = monthKey.split('-');
+                    const date = new Date(year, month - 1);
+                    const label = date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+                    return (
+                      <option key={monthKey} value={monthKey}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
                 <select
                   className="leaderboard-mode-select"
                   value={leaderboardMode}
@@ -2450,6 +2493,16 @@ function HomePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Major Announcement Modal */}
+      {showMajorAnnouncement && majorAnnouncement && (
+        <MajorAnnouncementModal
+          title={majorAnnouncement.title}
+          content={majorAnnouncement.content}
+          link={majorAnnouncement.link}
+          onClose={() => setShowMajorAnnouncement(false)}
+        />
       )}
     </div >
   );

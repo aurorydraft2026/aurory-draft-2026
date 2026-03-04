@@ -25,6 +25,16 @@ const Mode1Draft = ({
     } = utils;
 
     const timerExpired = draftState.status === 'active' && currentTimerDisplay === '00:00:00';
+    const timerNotStarted = draftState.manualTimerStart && !draftState.timerStarted;
+
+    // Ban phase helpers
+    const isBanPhase = draftState.triadBanPhase === true;
+    const isCaptainA = user?.uid === draftState.teamALeader;
+    const isCaptainB = user?.uid === draftState.teamBLeader;
+    const isCaptain = isCaptainA || isCaptainB;
+    const myBanKey = isCaptainA ? 'triadBanA' : isCaptainB ? 'triadBanB' : null;
+    const myBanSubmitted = myBanKey && draftState[myBanKey] !== null && draftState[myBanKey] !== undefined;
+    const myBannedAmiko = myBanSubmitted ? AMIKOS.find(a => a.id === draftState[myBanKey]) : null;
 
     const renderPlayerSection = (team, playerIndex, picks) => {
         const leader = getTeamLeader(team);
@@ -49,7 +59,6 @@ const Mode1Draft = ({
                         const visible = isPickVisibleToUser(team, actualIndex);
                         const canRemove = user && draftState.status === 'active' &&
                             !locked &&
-                            !draftState.awaitingLockConfirmation &&
                             !timerExpired &&
                             userPermission === team;
 
@@ -142,6 +151,76 @@ const Mode1Draft = ({
             {renderTeamPanel('A')}
 
             <div className="amiko-selection-wrapper">
+                {/* Ban Phase Message - Above grid, not overlapping */}
+                {isBanPhase && draftState.status === 'active' && (() => {
+                    const { localBanSelection, handleBanConfirm } = handlers;
+                    const selectedAmiko = localBanSelection ? AMIKOS.find(a => a.id === localBanSelection) : null;
+
+                    return (
+                        <div className="ban-phase-banner">
+                            <div className="ban-phase-content">
+                                {myBanSubmitted ? (
+                                    <>
+                                        <span className="ban-phase-icon">✅</span>
+                                        <h3>Ban Confirmed!</h3>
+                                        <p>You banned: <strong>{myBannedAmiko?.name || 'Unknown'}</strong></p>
+                                        <p className="ban-waiting">Waiting for opponent's ban...</p>
+                                    </>
+                                ) : isCaptain ? (
+                                    <>
+                                        <span className="ban-phase-icon">🚫</span>
+                                        <h3>Ban Phase</h3>
+                                        {selectedAmiko ? (
+                                            <div className="ban-selection-preview">
+                                                <div className="ban-preview-card" onClick={() => handlers.setLocalBanSelection(null)}>
+                                                    <img src={selectedAmiko.image} alt={selectedAmiko.name} />
+                                                    <span>{selectedAmiko.name}</span>
+                                                    <div className="ban-preview-x">✕</div>
+                                                </div>
+                                                <div className="ban-confirm-actions">
+                                                    <button className="ban-confirm-btn" onClick={handleBanConfirm}>
+                                                        ✅ Confirm Ban
+                                                    </button>
+                                                    <p className="ban-change-hint">Click another Amiko to change</p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <p>Select 1 Amiko to ban from the grid below.</p>
+                                                <p className="ban-blind-note">This is a blind ban — your opponent cannot see your choice.</p>
+                                            </>
+                                        )}
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="ban-phase-icon">⏳</span>
+                                        <h3>Ban Phase</h3>
+                                        <p>Captains are selecting their bans...</p>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })()}
+
+                {/* Banned Amikos Bar (shown after ban phase resolves) */}
+                {!isBanPhase && (draftState.bannedAmikos || []).length > 0 && (
+                    <div className="mode4-banned-bar">
+                        <span className="banned-bar-label">🚫 Banned ({(draftState.bannedAmikos || []).length}):</span>
+                        <div className="banned-bar-icons">
+                            {(draftState.bannedAmikos || []).map((id, i) => {
+                                const a = AMIKOS.find(x => x.id === id);
+                                return a ? (
+                                    <div key={i} className="banned-bar-item" title={a.name}>
+                                        <img src={a.image} alt={a.name} />
+                                        <div className="banned-bar-x">✕</div>
+                                    </div>
+                                ) : null;
+                            })}
+                        </div>
+                    </div>
+                )}
+
                 {/* Preparation overlay */}
                 {(handlers.showPreparation || draftState.inPreparation) && (userPermission === 'A' || userPermission === 'B') && (
                     <div className="preparation-overlay">
@@ -191,45 +270,42 @@ const Mode1Draft = ({
                     )}
                     {AMIKOS.map((amiko) => {
                         const picked = handlers.isAmikoPicked(amiko.id);
+                        const banned = handlers.isAmikoBanned ? handlers.isAmikoBanned(amiko.id) : false;
                         const pickVisible = picked && handlers.isAmikoPickVisible(amiko.id);
                         const isAdmin = userPermission === 'admin' || handlers.isSuperAdmin(handlers.getUserEmail(user));
                         const currentPhaseConfig = handlers.getPICK_ORDER(draftState.draftType)[draftState.currentPhase];
                         const phaseComplete = currentPhaseConfig && draftState.picksInPhase >= currentPhaseConfig.count;
 
-                        const canPick = user &&
+                        // During ban phase: captains can click any un-picked Amiko
+                        const canBan = isBanPhase && isCaptain && !myBanSubmitted &&
+                            draftState.status === 'active' && !timerExpired && !timerNotStarted;
+
+                        const canPick = !isBanPhase && user &&
                             draftState.status === 'active' &&
                             !pickVisible &&
+                            !banned &&
                             !draftState.awaitingLockConfirmation &&
                             !timerExpired &&
+                            !timerNotStarted &&
                             !phaseComplete &&
                             (userPermission === draftState.currentTeam || isAdmin);
+
+                        const isClickable = canBan || canPick;
 
                         return (
                             <div
                                 key={amiko.id}
                                 data-element={amiko.element}
-                                className={`amiko-card ${pickVisible ? 'picked' : ''} ${canPick ? 'selectable' : ''} ${handlers.hoveredCard === amiko.id ? 'parallax-active' : ''}`}
-                                onClick={() => canPick && handlers.pickAmiko(amiko.id)}
-                                onMouseMove={(e) => canPick && handlers.handleCardMouseMove(e, amiko.id)}
+                                className={`amiko-card ${pickVisible ? 'picked' : ''} ${banned ? 'banned' : ''} ${isClickable ? 'selectable' : ''} ${handlers.hoveredCard === amiko.id ? 'parallax-active' : ''} ${handlers.localBanSelection === amiko.id ? 'ban-selected' : ''}`}
+                                onClick={() => isClickable && handlers.pickAmiko(amiko.id)}
+                                onMouseMove={(e) => isClickable && handlers.handleCardMouseMove(e, amiko.id)}
                                 onMouseLeave={handlers.handleCardMouseLeave}
-                                style={canPick ? handlers.getCardTransform(amiko.id) : {}}
+                                style={isClickable ? handlers.getCardTransform(amiko.id) : {}}
                             >
-                                {/*}
-                                {amiko.element && (
-                                    <div className="amiko-element-badge">
-                                        <utils.ElementBadge element={amiko.element} size="small" />
-                                    </div>
-                                )}
-
-                                {amiko.seekerRank && (
-                                    <div className="amiko-rank-stars">
-                                        <utils.RankStars rank={amiko.seekerRank} size="small" />
-                                    </div>
-                                )}*/}
-
                                 <img src={amiko.image} alt={amiko.name} />
                                 <span className="amiko-name">{amiko.name}</span>
                                 {pickVisible && <div className="picked-overlay">✓</div>}
+                                {banned && <div className="banned-overlay">🚫</div>}
                             </div>
                         );
                     })}

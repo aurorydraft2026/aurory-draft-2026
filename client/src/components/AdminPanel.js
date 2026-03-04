@@ -16,6 +16,7 @@ import {
   limit,
   writeBatch,
   deleteDoc,
+  setDoc,
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { isSuperAdmin } from '../config/admins';
@@ -141,6 +142,78 @@ function AdminPanel() {
   const [newsDescription, setNewsDescription] = useState('');
   const [newsBanner, setNewsBanner] = useState('');
   const [editingNewsId, setEditingNewsId] = useState(null);
+
+  // Major Announcement Campaign state
+  const [announcementEnabled, setAnnouncementEnabled] = useState(false);
+  const [announcementTitle, setAnnouncementTitle] = useState('🎮 Triad Tourney Season 1');
+  const [announcementContent, setAnnouncementContent] = useState(`Official Tournament Rules and Mechanics
+Hosted within the Aurory competitive scene
+
+I. Tournament Overview
+Tournament Name: Triad Tourney Season 1
+Format: Team Tournament
+Team Composition: 3 Players per Team
+Amiko Restriction: Max Rare Amikos
+Battle Format: Draft 1–2–1
+Structure: Round Robin | 2 Groups
+Duration: 3 Weeks
+Start Date: March 9
+Group Stage: March 9–22
+Finals: March 23–29
+
+II. Registration Details
+Entry Fee:
+100 $AURY per player
+300 $AURY per team
+
+Total Prize Pool:
+Accumulated registration pool from Group Stage
+Additional 3,000 $AURY reward pool
+
+III. Tournament Structure
+1. Group Division
+All registered teams will be divided into two separate groups:
+Realm of Frost
+Realm of Fire
+
+Each team will compete against every other team within their assigned group in a Round Robin format.
+
+IV. Valhalla Points System
+Teams compete for Valhalla Points (VP) during the Group Stage.
+3 points per individual player win
+Maximum of 9 points per match (3 players × 3 points)
+1 point per player in case of a draw
+
+V. Match Rules and Draft Mechanics
+1. Coin Toss
+Each match begins with a coin toss to determine which team picks or bans first.
+2. Draft Format
+Draft Structure: 1–2–1
+Ban System: 1 ban per team
+Only the Team Captain may officially submit bans and picks
+
+VI. Advancement to Playoffs
+After all Group Stage matches are completed:
+The Top 2 teams from Realm of Frost
+The Top 2 teams from Realm of Fire
+Will advance to the Semifinals, followed by the Finals.
+
+VII. Registration Pool Allocation
+The accumulated registration pool will be distributed as follows:
+60% distributed across Group Stage matches as bounty rewards per team win
+30% allocated to the next season’s Registration Pool
+10% reserved for gas fees and operational expenses
+
+VIII. $3,000 AURY Reward Pool Distribution
+1,500 $AURY — Champion
+1,000 $AURY — 2nd Place
+250 $AURY — 3rd Place
+250 $AURY — 4th Place
+
+IX. General Conduct
+Teams are expected to follow fair play standards.
+All decisions made by tournament organizers may change throughout the tourney.`);
+  const [announcementLink, setAnnouncementLink] = useState('');
 
   // Handle image upload to Base64
   const handleImageUpload = (e) => {
@@ -503,6 +576,56 @@ function AdminPanel() {
 
     return () => unsubscribe();
   }, [activeTab, selectedWalletHistoryUser, isSuperAdminUser]);
+
+  // Fetch Major Announcement Settings
+  useEffect(() => {
+    if (activeTab !== 'campaigns') return;
+
+    const docRef = doc(db, 'settings', 'major_announcement');
+
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setAnnouncementEnabled(data.enabled || false);
+        setAnnouncementTitle(data.title || '');
+        setAnnouncementContent(data.content || '');
+        setAnnouncementLink(data.link || '');
+      }
+    }, (error) => {
+      console.error('Error fetching announcement settings:', error);
+    });
+
+    return () => unsubscribe();
+  }, [activeTab]);
+
+  const handleSaveAnnouncement = async () => {
+    setProcessingId('save_announcement');
+    try {
+      await setDoc(doc(db, 'settings', 'major_announcement'), {
+        enabled: announcementEnabled,
+        title: announcementTitle,
+        content: announcementContent,
+        link: announcementLink,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.uid,
+        updatedByName: user.displayName || user.email
+      }, { merge: true });
+
+      alert('Announcement settings saved successfully!');
+
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'update_major_announcement',
+        metadata: { enabled: announcementEnabled, title: announcementTitle }
+      });
+    } catch (error) {
+      console.error('Error saving announcement settings:', error);
+      alert('Error saving announcement settings: ' + error.message);
+    } finally {
+      setProcessingId(null);
+    }
+  };
 
   const handleDeleteWalletTransaction = async (txId, userId) => {
     if (!window.confirm('Are you sure you want to delete this transaction record? This will NOT refund or deduct any balance, it only removes the history log.')) return;
@@ -1645,6 +1768,12 @@ function AdminPanel() {
                 onClick={() => setActiveTab('news')}
               >
                 📰 News
+              </button>
+              <button
+                className={`admin-tab ${activeTab === 'campaigns' ? 'active' : ''}`}
+                onClick={() => setActiveTab('campaigns')}
+              >
+                📣 Major Announcement
               </button>
             </div>
           </div>
@@ -3229,6 +3358,85 @@ function AdminPanel() {
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'campaigns' && (
+            <div className="campaigns-section">
+              <div className="section-header">
+                <h2>📣 Marketing Campaigns & Announcements</h2>
+                <p>Manage high-impact popups and special event notifications.</p>
+              </div>
+
+              <div className="announcement-form-card card">
+                <h3>Major Announcement Popup</h3>
+                <div className="form-info-box" style={{ marginBottom: '20px' }}>
+                  <p>This popup will appear for all users on the landing page when enabled. Use it for major tournament announcements or critical updates.</p>
+                </div>
+
+                <div className="campaign-form">
+                  <div className="form-group toggle-group">
+                    <label className="toggle-label">
+                      <span>Enable Popup Announcement</span>
+                      <input
+                        type="checkbox"
+                        checked={announcementEnabled}
+                        onChange={(e) => setAnnouncementEnabled(e.target.checked)}
+                        className="admin-checkbox"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Announcement Title</label>
+                    <input
+                      type="text"
+                      value={announcementTitle}
+                      onChange={(e) => setAnnouncementTitle(e.target.value)}
+                      placeholder="e.g., 🎮 Triad Tourney Season 1"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Announcement Content (Markdown/Rich Text Support)</label>
+                    <textarea
+                      value={announcementContent}
+                      onChange={(e) => setAnnouncementContent(e.target.value)}
+                      placeholder="Enter the full rules or announcement details here..."
+                      style={{ minHeight: '300px' }}
+                      className="form-textarea"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Action Link (Optional - e.g., Join Tournament button)</label>
+                    <input
+                      type="text"
+                      value={announcementLink}
+                      onChange={(e) => setAnnouncementLink(e.target.value)}
+                      placeholder="https://..."
+                    />
+                  </div>
+
+                  <div className="form-actions">
+                    <button
+                      className="save-btn"
+                      onClick={handleSaveAnnouncement}
+                      disabled={processingId === 'save_announcement'}
+                    >
+                      {processingId === 'save_announcement' ? 'Saving...' : '💾 Save Announcement Settings'}
+                    </button>
+                    <button
+                      className="secondary-btn"
+                      onClick={() => {
+                        window.open('/', '_blank');
+                      }}
+                    >
+                      👁️ Preview on Live Site
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

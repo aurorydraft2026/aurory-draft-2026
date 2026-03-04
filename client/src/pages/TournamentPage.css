@@ -1068,12 +1068,23 @@
 
 .remove-icon {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  font-size: 12px;
-  color: var(--danger);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 900;
+  color: #fff;
+  background: rgba(239, 68, 68, 0.55);
+  border-radius: inherit;
   opacity: 0;
-  transition: opacity var(--transition-fast);
+  transition: opacity 0.2s ease;
+  z-index: 3;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
 }
 
 .picked-amiko.removable:hover .remove-icon {
@@ -3336,6 +3347,289 @@
    Server-side validation handles the actual pick prevention */
 
 /* .amiko-card.hidden-picked - CLASS NO LONGER USED */
+
+/* =============================================
+   BAN PHASE BANNER & BANNED AMIKO STYLES
+   ============================================= */
+
+/* Ban phase banner - normal flow, sits above the grid */
+.ban-phase-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+}
+
+/* Legacy overlay kept for backward compatibility */
+.ban-phase-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  pointer-events: none;
+}
+
+.ban-phase-content {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(15, 15, 25, 0.95) 100%);
+  border-radius: var(--radius-lg);
+  padding: 16px 28px;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.2);
+  text-align: center;
+  animation: banPulse 2s ease-in-out infinite;
+  pointer-events: auto;
+  width: 100%;
+  max-width: 500px;
+}
+
+.ban-phase-icon {
+  font-size: 28px;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.ban-phase-content h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.ban-phase-content p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 2px 0;
+}
+
+.ban-blind-note {
+  font-size: 11px !important;
+  color: var(--text-muted) !important;
+  font-style: italic;
+  margin-top: 4px !important;
+}
+
+.ban-waiting {
+  color: var(--accent-gold) !important;
+  font-weight: 500;
+  animation: banWaitPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes banPulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 40px rgba(239, 68, 68, 0.35);
+    border-color: rgba(239, 68, 68, 0.6);
+  }
+}
+
+@keyframes banWaitPulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Ban Selection Preview */
+.ban-selection-preview {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.ban-preview-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(239, 68, 68, 0.15);
+  border: 2px solid rgba(239, 68, 68, 0.5);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  min-width: 70px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ban-preview-card:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.8);
+  transform: scale(1.05);
+}
+
+.ban-preview-card img {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.ban-preview-card span {
+  font-size: 11px;
+  color: var(--text-primary);
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+.ban-preview-x {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  background: var(--danger);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 900;
+  color: #fff;
+}
+
+.ban-confirm-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.ban-confirm-btn {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #fff;
+  border: none;
+  padding: 10px 24px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3);
+}
+
+.ban-confirm-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4);
+  background: linear-gradient(135deg, #16a34a, #15803d);
+}
+
+.ban-confirm-btn:active {
+  transform: translateY(0);
+}
+
+.ban-change-hint {
+  font-size: 10px !important;
+  color: var(--text-muted) !important;
+  font-style: italic;
+}
+
+/* Mobile responsive for ban confirmation */
+@media (max-width: 480px) {
+  .ban-selection-preview {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .ban-preview-card img {
+    width: 40px;
+    height: 40px;
+  }
+
+  .ban-confirm-btn {
+    padding: 8px 18px;
+    font-size: 13px;
+  }
+}
+
+/* Banned Amiko Card */
+.amiko-card.banned {
+  opacity: 0.35;
+  filter: grayscale(0.8);
+  pointer-events: none;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  position: relative;
+}
+
+/* Ban Selected (local selection before confirm) */
+.amiko-card.ban-selected {
+  border-color: rgba(239, 68, 68, 0.8) !important;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.5), inset 0 0 15px rgba(239, 68, 68, 0.15);
+  transform: scale(1.05);
+}
+
+.banned-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 28px;
+  z-index: 5;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+/* Mobile: Ban phase banner */
+@media (max-width: 768px) {
+  .ban-phase-banner {
+    padding: 8px 10px;
+    margin-bottom: 8px;
+  }
+
+  .ban-phase-content {
+    padding: 12px 16px;
+  }
+
+  .ban-phase-icon {
+    font-size: 22px;
+    margin-bottom: 2px;
+  }
+
+  .ban-phase-content h3 {
+    font-size: 14px;
+  }
+
+  .ban-phase-content p {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ban-phase-banner {
+    padding: 6px 8px;
+  }
+
+  .ban-phase-content {
+    padding: 10px 12px;
+  }
+
+  .ban-phase-icon {
+    font-size: 18px;
+  }
+
+  .ban-phase-content h3 {
+    font-size: 13px;
+  }
+
+  .ban-phase-content p {
+    font-size: 11px;
+  }
+}
 
 /* =============================================
    PREPARATION OVERLAY (Inside Amiko Grid)

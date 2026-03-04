@@ -7,6 +7,10 @@ export const useLeaderboard = (registeredUsers) => {
     const [matchHistoryFilter, setMatchHistoryFilter] = useState('all'); // 'all', 'mode1', 'mode2', 'mode3'
     const [expandedMatch, setExpandedMatch] = useState(null); // draftId of expanded match
     const [leaderboardMode, setLeaderboardMode] = useState('individual'); // 'individual' or 'team'
+    const [selectedMonth, setSelectedMonth] = useState(() => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    });
 
     // Fetch match history (verified matches from all tournaments)
     useEffect(() => {
@@ -42,17 +46,18 @@ export const useLeaderboard = (registeredUsers) => {
     const topPlayers = useMemo(() => {
         if (!matchHistory || matchHistory.length === 0) return [];
 
-        const now = new Date();
-        const currentMonth = now.getMonth();
-        const currentYear = now.getFullYear();
+        const [selectedYear, selectedMonthIndex] = selectedMonth.split('-').map(Number);
+        // monthIndex in selectedMonth is 1-based, Date.getMonth() is 0-based
+        const targetMonth = selectedMonthIndex - 1;
+        const targetYear = selectedYear;
 
         const winCounts = {}; // uid -> { wins, losses, displayName, photoURL }
 
         matchHistory.forEach(match => {
-            // Filter to current month only
+            // Filter to selected month
             if (match.verifiedAt) {
                 const matchDate = new Date(match.verifiedAt);
-                if (matchDate.getMonth() !== currentMonth || matchDate.getFullYear() !== currentYear) return;
+                if (matchDate.getMonth() !== targetMonth || matchDate.getFullYear() !== targetYear) return;
             }
 
             if (!match.overallWinner) return;
@@ -155,7 +160,30 @@ export const useLeaderboard = (registeredUsers) => {
         return Object.values(winCounts)
             .sort((a, b) => b.wins - a.wins || a.losses - b.losses)
             .slice(0, 10);
-    }, [matchHistory, registeredUsers, leaderboardMode]);
+    }, [matchHistory, registeredUsers, leaderboardMode, selectedMonth]);
+
+    // Discover available months from match history
+    const availableMonths = useMemo(() => {
+        if (!matchHistory || matchHistory.length === 0) {
+            const now = new Date();
+            return [`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`];
+        }
+
+        const months = new Set();
+        const now = new Date();
+        const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        months.add(currentMonthKey);
+
+        matchHistory.forEach(match => {
+            if (match.verifiedAt) {
+                const date = new Date(match.verifiedAt);
+                const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                months.add(key);
+            }
+        });
+
+        return Array.from(months).sort().reverse();
+    }, [matchHistory]);
 
     return {
         matchHistory,
@@ -163,6 +191,8 @@ export const useLeaderboard = (registeredUsers) => {
         matchHistoryFilter, setMatchHistoryFilter,
         expandedMatch, setExpandedMatch,
         leaderboardMode, setLeaderboardMode,
+        selectedMonth, setSelectedMonth,
+        availableMonths,
         topPlayers
     };
 };

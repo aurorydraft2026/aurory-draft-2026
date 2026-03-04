@@ -676,6 +676,7 @@ export const mapIdToAuroryName = (id) => {
 
 // Mode 1 - Triad Swiss Draft 1 Pick Order
 export const PICK_ORDER_MODE_1 = [
+  { team: 'AB', count: 1, label: '🚫 Ban Phase: Captains ban 1 Amiko each', isBan: true, simultaneous: true },
   { team: 'A', count: 3, label: 'Phase 1: Team A - Player 1 (3 picks)' },
   { team: 'B', count: 6, label: 'Phase 2: Team B - Players 1 & 2 (6 picks)' },
   { team: 'A', count: 6, label: 'Phase 3: Team A - Players 2 & 3 (6 picks)' },
@@ -684,6 +685,7 @@ export const PICK_ORDER_MODE_1 = [
 
 // Mode 2 - Triad Swiss Draft 2 Pick Order
 export const PICK_ORDER_MODE_2 = [
+  { team: 'AB', count: 1, label: '🚫 Ban Phase: Captains ban 1 Amiko each', isBan: true, simultaneous: true },
   { team: 'A', count: 1, label: 'Phase 1: Team A - Player 1 (1 pick)' },
   { team: 'B', count: 2, label: 'Phase 2: Team B - Player 1 (2 picks)' },
   { team: 'A', count: 2, label: 'Phase 3: Team A - Player 1 (2 picks)' },

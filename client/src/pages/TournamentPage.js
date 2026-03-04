@@ -148,6 +148,9 @@ function TournamentPage() {
   // Lock confirmation modal state
   const [showLockConfirmation, setShowLockConfirmation] = useState(false);
 
+  // Ban phase: local selection before confirm
+  const [localBanSelection, setLocalBanSelection] = useState(null);
+
   // App modal state (for alerts and confirmations)
   const [appModal, setAppModal] = useState({
     show: false,
@@ -357,6 +360,11 @@ function TournamentPage() {
     if (draftState.draftType === 'mode3' && draftState.sharedTimer) {
       const elapsed = now - draftState.sharedTimer;
       remaining = Math.max(0, timerDuration - elapsed);
+    } else if (draftState.triadBanPhase && draftState.banTimer) {
+      // Simultaneous ban phase uses dedicated 1-minute ban timer
+      const banDuration = draftState.banTimerDuration || 60000;
+      const elapsed = now - draftState.banTimer;
+      remaining = Math.max(0, banDuration - elapsed);
     } else if (draftState.currentTeam === 'A' && draftState.timerStartA) {
       const elapsed = now - draftState.timerStartA;
       remaining = Math.max(0, timerDuration - elapsed);
@@ -366,7 +374,7 @@ function TournamentPage() {
     }
 
     return formatTime(remaining);
-  }, [draftState.status, draftState.currentTeam, draftState.timerStartA, draftState.timerStartB, draftState.timerDuration, draftState.manualTimerStart, draftState.timerStarted, draftState.inPreparation, showPreparation, draftState.draftType, draftState.sharedTimer]);
+  }, [draftState.status, draftState.currentTeam, draftState.timerStartA, draftState.timerStartB, draftState.timerDuration, draftState.manualTimerStart, draftState.timerStarted, draftState.inPreparation, showPreparation, draftState.draftType, draftState.sharedTimer, draftState.triadBanPhase, draftState.banTimer, draftState.banTimerDuration]);
 
   const [currentTimerDisplay, setCurrentTimerDisplay] = useState('24:00:00');
 
@@ -615,6 +623,20 @@ function TournamentPage() {
           assignmentLeaders: deleteField()
         };
 
+        // 3b. For 3v3 modes (mode1/mode2): start in simultaneous blind ban phase
+        const isTriadMode = currentData.draftType === 'mode1' || currentData.draftType === 'mode2';
+        if (isTriadMode) {
+          updateData.triadBanPhase = true;
+          updateData.triadBanA = null;
+          updateData.triadBanB = null;
+          updateData.bannedAmikos = [];
+          updateData.currentTeam = 'AB';
+          updateData.banTimer = Date.now();
+          updateData.banTimerDuration = 60000; // 1 minute for ban phase
+          // Don't set timerStartA yet — ban phase uses shared banTimer
+          updateData.timerStartA = null;
+        }
+
         // 4. Mode-specific logic
         const modeData = initializeModeSpecificData(currentData.draftType, timerMs, manualTimer, currentData);
         updateData = { ...updateData, ...modeData };
@@ -708,7 +730,7 @@ function TournamentPage() {
         // 1v1: winner gets +1 point
         const winnerUid = overallWinner === 'A' ? team1?.leader : team2?.leader;
         if (winnerUid) {
-          scoreUpdates[`playerScores.${winnerUid}`] = increment(1);
+          scoreUpdates[`playerScores.${winnerUid}`] = increment(3);
         }
       } else if (team1 && team2) {
         // 3v3: map battle index to preAssignedTeams UIDs
@@ -728,7 +750,7 @@ function TournamentPage() {
           }
 
           if (winnerUid) {
-            scoreUpdates[`playerScores.${winnerUid}`] = increment(1);
+            scoreUpdates[`playerScores.${winnerUid}`] = increment(3);
           }
         });
       }
@@ -2577,36 +2599,38 @@ function TournamentPage() {
     }
 
     // MODE 1 Logic - Map pick indices to phases
+    // Phase 0 = Ban phase, so pick phases are 1-4
     if (draftState.draftType === 'mode1') {
       if (team === 'A') {
         if (pickIndex < 3) {
-          return draftState.lockedPhases.includes(0);
-        } else {
-          return draftState.lockedPhases.includes(2);
-        }
-      } else { // Team B
-        if (pickIndex < 6) {
           return draftState.lockedPhases.includes(1);
         } else {
           return draftState.lockedPhases.includes(3);
+        }
+      } else { // Team B
+        if (pickIndex < 6) {
+          return draftState.lockedPhases.includes(2);
+        } else {
+          return draftState.lockedPhases.includes(4);
         }
       }
     }
 
     // MODE 2 Logic - Map pick indices to phases
+    // Phase 0 = Ban phase, so pick phases are 1-10
     if (draftState.draftType === 'mode2') {
       if (team === 'A') {
-        // Team A: pickIndex 0→P0, 1-2→P2, 3-4→P4, 5-6→P6, 7-8→P8
+        // Team A: pickIndex 0→P1, 1-2→P3, 3-4→P5, 5-6→P7, 7-8→P9
         const phaseMap = {
-          0: 0, 1: 2, 2: 2, 3: 4, 4: 4,
-          5: 6, 6: 6, 7: 8, 8: 8
+          0: 1, 1: 3, 2: 3, 3: 5, 4: 5,
+          5: 7, 6: 7, 7: 9, 8: 9
         };
         return draftState.lockedPhases.includes(phaseMap[pickIndex]);
       } else { // Team B
-        // Team B: pickIndex 0-1→P1, 2-3→P3, 4-5→P5, 6-7→P7, 8→P9
+        // Team B: pickIndex 0-1→P2, 2-3→P4, 4-5→P6, 6-7→P8, 8→P10
         const phaseMap = {
-          0: 1, 1: 1, 2: 3, 3: 3, 4: 5,
-          5: 5, 6: 7, 7: 7, 8: 9
+          0: 2, 1: 2, 2: 4, 3: 4, 4: 6,
+          5: 6, 6: 8, 7: 8, 8: 10
         };
         return draftState.lockedPhases.includes(phaseMap[pickIndex]);
       }
@@ -3343,6 +3367,162 @@ function TournamentPage() {
     }
   }, [user, draftState, execute1v1Pick, isTeamLocked, playPickSound, showAlert]);
 
+  // ─── TRIAD BAN: Local selection (select before confirm) ───
+  const handleBanSelect = useCallback((amikoId) => {
+    if (!user || draftState.status !== 'active') return;
+    if (!draftState.triadBanPhase) return;
+
+    const isCaptainA = user.uid === draftState.teamALeader;
+    const isCaptainB = user.uid === draftState.teamBLeader;
+    const isSA = isSuperAdmin(getUserEmail(user));
+
+    if (!isCaptainA && !isCaptainB && !isSA) {
+      showAlert('Captain Only', 'Only team captains can ban Amikos.');
+      return;
+    }
+
+    const banTeam = isCaptainA ? 'A' : isCaptainB ? 'B' : null;
+    let effectiveBanTeam = banTeam;
+    if (isSA && !banTeam) {
+      if (draftState.triadBanA === null) effectiveBanTeam = 'A';
+      else if (draftState.triadBanB === null) effectiveBanTeam = 'B';
+      else return;
+    }
+    if (!effectiveBanTeam) return;
+
+    // Check if already confirmed to Firestore
+    const banKey = effectiveBanTeam === 'A' ? 'triadBanA' : 'triadBanB';
+    if (draftState[banKey] !== null && draftState[banKey] !== undefined) {
+      showAlert('Already Confirmed', 'Your ban is already confirmed.');
+      return;
+    }
+
+    // Toggle: click same to deselect, click different to switch
+    if (localBanSelection === amikoId) {
+      setLocalBanSelection(null);
+    } else {
+      setLocalBanSelection(amikoId);
+      playPickSound();
+    }
+  }, [user, draftState, localBanSelection, playPickSound, showAlert]);
+
+  // ─── TRIAD BAN: Confirm and submit to Firestore ───
+  const handleBanConfirm = useCallback(async () => {
+    if (!user || !localBanSelection || draftState.status !== 'active') return;
+    if (!draftState.triadBanPhase) return;
+
+    const isCaptainA = user.uid === draftState.teamALeader;
+    const isCaptainB = user.uid === draftState.teamBLeader;
+    const isSA = isSuperAdmin(getUserEmail(user));
+
+    let effectiveBanTeam = isCaptainA ? 'A' : isCaptainB ? 'B' : null;
+    if (isSA && !effectiveBanTeam) {
+      if (draftState.triadBanA === null) effectiveBanTeam = 'A';
+      else if (draftState.triadBanB === null) effectiveBanTeam = 'B';
+      else return;
+    }
+    if (!effectiveBanTeam) return;
+
+    const banKey = effectiveBanTeam === 'A' ? 'triadBanA' : 'triadBanB';
+    if (draftState[banKey] !== null && draftState[banKey] !== undefined) return;
+
+    if (isPickingRef.current) return;
+    isPickingRef.current = true;
+
+    try {
+      const draftRef = doc(db, 'drafts', DRAFT_ID);
+      const updateData = { [banKey]: localBanSelection };
+
+      // Check if the OTHER team has already banned
+      const otherBanKey = effectiveBanTeam === 'A' ? 'triadBanB' : 'triadBanA';
+      const otherBanValue = draftState[otherBanKey];
+
+      if (otherBanValue !== null && otherBanValue !== undefined) {
+        // Both bans are now in → resolve ban phase
+        const allBans = [localBanSelection, otherBanValue].filter(b => b && b !== 'no_ban');
+        const uniqueBans = [...new Set(allBans)];
+
+        const PICK_ORDER = getPICK_ORDER(draftState.draftType);
+        const nextPhase = 1;
+        const nextTeam = PICK_ORDER[nextPhase]?.team || 'A';
+
+        updateData.bannedAmikos = uniqueBans;
+        updateData.triadBanPhase = false;
+        updateData.currentPhase = nextPhase;
+        updateData.currentTeam = nextTeam;
+        updateData.picksInPhase = 0;
+        updateData.lockedPhases = [0];
+        updateData.banTimer = null;
+        if (nextTeam === 'A') {
+          updateData.timerStartA = Date.now();
+        } else {
+          updateData.timerStartB = Date.now();
+        }
+      }
+
+      await updateDoc(draftRef, updateData);
+      setLocalBanSelection(null);
+    } catch (error) {
+      console.error('Ban confirmation failed:', error);
+      showAlert('Error', 'Failed to confirm ban. Please try again.');
+    } finally {
+      isPickingRef.current = false;
+    }
+  }, [user, draftState, DRAFT_ID, localBanSelection, showAlert]);
+
+  // ─── AUTO-RESOLVE: Watch for both bans set but phase still open (race condition fix) ───
+  useEffect(() => {
+    if (!draftState.triadBanPhase) return;
+    if (draftState.status !== 'active') return;
+
+    const banA = draftState.triadBanA;
+    const banB = draftState.triadBanB;
+
+    // Both bans must be set (not null/undefined)
+    if (banA === null || banA === undefined || banB === null || banB === undefined) return;
+
+    // Both bans are in but phase wasn't resolved → resolve now
+    const resolve = async () => {
+      if (isPickingRef.current) return;
+      isPickingRef.current = true;
+
+      try {
+        const allBans = [banA, banB].filter(b => b && b !== 'no_ban');
+        const uniqueBans = [...new Set(allBans)];
+
+        const PICK_ORDER = getPICK_ORDER(draftState.draftType);
+        const nextPhase = 1;
+        const nextTeam = PICK_ORDER[nextPhase]?.team || 'A';
+
+        const draftRef = doc(db, 'drafts', DRAFT_ID);
+        const updateData = {
+          bannedAmikos: uniqueBans,
+          triadBanPhase: false,
+          currentPhase: nextPhase,
+          currentTeam: nextTeam,
+          picksInPhase: 0,
+          lockedPhases: [0],
+          banTimer: null,
+        };
+
+        if (nextTeam === 'A') {
+          updateData.timerStartA = Date.now();
+        } else {
+          updateData.timerStartB = Date.now();
+        }
+
+        await updateDoc(draftRef, updateData);
+        console.log('Ban phase auto-resolved (race condition fix)');
+      } catch (err) {
+        console.error('Auto-resolve ban phase failed:', err);
+      } finally {
+        isPickingRef.current = false;
+      }
+    };
+
+    resolve();
+  }, [draftState.triadBanPhase, draftState.triadBanA, draftState.triadBanB, draftState.status, draftState.draftType, DRAFT_ID]);
+
   // Standard Turn-based Selection logic (Mode 1 & 2)
   const handleStandardSelection = useCallback(async (amikoId, isAdmin) => {
     // Check if phase picks are already complete (user needs to remove a pick first)
@@ -3378,6 +3558,12 @@ function TournamentPage() {
     const allPicked = [...draftState.teamA, ...draftState.teamB];
     if (allPicked.includes(amikoId)) {
       showAlert('Already Picked', 'This Amiko has already been picked!');
+      return;
+    }
+
+    // Check if Amiko is banned (3v3 blind ban)
+    if (draftState.bannedAmikos && draftState.bannedAmikos.includes(amikoId)) {
+      showAlert('Banned', 'This Amiko has been banned and cannot be picked!');
       return;
     }
 
@@ -3419,6 +3605,12 @@ function TournamentPage() {
       return;
     }
 
+    // Block actions when manual timer hasn't been started yet
+    if (draftState.manualTimerStart && !draftState.timerStarted) {
+      showAlert('Timer Not Started', 'Please wait for the admin to start the timer.');
+      return;
+    }
+
     // Don't allow picks while waiting for lock confirmation
     if (draftState.awaitingLockConfirmation) {
       showAlert('Confirm Picks', 'Please confirm your picks before continuing!');
@@ -3434,14 +3626,18 @@ function TournamentPage() {
     const userTeam = userPermission === 'A' ? 'A' : userPermission === 'B' ? 'B' : null;
 
     // Route to appropriate handler based on draft type
-    if (draftState.draftType === 'mode4') {
+    if (draftState.triadBanPhase) {
+      // 3v3 simultaneous blind ban phase — local selection only (confirm separately)
+      handleBanSelect(amikoId);
+      return;
+    } else if (draftState.draftType === 'mode4') {
       await handleMode4Selection(amikoId, userTeam, isAdmin);
     } else if (draftState.simultaneousPicking || draftState.draftType === 'mode3') {
       await handleMode3Selection(amikoId, userTeam, isAdmin);
     } else {
       await handleStandardSelection(amikoId, isAdmin);
     }
-  }, [user, draftState, userPermission, handleMode4Selection, handleMode3Selection, handleStandardSelection, showAlert, tempPick, currentTimerDisplay]);
+  }, [user, draftState, userPermission, handleBanSelect, handleMode4Selection, handleMode3Selection, handleStandardSelection, showAlert, tempPick, currentTimerDisplay]);
 
 
 
@@ -4119,6 +4315,11 @@ function TournamentPage() {
     return [...draftState.teamA, ...draftState.teamB].includes(amikoId);
   };
 
+  // Check if an Amiko is banned (3v3 blind ban)
+  const isAmikoBanned = (amikoId) => {
+    return (draftState.bannedAmikos || []).includes(amikoId);
+  };
+
 
   // Get team leader (first user assigned to the team)
   const getTeamLeader = (team) => {
@@ -4286,6 +4487,11 @@ function TournamentPage() {
     // Mode4 ban handlers
     removeBan,
     isBanLocked,
+    // 3v3 blind ban handlers
+    isAmikoBanned,
+    localBanSelection,
+    setLocalBanSelection,
+    handleBanConfirm,
     // 1v1 inline overlay handlers
     handleSelfRemove,
     lockRoll,

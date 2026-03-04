@@ -1,0 +1,292 @@
+.major-announcement-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 99999;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    padding: 20px;
+}
+
+.major-announcement-overlay.visible {
+    opacity: 1;
+}
+
+.major-announcement-content {
+    position: relative;
+    width: 100%;
+    max-width: 800px;
+    max-height: 90vh;
+    background: #0f172a;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform: scale(0.9) translateY(20px);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5),
+        0 0 100px rgba(0, 224, 255, 0.1);
+}
+
+.major-announcement-content.visible {
+    transform: scale(1) translateY(0);
+}
+
+.announcement-glass-effect {
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at center, rgba(0, 157, 255, 0.05) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.close-corner-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.2s ease;
+}
+
+.close-corner-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: rotate(90deg);
+}
+
+.announcement-header {
+    padding: 24px 40px 12px;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+}
+
+.announcement-badge {
+    display: inline-block;
+    background: linear-gradient(90deg, #3b82f6, #06b6d4);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 100px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+}
+
+.announcement-header h2 {
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: white;
+    margin: 0;
+    background: linear-gradient(to bottom, #ffffff, #94a3b8);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.header-divider {
+    width: 60px;
+    height: 3px;
+    background: #3b82f6;
+    margin: 12px auto 0;
+    border-radius: 2px;
+}
+
+.announcement-body {
+    padding: 0 40px 20px;
+    overflow-y: auto;
+    flex: 1;
+    color: #cbd5e1;
+    line-height: 1.5;
+    font-size: 1rem;
+    position: relative;
+    z-index: 1;
+}
+
+.announcement-body h3.announcement-section-title {
+    color: #3b82f6;
+    font-size: 1.2rem;
+    margin: 20px 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.announcement-body h3.announcement-section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(59, 130, 246, 0.2);
+}
+
+.announcement-body p {
+    margin-bottom: 12px;
+}
+
+.announcement-body strong {
+    color: white;
+    font-weight: 600;
+}
+
+.announcement-body li {
+    margin-bottom: 6px;
+    margin-left: 20px;
+    position: relative;
+}
+
+.announcement-body li::before {
+    content: '•';
+    color: #3b82f6;
+    position: absolute;
+    left: -15px;
+    font-weight: bold;
+}
+
+.announcement-footer {
+    padding: 20px 40px;
+    background: rgba(15, 23, 42, 0.8);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    position: relative;
+    z-index: 1;
+}
+
+.footer-actions {
+    display: flex;
+    gap: 12px;
+    width: auto;
+    justify-content: flex-end;
+}
+
+.announcement-action-btn {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    padding: 10px 24px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.4);
+}
+
+.announcement-action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.4);
+    filter: brightness(1.1);
+}
+
+.announcement-dismiss-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+    padding: 10px 24px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.announcement-dismiss-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.dont-show-btn {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    text-decoration: underline;
+}
+
+.dont-show-btn:hover {
+    color: #94a3b8;
+}
+
+/* Custom Scrollbar for the body */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+@media (max-width: 640px) {
+    .announcement-header h2 {
+        font-size: 1.3rem;
+    }
+
+    .footer-actions {
+        flex-direction: column;
+    }
+
+    .announcement-action-btn,
+    .announcement-dismiss-btn {
+        width: 100%;
+        text-align: center;
+        padding: 12px;
+    }
+
+    .announcement-footer {
+        flex-direction: column;
+        padding: 20px;
+        gap: 15px;
+    }
+
+    .dont-show-btn {
+        order: 3;
+        /* Move "Don't show" below other buttons on mobile */
+    }
+
+    .announcement-header {
+        padding: 30px 20px 15px;
+    }
+
+    .announcement-body {
+        padding: 0 20px 20px;
+    }
+
+    .announcement-footer {
+        padding: 20px;
+    }
+}
