@@ -94,11 +94,15 @@ async function checkDraftTimer(draftId: string, data: any): Promise<boolean> {
 
   const now = Date.now();
   const timerDuration = data.timerDuration || 30 * 1000;
+  const banTimerDuration = data.banTimerDuration || 60 * 1000; // Dedicated ban timer (1 min)
 
   // Determine which timer to check
   let timerStart: number | null = null;
 
-  if (data.draftType === 'mode3' && data.sharedTimer) {
+  if (data.triadBanPhase && data.banTimer) {
+    // 3v3 simultaneous blind ban phase
+    timerStart = toMillis(data.banTimer);
+  } else if (data.draftType === 'mode3' && data.sharedTimer) {
     timerStart = toMillis(data.sharedTimer);
   } else if (data.currentTeam === 'A' && data.timerStartA) {
     timerStart = toMillis(data.timerStartA);
@@ -109,7 +113,9 @@ async function checkDraftTimer(draftId: string, data: any): Promise<boolean> {
   if (!timerStart) return false;
 
   const elapsed = now - timerStart;
-  const remaining = timerDuration - elapsed;
+  // Use dedicated ban timer duration for ban phase, otherwise normal timer
+  const effectiveDuration = (data.triadBanPhase && data.banTimer) ? banTimerDuration : timerDuration;
+  const remaining = effectiveDuration - elapsed;
 
   // Timer not expired yet
   if (remaining > 0) return false;
@@ -128,6 +134,11 @@ async function checkDraftTimer(draftId: string, data: any): Promise<boolean> {
     // Re-verify status hasn't changed (another instance might have handled it)
     if (current.status !== 'active') return false;
     if (current.inPreparation) return false;
+
+    // ─── TRIAD BAN PHASE: Simultaneous blind ban timeout ───
+    if (current.triadBanPhase) {
+      return handleTriadBanTimeout(tx, draftRef, current);
+    }
 
     // ─── MODE 3: 1v1 Simultaneous ───
     if (current.draftType === 'mode3') {
@@ -150,6 +161,50 @@ async function checkDraftTimer(draftId: string, data: any): Promise<boolean> {
       return handleAutoPick(tx, draftRef, current, PICK_ORDER);
     }
   });
+}
+
+/**
+ * Triad Ban Phase: Auto-fill 'no_ban' for captains who didn't submit, then transition to picks.
+ */
+function handleTriadBanTimeout(
+  tx: admin.firestore.Transaction,
+  draftRef: admin.firestore.DocumentReference,
+  data: any
+): boolean {
+  const triadBanA = data.triadBanA ?? 'no_ban';
+  const triadBanB = data.triadBanB ?? 'no_ban';
+
+  // Build banned amikos list (filter out 'no_ban', deduplicate)
+  const allBans = [triadBanA, triadBanB].filter(b => b && b !== 'no_ban');
+  const uniqueBans = [...new Set(allBans)];
+
+  const PICK_ORDER = getPICK_ORDER(data.draftType || 'mode1');
+  const nextPhase = 1; // Phase 0 is the ban phase
+  const nextTeam = PICK_ORDER[nextPhase]?.team || 'A';
+
+  const updates: any = {
+    triadBanA,
+    triadBanB,
+    bannedAmikos: uniqueBans,
+    triadBanPhase: false,
+    currentPhase: nextPhase,
+    currentTeam: nextTeam,
+    picksInPhase: 0,
+    lockedPhases: [0],
+    banTimer: null,
+    timerExpiredBy: 'server'
+  };
+
+  // Start the first pick team's timer
+  if (nextTeam === 'A') {
+    updates.timerStartA = Date.now();
+  } else {
+    updates.timerStartB = Date.now();
+  }
+
+  tx.update(draftRef, updates);
+  console.log(`  ✅ Triad ban phase resolved (timer expired). Banned: [${uniqueBans.join(', ')}]`);
+  return true;
 }
 
 /**
@@ -277,12 +332,13 @@ function handleAutoPick(
     updates[teamKey] = [...teamPicks, ...autoPicked];
     console.log(`  → Auto-picked ${autoPicked.length} amikos for Team ${data.currentTeam} (mode4): ${autoPicked.join(', ')}`);
   } else {
-    // ─── MODE 1/2: Standard auto-pick (exclusive) ───
+    // ─── MODE 1/2: Standard auto-pick (exclusive, respecting bans) ───
     const teamKey = data.currentTeam === 'A' ? 'teamA' : 'teamB';
     const teamPicks: string[] = [...(data[teamKey] || [])];
     const allPicked = [...(data.teamA || []), ...(data.teamB || [])];
+    const bannedAmikos: string[] = data.bannedAmikos || [];
 
-    const available = AMIKO_IDS.filter(id => !allPicked.includes(id));
+    const available = AMIKO_IDS.filter(id => !allPicked.includes(id) && !bannedAmikos.includes(id));
     const shuffled = shuffleArray(available);
     const autoPicked = shuffled.slice(0, Math.min(remaining, shuffled.length));
 
@@ -623,7 +679,7 @@ async function serverFinalizeDraft(draftId: string, data: any): Promise<boolean>
     }
   }
 
-  // Mode 1/2: 3v3 battle codes
+  // Mode 1/2: 3v3 battle codes + ban phase initialization
   if ((data.draftType === 'mode1' || data.draftType === 'mode2') && !data.privateCodes) {
     const codes: string[] = [];
     while (codes.length < 3) {
@@ -631,6 +687,18 @@ async function serverFinalizeDraft(draftId: string, data: any): Promise<boolean>
       if (!codes.includes(code)) codes.push(code);
     }
     updateData.privateCodes = codes;
+  }
+
+  // Mode 1/2: Initialize blind ban phase
+  if (data.draftType === 'mode1' || data.draftType === 'mode2') {
+    updateData.triadBanPhase = true;
+    updateData.triadBanA = null;
+    updateData.triadBanB = null;
+    updateData.bannedAmikos = [];
+    updateData.currentTeam = 'AB';
+    updateData.banTimer = Date.now();
+    updateData.banTimerDuration = 60000; // 1 minute for ban phase
+    updateData.timerStartA = null; // Ban phase uses shared banTimer
   }
 
   await draftRef.update(updateData);

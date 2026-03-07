@@ -3684,6 +3684,131 @@ function TournamentPage() {
     playRemoveSound();
   };
 
+  // ─── FORCE PROCEED: Super admin fallback when server timer doesn't fire ───
+  const forceProceed = async () => {
+    if (!isSuperAdmin(getUserEmail(user))) return;
+    if (draftState.status !== 'active') {
+      showAlert('Not Active', 'The draft is not active.');
+      return;
+    }
+
+    const confirmed = await showConfirm(
+      '⚡ Force Proceed',
+      'This will auto-fill any remaining picks with random amikos, lock the current phase, and advance to the next turn. Use this when the server timer fails to fire. Continue?'
+    );
+    if (!confirmed) return;
+
+    setShowAdminPanel(false);
+
+    try {
+      const draftRef = doc(db, 'drafts', DRAFT_ID);
+      const allAmikoIds = AMIKOS.map(a => a.id);
+
+      // Helper: shuffle array
+      const shuffle = (arr) => {
+        const copy = [...arr];
+        for (let i = copy.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [copy[i], copy[j]] = [copy[j], copy[i]];
+        }
+        return copy;
+      };
+
+      // ─── BAN PHASE ───
+      if (draftState.triadBanPhase) {
+        const banA = draftState.triadBanA ?? 'no_ban';
+        const banB = draftState.triadBanB ?? 'no_ban';
+        const allBans = [banA, banB].filter(b => b && b !== 'no_ban');
+        const uniqueBans = [...new Set(allBans)];
+
+        const PICK_ORDER = getPICK_ORDER(draftState.draftType);
+        const nextPhase = 1;
+        const nextTeam = PICK_ORDER[nextPhase]?.team || 'A';
+
+        const updateData = {
+          triadBanA: banA,
+          triadBanB: banB,
+          bannedAmikos: uniqueBans,
+          triadBanPhase: false,
+          currentPhase: nextPhase,
+          currentTeam: nextTeam,
+          picksInPhase: 0,
+          lockedPhases: [0],
+          banTimer: null,
+        };
+
+        if (nextTeam === 'A') {
+          updateData.timerStartA = Date.now();
+        } else {
+          updateData.timerStartB = Date.now();
+        }
+
+        await updateDoc(draftRef, updateData);
+        showAlert('Force Proceeded', `Ban phase resolved. Banned: [${uniqueBans.join(', ') || 'none'}]`);
+        return;
+      }
+
+      // ─── PICK PHASE ───
+      const PICK_ORDER = getPICK_ORDER(draftState.draftType);
+      const currentPhaseConfig = PICK_ORDER[draftState.currentPhase];
+      if (!currentPhaseConfig) {
+        showAlert('Error', 'No current phase config found.');
+        return;
+      }
+
+      const remaining = currentPhaseConfig.count - (draftState.picksInPhase || 0);
+      const teamKey = draftState.currentTeam === 'A' ? 'teamA' : 'teamB';
+      const teamPicks = [...(draftState[teamKey] || [])];
+      const updates = {};
+
+      // Auto-pick any remaining amikos
+      if (remaining > 0) {
+        const allPicked = [...(draftState.teamA || []), ...(draftState.teamB || [])];
+        const bannedAmikos = draftState.bannedAmikos || [];
+        const available = allAmikoIds.filter(id => !allPicked.includes(id) && !bannedAmikos.includes(id));
+        const shuffled = shuffle(available);
+        const autoPicked = shuffled.slice(0, Math.min(remaining, shuffled.length));
+        updates[teamKey] = [...teamPicks, ...autoPicked];
+      }
+
+      // Lock current phase and advance
+      const newLockedPhases = [...(draftState.lockedPhases || []), draftState.currentPhase];
+      const nextPhase = (draftState.currentPhase || 0) + 1;
+
+      if (nextPhase >= PICK_ORDER.length) {
+        // Draft complete
+        await updateDoc(draftRef, {
+          ...updates,
+          picksInPhase: currentPhaseConfig.count,
+          status: 'completed',
+          awaitingLockConfirmation: false,
+          lockedPhases: newLockedPhases,
+        });
+        showAlert('Force Proceeded', 'Draft completed (all phases done).');
+      } else {
+        // Advance to next phase
+        const nextTeam = PICK_ORDER[nextPhase].team;
+        await updateDoc(draftRef, {
+          ...updates,
+          picksInPhase: 0,
+          currentPhase: nextPhase,
+          currentTeam: nextTeam,
+          awaitingLockConfirmation: false,
+          lockedPhases: newLockedPhases,
+          inPreparation: false,
+          ...(nextTeam === 'A'
+            ? { timerStartA: Date.now(), timerStartB: null }
+            : { timerStartB: Date.now(), timerStartA: null }
+          ),
+        });
+        showAlert('Force Proceeded', `Advanced to Phase ${nextPhase} (Team ${nextTeam}).`);
+      }
+    } catch (error) {
+      console.error('Force proceed failed:', error);
+      showAlert('Error', 'Force proceed failed. Check console for details.');
+    }
+  };
+
   // Reset draft
   const resetDraft = () => {
     if (userPermission !== 'admin' && !isCreator && !isSuperAdmin(getUserEmail(user))) return;
@@ -5074,6 +5199,13 @@ function TournamentPage() {
                     {draftState.awaitingLockConfirmation && (
                       <button onClick={confirmLockPicks} className="action-btn confirm">
                         🔒 Force Confirm Picks
+                      </button>
+                    )}
+
+                    {/* Force Proceed - Super Admin only, when timer is frozen */}
+                    {isSuperAdmin(getUserEmail(user)) && draftState.status === 'active' && (
+                      <button onClick={forceProceed} className="action-btn force-proceed">
+                        ⚡ Force Proceed
                       </button>
                     )}
 

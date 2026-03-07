@@ -172,7 +172,7 @@ export async function scanAndVerifyDrafts(): Promise<number> {
                       if (is1v1) {
                         const winUid = verificationData.overallWinner === 'A' ? team1?.leader : team2?.leader;
                         if (winUid) {
-                          scoreUpdates[`playerScores.${winUid}`] = admin.firestore.FieldValue.increment(1);
+                          scoreUpdates[`playerScores.${winUid}`] = admin.firestore.FieldValue.increment(3);
                         }
                       } else if (team1 && team2) {
                         const teamAUids = [team1.leader, team1.member1, team1.member2].filter(Boolean);
@@ -187,7 +187,7 @@ export async function scanAndVerifyDrafts(): Promise<number> {
                             winUid = teamBUids[bIdx];
                           }
                           if (winUid) {
-                            scoreUpdates[`playerScores.${winUid}`] = admin.firestore.FieldValue.increment(1);
+                            scoreUpdates[`playerScores.${winUid}`] = admin.firestore.FieldValue.increment(3);
                           }
                         });
                       }

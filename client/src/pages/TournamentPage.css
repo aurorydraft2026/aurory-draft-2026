@@ -1948,6 +1948,16 @@
   background: rgba(168, 85, 247, 0.25);
 }
 
+.action-btn.force-proceed {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.action-btn.force-proceed:hover {
+  background: rgba(245, 158, 11, 0.25);
+}
+
 /* User List in Admin Panel */
 .users-section h4 {
   font-size: 14px;
