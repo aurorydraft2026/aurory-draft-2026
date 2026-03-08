@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
 import { doc, onSnapshot, updateDoc, setDoc, arrayUnion, arrayRemove, deleteDoc, collection, getDocs, query, where, documentId, serverTimestamp, runTransaction } from 'firebase/firestore';
@@ -7,7 +7,14 @@ import { isUserSuperAdmin } from '../config/admins';
 import JoinTeamModal from '../components/JoinTeamModal';
 import InsufficientBalanceModal from '../components/InsufficientBalanceModal';
 import LeaveConfirmationModal from '../components/LeaveConfirmationModal';
-import { generateSingleElimination, generateRoundRobin, generateRealmRoundRobin, generateFinalsRoundRobin, calculateRoundRobinStandings } from '../utils/tournamentUtils';
+import {
+    generateSingleElimination,
+    generateRoundRobin,
+    generateRealmRoundRobin,
+    generateFinalsSingleElimination,
+    calculateRoundRobinStandings,
+    calculateFinalsStandings
+} from '../utils/tournamentUtils';
 import './MatchupPage.css';
 
 
@@ -29,6 +36,37 @@ const MatchupPage = () => {
     const [walletBalance, setWalletBalance] = useState(0);
     const [showBalanceModal, setShowBalanceModal] = useState(false);
     const ENTRY_FEE = 100 * 1e9; // 100 AURY in nano-AURY
+
+    const getUserById = useCallback((id) => {
+        if (!id) return null;
+        if (typeof id === 'object') return id;
+        const realUser = participants.find(u => u.uid === id);
+        if (realUser) return realUser;
+        const matchupPart = matchup?.participants?.find(p =>
+            (typeof p === 'object' && (p.uid === id || p.leader === id))
+        );
+        if (matchupPart) return matchupPart;
+        return { uid: id, displayName: id.startsWith('mock-') ? 'Mock Player' : 'Unknown' };
+    }, [participants, matchup?.participants]);
+
+    const getName = useCallback((p) => {
+        if (!p) return 'TBD';
+        return matchup?.format === 'teams' ? p.teamName : (p.auroryPlayerName || p.displayName || 'Unknown');
+    }, [matchup?.format]);
+
+    const getAvatar = useCallback((p) => {
+        if (!p) return 'https://cdn.discordapp.com/embed/avatars/0.png';
+        if (matchup?.format === 'teams') {
+            const leader = getUserById(p.leader);
+            return p.banner || leader?.auroryProfilePicture || 'https://cdn.discordapp.com/embed/avatars/0.png';
+        }
+        return p.auroryProfilePicture || p.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png';
+    }, [matchup?.format, getUserById]);
+
+    const getUID = useCallback((p) => {
+        if (!p) return null;
+        return matchup?.format === 'teams' ? p.leader : (p.uid || p);
+    }, [matchup?.format]);
 
     useEffect(() => {
         if (!user) { setWalletBalance(0); return; }
@@ -100,13 +138,93 @@ const MatchupPage = () => {
     }, [matchup?.format, matchup?.status]);
 
     useEffect(() => {
+        if (!isAdmin || !matchup || matchup.phase === 'completed') return;
+
+        const syncState = async () => {
+            const updateData = {};
+            const matchupRef = doc(db, 'matchups', matchupId);
+
+            if (matchup.phase === 'groups' && matchup.groupStructure) {
+                const allFrostDone = matchup.groupStructure.frost.every(r => r.matches.every(m => m.winner));
+                const allFireDone = matchup.groupStructure.fire.every(r => r.matches.every(m => m.winner));
+
+                if (allFrostDone && allFireDone) {
+                    const frostStandings = calculateRoundRobinStandings(matchup.realms.frost, matchup.groupStructure.frost, matchup.format, matchup.playerScores);
+                    const fireStandings = calculateRoundRobinStandings(matchup.realms.fire, matchup.groupStructure.fire, matchup.format, matchup.playerScores);
+                    const top2Frost = frostStandings.slice(0, 2).map(s => s.team);
+                    const top2Fire = fireStandings.slice(0, 2).map(s => s.team);
+                    const finalsTeams = [top2Frost[0], top2Frost[1], top2Fire[0], top2Fire[1]];
+                    const finalsStructure = generateFinalsSingleElimination(finalsTeams);
+
+                    updateData.phase = 'finals';
+                    updateData.finalsStructure = finalsStructure;
+                    updateData.finalsParticipants = finalsTeams;
+                    updateData.groupStandings = {
+                        frost: frostStandings.map(s => ({ teamId: s.teamId, points: s.points, wins: s.wins, draws: s.draws, losses: s.losses })),
+                        fire: fireStandings.map(s => ({ teamId: s.teamId, points: s.points, wins: s.wins, draws: s.draws, losses: s.losses }))
+                    };
+                }
+            } else if (matchup.phase === 'finals' && matchup.finalsStructure) {
+                let structureChanged = false;
+                const newFinalsStructure = JSON.parse(JSON.stringify(matchup.finalsStructure));
+
+                const sfRound = newFinalsStructure[0];
+                const finalRound = newFinalsStructure[1];
+                if (sfRound && finalRound) {
+                    sfRound.matches.forEach((match, mIdx) => {
+                        if (match.winner) {
+                            const winnerPart = (getUID(match.player1) === match.winner) ? match.player1 : match.player2;
+                            const loserPart = (getUID(match.player1) === match.winner) ? match.player2 : match.player1;
+
+                            const grandFinal = finalRound.matches[0];
+                            const thirdPlace = finalRound.matches[1];
+
+                            if (mIdx === 0) { // SF1
+                                if (!grandFinal.player1 || getUID(grandFinal.player1) !== getUID(winnerPart)) {
+                                    grandFinal.player1 = winnerPart;
+                                    structureChanged = true;
+                                }
+                                if (!thirdPlace.player1 || getUID(thirdPlace.player1) !== getUID(loserPart)) {
+                                    thirdPlace.player1 = loserPart;
+                                    structureChanged = true;
+                                }
+                            } else { // SF2
+                                if (!grandFinal.player2 || getUID(grandFinal.player2) !== getUID(winnerPart)) {
+                                    grandFinal.player2 = winnerPart;
+                                    structureChanged = true;
+                                }
+                                if (!thirdPlace.player2 || getUID(thirdPlace.player2) !== getUID(loserPart)) {
+                                    thirdPlace.player2 = loserPart;
+                                    structureChanged = true;
+                                }
+                            }
+                        }
+                    });
+                }
+
+                if (structureChanged) updateData.finalsStructure = newFinalsStructure;
+
+                const allDone = newFinalsStructure.every(r => r.matches.every(m => m.winner));
+                if (allDone) {
+                    updateData.phase = 'completed';
+                    updateData.finalStandings = calculateFinalsStandings(newFinalsStructure);
+                }
+            }
+
+            if (Object.keys(updateData).length > 0) {
+                await updateDoc(matchupRef, updateData);
+            }
+        };
+        syncState();
+    }, [matchup, isAdmin, matchupId, getUID]);
+
+    useEffect(() => {
         if (matchup?.participants?.length > 0) {
             const fetchParticipants = async () => {
                 try {
                     const realUids = (matchup.participantUids || []).filter(uid =>
                         typeof uid === 'string' && !uid.startsWith('mock-')
                     );
-
                     if (realUids.length === 0) {
                         setParticipants([]);
                         return;
@@ -127,7 +245,6 @@ const MatchupPage = () => {
                             ...doc.data()
                         })));
                     }
-
                     setParticipants(allUserData);
                 } catch (err) {
                     console.error('Error fetching participants:', err);
@@ -399,14 +516,14 @@ const MatchupPage = () => {
 
                 const top2Frost = frostStandings.slice(0, 2).map(s => s.team);
                 const top2Fire = fireStandings.slice(0, 2).map(s => s.team);
-                const finalsTeams = [...top2Frost, ...top2Fire];
+                const finalsTeams = [...top2Frost, ...top2Fire]; // [Frost#1, Frost#2, Fire#1, Fire#2]
 
-                const finalsStructure = generateFinalsRoundRobin(finalsTeams);
+                // Advance to Single Elimination Finals (Visual Bracket)
+                const finalsStructure = generateFinalsSingleElimination(finalsTeams);
 
                 updateData.phase = 'finals';
                 updateData.finalsStructure = finalsStructure;
                 updateData.finalsParticipants = finalsTeams;
-                updateData.playerScores = {}; // Reset scores for finals
                 updateData.groupStandings = {
                     frost: frostStandings.map(s => ({ teamId: s.teamId, points: s.points, wins: s.wins, draws: s.draws, losses: s.losses })),
                     fire: fireStandings.map(s => ({ teamId: s.teamId, points: s.points, wins: s.wins, draws: s.draws, losses: s.losses }))
@@ -417,29 +534,40 @@ const MatchupPage = () => {
 
         } else if (phase === 'finals') {
             const newFinalsStructure = JSON.parse(JSON.stringify(matchup.finalsStructure));
-            const match = newFinalsStructure[roundIndex]?.matches?.[matchIndex];
+            const round = newFinalsStructure[roundIndex];
+            const match = round?.matches?.[matchIndex];
             if (!match || match.winner) return;
 
             match.winner = winnerId;
+            const loserParticipant = (getUID(match.player1) === winnerId) ? match.player2 : match.player1;
+            const winnerParticipant = (getUID(match.player1) === winnerId) ? match.player1 : match.player2;
+
+            // PROPAGATE TO NEXT ROUND (SE 4-team bracket)
+            if (roundIndex === 0) {
+                const nextRound = newFinalsStructure[1];
+                if (nextRound) {
+                    const grandFinal = nextRound.matches[0];
+                    const thirdPlace = nextRound.matches[1];
+
+                    if (matchIndex === 0) { // SF1
+                        grandFinal.player1 = winnerParticipant;
+                        thirdPlace.player1 = loserParticipant;
+                    } else { // SF2
+                        grandFinal.player2 = winnerParticipant;
+                        thirdPlace.player2 = loserParticipant;
+                    }
+                }
+            }
 
             const updateData = { finalsStructure: newFinalsStructure };
 
             // Check if all finals matches are complete
             const allDone = newFinalsStructure.every(r => r.matches.every(m => m.winner));
             if (allDone) {
-                const standings = calculateRoundRobinStandings(
-                    matchup.finalsParticipants, newFinalsStructure, matchup.format, matchup.playerScores
-                );
+                // Use SE calculator for standings
+                const standings = calculateFinalsStandings(newFinalsStructure);
                 updateData.phase = 'completed';
-                updateData.finalStandings = standings.map((s, i) => ({
-                    rank: i + 1,
-                    teamId: s.teamId,
-                    team: s.team,
-                    points: s.points,
-                    wins: s.wins,
-                    draws: s.draws,
-                    losses: s.losses
-                }));
+                updateData.finalStandings = standings;
             }
 
             await updateDoc(matchupRef, updateData);
@@ -824,17 +952,7 @@ const MatchupPage = () => {
 
 
 
-    const getUserById = (id) => {
-        if (!id) return null;
-        if (typeof id === 'object') return id;
-        const realUser = participants.find(u => u.uid === id);
-        if (realUser) return realUser;
-        const matchupPart = matchup.participants.find(p =>
-            (typeof p === 'object' && (p.uid === id || p.leader === id))
-        );
-        if (matchupPart) return matchupPart;
-        return { uid: id, displayName: id.startsWith('mock-') ? 'Mock Player' : 'Unknown' };
-    };
+
 
 
 
@@ -1121,104 +1239,82 @@ const MatchupPage = () => {
                 {matchup.status === 'active' && activeTab === 'matches' && matchup.matchupStructure && (
                     <div className="tab-content-panel">
                         <div className="tab-content-header">
-                            <h3>{matchup.tournamentType === 'single_elimination' ? '🏆 Bracket' : '🔄 Round Robin Fixtures'}</h3>
+                            <h3>{matchup.tournamentType === 'single_elimination' ? '🏆 Tournament Bracket' : '🔄 Round Robin Fixtures'}</h3>
                         </div>
 
                         {matchup.tournamentType === 'single_elimination' ? (
-                            /* ── Single Elimination: Stacked Round Cards ── */
-                            <div className="rr-accordion se-bracket-accordion">
-                                {matchup.matchupStructure.map((round, rIndex) => {
-                                    const stats = roundStats(round);
-                                    const expanded = isRoundExpanded(round.id);
-                                    const isFinalRound = rIndex === matchup.matchupStructure.length - 1;
-
-                                    // Determine round status for visual indicators
-                                    const isCompleted = stats.resolved === stats.total;
-                                    const hasUnresolved = stats.resolved < stats.total;
-                                    const isPreviousComplete = rIndex === 0 || (() => {
-                                        const prevStats = roundStats(matchup.matchupStructure[rIndex - 1]);
-                                        return prevStats.resolved === prevStats.total;
-                                    })();
-                                    const isActive = hasUnresolved && isPreviousComplete;
-
-                                    return (
-                                        <div key={round.id} className={`rr-round-accordion se-round ${expanded ? 'expanded' : ''} ${isFinalRound ? 'se-finals' : ''} ${isActive ? 'se-active' : ''} ${isCompleted ? 'se-completed' : ''}`}>
-                                            <button className="rr-round-header se-round-header" onClick={() => toggleRound(round.id)}>
-                                                <div className="rr-round-title-group">
-                                                    <span className="rr-round-chevron">{expanded ? '▾' : '▸'}</span>
-                                                    <span className="se-round-icon">{isFinalRound ? '🏆' : isCompleted ? '✅' : isActive ? '⚔️' : '⏳'}</span>
-                                                    <span className="rr-round-label">{round.title}</span>
+                            /* ── Visual Bracket Structure ── */
+                            <div className="visual-bracket-wrapper">
+                                <div className="visual-bracket-scroll-container">
+                                    <div className="visual-bracket-grid">
+                                        {matchup.matchupStructure.map((round, rIndex) => (
+                                            <div key={round.id} className={`bracket-column round-${rIndex + 1}`}>
+                                                <div className="round-header-visual">
+                                                    <span className="round-title-visual">{round.title}</span>
+                                                    <span className="round-count-visual">{round.matches.filter(m => m.winner).length}/{round.matches.length}</span>
                                                 </div>
-                                                <span className={`rr-round-badge ${isCompleted ? 'complete' : ''}`}>
-                                                    {stats.resolved}/{stats.total}
-                                                </span>
-                                            </button>
-
-                                            {expanded && (
-                                                <div className="rr-round-body se-round-body">
+                                                <div className="bracket-matches-container">
                                                     {round.matches.map((match, mIndex) => {
                                                         const p1 = matchup.format === 'teams' ? match.player1 : getUserById(match.player1);
                                                         const p2 = matchup.format === 'teams' ? match.player2 : getUserById(match.player2);
-                                                        const winner = match.winner;
-
-                                                        const getName = (p) => {
-                                                            if (!p) return 'TBD';
-                                                            if (matchup.format === 'teams') return p.teamName;
-                                                            return p.auroryPlayerName || p.displayName || 'Unknown';
-                                                        };
-                                                        const getAvatar = (p) => {
-                                                            if (!p) return 'https://cdn.discordapp.com/embed/avatars/0.png';
-                                                            if (matchup.format === 'teams') {
-                                                                const leader = getUserById(p.leader);
-                                                                return p.banner || leader?.auroryProfilePicture || 'https://cdn.discordapp.com/embed/avatars/0.png';
-                                                            }
-                                                            return p.auroryProfilePicture || p.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png';
-                                                        };
-                                                        const getUID = (p) => {
-                                                            if (!p) return null;
-                                                            return matchup.format === 'teams' ? p.leader : (p.uid || p);
-                                                        };
+                                                        const winnerId = match.winner;
 
                                                         return (
-                                                            <div key={match.id} className={`rr-compact-row se-match-row ${winner ? 'resolved' : ''} ${match.isBye ? 'is-bye' : ''}`}>
-                                                                <span className="rr-row-id">M{mIndex + 1}</span>
-
-                                                                <div className={`rr-row-player ${winner && winner === getUID(p1) ? 'winner' : ''} ${winner && winner !== getUID(p1) ? 'loser' : ''}`}>
-                                                                    <img className="rr-row-avatar" src={getAvatar(p1)} alt="" />
-                                                                    <span className="rr-row-name">{getName(p1)}</span>
-                                                                    {isAdmin && p1 && !winner && (
-                                                                        <button className="rr-row-win-btn" onClick={() => handleReportWinner(rIndex, mIndex, getUID(p1))} title="Report as winner">✓</button>
-                                                                    )}
+                                                            <div key={match.id} className={`bracket-match-card ${winnerId ? 'resolved' : ''} ${match.isThirdPlaceMatch ? 'is-third-place' : ''}`}>
+                                                                {match.isThirdPlaceMatch && <div className="match-type-overlay">3rd Place Match</div>}
+                                                                <div className="match-card-body">
+                                                                    {/* Team 1 */}
+                                                                    <div className={`match-team-row ${winnerId && winnerId === getUID(p1) ? 'winner' : winnerId ? 'loser' : ''}`}>
+                                                                        <div className="team-info-visual">
+                                                                            <img src={getAvatar(p1)} alt="" className="team-avatar-visual" />
+                                                                            <span className="team-name-visual">{getName(p1)}</span>
+                                                                        </div>
+                                                                        {isAdmin && p1 && !winnerId && !match.isBye && (
+                                                                            <button className="win-btn-visual" onClick={() => handleReportWinner(rIndex, mIndex, getUID(p1))}>✓</button>
+                                                                        )}
+                                                                        {winnerId && winnerId === getUID(p1) && <span className="winner-crown">👑</span>}
+                                                                    </div>
+                                                                    <div className="match-divider-visual">vs</div>
+                                                                    {/* Team 2 */}
+                                                                    <div className={`match-team-row ${winnerId && winnerId === getUID(p2) ? 'winner' : winnerId ? 'loser' : ''}`}>
+                                                                        <div className="team-info-visual">
+                                                                            <img src={getAvatar(p2)} alt="" className="team-avatar-visual" />
+                                                                            <span className="team-name-visual">{getName(p2)}</span>
+                                                                        </div>
+                                                                        {isAdmin && p2 && !winnerId && !match.isBye && (
+                                                                            <button className="win-btn-visual" onClick={() => handleReportWinner(rIndex, mIndex, getUID(p2))}>✓</button>
+                                                                        )}
+                                                                        {winnerId && winnerId === getUID(p2) && <span className="winner-crown">👑</span>}
+                                                                    </div>
                                                                 </div>
-
-                                                                <span className="rr-row-vs">vs</span>
-
-                                                                <div className={`rr-row-player ${winner && winner === getUID(p2) ? 'winner' : ''} ${winner && winner !== getUID(p2) ? 'loser' : ''}`}>
-                                                                    <img className="rr-row-avatar" src={getAvatar(p2)} alt="" />
-                                                                    <span className="rr-row-name">{getName(p2)}</span>
-                                                                    {isAdmin && p2 && !winner && (
-                                                                        <button className="rr-row-win-btn" onClick={() => handleReportWinner(rIndex, mIndex, getUID(p2))} title="Report as winner">✓</button>
-                                                                    )}
-                                                                </div>
-
-                                                                <div className="rr-row-actions">
-                                                                    {p1 && p2 && !winner && !match.draftId && isAdmin && (
-                                                                        <button className="rr-row-draft-btn create" onClick={() => handleCreateDraftFromMatch(rIndex, mIndex)} title="Create Draft">⚔️</button>
-                                                                    )}
-                                                                    {match.draftId && (
-                                                                        <button className="rr-row-draft-btn view" onClick={() => navigate(`/tournament/${match.draftId}`)} title={winner ? 'View Draft' : 'Open Draft'}>
-                                                                            {winner ? '📋' : '🎮'}
+                                                                <div className="match-card-footer">
+                                                                    <span className="match-id-visual">MATCH #{mIndex + 1}</span>
+                                                                    {match.draftId ? (
+                                                                        <button className="btn-draft-visual view" onClick={() => navigate(`/tournament/${match.draftId}`)}>
+                                                                            {winnerId ? 'VIEW RESULTS' : 'ENTER DRAFT'}
                                                                         </button>
-                                                                    )}
+                                                                    ) : (isAdmin && p1 && p2 && !winnerId && !match.isBye && (
+                                                                        <button className="btn-draft-visual create" onClick={() => handleCreateDraftFromMatch(rIndex, mIndex)}>
+                                                                            CREATE DRAFT ⚔️
+                                                                        </button>
+                                                                    ))}
                                                                 </div>
+
+                                                                {/* Connector Hooks (for CSS drawing) */}
+                                                                {!match.isThirdPlaceMatch && rIndex < matchup.matchupStructure.length - 1 && (
+                                                                    <div className={`connector-out ${mIndex % 2 === 0 ? 'top' : 'bottom'}`}></div>
+                                                                )}
+                                                                {rIndex > 0 && !match.isThirdPlaceMatch && (
+                                                                    <div className="connector-in"></div>
+                                                                )}
                                                             </div>
                                                         );
                                                     })}
                                                 </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         ) : (
                             /* ── Round Robin: Collapsible Rounds with Compact Rows ── */
@@ -1262,24 +1358,6 @@ const MatchupPage = () => {
                                                         const p1 = matchup.format === 'teams' ? match.player1 : getUserById(match.player1);
                                                         const p2 = matchup.format === 'teams' ? match.player2 : getUserById(match.player2);
                                                         const winner = match.winner;
-
-                                                        const getName = (p) => {
-                                                            if (!p) return 'TBD';
-                                                            if (matchup.format === 'teams') return p.teamName;
-                                                            return p.auroryPlayerName || p.displayName || 'Unknown';
-                                                        };
-                                                        const getAvatar = (p) => {
-                                                            if (!p) return 'https://cdn.discordapp.com/embed/avatars/0.png';
-                                                            if (matchup.format === 'teams') {
-                                                                const leader = getUserById(p.leader);
-                                                                return p.banner || leader?.auroryProfilePicture || 'https://cdn.discordapp.com/embed/avatars/0.png';
-                                                            }
-                                                            return p.auroryProfilePicture || p.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png';
-                                                        };
-                                                        const getUID = (p) => {
-                                                            if (!p) return null;
-                                                            return matchup.format === 'teams' ? p.leader : (p.uid || p);
-                                                        };
 
                                                         return (
                                                             <div key={match.id} className={`rr-compact-row ${winner ? 'resolved' : ''}`}>
@@ -1447,13 +1525,6 @@ const MatchupPage = () => {
                                                                         const p1 = match.player1;
                                                                         const p2 = match.player2;
                                                                         const winner = match.winner;
-                                                                        const getName = (p) => p?.teamName || 'TBD';
-                                                                        const getAvatar = (p) => {
-                                                                            if (!p) return 'https://cdn.discordapp.com/embed/avatars/0.png';
-                                                                            const leader = getUserById(p.leader);
-                                                                            return p.banner || leader?.auroryProfilePicture || 'https://cdn.discordapp.com/embed/avatars/0.png';
-                                                                        };
-                                                                        const getUID = (p) => p?.leader || null;
 
                                                                         return (
                                                                             <div key={match.id} className={`rr-compact-row ${winner ? 'resolved' : ''}`}>
@@ -1551,13 +1622,6 @@ const MatchupPage = () => {
                                                             const p1 = match.player1;
                                                             const p2 = match.player2;
                                                             const winner = match.winner;
-                                                            const getName = (p) => p?.teamName || 'TBD';
-                                                            const getAvatar = (p) => {
-                                                                if (!p) return 'https://cdn.discordapp.com/embed/avatars/0.png';
-                                                                const leader = getUserById(p.leader);
-                                                                return p.banner || leader?.auroryProfilePicture || 'https://cdn.discordapp.com/embed/avatars/0.png';
-                                                            };
-                                                            const getUID = (p) => p?.leader || null;
 
                                                             return (
                                                                 <div key={match.id} className={`rr-compact-row ${winner ? 'resolved' : ''}`}>
@@ -1615,12 +1679,19 @@ const MatchupPage = () => {
                                             {matchup.finalStandings.map((standing, idx) => {
                                                 const medals = ['🥇', '🥈', '🥉', '4️⃣'];
                                                 const rankClass = ['gold', 'silver', 'bronze', 'fourth'];
+                                                const customTitles = [
+                                                    "Valhalla's Champions",
+                                                    "The Honored Warriors",
+                                                    "The Fallen",
+                                                    "The Fallen"
+                                                ];
                                                 return (
                                                     <div key={standing.teamId} className={`podium-card rank-${rankClass[idx]}`}>
+                                                        <div className="podium-rank-badge">{customTitles[idx]}</div>
                                                         <span className="podium-medal">{medals[idx]}</span>
                                                         <span className="podium-team">{standing.team?.teamName || 'Unknown'}</span>
-                                                        <span className="podium-pts">{standing.points} pts</span>
-                                                        <span className="podium-record">{standing.wins}W {standing.draws}D {standing.losses}L</span>
+                                                        {standing.points !== undefined && <span className="podium-pts">{standing.points} pts</span>}
+                                                        {standing.wins !== undefined && <span className="podium-record">{standing.wins}W {standing.draws}D {standing.losses}L</span>}
                                                     </div>
                                                 );
                                             })}

@@ -158,22 +158,108 @@ export const generateRealmRoundRobin = (participants) => {
 };
 
 /**
- * Generates the Finals Round Robin ("Throne of Valhalla") for the top 4 teams.
- * @param {Array} top4Teams - Array of 4 team objects advancing from group stage
- * @returns {Array} - Round robin rounds for the finals
+ * Generates the Finals Single Elimination bracket ("Throne of Valhalla") for the top 4 teams.
+ * Includes Semifinals, Grand Finals, and a 3rd Place Match.
+ * @param {Array} top4Teams - Array of 4 team objects [Frost#1, Frost#2, Fire#1, Fire#2]
+ * @returns {Array} - Rounds structure for SE finals
  */
-export const generateFinalsRoundRobin = (top4Teams) => {
-    const rounds = generateRoundRobin(top4Teams);
+export const generateFinalsSingleElimination = (top4Teams) => {
+    // Seeding: 
+    // SF 1: Frost #1 (0) vs Fire #2 (3)
+    // SF 2: Fire #1 (2) vs Frost #2 (1)
+    const semifinalMatches = [
+        {
+            id: 'finals-r1-m1',
+            player1: top4Teams[0],
+            player2: top4Teams[3],
+            winner: null,
+            phase: 'finals',
+            title: 'Semifinals 1'
+        },
+        {
+            id: 'finals-r1-m2',
+            player1: top4Teams[2],
+            player2: top4Teams[1],
+            winner: null,
+            phase: 'finals',
+            title: 'Semifinals 2'
+        }
+    ];
 
-    // Relabel rounds for the finals
-    rounds.forEach((round, i) => {
-        round.id = `finals-${round.id}`;
-        round.title = `Valhalla Round ${i + 1}`;
-        round.phase = 'finals';
-        round.matches.forEach(m => { m.id = `finals-${m.id}`; m.phase = 'finals'; });
-    });
+    const finalMatch = {
+        id: 'finals-r2-m1',
+        player1: null,
+        player2: null,
+        winner: null,
+        phase: 'finals',
+        title: 'Grand Finals',
+        prevMatches: ['finals-r1-m1', 'finals-r1-m2']
+    };
 
-    return rounds;
+    const thirdPlaceMatch = {
+        id: 'finals-r2-m2',
+        player1: null,
+        player2: null,
+        winner: null,
+        phase: 'finals',
+        title: '3rd Place Match',
+        prevMatches: ['finals-r1-m1', 'finals-r1-m2'],
+        isThirdPlaceMatch: true
+    };
+
+    return [
+        {
+            id: 'finals-round-1',
+            title: 'Semifinals',
+            phase: 'finals',
+            matches: semifinalMatches
+        },
+        {
+            id: 'finals-round-2',
+            title: 'Finals',
+            phase: 'finals',
+            matches: [finalMatch, thirdPlaceMatch]
+        }
+    ];
+};
+
+/**
+ * Calculate final standings for the Single Elimination finals with 3rd place match.
+ * @param {Array} finalsStructure - The rounds and matches of the finals
+ * @returns {Array} - Ranked teams
+ */
+export const calculateFinalsStandings = (finalsStructure) => {
+    const round2 = finalsStructure.find(r => r.id === 'finals-round-2');
+    if (!round2) return [];
+
+    const grandFinal = round2.matches[0];
+    const thirdPlace = round2.matches[1];
+
+    const standings = [];
+
+    const getTeamId = (p) => p?.leader || p?.uid || p;
+
+    // 1st & 2nd from Grand Final
+    if (grandFinal.winner) {
+        const winnerId = grandFinal.winner;
+        const winnerObj = getTeamId(grandFinal.player1) === winnerId ? grandFinal.player1 : grandFinal.player2;
+        const loserObj = getTeamId(grandFinal.player1) === winnerId ? grandFinal.player2 : grandFinal.player1;
+
+        standings.push({ rank: 1, team: winnerObj, teamId: winnerId });
+        standings.push({ rank: 2, team: loserObj, teamId: getTeamId(loserObj) });
+    }
+
+    // 3rd & 4th from 3rd Place Match (or SF losers if match not yet resolved)
+    if (thirdPlace && thirdPlace.winner) {
+        const winnerId = thirdPlace.winner;
+        const winnerObj = getTeamId(thirdPlace.player1) === winnerId ? thirdPlace.player1 : thirdPlace.player2;
+        const loserObj = getTeamId(thirdPlace.player1) === winnerId ? thirdPlace.player2 : thirdPlace.player1;
+
+        standings.push({ rank: 3, team: winnerObj, teamId: winnerId });
+        standings.push({ rank: 4, team: loserObj, teamId: getTeamId(loserObj) });
+    }
+
+    return standings;
 };
 
 /**

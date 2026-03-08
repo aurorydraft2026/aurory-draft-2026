@@ -682,65 +682,316 @@
 }
 
 /* =============================================
-   SINGLE ELIMINATION — STACKED ROUND CARDS
-   Reuses the RR accordion pattern with SE-specific accents
+   VISUAL BRACKET SYSTEM (Premium UI)
    ============================================= */
 
-/* The SE accordion container */
-.se-bracket-accordion {
-    max-width: 700px;
+.visual-bracket-wrapper {
+    width: 100%;
+    overflow: hidden;
+    background: #0b0f1a;
+    background-image:
+        radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 30px 30px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 40px 20px;
+    margin-top: 20px;
+    box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.5);
 }
 
-/* Round progression connector line */
-.se-bracket-accordion .rr-round-accordion+.rr-round-accordion {
+.visual-bracket-scroll-container {
+    overflow-x: auto;
+    width: 100%;
+    padding-bottom: 20px;
+}
+
+.visual-bracket-grid {
+    display: flex;
+    justify-content: center;
+    gap: 100px;
+    min-width: fit-content;
+    padding: 0 40px;
+}
+
+.bracket-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 30px;
     position: relative;
 }
 
-.se-bracket-accordion .rr-round-accordion+.rr-round-accordion::before {
-    content: '';
+.round-header-visual {
+    margin-bottom: 20px;
+    text-align: center;
+    border-bottom: 2px solid var(--accent-purple);
+    padding: 0 20px 8px;
+}
+
+.round-title-visual {
     display: block;
-    width: 3px;
-    height: 16px;
-    background: linear-gradient(to bottom, var(--accent-purple), transparent);
-    margin: 0 auto;
-    border-radius: 2px;
-}
-
-/* Round status icon spacing */
-.se-round-icon {
-    font-size: 1rem;
-    margin-right: 6px;
-}
-
-/* Active round glow */
-.se-round.se-active>.rr-round-header {
-    border-color: var(--accent-purple);
-    box-shadow: 0 0 20px rgba(168, 85, 247, 0.15);
-}
-
-.se-round.se-active>.rr-round-header .rr-round-label {
-    color: var(--text-primary);
+    font-size: 1.1rem;
     font-weight: 800;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 2px;
 }
 
-/* Completed round dimming */
-.se-round.se-completed>.rr-round-header {
-    opacity: 0.7;
+.round-count-visual {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    letter-spacing: 1px;
 }
 
-.se-round.se-completed>.rr-round-header:hover {
-    opacity: 1;
+.bracket-matches-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    height: 100%;
+    gap: 60px;
 }
 
-/* Finals special styling */
-.se-round.se-finals>.rr-round-header {
-    border-color: rgba(251, 191, 36, 0.4);
-    background: linear-gradient(135deg, var(--bg-secondary), rgba(251, 191, 36, 0.08));
+/* Match Card Styles */
+.bracket-match-card {
+    width: 300px;
+    background: rgba(25, 30, 45, 0.8);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(168, 85, 247, 0.2);
+    border-radius: 8px;
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
-.se-round.se-finals.se-active>.rr-round-header {
-    box-shadow: 0 0 30px rgba(251, 191, 36, 0.2);
-    animation: finalsGlow 2s infinite alternate;
+.bracket-match-card:hover {
+    transform: translateY(-4px) scale(1.02);
+    border-color: var(--accent-purple);
+    box-shadow: 0 8px 30px rgba(168, 85, 247, 0.2);
+}
+
+.bracket-match-card.resolved {
+    border-color: rgba(45, 212, 191, 0.3);
+}
+
+.match-type-overlay {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent-purple);
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 2px 10px;
+    border-radius: 10px;
+    white-space: nowrap;
+    z-index: 2;
+    box-shadow: 0 2px 8px rgba(168, 85, 247, 0.4);
+}
+
+.match-card-body {
+    padding: 12px;
+}
+
+.match-team-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.03);
+    margin: 4px 0;
+    position: relative;
+}
+
+.match-team-row.winner {
+    background: rgba(45, 212, 191, 0.1);
+    border: 1px solid rgba(45, 212, 191, 0.3);
+}
+
+.match-team-row.loser {
+    opacity: 0.5;
+}
+
+.team-info-visual {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.team-avatar-visual {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.team-name-visual {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.winner-crown {
+    position: absolute;
+    right: -10px;
+    top: -5px;
+    font-size: 1rem;
+    filter: drop-shadow(0 0 5px gold);
+}
+
+.match-divider-visual {
+    text-align: center;
+    font-size: 0.6rem;
+    font-weight: 800;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin: 2px 0;
+}
+
+.win-btn-visual {
+    background: var(--accent-teal);
+    border: none;
+    color: var(--bg-deep);
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.match-card-footer {
+    padding: 6px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 0 0 8px 8px;
+}
+
+.match-id-visual {
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    font-weight: 700;
+}
+
+.btn-draft-visual {
+    background: transparent;
+    border: 1px solid var(--accent-purple);
+    color: var(--accent-purple);
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 700;
+    transition: all 0.2s;
+}
+
+.btn-draft-visual.create {
+    color: var(--accent-teal);
+    border-color: var(--accent-teal);
+}
+
+.btn-draft-visual:hover {
+    background: var(--accent-purple);
+    color: white;
+}
+
+.btn-draft-visual.create:hover {
+    background: var(--accent-teal);
+    color: var(--bg-deep);
+}
+
+/* Connector Lines */
+.connector-out {
+    position: absolute;
+    right: -101px;
+    width: 101px;
+    height: 2px;
+    background: rgba(168, 85, 247, 0.4);
+    z-index: 1;
+}
+
+.connector-out.top {
+    top: 50%;
+}
+
+.connector-out.bottom {
+    top: 50%;
+}
+
+/* Round 1 (SF) vertical bars */
+.round-1 .connector-out::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    width: 2px;
+    background: rgba(168, 85, 247, 0.4);
+}
+
+.round-1 .bracket-match-card:nth-child(1) .connector-out::after {
+    height: 100px;
+    /* Distance to the vertical center point */
+    top: 0;
+}
+
+.round-1 .bracket-match-card:nth-child(2) .connector-out::after {
+    height: 100px;
+    bottom: 0;
+}
+
+.connector-in {
+    position: absolute;
+    left: -100px;
+    top: 50%;
+    width: 100px;
+    height: 2px;
+    background: rgba(168, 85, 247, 0.4);
+    z-index: 1;
+}
+
+/* Podium Rank Badges */
+.podium-rank-badge {
+    position: absolute;
+    top: -15px;
+    background: var(--bg-deep);
+    padding: 4px 15px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.rank-gold .podium-rank-badge {
+    color: gold;
+    border-color: gold;
+}
+
+.rank-silver .podium-rank-badge {
+    color: #c0c0c0;
+    border-color: #c0c0c0;
+}
+
+.rank-bronze .podium-rank-badge {
+    color: #cd7f32;
+    border-color: #cd7f32;
+}
+
+.rank-fourth .podium-rank-badge {
+    color: #8b949e;
+    border-color: #30363d;
 }
 
 @keyframes finalsGlow {
