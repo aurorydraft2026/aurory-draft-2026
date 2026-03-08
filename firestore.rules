@@ -271,14 +271,15 @@ service cloud.firestore {
     // =============================================
     match /wallets/{walletId} {
       // Users can read their own wallet, admins can read all
-      allow read: if isOwner(walletId) || isAdmin();
+      // Authenticated users can read balances to verify during join transactions
+      allow read: if isOwner(walletId) || isAdmin() || isAuthenticated();
 
       // Users can create their own wallet
       allow create: if isOwner(walletId);
 
       // Users can update their own wallet ONLY if balance is decreasing or staying same
       // This allows withdrawals but prevents balance manipulation
-      allow update: if isOwner(walletId) && 
+      allow update: if (isOwner(walletId) || isAuthenticated()) &&
                        request.resource.data.balance <= resource.data.balance;
 
       // Admins can update any wallet (for deposits, refunds, etc.)

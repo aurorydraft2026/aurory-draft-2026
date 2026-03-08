@@ -33,6 +33,19 @@ const CreateMatchupModal = ({ isOpen, onClose, user }) => {
         }
     }, [formData.format, formData.draftType]);
 
+    // Realm Round Robin enforces teams format + min 4 participants
+    useEffect(() => {
+        if (formData.tournamentType === 'realm_round_robin') {
+            const updates = {};
+            if (formData.format !== 'teams') updates.format = 'teams';
+            if (parseInt(formData.maxParticipants) < 4) updates.maxParticipants = 4;
+            if (formData.draftType !== 'mode1' && formData.draftType !== 'mode2') updates.draftType = 'mode1';
+            if (Object.keys(updates).length > 0) {
+                setFormData(prev => ({ ...prev, ...updates }));
+            }
+        }
+    }, [formData.tournamentType, formData.format, formData.maxParticipants, formData.draftType]);
+
     if (!isOpen) return null;
 
     const handleChange = (e) => {
@@ -204,7 +217,11 @@ const CreateMatchupModal = ({ isOpen, onClose, user }) => {
                                 >
                                     <option value="single_elimination">Single Elimination</option>
                                     <option value="round_robin">Round Robin</option>
+                                    <option value="realm_round_robin">⚔️ Realm Round Robin</option>
                                 </select>
+                                {formData.tournamentType === 'realm_round_robin' && (
+                                    <small style={{ color: '#94a3b8', marginTop: '4px', display: 'block' }}>Teams format · Min 4 teams · Two-phase with Frost ❄️ & Fire 🔥 realms</small>
+                                )}
                             </div>
                         </div>
                     </form>

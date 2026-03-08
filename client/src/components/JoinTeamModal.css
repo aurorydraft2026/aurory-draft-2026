@@ -206,3 +206,29 @@
     font-size: 0.65rem;
     color: #ffd700;
 }
+
+.fee-notice-area {
+    margin-top: 24px;
+    padding: 16px;
+    background: rgba(255, 215, 0, 0.05);
+    border: 1px solid rgba(255, 215, 0, 0.2);
+    border-radius: var(--radius-md);
+    text-align: center;
+}
+
+.fee-description {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #ffd700;
+    margin: 0 0 4px 0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.fee-subtext {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 0;
+}

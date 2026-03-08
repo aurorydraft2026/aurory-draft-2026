@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
-import { doc, onSnapshot, updateDoc, setDoc, arrayUnion, arrayRemove, deleteDoc, collection, getDocs, query, where, documentId, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, setDoc, arrayUnion, arrayRemove, deleteDoc, collection, getDocs, query, where, documentId, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { isUserSuperAdmin } from '../config/admins';
 import JoinTeamModal from '../components/JoinTeamModal';
-import { generateSingleElimination, generateRoundRobin } from '../utils/tournamentUtils';
+import InsufficientBalanceModal from '../components/InsufficientBalanceModal';
+import LeaveConfirmationModal from '../components/LeaveConfirmationModal';
+import { generateSingleElimination, generateRoundRobin, generateRealmRoundRobin, generateFinalsRoundRobin, calculateRoundRobinStandings } from '../utils/tournamentUtils';
 import './MatchupPage.css';
 
 
@@ -19,9 +21,24 @@ const MatchupPage = () => {
     const [profile, setProfile] = useState(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [showJoinTeamModal, setShowJoinTeamModal] = useState(false);
+    const [showLeaveModal, setShowLeaveModal] = useState(false);
     const [registeredUsers, setRegisteredUsers] = useState([]);
     const [activeTab, setActiveTab] = useState('matches');
     const [expandedRounds, setExpandedRounds] = useState({});
+    const [creatingDrafts, setCreatingDrafts] = useState({}); // { matchKey: true }
+    const [walletBalance, setWalletBalance] = useState(0);
+    const [showBalanceModal, setShowBalanceModal] = useState(false);
+    const ENTRY_FEE = 100 * 1e9; // 100 AURY in nano-AURY
+
+    useEffect(() => {
+        if (!user) { setWalletBalance(0); return; }
+        const walletRef = doc(db, 'wallets', user.uid);
+        const unsubscribeWallet = onSnapshot(walletRef, (snap) => {
+            setWalletBalance(snap.exists() ? (snap.data().balance || 0) : 0);
+        }, () => setWalletBalance(0));
+
+        return () => unsubscribeWallet();
+    }, [user]);
 
     useEffect(() => {
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -132,31 +149,106 @@ const MatchupPage = () => {
         }
 
         try {
-            const matchupRef = doc(db, 'matchups', matchupId);
-            await updateDoc(matchupRef, {
-                participants: arrayUnion(user.uid),
-                participantUids: arrayUnion(user.uid)
+            await runTransaction(db, async (transaction) => {
+                const walletRef = doc(db, 'wallets', user.uid);
+                const walletSnap = await transaction.get(walletRef);
+                const balance = walletSnap.exists() ? (walletSnap.data().balance || 0) : 0;
+
+                if (balance < ENTRY_FEE) {
+                    setShowBalanceModal(true);
+                    throw new Error(`Insufficient balance. You need 100 AURY to join.`);
+                }
+
+                const matchupRef = doc(db, 'matchups', matchupId);
+                const matchupSnap = await transaction.get(matchupRef);
+                if (!matchupSnap.exists()) throw new Error("Matchup does not exist!");
+
+                const mData = matchupSnap.data();
+                if (mData.participants.length >= mData.maxParticipants) {
+                    throw new Error("Matchup is already full!");
+                }
+
+                transaction.update(walletRef, { balance: balance - ENTRY_FEE });
+                transaction.update(matchupRef, {
+                    participants: arrayUnion(user.uid),
+                    participantUids: arrayUnion(user.uid)
+                });
             });
+            alert('Tournament joined successfully! 100 AURY deducted.');
         } catch (err) {
             console.error('Error joining matchup:', err);
+            if (!err.message.includes('Insufficient balance')) {
+                alert(err.message);
+            }
         }
     };
 
     const handleJoinTeam = async (teamData) => {
         try {
-            const matchupRef = doc(db, 'matchups', matchupId);
             const uidsToAdd = [teamData.leader, ...teamData.members];
-            await updateDoc(matchupRef, {
-                participants: arrayUnion(teamData),
-                participantUids: arrayUnion(...uidsToAdd)
+
+            await runTransaction(db, async (transaction) => {
+                // Check all members balances
+                const walletSnaps = await Promise.all(uidsToAdd.map(uid => transaction.get(doc(db, 'wallets', uid))));
+                const insufficient = [];
+
+                walletSnaps.forEach((snap, idx) => {
+                    const balance = snap.exists() ? (snap.data().balance || 0) : 0;
+                    if (balance < ENTRY_FEE) {
+                        const uid = uidsToAdd[idx];
+                        insufficient.push(uid);
+                    }
+                });
+
+                if (insufficient.length > 0) {
+                    // Try to get names for better error message
+                    const userSnaps = await Promise.all(insufficient.map(uid => transaction.get(doc(db, 'users', uid))));
+                    const names = insufficient.map((uid, idx) => {
+                        const s = userSnaps[idx];
+                        const d = s.exists() ? s.data() : null;
+                        return d?.auroryPlayerName || d?.displayName || uid;
+                    });
+                    throw new Error(`Insufficient balance for: ${names.join(', ')}. Each member needs 100 AURY.`);
+                }
+
+                // Double check matchup capacity
+                const matchupRef = doc(db, 'matchups', matchupId);
+                const matchupSnap = await transaction.get(matchupRef);
+                const mData = matchupSnap.data();
+                if (mData.participants.length >= mData.maxParticipants) {
+                    throw new Error("Matchup is already full!");
+                }
+
+                // Deduct from all and join
+                uidsToAdd.forEach((uid, idx) => {
+                    const snap = walletSnaps[idx];
+                    transaction.update(doc(db, 'wallets', uid), {
+                        balance: (snap.data()?.balance || 0) - ENTRY_FEE
+                    });
+                });
+
+                transaction.update(matchupRef, {
+                    participants: arrayUnion(teamData),
+                    participantUids: arrayUnion(...uidsToAdd)
+                });
             });
+            alert('Team joined tournament successfully! 100 AURY deducted from each member.');
         } catch (err) {
             console.error('Error joining as team:', err);
-            alert('Failed to join as team. Maybe it just filled up?');
+            if (err.message.includes('Insufficient balance')) {
+                setShowBalanceModal(true);
+            } else {
+                alert(err.message || 'Failed to join as team.');
+            }
         }
     };
 
-    const handleLeave = async () => {
+    const handleLeave = () => {
+        if (!user) return;
+        setShowLeaveModal(true);
+    };
+
+    const confirmLeave = async () => {
         if (!user) return;
 
         try {
@@ -182,6 +274,7 @@ const MatchupPage = () => {
                     participantUids: arrayRemove(user.uid)
                 });
             }
+            setShowLeaveModal(false);
         } catch (err) {
             console.error('Error leaving matchup:', err);
         }
@@ -193,26 +286,52 @@ const MatchupPage = () => {
 
         try {
             const matchupRef = doc(db, 'matchups', matchupId);
-            let structure = [];
-            if (matchup.tournamentType === 'single_elimination') {
-                structure = generateSingleElimination(matchup.participants);
-            } else if (matchup.tournamentType === 'round_robin') {
-                structure = generateRoundRobin(matchup.participants);
-            }
 
-            await updateDoc(matchupRef, {
-                status: 'active',
-                matchupStructure: structure,
-                startedAt: new Date()
-            });
+            if (matchup.tournamentType === 'realm_round_robin') {
+                // Realm Round Robin: split into Frost/Fire, generate group fixtures
+                if (matchup.participants.length < 4) {
+                    alert('Realm Round Robin requires at least 4 teams.');
+                    return;
+                }
+                const { realms, groupStructure } = generateRealmRoundRobin(matchup.participants);
+                await updateDoc(matchupRef, {
+                    status: 'active',
+                    phase: 'groups',
+                    realms,
+                    groupStructure,
+                    groupScores: {},
+                    playerScores: {},
+                    startedAt: new Date()
+                });
+            } else {
+                let structure = [];
+                if (matchup.tournamentType === 'single_elimination') {
+                    structure = generateSingleElimination(matchup.participants);
+                } else if (matchup.tournamentType === 'round_robin') {
+                    structure = generateRoundRobin(matchup.participants);
+                }
+                await updateDoc(matchupRef, {
+                    status: 'active',
+                    matchupStructure: structure,
+                    startedAt: new Date()
+                });
+            }
         } catch (err) {
             console.error('Error starting matchup:', err);
         }
     };
 
-    const handleReportWinner = async (roundIndex, matchIndex, winnerId) => {
+    const handleReportWinner = async (roundIndex, matchIndex, winnerId, realmKey = null) => {
         if (!isAdmin || !winnerId) return;
         try {
+            const matchupRef = doc(db, 'matchups', matchupId);
+
+            if (matchup.tournamentType === 'realm_round_robin') {
+                // Realm round robin: determine which structure to update
+                await handleRealmWinnerReport(roundIndex, matchIndex, winnerId, realmKey);
+                return;
+            }
+
             const newStructure = JSON.parse(JSON.stringify(matchup.matchupStructure));
             const currentMatch = newStructure[roundIndex].matches[matchIndex];
             currentMatch.winner = winnerId;
@@ -231,12 +350,99 @@ const MatchupPage = () => {
                 }
             }
 
-            const matchupRef = doc(db, 'matchups', matchupId);
             await updateDoc(matchupRef, {
                 matchupStructure: newStructure
             });
         } catch (err) {
             console.error('Error reporting winner:', err);
+        }
+    };
+
+    /**
+     * Handle winner reporting for realm round robin matches.
+     * Updates the correct structure (groupStructure.frost/fire or finalsStructure)
+     * and checks for phase advancement.
+     */
+    const handleRealmWinnerReport = async (roundIndex, matchIndex, winnerId, realmKey = null) => {
+        const matchupRef = doc(db, 'matchups', matchupId);
+        const phase = matchup.phase;
+
+        if (phase === 'groups') {
+            const realm = realmKey;
+            if (!realm) return;
+
+            let newGroupStructure = JSON.parse(JSON.stringify(matchup.groupStructure));
+            const match = newGroupStructure[realm][roundIndex]?.matches?.[matchIndex];
+
+            if (match && !match.winner) {
+                match.winner = winnerId;
+            } else {
+                return;
+            }
+
+            if (!realm) return;
+
+            const updateData = { groupStructure: newGroupStructure };
+
+            // Check if ALL group matches are complete → advance to finals
+            const allFrostDone = newGroupStructure.frost.every(r => r.matches.every(m => m.winner));
+            const allFireDone = newGroupStructure.fire.every(r => r.matches.every(m => m.winner));
+
+            if (allFrostDone && allFireDone) {
+                // Calculate standings and advance top 2 from each realm
+                const frostStandings = calculateRoundRobinStandings(
+                    matchup.realms.frost, newGroupStructure.frost, matchup.format, matchup.playerScores
+                );
+                const fireStandings = calculateRoundRobinStandings(
+                    matchup.realms.fire, newGroupStructure.fire, matchup.format, matchup.playerScores
+                );
+
+                const top2Frost = frostStandings.slice(0, 2).map(s => s.team);
+                const top2Fire = fireStandings.slice(0, 2).map(s => s.team);
+                const finalsTeams = [...top2Frost, ...top2Fire];
+
+                const finalsStructure = generateFinalsRoundRobin(finalsTeams);
+
+                updateData.phase = 'finals';
+                updateData.finalsStructure = finalsStructure;
+                updateData.finalsParticipants = finalsTeams;
+                updateData.playerScores = {}; // Reset scores for finals
+                updateData.groupStandings = {
+                    frost: frostStandings.map(s => ({ teamId: s.teamId, points: s.points, wins: s.wins, draws: s.draws, losses: s.losses })),
+                    fire: fireStandings.map(s => ({ teamId: s.teamId, points: s.points, wins: s.wins, draws: s.draws, losses: s.losses }))
+                };
+            }
+
+            await updateDoc(matchupRef, updateData);
+
+        } else if (phase === 'finals') {
+            const newFinalsStructure = JSON.parse(JSON.stringify(matchup.finalsStructure));
+            const match = newFinalsStructure[roundIndex]?.matches?.[matchIndex];
+            if (!match || match.winner) return;
+
+            match.winner = winnerId;
+
+            const updateData = { finalsStructure: newFinalsStructure };
+
+            // Check if all finals matches are complete
+            const allDone = newFinalsStructure.every(r => r.matches.every(m => m.winner));
+            if (allDone) {
+                const standings = calculateRoundRobinStandings(
+                    matchup.finalsParticipants, newFinalsStructure, matchup.format, matchup.playerScores
+                );
+                updateData.phase = 'completed';
+                updateData.finalStandings = standings.map((s, i) => ({
+                    rank: i + 1,
+                    teamId: s.teamId,
+                    team: s.team,
+                    points: s.points,
+                    wins: s.wins,
+                    draws: s.draws,
+                    losses: s.losses
+                }));
+            }
+
+            await updateDoc(matchupRef, updateData);
         }
     };
 
@@ -275,11 +481,158 @@ const MatchupPage = () => {
         alert(`${label} copied to clipboard!`);
     };
 
-    const handleCreateDraftFromMatch = async (roundIndex, matchIndex) => {
+    const handleCreateAllDraftsForRound = async (roundIndex, realmKey = null) => {
         if (!isAdmin || !matchup) return;
 
-        const structure = matchup.matchupStructure;
-        const match = structure[roundIndex]?.matches[matchIndex];
+        let structure, structureFieldPath;
+        if (matchup.tournamentType === 'realm_round_robin') {
+            const phase = matchup.phase === 'completed' ? 'finals' : matchup.phase;
+            if (phase === 'groups' && realmKey) {
+                structure = matchup.groupStructure?.[realmKey] || [];
+                structureFieldPath = `groupStructure.${realmKey}`;
+            } else {
+                structure = matchup.finalsStructure || [];
+                structureFieldPath = 'finalsStructure';
+            }
+        } else {
+            structure = matchup.matchupStructure || [];
+            structureFieldPath = 'matchupStructure';
+        }
+
+        const round = structure[roundIndex];
+        if (!round) return;
+
+        const matchesToCreate = round.matches.filter(m => !m.draftId && !m.winner && m.player1 && m.player2);
+        if (matchesToCreate.length === 0) {
+            alert('No eligible matches in this round to create drafts for.');
+            return;
+        }
+
+        if (!window.confirm(`Create drafts for all ${matchesToCreate.length} active matches in this round?`)) return;
+
+        const roundKey = realmKey ? `round_${realmKey}_${roundIndex}` : `round_${roundIndex}`;
+        if (creatingDrafts[roundKey]) return;
+
+        try {
+            setCreatingDrafts(prev => ({ ...prev, [roundKey]: true }));
+            const newStructure = JSON.parse(JSON.stringify(structure));
+            const roundLabel = realmKey ? (realmKey === 'frost' ? '❄️ Frost' : '🔥 Fire') : (round.title || `Round ${roundIndex + 1}`);
+
+            for (let i = 0; i < round.matches.length; i++) {
+                const match = round.matches[i];
+                if (match.draftId || match.winner || !match.player1 || !match.player2) continue;
+
+                // Basic draft creation logic (simplified version of handleCreateDraftFromMatch without navigate)
+                const tournamentId = `tournament_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                const draftTitle = `${matchup.title} — ${roundLabel} M${i + 1}`;
+                const draftType = matchup.draftType || 'mode3';
+                const is1v1 = draftType === 'mode3' || draftType === 'mode4';
+                const permissions = {};
+                permissions[user.uid] = 'admin';
+
+                let preAssignedTeams, teamNames, teamBanners;
+                if (matchup.format === 'teams') {
+                    const t1 = match.player1;
+                    const t2 = match.player2;
+                    preAssignedTeams = {
+                        team1: { leader: t1.leader || null, member1: t1.members?.[0] || null, member2: t1.members?.[1] || null },
+                        team2: { leader: t2.leader || null, member1: t2.members?.[0] || null, member2: t2.members?.[1] || null }
+                    };
+                    teamNames = { team1: t1.teamName || 'Team 1', team2: t2.teamName || 'Team 2' };
+                    teamBanners = { team1: t1.banner || null, team2: t2.banner || null };
+                    [t1.leader, ...(t1.members || []), t2.leader, ...(t2.members || [])].forEach(uid => {
+                        if (uid && !permissions[uid]) permissions[uid] = 'spectator';
+                    });
+                } else {
+                    const p1uid = typeof match.player1 === 'object' ? match.player1.uid : match.player1;
+                    const p2uid = typeof match.player2 === 'object' ? match.player2.uid : match.player2;
+                    preAssignedTeams = {
+                        team1: { leader: p1uid || null, member1: null, member2: null },
+                        team2: { leader: p2uid || null, member1: null, member2: null }
+                    };
+                    const p1user = getUserById(p1uid);
+                    const p2user = getUserById(p2uid);
+                    teamNames = {
+                        team1: p1user?.auroryPlayerName || p1user?.displayName || 'Player 1',
+                        team2: p2user?.auroryPlayerName || p2user?.displayName || 'Player 2'
+                    };
+                    teamBanners = { team1: null, team2: null };
+                    if (p1uid && !permissions[p1uid]) permissions[p1uid] = 'spectator';
+                    if (p2uid && !permissions[p2uid]) permissions[p2uid] = 'spectator';
+                }
+
+                await setDoc(doc(db, 'drafts', tournamentId), {
+                    title: draftTitle,
+                    description: matchup.description || '',
+                    prizePool: 'Tournament Match',
+                    draftType,
+                    timerDuration: 5 * 60 * 1000,
+                    manualTimerStart: !is1v1,
+                    timerStarted: false,
+                    teamA: [],
+                    teamB: [],
+                    currentPhase: 0,
+                    currentTeam: 'A',
+                    picksInPhase: 0,
+                    status: is1v1 && preAssignedTeams.team1.leader && preAssignedTeams.team2.leader ? 'coinFlip' : 'waiting',
+                    permissions,
+                    preAssignedTeams,
+                    teamNames,
+                    teamBanners,
+                    createdAt: serverTimestamp(),
+                    createdBy: user.uid,
+                    matchupId,
+                    matchRoundIndex: roundIndex,
+                    matchMatchIndex: i,
+                    realmPhase: matchup.tournamentType === 'realm_round_robin' ? (realmKey ? 'groups' : 'finals') : null,
+                    realmName: realmKey || null,
+                    isFriendly: true
+                });
+
+                newStructure[roundIndex].matches[i].draftId = tournamentId;
+            }
+
+            const matchupRef = doc(db, 'matchups', matchupId);
+            await updateDoc(matchupRef, { [structureFieldPath]: newStructure });
+            alert(`Successfully created ${matchesToCreate.length} drafts.`);
+        } catch (err) {
+            console.error('Bulk creation failed:', err);
+            alert('Failed to create all drafts: ' + err.message);
+        } finally {
+            setCreatingDrafts(prev => {
+                const newState = { ...prev };
+                delete newState[roundKey];
+                return newState;
+            });
+        }
+    };
+
+    const handleCreateDraftFromMatch = async (roundIndex, matchIndex, realmKey) => {
+        if (!isAdmin || !matchup) return;
+
+        // Resolve the correct structure and match based on tournament type
+        let structure, match, structureFieldPath, roundLabel;
+
+        if (matchup.tournamentType === 'realm_round_robin') {
+            if (matchup.phase === 'groups' && realmKey) {
+                structure = matchup.groupStructure?.[realmKey] || [];
+                match = structure[roundIndex]?.matches?.[matchIndex];
+                structureFieldPath = `groupStructure.${realmKey}`;
+                const realmLabel = realmKey === 'frost' ? '❄️ Frost' : '🔥 Fire';
+                roundLabel = `${realmLabel} R${roundIndex + 1}`;
+            } else if (matchup.phase === 'finals') {
+                structure = matchup.finalsStructure || [];
+                match = structure[roundIndex]?.matches?.[matchIndex];
+                structureFieldPath = 'finalsStructure';
+                roundLabel = `👑 Valhalla R${roundIndex + 1}`;
+            }
+        } else {
+            structure = matchup.matchupStructure;
+            match = structure?.[roundIndex]?.matches?.[matchIndex];
+            structureFieldPath = 'matchupStructure';
+            roundLabel = structure?.[roundIndex]?.title || `Round ${roundIndex + 1}`;
+        }
+
         if (!match || !match.player1 || !match.player2) {
             alert('Both players/teams must be determined before creating a draft.');
             return;
@@ -293,12 +646,15 @@ const MatchupPage = () => {
             return;
         }
 
-        const roundLabel = structure[roundIndex].title || `Round ${roundIndex + 1}`;
+        const matchKey = realmKey ? `match_${realmKey}_${roundIndex}_${matchIndex}` : `match_${roundIndex}_${matchIndex}`;
+        if (creatingDrafts[matchKey]) return;
+
         const draftTitle = `${matchup.title} — ${roundLabel} M${matchIndex + 1}`;
         const draftType = matchup.draftType || 'mode3';
         const is1v1 = draftType === 'mode3' || draftType === 'mode4';
 
         try {
+            setCreatingDrafts(prev => ({ ...prev, [matchKey]: true }));
             const tournamentId = `tournament_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             const draftRef = doc(db, 'drafts', tournamentId);
 
@@ -308,8 +664,7 @@ const MatchupPage = () => {
             let preAssignedTeams, teamNames, teamBanners;
 
             if (matchup.format === 'teams') {
-                // Teams format — map bracket team objects to draft preAssignedTeams
-                const t1 = match.player1; // team object { teamName, leader, members: [m1, m2], banner }
+                const t1 = match.player1;
                 const t2 = match.player2;
 
                 preAssignedTeams = {
@@ -325,12 +680,10 @@ const MatchupPage = () => {
                     team2: t2.banner || null
                 };
 
-                // Add all team members to permissions
                 [t1.leader, ...(t1.members || []), t2.leader, ...(t2.members || [])].forEach(uid => {
                     if (uid && !permissions[uid]) permissions[uid] = 'spectator';
                 });
             } else {
-                // Individual format — player UIDs directly
                 const p1uid = typeof match.player1 === 'object' ? match.player1.uid : match.player1;
                 const p2uid = typeof match.player2 === 'object' ? match.player2.uid : match.player2;
                 const p1user = getUserById(p1uid);
@@ -350,7 +703,7 @@ const MatchupPage = () => {
                 if (p2uid && !permissions[p2uid]) permissions[p2uid] = 'spectator';
             }
 
-            const timerMs = 5 * 60 * 1000; // 5 minutes default
+            const timerMs = 5 * 60 * 1000;
 
             const tournamentData = {
                 title: draftTitle,
@@ -384,10 +737,11 @@ const MatchupPage = () => {
                 isFriendly: true,
                 joinable: false,
                 entryPaid: {},
-                // Matchup linkage
                 matchupId: matchupId,
                 matchRoundIndex: roundIndex,
-                matchMatchIndex: matchIndex
+                matchMatchIndex: matchIndex,
+                realmPhase: matchup.tournamentType === 'realm_round_robin' ? matchup.phase : null,
+                realmName: realmKey || null
             };
 
             if (is1v1) {
@@ -406,19 +760,25 @@ const MatchupPage = () => {
 
             await setDoc(draftRef, tournamentData);
 
-            // Update matchup structure with draftId
+            // Update the correct matchup structure with draftId
             const newStructure = JSON.parse(JSON.stringify(structure));
             newStructure[roundIndex].matches[matchIndex].draftId = tournamentId;
 
             const matchupRef = doc(db, 'matchups', matchupId);
             await updateDoc(matchupRef, {
-                matchupStructure: newStructure
+                [structureFieldPath]: newStructure
             });
 
             navigate(`/tournament/${tournamentId}`);
         } catch (err) {
             console.error('Error creating draft from match:', err);
             alert('Failed to create draft: ' + err.message);
+        } finally {
+            setCreatingDrafts(prev => {
+                const newState = { ...prev };
+                delete newState[matchKey];
+                return newState;
+            });
         }
     };
 
@@ -676,15 +1036,15 @@ const MatchupPage = () => {
 
                                 <section className="action-panel glass-panel">
                                     <div className="action-row">
-                                        {canJoin && <button className="btn-join-hero" onClick={handleJoin}>Join Matchup</button>}
-                                        {isJoined && matchup.status === 'waiting' && <button className="btn-leave-hero" onClick={handleLeave}>Leave Matchup</button>}
+                                        {canJoin && <button className="btn-join-hero" onClick={handleJoin}>Join Tournament</button>}
+                                        {isJoined && matchup.status === 'waiting' && <button className="btn-leave-hero" onClick={handleLeave}>Leave Tournament</button>}
                                         {isAdmin && matchup.status === 'waiting' && (
                                             <button
                                                 className={`btn-start-hero ${matchup.participants.length < 2 ? 'disabled' : ''}`}
                                                 onClick={handleStart}
                                                 disabled={matchup.participants.length < 2}
                                             >
-                                                {matchup.participants.length < 2 ? 'Need 2+ Players' : '🚀 Start Matchup'}
+                                                {matchup.participants.length < 2 ? 'Need 2+ Players' : '🚀 Start Tournament'}
                                             </button>
                                         )}
                                         {isAdmin && (
@@ -873,15 +1233,27 @@ const MatchupPage = () => {
 
                                     return (
                                         <div key={round.id} className={`rr-round-accordion ${expanded ? 'expanded' : ''}`}>
-                                            <button className="rr-round-header" onClick={() => toggleRound(round.id)}>
+                                            <div className="rr-round-header" onClick={() => toggleRound(round.id)}>
                                                 <div className="rr-round-title-group">
                                                     <span className="rr-round-chevron">{expanded ? '▾' : '▸'}</span>
                                                     <span className="rr-round-label">{round.title}</span>
                                                 </div>
-                                                <span className={`rr-round-badge ${stats.resolved === stats.total ? 'complete' : ''}`}>
-                                                    {stats.resolved}/{stats.total}
-                                                </span>
-                                            </button>
+                                                <div className="rr-round-header-actions">
+                                                    {isAdmin && stats.resolved < stats.total && (
+                                                        <button
+                                                            className="btn-create-all-drafts"
+                                                            onClick={(e) => { e.stopPropagation(); handleCreateAllDraftsForRound(rIndex); }}
+                                                            title="Create drafts for all matches in this round"
+                                                            disabled={creatingDrafts[`round_${rIndex}`]}
+                                                        >
+                                                            {creatingDrafts[`round_${rIndex}`] ? 'Creating...' : 'Bulk Create ⚔️'}
+                                                        </button>
+                                                    )}
+                                                    <span className={`rr-round-badge ${stats.resolved === stats.total ? 'complete' : ''}`}>
+                                                        {stats.resolved}/{stats.total}
+                                                    </span>
+                                                </div>
+                                            </div>
 
                                             {expanded && (
                                                 <div className="rr-round-body">
@@ -949,6 +1321,312 @@ const MatchupPage = () => {
                                         </div>
                                     );
                                 })}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ═══════════════════════════════════════════
+                    ACTIVE STATE — TAB: MATCHES (REALM ROUND ROBIN)
+                    ═══════════════════════════════════════════ */}
+                {matchup.status === 'active' && activeTab === 'matches' && matchup.tournamentType === 'realm_round_robin' && (
+                    <div className="tab-content-panel realm-tab-panel">
+                        {/* Phase Banner */}
+                        <div className={`realm-phase-banner phase-${matchup.phase}`}>
+                            {matchup.phase === 'groups' && (
+                                <>
+                                    <span className="phase-icon">⚔️</span>
+                                    <span className="phase-label">Group Stage</span>
+                                    <span className="phase-sub">Realm of Frost ❄️ vs Realm of Fire 🔥</span>
+                                </>
+                            )}
+                            {matchup.phase === 'finals' && (
+                                <>
+                                    <span className="phase-icon">👑</span>
+                                    <span className="phase-label">The Throne of Valhalla</span>
+                                    <span className="phase-sub">Top 4 teams compete for the crown</span>
+                                </>
+                            )}
+                            {matchup.phase === 'completed' && (
+                                <>
+                                    <span className="phase-icon">🏆</span>
+                                    <span className="phase-label">Tournament Complete</span>
+                                    <span className="phase-sub">Final standings decided</span>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Group Phase: Side-by-side Realms */}
+                        {(matchup.phase === 'groups' || matchup.groupStructure) && (
+                            <div className="realm-groups-container">
+                                {['frost', 'fire'].map(realmKey => {
+                                    const realmRounds = matchup.groupStructure?.[realmKey] || [];
+                                    const realmTeams = matchup.realms?.[realmKey] || [];
+                                    const realmLabel = realmKey === 'frost' ? '❄️ Realm of Frost' : '🔥 Realm of Fire';
+                                    const realmStandings = realmTeams.length > 0
+                                        ? calculateRoundRobinStandings(realmTeams, realmRounds, matchup.format, matchup.playerScores)
+                                        : [];
+
+                                    return (
+                                        <div key={realmKey} className={`realm-group-panel realm-${realmKey}`}>
+                                            <div className="realm-group-header">
+                                                <h4>{realmLabel}</h4>
+                                                <span className="realm-team-count">{realmTeams.length} teams</span>
+                                            </div>
+
+                                            {/* Mini Standings Table */}
+                                            <div className="realm-mini-standings">
+                                                <table>
+                                                    <thead>
+                                                        <tr>
+                                                            <th>#</th>
+                                                            <th>Team</th>
+                                                            <th>P</th>
+                                                            <th>W</th>
+                                                            <th>D</th>
+                                                            <th>L</th>
+                                                            <th>Pts</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {realmStandings.map((s, idx) => {
+                                                            return (
+                                                                <tr key={s.teamId} className={`${idx < 2 ? 'advancing' : 'eliminated'} ${matchup.phase !== 'groups' && idx < 2 ? 'advanced' : ''}`}>
+                                                                    <td className="rank">{idx + 1}</td>
+                                                                    <td className="team-name-cell">
+                                                                        {s.team?.teamName || 'Unknown'}
+                                                                        {idx < 2 && matchup.phase !== 'groups' && <span className="advance-badge">▲</span>}
+                                                                    </td>
+                                                                    <td>{s.played}</td>
+                                                                    <td>{s.wins}</td>
+                                                                    <td>{s.draws}</td>
+                                                                    <td>{s.losses}</td>
+                                                                    <td className="pts-cell"><strong>{s.points}</strong></td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            {/* Realm Fixtures */}
+                                            <div className="realm-fixtures">
+                                                {realmRounds.map((round, rIndex) => {
+                                                    const stats = roundStats(round);
+                                                    const expanded = isRoundExpanded(round.id);
+
+                                                    return (
+                                                        <div key={round.id} className={`rr-round-accordion realm-round ${expanded ? 'expanded' : ''}`}>
+                                                            <div className="rr-round-header" onClick={() => toggleRound(round.id)}>
+                                                                <div className="rr-round-title-group">
+                                                                    <span className="rr-round-chevron">{expanded ? '▾' : '▸'}</span>
+                                                                    <span className="rr-round-label">{round.title}</span>
+                                                                </div>
+                                                                <div className="rr-round-header-actions">
+                                                                    {isAdmin && stats.resolved < stats.total && (
+                                                                        <button
+                                                                            className="btn-create-all-drafts"
+                                                                            onClick={(e) => { e.stopPropagation(); handleCreateAllDraftsForRound(rIndex, realmKey); }}
+                                                                            title="Create drafts for all matches in this round"
+                                                                            disabled={creatingDrafts[`round_${realmKey}_${rIndex}`]}
+                                                                        >
+                                                                            {creatingDrafts[`round_${realmKey}_${rIndex}`] ? '...' : 'Bulk ⚔️'}
+                                                                        </button>
+                                                                    )}
+                                                                    <span className={`rr-round-badge ${stats.resolved === stats.total ? 'complete' : ''}`}>
+                                                                        {stats.resolved}/{stats.total}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+
+                                                            {expanded && (
+                                                                <div className="rr-round-body">
+                                                                    {round.matches.map((match, mIndex) => {
+                                                                        const prefix = realmKey === 'frost' ? 'Fr' : 'Fi';
+                                                                        const matchId = `${prefix}${mIndex + 1}`;
+                                                                        const p1 = match.player1;
+                                                                        const p2 = match.player2;
+                                                                        const winner = match.winner;
+                                                                        const getName = (p) => p?.teamName || 'TBD';
+                                                                        const getAvatar = (p) => {
+                                                                            if (!p) return 'https://cdn.discordapp.com/embed/avatars/0.png';
+                                                                            const leader = getUserById(p.leader);
+                                                                            return p.banner || leader?.auroryProfilePicture || 'https://cdn.discordapp.com/embed/avatars/0.png';
+                                                                        };
+                                                                        const getUID = (p) => p?.leader || null;
+
+                                                                        return (
+                                                                            <div key={match.id} className={`rr-compact-row ${winner ? 'resolved' : ''}`}>
+                                                                                <span className="rr-row-id">{matchId}</span>
+                                                                                <div className={`rr-row-player ${winner && winner === getUID(p1) ? 'winner' : ''} ${winner && winner !== getUID(p1) ? 'loser' : ''}`}>
+                                                                                    <img className="rr-row-avatar" src={getAvatar(p1)} alt="" />
+                                                                                    <span className="rr-row-name">{getName(p1)}</span>
+                                                                                    {isAdmin && p1 && !winner && (
+                                                                                        <button className="rr-row-win-btn" onClick={() => handleReportWinner(rIndex, mIndex, getUID(p1), realmKey)} title="Report as winner">✓</button>
+                                                                                    )}
+                                                                                </div>
+
+                                                                                <span className="rr-row-vs">vs</span>
+
+                                                                                <div className={`rr-row-player ${winner && winner === getUID(p2) ? 'winner' : ''} ${winner && winner !== getUID(p2) ? 'loser' : ''}`}>
+                                                                                    <img className="rr-row-avatar" src={getAvatar(p2)} alt="" />
+                                                                                    <span className="rr-row-name">{getName(p2)}</span>
+                                                                                    {isAdmin && p2 && !winner && (
+                                                                                        <button className="rr-row-win-btn" onClick={() => handleReportWinner(rIndex, mIndex, getUID(p2), realmKey)} title="Report as winner">✓</button>
+                                                                                    )}
+                                                                                </div>
+
+                                                                                <div className="rr-row-actions">
+                                                                                    {p1 && p2 && !winner && !match.draftId && isAdmin && (
+                                                                                        <button
+                                                                                            className="rr-row-draft-btn create"
+                                                                                            onClick={() => handleCreateDraftFromMatch(rIndex, mIndex, realmKey)}
+                                                                                            title="Create Draft"
+                                                                                            disabled={creatingDrafts[`match_${realmKey}_${rIndex}_${mIndex}`]}
+                                                                                        >
+                                                                                            {creatingDrafts[`match_${realmKey}_${rIndex}_${mIndex}`] ? '⏳' : '⚔️'}
+                                                                                        </button>
+                                                                                    )}
+                                                                                    {match.draftId && (
+                                                                                        <button className="rr-row-draft-btn view" onClick={() => navigate(`/tournament/${match.draftId}`)} title={winner ? 'View Draft' : 'Open Draft'}>
+                                                                                            {winner ? '📋' : '🎮'}
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Finals Phase: Throne of Valhalla */}
+                        {(matchup.phase === 'finals' || matchup.phase === 'completed') && matchup.finalsStructure && (
+                            <div className="realm-finals-container">
+                                <div className="realm-finals-header">
+                                    <h4>👑 The Throne of Valhalla — Finals</h4>
+                                </div>
+
+                                <div className="rr-accordion">
+                                    {matchup.finalsStructure.map((round, rIndex) => {
+                                        const stats = roundStats(round);
+                                        const expanded = isRoundExpanded(round.id);
+
+                                        return (
+                                            <div key={round.id} className={`rr-round-accordion realm-finals-round ${expanded ? 'expanded' : ''}`}>
+                                                <div className="rr-round-header" onClick={() => toggleRound(round.id)}>
+                                                    <div className="rr-round-title-group">
+                                                        <span className="rr-round-chevron">{expanded ? '▾' : '▸'}</span>
+                                                        <span className="rr-round-label">{round.title}</span>
+                                                    </div>
+                                                    <div className="rr-round-header-actions">
+                                                        {isAdmin && stats.resolved < stats.total && (
+                                                            <button
+                                                                className="btn-create-all-drafts"
+                                                                onClick={(e) => { e.stopPropagation(); handleCreateAllDraftsForRound(rIndex); }}
+                                                                title="Create drafts for all matches in this round"
+                                                                disabled={creatingDrafts[`round_${rIndex}`]}
+                                                            >
+                                                                {creatingDrafts[`round_${rIndex}`] ? '...' : 'Bulk ⚔️'}
+                                                            </button>
+                                                        )}
+                                                        <span className={`rr-round-badge ${stats.resolved === stats.total ? 'complete' : ''}`}>
+                                                            {stats.resolved}/{stats.total}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {expanded && (
+                                                    <div className="rr-round-body">
+                                                        {round.matches.map((match, mIndex) => {
+                                                            const matchId = `V${mIndex + 1}`;
+                                                            const p1 = match.player1;
+                                                            const p2 = match.player2;
+                                                            const winner = match.winner;
+                                                            const getName = (p) => p?.teamName || 'TBD';
+                                                            const getAvatar = (p) => {
+                                                                if (!p) return 'https://cdn.discordapp.com/embed/avatars/0.png';
+                                                                const leader = getUserById(p.leader);
+                                                                return p.banner || leader?.auroryProfilePicture || 'https://cdn.discordapp.com/embed/avatars/0.png';
+                                                            };
+                                                            const getUID = (p) => p?.leader || null;
+
+                                                            return (
+                                                                <div key={match.id} className={`rr-compact-row ${winner ? 'resolved' : ''}`}>
+                                                                    <span className="rr-row-id">{matchId}</span>
+                                                                    <div className={`rr-row-player ${winner && winner === getUID(p1) ? 'winner' : ''} ${winner && winner !== getUID(p1) ? 'loser' : ''}`}>
+                                                                        <img className="rr-row-avatar" src={getAvatar(p1)} alt="" />
+                                                                        <span className="rr-row-name">{getName(p1)}</span>
+                                                                        {isAdmin && p1 && !winner && (
+                                                                            <button className="rr-row-win-btn" onClick={() => handleReportWinner(rIndex, mIndex, getUID(p1))} title="Report as winner">✓</button>
+                                                                        )}
+                                                                    </div>
+
+                                                                    <span className="rr-row-vs">vs</span>
+
+                                                                    <div className={`rr-row-player ${winner && winner === getUID(p2) ? 'winner' : ''} ${winner && winner !== getUID(p2) ? 'loser' : ''}`}>
+                                                                        <img className="rr-row-avatar" src={getAvatar(p2)} alt="" />
+                                                                        <span className="rr-row-name">{getName(p2)}</span>
+                                                                        {isAdmin && p2 && !winner && (
+                                                                            <button className="rr-row-win-btn" onClick={() => handleReportWinner(rIndex, mIndex, getUID(p2))} title="Report as winner">✓</button>
+                                                                        )}
+                                                                    </div>
+
+                                                                    <div className="rr-row-actions">
+                                                                        {p1 && p2 && !winner && !match.draftId && isAdmin && (
+                                                                            <button
+                                                                                className="rr-row-draft-btn create"
+                                                                                onClick={() => handleCreateDraftFromMatch(rIndex, mIndex)}
+                                                                                title="Create Draft"
+                                                                                disabled={creatingDrafts[`match_${rIndex}_${mIndex}`]}
+                                                                            >
+                                                                                {creatingDrafts[`match_${rIndex}_${mIndex}`] ? '⏳' : '⚔️'}
+                                                                            </button>
+                                                                        )}
+                                                                        {match.draftId && (
+                                                                            <button className="rr-row-draft-btn view" onClick={() => navigate(`/tournament/${match.draftId}`)} title={winner ? 'View Draft' : 'Open Draft'}>
+                                                                                {winner ? '📋' : '🎮'}
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Final Podium */}
+                                {matchup.phase === 'completed' && matchup.finalStandings && (
+                                    <div className="realm-podium">
+                                        <h4 className="podium-title">🏆 Final Standings</h4>
+                                        <div className="podium-grid">
+                                            {matchup.finalStandings.map((standing, idx) => {
+                                                const medals = ['🥇', '🥈', '🥉', '4️⃣'];
+                                                const rankClass = ['gold', 'silver', 'bronze', 'fourth'];
+                                                return (
+                                                    <div key={standing.teamId} className={`podium-card rank-${rankClass[idx]}`}>
+                                                        <span className="podium-medal">{medals[idx]}</span>
+                                                        <span className="podium-team">{standing.team?.teamName || 'Unknown'}</span>
+                                                        <span className="podium-pts">{standing.points} pts</span>
+                                                        <span className="podium-record">{standing.wins}W {standing.draws}D {standing.losses}L</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -1174,6 +1852,20 @@ const MatchupPage = () => {
                     currentUser={user}
                 />
             )}
+
+            <InsufficientBalanceModal
+                isOpen={showBalanceModal}
+                onClose={() => setShowBalanceModal(false)}
+                requiredAmount={ENTRY_FEE}
+                currentBalance={walletBalance}
+                onDeposit={() => navigate('/')}
+            />
+
+            <LeaveConfirmationModal
+                isOpen={showLeaveModal}
+                onClose={() => setShowLeaveModal(false)}
+                onConfirm={confirmLeave}
+            />
         </div>
     );
 };

@@ -227,11 +227,15 @@ const JoinTeamModal = ({ isOpen, onClose, onJoin, registeredUsers, currentUser }
                             </div>
                         </div>
                     </div>
+                    <div className="fee-notice-area">
+                        <p className="fee-description">💰 Tournament Entry Fee: <strong>100 AURY</strong> per member</p>
+                        <p className="fee-subtext">Each selected member must have sufficient balance to join.</p>
+                    </div>
                 </div>
 
                 <div className="modal-footer">
                     <button className="cancel-btn" onClick={onClose}>Cancel</button>
-                    <button className="create-btn" onClick={handleSubmit}>🚀 Join Matchup</button>
+                    <button className="create-btn" onClick={handleSubmit}>🚀 Join Tournament</button>
                 </div>
 
                 {/* Selection Overlay */}

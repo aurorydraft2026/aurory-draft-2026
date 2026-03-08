@@ -1083,7 +1083,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         await createNotification(withdrawal.userId, {
           type: 'withdrawal',
           title: 'Withdrawal Approved',
-          message: `Your withdrawal has been approved. You should receive ${formatAuryAmount(withdrawal.netAmount || (withdrawal.amount * 0.95))} AURY (after 5% tax).`,
+          message: `Your withdrawal has been approved. You should receive ${formatAuryAmount(withdrawal.netAmount || (withdrawal.amount * 0.975))} AURY (after 2.5% tax).`,
           link: '#'
         });
 
@@ -2356,12 +2356,12 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           <span className="value amount">{formatAuryAmount(withdrawal.amount)} AURY</span>
                         </div>
                         <div className="detail-row tax-highlight">
-                          <span className="label">Tax (5%):</span>
-                          <span className="value">-{formatAuryAmount(withdrawal.taxAmount || (withdrawal.amount * 0.05))} AURY</span>
+                          <span className="label">Tax (2.5%):</span>
+                          <span className="value">-{formatAuryAmount(withdrawal.taxAmount || (withdrawal.amount * 0.025))} AURY</span>
                         </div>
                         <div className="detail-row net-highlight">
                           <span className="label">SEND TO USER (Net):</span>
-                          <span className="value received">{formatAuryAmount(withdrawal.netAmount || (withdrawal.amount * 0.95))} AURY</span>
+                          <span className="value received">{formatAuryAmount(withdrawal.netAmount || (withdrawal.amount * 0.975))} AURY</span>
                         </div>
                         <div className="detail-row">
                           <span className="label">Wallet Address:</span>

@@ -678,7 +678,6 @@ function TournamentPage() {
   // ─── Reusable: Update matchup bracket after winner is determined ───
   const updateMatchupBracket = async (overallWinner, freshMatchResults) => {
     if (!draftState.matchupId || draftState.matchRoundIndex === undefined || draftState.matchMatchIndex === undefined) return;
-    if (!overallWinner || overallWinner === 'draw' || overallWinner === 'both_disqualified') return;
 
     try {
       const matchupRef = doc(db, 'matchups', draftState.matchupId);
@@ -686,39 +685,71 @@ function TournamentPage() {
       if (!matchupSnap.exists()) return;
 
       const matchupData = matchupSnap.data();
-      const structure = JSON.parse(JSON.stringify(matchupData.matchupStructure || []));
       const roundIdx = draftState.matchRoundIndex;
       const matchIdx = draftState.matchMatchIndex;
+      const isRealmRR = matchupData.tournamentType === 'realm_round_robin';
+
+      const isRoundRobin = matchupData.tournamentType === 'round_robin' || matchupData.tournamentType === 'realm_round_robin';
+
+      // Resolve the correct structure based on tournament type
+      let structure, structureFieldPath, scoreFieldPrefix = 'playerScores';
+
+      if (isRealmRR) {
+        const realmPhase = draftState.realmPhase || matchupData.phase;
+        const realmName = draftState.realmName;
+
+        if (realmPhase === 'groups' && realmName) {
+          structure = JSON.parse(JSON.stringify(matchupData.groupStructure?.[realmName] || []));
+          structureFieldPath = `groupStructure.${realmName}`;
+        } else if (realmPhase === 'finals') {
+          structure = JSON.parse(JSON.stringify(matchupData.finalsStructure || []));
+          structureFieldPath = 'finalsStructure';
+        } else {
+          return;
+        }
+      } else {
+        // For draws in non-round-robin tournaments, exit early
+        if (!isRoundRobin && (!overallWinner || overallWinner === 'draw' || overallWinner === 'both_disqualified')) return;
+        structure = JSON.parse(JSON.stringify(matchupData.matchupStructure || []));
+        structureFieldPath = 'matchupStructure';
+      }
 
       if (!structure[roundIdx]?.matches?.[matchIdx]) return;
 
       const bracketMatch = structure[roundIdx].matches[matchIdx];
-      const winnerParticipant = overallWinner === 'A' ? bracketMatch.player1 : bracketMatch.player2;
-      const winnerId = matchupData.format === 'teams'
-        ? winnerParticipant?.leader
-        : (typeof winnerParticipant === 'object' ? winnerParticipant.uid : winnerParticipant);
+      const isDraw = !overallWinner || overallWinner === 'draw' || overallWinner === 'both_disqualified';
 
-      if (!winnerId) return;
+      if (isDraw && isRoundRobin) {
+        // Football-style: draw → mark as 'draw' and award +1 each
+        bracketMatch.winner = 'draw';
+      } else if (!isDraw) {
+        const winnerParticipant = overallWinner === 'A' ? bracketMatch.player1 : bracketMatch.player2;
+        const winnerId = matchupData.format === 'teams'
+          ? winnerParticipant?.leader
+          : (typeof winnerParticipant === 'object' ? winnerParticipant.uid : winnerParticipant);
 
-      bracketMatch.winner = winnerId;
+        if (!winnerId) return;
+        bracketMatch.winner = winnerId;
 
-      // For single elimination, propagate winner to next round
-      if (matchupData.tournamentType === 'single_elimination' && roundIdx < structure.length - 1) {
-        const nextRound = structure[roundIdx + 1];
-        const nextMatchIndex = Math.floor(matchIdx / 2);
-        const isFirstInPair = matchIdx % 2 === 0;
-        if (nextRound?.matches?.[nextMatchIndex]) {
-          if (isFirstInPair) {
-            nextRound.matches[nextMatchIndex].player1 = winnerParticipant;
-          } else {
-            nextRound.matches[nextMatchIndex].player2 = winnerParticipant;
+        // For single elimination, propagate winner to next round
+        if (matchupData.tournamentType === 'single_elimination' && roundIdx < structure.length - 1) {
+          const nextRound = structure[roundIdx + 1];
+          const nextMatchIndex = Math.floor(matchIdx / 2);
+          const isFirstInPair = matchIdx % 2 === 0;
+          if (nextRound?.matches?.[nextMatchIndex]) {
+            if (isFirstInPair) {
+              nextRound.matches[nextMatchIndex].player1 = winnerParticipant;
+            } else {
+              nextRound.matches[nextMatchIndex].player2 = winnerParticipant;
+            }
           }
         }
+      } else {
+        // Draw in non-RR (like SE) is not supported here, return
+        return;
       }
 
       // ─── Update player scores ───
-      // Use preAssignedTeams UIDs (which match matchup participant UIDs)
-      // NOT matchPlayers UIDs (which are draft-internal)
       const scoreUpdates = {};
       const is1v1 = draftState.draftType === 'mode3' || draftState.draftType === 'mode4';
       const matchResults = freshMatchResults || draftState.matchResults || [];
@@ -726,15 +757,23 @@ function TournamentPage() {
       const team1 = draftState.preAssignedTeams?.team1;
       const team2 = draftState.preAssignedTeams?.team2;
 
-      if (is1v1) {
-        // 1v1: winner gets +1 point
+      if (isDraw && isRoundRobin) {
+        // Football-style draw: +1 to each team's members
+        if (team1 && team2) {
+          const allTeam1Uids = [team1.leader, team1.member1, team1.member2].filter(Boolean);
+          const allTeam2Uids = [team2.leader, team2.member1, team2.member2].filter(Boolean);
+          [...allTeam1Uids, ...allTeam2Uids].forEach(uid => {
+            scoreUpdates[`${scoreFieldPrefix}.${uid}`] = increment(1);
+          });
+        }
+      } else if (is1v1) {
+        // 1v1: winner gets +3 points
         const winnerUid = overallWinner === 'A' ? team1?.leader : team2?.leader;
         if (winnerUid) {
-          scoreUpdates[`playerScores.${winnerUid}`] = increment(3);
+          scoreUpdates[`${scoreFieldPrefix}.${winnerUid}`] = increment(3);
         }
       } else if (team1 && team2) {
         // 3v3: map battle index to preAssignedTeams UIDs
-        // Index 0 = leader, 1 = member1, 2 = member2
         const teamAUids = [team1.leader, team1.member1, team1.member2].filter(Boolean);
         const teamBUids = [team2.leader, team2.member1, team2.member2].filter(Boolean);
 
@@ -750,13 +789,13 @@ function TournamentPage() {
           }
 
           if (winnerUid) {
-            scoreUpdates[`playerScores.${winnerUid}`] = increment(3);
+            scoreUpdates[`${scoreFieldPrefix}.${winnerUid}`] = increment(3);
           }
         });
       }
 
       await updateDoc(matchupRef, {
-        matchupStructure: structure,
+        [structureFieldPath]: structure,
         ...scoreUpdates
       });
       console.log('🏆 Updated matchup bracket with winner and player scores');
@@ -3923,51 +3962,39 @@ function TournamentPage() {
 
       const draftRef = doc(db, 'drafts', DRAFT_ID);
 
-      // Delete Team A chat messages
-      try {
-        const chatARef = collection(db, 'drafts', DRAFT_ID, 'chatA');
-        const chatASnapshot = await getDocs(chatARef);
-        const deleteAPromises = chatASnapshot.docs.map(doc => deleteDoc(doc.ref));
-        await Promise.all(deleteAPromises);
-      } catch (error) {
-        console.error('Error deleting Team A chat:', error);
+      // 1. Clear draftId reference in parent matchup (if linked)
+      if (draftState?.matchupId) {
+        try {
+          const mRef = doc(db, 'matchups', draftState.matchupId);
+          let structureField = 'matchupStructure';
+          if (draftState.realmPhase) { // Realm Round Robin
+            if (draftState.realmPhase === 'groups' && draftState.realmName) {
+              structureField = `groupStructure.${draftState.realmName}`;
+            } else if (draftState.realmPhase === 'finals') {
+              structureField = 'finalsStructure';
+            }
+          }
+
+          const fieldPath = `${structureField}.${draftState.matchRoundIndex}.matches.${draftState.matchMatchIndex}.draftId`;
+          await updateDoc(mRef, { [fieldPath]: deleteField() });
+        } catch (error) {
+          console.error('Error clearing draftId from parent matchup:', error);
+        }
       }
 
-      // Delete Team B chat messages
+      // 2. Parallel delete all sub-collections
+      const collectionsToDelete = ['chatA', 'chatB', 'chatAll', 'typingA', 'typingB', 'typingAll'];
       try {
-        const chatBRef = collection(db, 'drafts', DRAFT_ID, 'chatB');
-        const chatBSnapshot = await getDocs(chatBRef);
-        const deleteBPromises = chatBSnapshot.docs.map(doc => deleteDoc(doc.ref));
-        await Promise.all(deleteBPromises);
-      } catch (error) {
-        console.error('Error deleting Team B chat:', error);
-      }
-
-      // Delete Free For All chat messages
-      try {
-        const chatAllRef = collection(db, 'drafts', DRAFT_ID, 'chatAll');
-        const chatAllSnapshot = await getDocs(chatAllRef);
-        const deleteAllPromises = chatAllSnapshot.docs.map(doc => deleteDoc(doc.ref));
-        await Promise.all(deleteAllPromises);
-      } catch (error) {
-        console.error('Error deleting Free For All chat:', error);
-      }
-
-      // Delete typing indicators
-      try {
-        const typingCollections = ['typingA', 'typingB', 'typingAll'];
-        for (const colName of typingCollections) {
+        await Promise.all(collectionsToDelete.map(async (colName) => {
           const colRef = collection(db, 'drafts', DRAFT_ID, colName);
           const snapshot = await getDocs(colRef);
-          const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-          await Promise.all(deletePromises);
-        }
+          return Promise.all(snapshot.docs.map(d => deleteDoc(d.ref)));
+        }));
       } catch (error) {
-        console.error('Error deleting typing indicators:', error);
+        console.error('Error during sub-collection cleanup:', error);
       }
 
-
-      // Delete the tournament document
+      // 3. Delete the main tournament document
       await deleteDoc(draftRef);
       navigate('/');
     })();

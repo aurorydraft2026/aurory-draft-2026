@@ -2184,7 +2184,7 @@ function HomePage() {
                     {/* Simplified Tax Breakdown */}
                     {withdrawAmount && !isNaN(parseFloat(withdrawAmount)) && (
                       <div className="withdraw-tax-simple">
-                        <p>{parseFloat(withdrawAmount).toFixed(2)} - 5% tax = <span className="net-amount">{(parseFloat(withdrawAmount) * 0.95).toFixed(4)} AURY</span> (Available withdrawal)</p>
+                        <p>{parseFloat(withdrawAmount).toFixed(2)} - 2.5% tax = <span className="net-amount">{(parseFloat(withdrawAmount) * 0.975).toFixed(4)} AURY</span> (Available withdrawal)</p>
                       </div>
                     )}
 

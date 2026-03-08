@@ -2126,3 +2126,451 @@
         border-color: var(--border-subtle);
     }
 }
+
+/* =============================================
+   REALM ROUND ROBIN — Two-Phase Tournament
+   ============================================= */
+
+/* Phase Banner */
+.realm-phase-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 18px 24px;
+    border-radius: var(--radius-lg);
+    margin-bottom: 28px;
+    text-align: center;
+    flex-wrap: wrap;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.realm-phase-banner.phase-groups {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(239, 68, 68, 0.12) 100%);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.realm-phase-banner.phase-finals {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(245, 158, 11, 0.08) 100%);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    box-shadow: 0 0 30px rgba(251, 191, 36, 0.1);
+}
+
+.realm-phase-banner.phase-completed {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(251, 191, 36, 0.08) 100%);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.phase-icon {
+    font-size: 1.8rem;
+}
+
+.phase-label {
+    font-family: 'Exo 2', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: 0.5px;
+}
+
+.phase-sub {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    width: 100%;
+}
+
+/* Realm Groups Container (side-by-side) */
+.realm-groups-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 32px;
+}
+
+/* Individual Realm Panel */
+.realm-group-panel {
+    background: var(--bg-glass);
+    backdrop-filter: blur(12px);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    border: 1px solid var(--border-subtle);
+    transition: border-color 0.3s ease;
+}
+
+.realm-group-panel.realm-frost {
+    border-color: rgba(59, 130, 246, 0.3);
+    box-shadow: inset 0 0 40px rgba(59, 130, 246, 0.03);
+}
+
+.realm-group-panel.realm-fire {
+    border-color: rgba(239, 68, 68, 0.3);
+    box-shadow: inset 0 0 40px rgba(239, 68, 68, 0.03);
+}
+
+.realm-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.realm-group-header h4 {
+    font-family: 'Exo 2', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.realm-frost .realm-group-header h4 {
+    text-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+}
+
+.realm-fire .realm-group-header h4 {
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+}
+
+.realm-team-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: var(--bg-elevated);
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border-subtle);
+}
+
+/* Mini Standings Table */
+.realm-mini-standings {
+    margin-bottom: 20px;
+}
+
+.realm-mini-standings table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+
+.realm-mini-standings thead th {
+    color: var(--text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.65rem;
+    letter-spacing: 1px;
+    padding: 8px 6px;
+    text-align: center;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.realm-mini-standings thead th:nth-child(2) {
+    text-align: left;
+}
+
+.realm-mini-standings tbody td {
+    padding: 8px 6px;
+    text-align: center;
+    color: var(--text-secondary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.realm-mini-standings tbody td.rank {
+    font-weight: 700;
+    color: var(--text-muted);
+    width: 28px;
+}
+
+.realm-mini-standings tbody td.team-name-cell {
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+}
+
+.realm-mini-standings tbody td.pts-cell {
+    color: var(--accent-gold);
+}
+
+.realm-mini-standings tbody tr.advancing td:first-child {
+    position: relative;
+}
+
+.realm-mini-standings tbody tr.advancing {
+    background: rgba(16, 185, 129, 0.05);
+}
+
+.realm-mini-standings tbody tr.advanced td.team-name-cell {
+    color: #10b981;
+}
+
+.realm-mini-standings tbody tr.eliminated {
+    opacity: 0.6;
+}
+
+.advance-badge {
+    color: #10b981;
+    font-size: 0.7rem;
+    margin-left: 6px;
+    font-weight: 700;
+}
+
+/* Realm Fixtures */
+.realm-fixtures {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.realm-round .rr-round-header {
+    padding: 10px 14px;
+}
+
+/* Frost-specific round accent */
+.realm-frost .rr-round-accordion .rr-round-header:hover {
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+.realm-frost .rr-round-badge.complete {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+}
+
+/* Fire-specific round accent */
+.realm-fire .rr-round-accordion .rr-round-header:hover {
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.realm-fire .rr-round-badge.complete {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+}
+
+/* Finals Container (Throne of Valhalla) */
+.realm-finals-container {
+    margin-top: 32px;
+    padding-top: 32px;
+    border-top: 2px solid rgba(251, 191, 36, 0.2);
+}
+
+.realm-finals-header {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.realm-finals-header h4 {
+    font-family: 'Exo 2', sans-serif;
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--accent-gold);
+    margin: 0;
+    text-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
+    letter-spacing: 0.5px;
+}
+
+.realm-finals-round .rr-round-header {
+    border-color: rgba(251, 191, 36, 0.2);
+    background: linear-gradient(135deg, var(--bg-secondary), rgba(251, 191, 36, 0.04));
+}
+
+.realm-finals-round .rr-round-header:hover {
+    border-color: rgba(251, 191, 36, 0.4);
+}
+
+.realm-finals-round .rr-round-badge.complete {
+    background: rgba(251, 191, 36, 0.15);
+    color: var(--accent-gold);
+}
+
+/* Podium */
+.realm-podium {
+    margin-top: 32px;
+    text-align: center;
+    animation: fadeIn 0.6s ease-out;
+}
+
+.podium-title {
+    font-family: 'Exo 2', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--accent-gold);
+    margin: 0 0 24px 0;
+    text-shadow: 0 0 20px rgba(251, 191, 36, 0.4);
+}
+
+.podium-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.podium-card {
+    background: var(--bg-glass);
+    backdrop-filter: blur(12px);
+    border-radius: var(--radius-lg);
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border-subtle);
+    transition: all 0.3s ease;
+}
+
+.podium-card:hover {
+    transform: translateY(-4px);
+}
+
+.podium-card.rank-gold {
+    border-color: rgba(251, 191, 36, 0.5);
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.05));
+    box-shadow: 0 0 30px rgba(251, 191, 36, 0.15);
+}
+
+.podium-card.rank-silver {
+    border-color: rgba(192, 192, 192, 0.4);
+    background: linear-gradient(135deg, rgba(192, 192, 192, 0.08), rgba(148, 163, 184, 0.04));
+}
+
+.podium-card.rank-bronze {
+    border-color: rgba(205, 127, 50, 0.4);
+    background: linear-gradient(135deg, rgba(205, 127, 50, 0.08), rgba(180, 83, 9, 0.04));
+}
+
+.podium-card.rank-fourth {
+    border-color: var(--border-subtle);
+    opacity: 0.8;
+}
+
+.podium-medal {
+    font-size: 2.5rem;
+}
+
+.podium-team {
+    font-family: 'Exo 2', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-align: center;
+}
+
+.podium-pts {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--accent-gold);
+}
+
+.podium-record {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Status badge for realm */
+.status-badge.groups {
+    color: #60a5fa;
+}
+
+.status-badge.finals {
+    color: var(--accent-gold);
+}
+
+.status-badge.completed {
+    color: #10b981;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+    .realm-groups-container {
+        grid-template-columns: 1fr;
+    }
+
+    .podium-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .realm-phase-banner {
+        padding: 14px 16px;
+    }
+
+    .phase-label {
+        font-size: 1.1rem;
+    }
+
+    .podium-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .realm-group-panel {
+        padding: 16px;
+    }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Round Header Actions & Bulk Create
+   ────────────────────────────────────────────────────────────────────────── */
+.rr-round-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.btn-create-all-drafts {
+    background: rgba(45, 212, 191, 0.1);
+    border: 1px solid rgba(45, 212, 191, 0.3);
+    color: var(--accent-teal);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.btn-create-all-drafts:hover {
+    background: var(--accent-teal);
+    color: var(--bg-deep);
+    border-color: var(--accent-teal);
+    box-shadow: 0 0 10px rgba(45, 212, 191, 0.4);
+    transform: translateY(-1px);
+}
+
+.btn-create-all-drafts:active {
+    transform: translateY(0);
+}
+
+.realm-group-panel .btn-create-all-drafts {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Responsive Tweaks
+   ────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+    .btn-create-all-drafts {
+        display: none;
+        /* Hide on very small screens to avoid header crowding */
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
