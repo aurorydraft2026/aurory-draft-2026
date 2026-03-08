@@ -16,7 +16,7 @@
 import * as admin from 'firebase-admin';
 import { AMIKO_IDS, getPICK_ORDER, shuffleArray } from './draftData';
 
-const db = admin.firestore();
+const getDb = () => admin.firestore();
 
 /**
  * Main timer check - called by the scheduled function
@@ -25,7 +25,7 @@ export async function processActiveTimers(): Promise<number> {
   let processed = 0;
 
   // ─── 1. Check active drafts with expired timers ───
-  const activeDrafts = await db.collection('drafts')
+  const activeDrafts = await getDb().collection('drafts')
     .where('status', '==', 'active')
     .get();
 
@@ -40,7 +40,7 @@ export async function processActiveTimers(): Promise<number> {
 
   // ─── 2. Check drafts in preparation phase (1.5s delay between turns) ───
   // Reuse the activeDrafts snapshot to avoid a redundant Firestore query
-  const prepDocs = activeDrafts.docs.filter(d => d.data().inPreparation === true);
+  const prepDocs = activeDrafts.docs.filter((d: any) => d.data().inPreparation === true);
 
   for (const doc of prepDocs) {
     try {
@@ -52,7 +52,7 @@ export async function processActiveTimers(): Promise<number> {
   }
 
   // ─── 3. Check stuck coin flip phases (spinning/result/turnChoice/done) ───
-  const coinFlipDrafts = await db.collection('drafts')
+  const coinFlipDrafts = await getDb().collection('drafts')
     .where('status', '==', 'coinFlip')
     .get();
 
@@ -66,7 +66,7 @@ export async function processActiveTimers(): Promise<number> {
   }
 
   // ─── 4. Check stuck assignment phase (roulette done but finalizeDraft never called) ───
-  const assignmentDrafts = await db.collection('drafts')
+  const assignmentDrafts = await getDb().collection('drafts')
     .where('status', '==', 'assignment')
     .get();
 
@@ -123,9 +123,9 @@ async function checkDraftTimer(draftId: string, data: any): Promise<boolean> {
   console.log(`⏰ Timer expired for draft ${draftId} (elapsed: ${Math.round(elapsed / 1000)}s)`);
 
   // Use a transaction to prevent race conditions
-  const draftRef = db.doc(`drafts/${draftId}`);
+  const draftRef = getDb().doc(`drafts/${draftId}`);
 
-  return db.runTransaction(async (tx) => {
+  return getDb().runTransaction(async (tx: any) => {
     const snap = await tx.get(draftRef);
     if (!snap.exists) return false;
 
@@ -391,7 +391,7 @@ async function checkPreparationPhase(draftId: string, data: any): Promise<boolea
   const prepStart = toMillis(data.preparationStartedAt) || 0;
   if (!prepStart) {
     // No timestamp — set one so we can track it
-    await db.doc(`drafts/${draftId}`).update({
+    await getDb().doc(`drafts/${draftId}`).update({
       preparationStartedAt: Date.now()
     });
     return false;
@@ -416,7 +416,7 @@ async function checkPreparationPhase(draftId: string, data: any): Promise<boolea
     updates.timerStartB = Date.now();
   }
 
-  await db.doc(`drafts/${draftId}`).update(updates);
+  await getDb().doc(`drafts/${draftId}`).update(updates);
   return true;
 }
 
@@ -446,7 +446,7 @@ async function checkCoinFlipPhase(draftId: string, data: any): Promise<boolean> 
 
   const phaseChangedAt = toMillis(coinFlip.phaseChangedAt) || 0;
   const now = Date.now();
-  const draftRef = db.doc(`drafts/${draftId}`);
+  const draftRef = getDb().doc(`drafts/${draftId}`);
 
   switch (coinFlip.phase) {
     case 'spinning': {
@@ -541,7 +541,7 @@ async function serverContinueDraftAfterCoinFlip(draftId: string, data: any): Pro
 
   // Fetch user data from Firestore
   const allUids = [...teamAUids, ...teamBUids];
-  const userDocs = await Promise.all(allUids.map(uid => db.doc(`users/${uid}`).get()));
+  const userDocs = await Promise.all(allUids.map(uid => getDb().doc(`users/${uid}`).get()));
   const userMap: any = {};
   for (const doc of userDocs) {
     if (doc.exists) userMap[doc.id] = { uid: doc.id, ...doc.data() };
@@ -552,7 +552,7 @@ async function serverContinueDraftAfterCoinFlip(draftId: string, data: any): Pro
     ...teamBUids.map(uid => ({ participant: userMap[uid] || { uid }, team: 'B' }))
   ];
 
-  await db.doc(`drafts/${draftId}`).update({
+  await getDb().doc(`drafts/${draftId}`).update({
     status: 'assignment',
     assignmentStartedAt: Date.now(),
     finalAssignments,
@@ -580,7 +580,7 @@ async function checkStuckAssignment(draftId: string, data: any): Promise<boolean
   const assignmentStart = toMillis(data.assignmentStartedAt) || 0;
   if (!assignmentStart) {
     // No timestamp — set one and wait
-    await db.doc(`drafts/${draftId}`).update({ assignmentStartedAt: Date.now() });
+    await getDb().doc(`drafts/${draftId}`).update({ assignmentStartedAt: Date.now() });
     return false;
   }
 
@@ -602,7 +602,7 @@ async function checkStuckAssignment(draftId: string, data: any): Promise<boolean
  * Reads finalAssignments + assignmentLeaders from Firestore → writes status: 'active'.
  */
 async function serverFinalizeDraft(draftId: string, data: any): Promise<boolean> {
-  const draftRef = db.doc(`drafts/${draftId}`);
+  const draftRef = getDb().doc(`drafts/${draftId}`);
   const assignments: any[] = data.finalAssignments;
   const leaders = data.assignmentLeaders || {};
 
@@ -617,8 +617,8 @@ async function serverFinalizeDraft(draftId: string, data: any): Promise<boolean>
   const timerMs = data.timerDuration || 30 * 1000;
 
   // Fetch leader user data for display names
-  const teamALeaderDoc = leaders.teamALeader ? await db.doc(`users/${leaders.teamALeader}`).get() : null;
-  const teamBLeaderDoc = leaders.teamBLeader ? await db.doc(`users/${leaders.teamBLeader}`).get() : null;
+  const teamALeaderDoc = leaders.teamALeader ? await getDb().doc(`users/${leaders.teamALeader}`).get() : null;
+  const teamBLeaderDoc = leaders.teamBLeader ? await getDb().doc(`users/${leaders.teamBLeader}`).get() : null;
   const teamALeaderData = teamALeaderDoc?.data();
   const teamBLeaderData = teamBLeaderDoc?.data();
 

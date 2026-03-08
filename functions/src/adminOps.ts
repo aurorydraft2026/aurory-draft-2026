@@ -2,10 +2,8 @@ import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { processPayouts } from './verifyMatches';
 
-const db = admin.firestore();
-
 // Super Admin UID (hardcoded for now, same as in verifyMatches.ts)
-const SUPER_ADMIN_UID = 'fWp7xeLNvuTD9axrPtJpp4afC1g2';
+const SUPER_ADMIN_UID = 'wgPwCyYGuYUAokSklV1LNsjCrGA3';
 
 /**
  * Manually trigger payout for a draft.
@@ -17,6 +15,7 @@ export const manualPayout = onCall(
         maxInstances: 10
     },
     async (request) => {
+        const db = admin.firestore();
         // 1. Auth Check
         if (!request.auth) {
             throw new HttpsError('unauthenticated', 'User must be logged in.');
@@ -39,7 +38,7 @@ export const manualPayout = onCall(
 
         try {
             // 2. Fetch Draft
-            const draftDoc = await db.doc(`drafts/${draftId}`).get();
+            const draftDoc = await admin.firestore().doc(`drafts/${draftId}`).get();
             if (!draftDoc.exists) {
                 throw new HttpsError('not-found', `Draft ${draftId} not found.`);
             }
@@ -98,7 +97,7 @@ export const cleanupInactiveGuests = onCall(
             const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
             // 2. Query Firestore for inactive anonymous users
-            const usersRef = db.collection('users');
+            const usersRef = admin.firestore().collection('users');
             const q = usersRef
                 .where('isAnonymous', '==', true)
                 .where('lastSeen', '<', admin.firestore.Timestamp.fromDate(oneDayAgo))
@@ -118,7 +117,7 @@ export const cleanupInactiveGuests = onCall(
             await admin.auth().deleteUsers(uidsToDelete);
 
             // 4. Delete from Firestore
-            const batch = db.batch();
+            const batch = admin.firestore().batch();
             snapshot.docs.forEach(doc => {
                 batch.delete(doc.ref);
             });

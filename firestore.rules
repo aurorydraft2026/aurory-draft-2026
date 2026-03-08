@@ -5,7 +5,7 @@ service cloud.firestore {
     // ============================================
     // ADMIN CONFIGURATION
     // ============================================
-    // STEP 1: Login to your app with aurorydraft@gmail.com
+    // STEP 1: Login to your app with asgardduels@gmail.com
     // STEP 2: Go to Firebase Console > Authentication > Users
     // STEP 3: Copy your UID from the list
     // STEP 4: Replace 'YOUR_ADMIN_UID_HERE' below with your actual UID
@@ -17,7 +17,7 @@ service cloud.firestore {
     function isSuperAdminByUid() {
       return request.auth != null && 
              request.auth.uid in [
-               'fWp7xeLNvuTD9axrPtJpp4afC1g2',  // Replace with your actual UID!
+               'wgPwCyYGuYUAokSklV1LNsjCrGA3',  // Replace with your actual UID!
                // Add more admin UIDs here if needed, comma-separated
              ];
     }
@@ -25,8 +25,8 @@ service cloud.firestore {
     // Fallback: Check by email (may not work with all OAuth providers)
     function isSuperAdminByEmail() {
       return request.auth != null && 
-             (request.auth.token.email == 'aurorydraft@gmail.com' || 
-              request.auth.token.email.lower() == 'aurorydraft@gmail.com');
+             (request.auth.token.email == 'asgardduels@gmail.com' || 
+              request.auth.token.email.lower() == 'asgardduels@gmail.com');
     }
 
     

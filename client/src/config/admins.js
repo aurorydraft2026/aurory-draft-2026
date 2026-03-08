@@ -1,14 +1,14 @@
 // Super Admins - these users automatically get admin privileges
 // IMPORTANT: Get your UID by logging in and checking Firebase Console > Authentication > Users
 export const SUPER_ADMIN_EMAILS = [
-  'aurorydraft@gmail.com'
+  'asgardduels@gmail.com'
 ];
 
 // Store admin UIDs here once you know them
 // To find your UID: Login to the app, then go to Firebase Console > Authentication > Users
 // Copy your UID and add it to this array
 export const SUPER_ADMIN_UIDS = [
-  'fWp7xeLNvuTD9axrPtJpp4afC1g2'
+  'wgPwCyYGuYUAokSklV1LNsjCrGA3'
 ];
 
 // Check if an email is a super admin

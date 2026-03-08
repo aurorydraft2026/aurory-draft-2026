@@ -1,5 +1,5 @@
-# aurory-draft-2026
-Asgard Duels for Aurory Tournament Communities
+# Asgard Duels 2026
+Competitive Tournament Infrastructure
 
 # Asgard Duels Project
 

@@ -10,7 +10,6 @@
 import * as admin from 'firebase-admin';
 import fetch from 'node-fetch';
 
-const db = admin.firestore();
 const AURORY_API_BASE = 'https://aggregator-api.live.aurory.io';
 
 /**
@@ -21,7 +20,7 @@ export async function scanAndVerifyDrafts(): Promise<number> {
 
   try {
     // Find completed drafts that aren't fully verified
-    const snapshot = await db.collection('drafts')
+    const snapshot = await admin.firestore().collection('drafts')
       .where('status', '==', 'completed')
       .limit(100)
       .get();
@@ -117,7 +116,7 @@ export async function scanAndVerifyDrafts(): Promise<number> {
               // Bracket feedback
               if (freshData.matchupId && freshData.matchRoundIndex !== undefined && freshData.matchMatchIndex !== undefined) {
                 try {
-                  const matchupRef = db.collection('matchups').doc(freshData.matchupId);
+                  const matchupRef = admin.firestore().collection('matchups').doc(freshData.matchupId);
                   const matchupDoc = await matchupRef.get();
                   if (matchupDoc.exists) {
                     const matchupData = matchupDoc.data()!;
@@ -208,7 +207,7 @@ export async function scanAndVerifyDrafts(): Promise<number> {
                           }
                         }
                       }
-                      await matchupRef.update({ [structureField]: structure, ...scoreUpdates });
+                      await admin.firestore().collection('matchups').doc(freshData.matchupId).update({ [structureField]: structure, ...scoreUpdates });
                       console.log(`  🏆 Reported winner + scores to matchup ${freshData.matchupId} [${structureField}] R${roundIdx} M${matchIdx}`);
                     }
                   }
@@ -234,7 +233,7 @@ export async function scanAndVerifyDrafts(): Promise<number> {
 
 // ─── PAYOUT PROCESSING ───
 
-const SUPER_ADMIN_UID = 'fWp7xeLNvuTD9axrPtJpp4afC1g2';
+const SUPER_ADMIN_UID = 'wgPwCyYGuYUAokSklV1LNsjCrGA3';
 const TAX_RATE = 0;
 
 export async function processPayouts(draftId: string, draftData: any, overallWinner: string): Promise<string> {
@@ -257,12 +256,12 @@ export async function processPayouts(draftId: string, draftData: any, overallWin
   const winnerPrize = poolAmount;
 
   try {
-    await db.runTransaction(async (tx) => {
-      const draftRef = db.doc(`drafts/${draftId}`);
+    await admin.firestore().runTransaction(async (tx) => {
+      const draftRef = admin.firestore().doc(`drafts/${draftId}`);
       const snap = await tx.get(draftRef);
       if (snap.data()?.payoutComplete) return;
 
-      const winnerWalletRef = db.doc(`wallets/${winnerUid}`);
+      const winnerWalletRef = admin.firestore().doc(`wallets/${winnerUid}`);
       const winnerWallet = await tx.get(winnerWalletRef);
       const winnerBalance = winnerWallet.exists ? (winnerWallet.data()?.balance || 0) : 0;
 
@@ -271,7 +270,7 @@ export async function processPayouts(draftId: string, draftData: any, overallWin
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
 
-      const winnerTxRef = db.collection(`wallets/${winnerUid}/transactions`).doc();
+      const winnerTxRef = admin.firestore().collection(`wallets/${winnerUid}/transactions`).doc();
       tx.set(winnerTxRef, {
         type: 'prize_won', amount: winnerPrize, draftId,
         draftTitle: draftData.title || 'Untitled Match',
@@ -291,18 +290,18 @@ async function processRefund(draftId: string, draftData: any): Promise<void> {
   const entryPaid = draftData.entryPaid || {};
   if (Object.keys(entryPaid).length === 0) return;
   try {
-    await db.runTransaction(async (tx) => {
-      const draftRef = db.doc(`drafts/${draftId}`);
+    await admin.firestore().runTransaction(async (tx) => {
+      const draftRef = admin.firestore().doc(`drafts/${draftId}`);
       const snap = await tx.get(draftRef);
       if (snap.data()?.payoutComplete) return;
 
       for (const [uid, amount] of Object.entries(entryPaid)) {
         if ((amount as number) <= 0) continue;
-        const walletRef = db.doc(`wallets/${uid}`);
+        const walletRef = admin.firestore().doc(`wallets/${uid}`);
         const walletSnap = await tx.get(walletRef);
         const balance = walletSnap.exists ? (walletSnap.data()?.balance || 0) : 0;
         tx.set(walletRef, { balance: balance + (amount as number), updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-        const txRef = db.collection(`wallets/${uid}/transactions`).doc();
+        const txRef = admin.firestore().collection(`wallets/${uid}/transactions`).doc();
         tx.set(txRef, { type: 'refund_draw', amount, draftId, timestamp: admin.firestore.FieldValue.serverTimestamp() });
       }
       tx.update(draftRef, { payoutComplete: true, payoutData: { refunded: true, processedAt: Date.now() } });

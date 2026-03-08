@@ -105,6 +105,16 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
           <img src="/aurory-logo.png" alt="Aurory" className="aurory-logo" onError={(e) => e.target.style.display = 'none'} />
           <h2>Aurory Account</h2>
           <p>Connect your game account to verify matches</p>
+          <div className="safety-disclaimer" style={{
+            fontSize: '0.75rem',
+            color: 'rgba(255, 255, 255, 0.4)',
+            marginTop: '8px',
+            padding: '4px 8px',
+            background: 'rgba(0,0,0,0.2)',
+            borderRadius: '4px'
+          }}>
+            🛡️ Independent community-made platform. We will never ask for your password or private keys.
+          </div>
         </div>
 
         {loading ? (

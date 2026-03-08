@@ -718,15 +718,23 @@ function HomePage() {
                               <a href="https://store.epicgames.com/en-US/p/amiko-legends-a5986d" target="_blank" rel="noopener noreferrer" className="banner-store-btn epic">
                                 <img src="https://upload.wikimedia.org/wikipedia/commons/3/31/Epic_Games_logo.svg" alt="Epic Store" />
                                 <div className="btn-label">
-                                  <small>Available on</small>
+                                  <small>Official Game</small>
                                   <span>Epic Store</span>
                                 </div>
                               </a>
                               <a href="https://play.google.com/store/apps/details?id=io.aurory.seekersoftokane&pcampaignid=web_share" target="_blank" rel="noopener noreferrer" className="banner-store-btn play">
                                 <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play" className="play-badge" />
+                                <div className="btn-label" style={{ display: 'flex', flexDirection: 'column' }}>
+                                  <small style={{ fontSize: '10px' }}>Official Game</small>
+                                  <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Play Store</span>
+                                </div>
                               </a>
                               <a href="https://testflight.apple.com/join/FuaxsScP" target="_blank" rel="noopener noreferrer" className="banner-store-btn ios">
                                 <img src="https://upload.wikimedia.org/wikipedia/commons/3/3c/Download_on_the_App_Store_Badge.svg" alt="App Store" className="app-badge" />
+                                <div className="btn-label" style={{ display: 'flex', flexDirection: 'column' }}>
+                                  <small style={{ fontSize: '10px' }}>Official Game</small>
+                                  <span style={{ fontSize: '12px', fontWeight: 'bold' }}>App Store</span>
+                                </div>
                               </a>
                             </div>
                           )}
@@ -2416,6 +2424,15 @@ function HomePage() {
           <div className="footer-left">
             <p className="footer-msg">Built with ❤️ for the Aurory Tournament Community. Happy Playing! 🎮🔴</p>
             <p className="footer-tagline">Anito Guild Community 2026</p>
+            <p className="footer-disclaimer" style={{
+              fontSize: '0.75rem',
+              color: 'rgba(255, 255, 255, 0.3)',
+              marginTop: '10px',
+              lineHeight: '1.4',
+              maxWidth: '400px'
+            }}>
+              Asgard Duels is an independent, fan-made competitive platform. We are not affiliated with, endorsed by, or associated with Aurory, Syncos, or their subsidiaries. All trademarks belong to their respective owners.
+            </p>
             <div className="footer-legal-links">
               <Link to="/terms">Terms of Service</Link>
               <span className="dot">•</span>
