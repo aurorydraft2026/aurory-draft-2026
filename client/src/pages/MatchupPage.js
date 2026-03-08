@@ -219,6 +219,147 @@ const MatchupPage = () => {
     }, [matchup, isAdmin, matchupId, getUID]);
 
     useEffect(() => {
+        if (!isAdmin || !matchup || matchup.phase === 'completed' || loading) return;
+
+        const verifyDrafts = async () => {
+            const draftIds = new Set();
+
+            // Collect all draft IDs from structures
+            if (matchup.matchupStructure) {
+                matchup.matchupStructure.forEach(round => {
+                    round.matches.forEach(m => { if (m.draftId) draftIds.add(m.draftId); });
+                });
+            }
+            if (matchup.groupStructure) {
+                ['frost', 'fire'].forEach(realm => {
+                    matchup.groupStructure[realm]?.forEach(round => {
+                        round.matches.forEach(m => { if (m.draftId) draftIds.add(m.draftId); });
+                    });
+                });
+            }
+            if (matchup.finalsStructure) {
+                matchup.finalsStructure.forEach(round => {
+                    round.matches.forEach(m => { if (m.draftId) draftIds.add(m.draftId); });
+                });
+            }
+
+            if (draftIds.size === 0) return;
+
+            try {
+                const idsArray = Array.from(draftIds);
+                const results = new Set();
+
+                for (let i = 0; i < idsArray.length; i += 30) {
+                    const chunk = idsArray.slice(i, i + 30);
+                    const q = query(collection(db, 'drafts'), where(documentId(), 'in', chunk));
+                    const snap = await getDocs(q);
+                    snap.docs.forEach(doc => results.add(doc.id));
+                }
+
+                const missingIds = idsArray.filter(id => !results.has(id));
+                if (missingIds.length === 0) return;
+
+                console.warn('Detected missing drafts in bracket, cleaning up:', missingIds);
+                const updates = {};
+                let changedOverall = false;
+
+                if (matchup.matchupStructure) {
+                    const next = JSON.parse(JSON.stringify(matchup.matchupStructure));
+                    let changed = false;
+                    next.forEach(r => r.matches.forEach(m => {
+                        if (m.draftId && missingIds.includes(m.draftId)) {
+                            m.draftId = null;
+                            changed = true;
+                        }
+                    }));
+                    if (changed) { updates.matchupStructure = next; changedOverall = true; }
+                }
+
+                if (matchup.groupStructure) {
+                    const nextGroup = JSON.parse(JSON.stringify(matchup.groupStructure));
+                    let changed = false;
+                    ['frost', 'fire'].forEach(realm => {
+                        nextGroup[realm]?.forEach(r => r.matches.forEach(m => {
+                            if (m.draftId && missingIds.includes(m.draftId)) {
+                                m.draftId = null;
+                                changed = true;
+                            }
+                        }));
+                    });
+                    if (changed) { updates.groupStructure = nextGroup; changedOverall = true; }
+                }
+
+                if (matchup.finalsStructure) {
+                    const next = JSON.parse(JSON.stringify(matchup.finalsStructure));
+                    let changed = false;
+                    next.forEach(r => r.matches.forEach(m => {
+                        if (m.draftId && missingIds.includes(m.draftId)) {
+                            m.draftId = null;
+                            changed = true;
+                        }
+                    }));
+                    if (changed) { updates.finalsStructure = next; changedOverall = true; }
+                }
+
+                if (changedOverall) {
+                    await updateDoc(doc(db, 'matchups', matchupId), updates);
+                }
+            } catch (err) {
+                console.error('Error verifying draft existence:', err);
+            }
+        };
+
+        // Debounce slightly to avoid rapid updates
+        const timer = setTimeout(verifyDrafts, 1000);
+        return () => clearTimeout(timer);
+    }, [matchup, isAdmin, matchupId, loading]);
+
+    const performMatchReset = async (roundIndex, matchIndex, realmKey) => {
+        if (!matchup) return;
+        let structure, structureFieldPath;
+        if (matchup.tournamentType === 'realm_round_robin') {
+            if (matchup.phase === 'groups' && realmKey) {
+                structure = matchup.groupStructure?.[realmKey];
+                structureFieldPath = `groupStructure.${realmKey}`;
+            } else if (matchup.phase === 'finals') {
+                structure = matchup.finalsStructure;
+                structureFieldPath = 'finalsStructure';
+            }
+        } else {
+            structure = matchup.matchupStructure;
+            structureFieldPath = 'matchupStructure';
+        }
+        if (!structure) return;
+
+        try {
+            const next = JSON.parse(JSON.stringify(structure));
+            if (next[roundIndex]?.matches[matchIndex]) {
+                next[roundIndex].matches[matchIndex].draftId = null;
+                await updateDoc(doc(db, 'matchups', matchupId), { [structureFieldPath]: next });
+            }
+        } catch (err) {
+            console.error('Error resetting match:', err);
+        }
+    };
+
+    const handleEnterDraftSafe = async (draftId, rIndex, mIndex, realmKey) => {
+        if (!draftId) return;
+        try {
+            const q = query(collection(db, 'drafts'), where(documentId(), '==', draftId));
+            const snap = await getDocs(q);
+            if (snap.empty) {
+                alert("This draft has been deleted. Re-enabling match creation...");
+                await performMatchReset(rIndex, mIndex, realmKey);
+            } else {
+                navigate(`/tournament/${draftId}`);
+            }
+        } catch (err) {
+            console.error('Error entering draft:', err);
+            navigate(`/tournament/${draftId}`); // Fallback
+        }
+    };
+
+    useEffect(() => {
         if (matchup?.participants?.length > 0) {
             const fetchParticipants = async () => {
                 try {
@@ -1335,7 +1476,7 @@ const MatchupPage = () => {
                                                                     <div className="match-card-footer">
                                                                         <span className="match-id-visual">MATCH #{match.id.split('-m')[1]}</span>
                                                                         {match.draftId ? (
-                                                                            <button className="btn-draft-visual view" onClick={() => navigate(`/tournament/${match.draftId}`)}>
+                                                                            <button className="btn-draft-visual view" onClick={() => handleEnterDraftSafe(match.draftId, rIndex, mIndex)}>
                                                                                 {winnerId ? 'VIEW RESULTS' : 'ENTER DRAFT'}
                                                                             </button>
                                                                         ) : (isAdmin && p1 && p2 && !winnerId && !match.isBye && (
@@ -1615,7 +1756,7 @@ const MatchupPage = () => {
                                                                                         </button>
                                                                                     )}
                                                                                     {match.draftId && (
-                                                                                        <button className="rr-row-draft-btn view" onClick={() => navigate(`/tournament/${match.draftId}`)} title={winner ? 'View Draft' : 'Open Draft'}>
+                                                                                        <button className="rr-row-draft-btn view" onClick={() => handleEnterDraftSafe(match.draftId, rIndex, mIndex, realmKey)} title={winner ? 'View Draft' : 'Open Draft'}>
                                                                                             {winner ? '📋' : '🎮'}
                                                                                         </button>
                                                                                     )}
@@ -1712,7 +1853,7 @@ const MatchupPage = () => {
                                                                             </button>
                                                                         )}
                                                                         {match.draftId && (
-                                                                            <button className="rr-row-draft-btn view" onClick={() => navigate(`/tournament/${match.draftId}`)} title={winner ? 'View Draft' : 'Open Draft'}>
+                                                                            <button className="rr-row-draft-btn view" onClick={() => handleEnterDraftSafe(match.draftId, rIndex, mIndex)} title={winner ? 'View Draft' : 'Open Draft'}>
                                                                                 {winner ? '📋' : '🎮'}
                                                                             </button>
                                                                         )}
