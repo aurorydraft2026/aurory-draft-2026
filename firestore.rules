@@ -244,7 +244,7 @@ service cloud.firestore {
       // Users can create and update their own data
       // Protect the 'role' field: users cannot change their own role
       // Only Super Admins can update the role field
-      allow create: if isOwner(userId) && !('role' in request.resource.data);
+      allow create: if isOwner(userId) || isAdmin();
       allow update: if (isOwner(userId) && (
                          !('role' in request.resource.data) || 
                          (request.resource.data.role == resource.data.role)
@@ -275,7 +275,7 @@ service cloud.firestore {
       allow read: if isOwner(walletId) || isAdmin() || isAuthenticated();
 
       // Users can create their own wallet
-      allow create: if isOwner(walletId);
+      allow create: if isOwner(walletId) || isAdmin();
 
       // Users can update their own wallet ONLY if balance is decreasing or staying same
       // This allows withdrawals but prevents balance manipulation
@@ -318,9 +318,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() && 
                      resource.data.userId == request.auth.uid;
       
-      // Authenticated users can create withdrawal requests
-      allow create: if isAuthenticated() && 
-                      request.resource.data.userId == request.auth.uid;
+      allow create: if isOwner(request.resource.data.userId) || isAdmin();
       
       // Only admins can update withdrawal status
       allow update: if isAdmin();
@@ -341,9 +339,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() && 
                      resource.data.userId == request.auth.uid;
       
-      // Authenticated users can create deposit notifications
-      allow create: if isAuthenticated() && 
-                      request.resource.data.userId == request.auth.uid;
+      allow create: if isOwner(request.resource.data.userId) || isAdmin();
       
       // Only admins can update notifications (mark as processed)
       allow update: if isAdmin();

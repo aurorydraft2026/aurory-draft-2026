@@ -141,6 +141,7 @@ function AdminPanel() {
   const [newsTitle, setNewsTitle] = useState('');
   const [newsDescription, setNewsDescription] = useState('');
   const [newsBanner, setNewsBanner] = useState('');
+  const [newsVideoUrl, setNewsVideoUrl] = useState(''); // Added for news video support
   const [editingNewsId, setEditingNewsId] = useState(null);
 
   // Major Announcement Campaign state
@@ -662,6 +663,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         title: newsTitle,
         description: newsDescription,
         banner: newsBanner,
+        videoUrl: newsVideoUrl || '', // Added for news video support
         authorName: user.auroryPlayerName || user.displayName || 'Admin',
         authorUid: user.uid,
         updatedAt: serverTimestamp()
@@ -705,6 +707,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     setNewsTitle('');
     setNewsDescription('');
     setNewsBanner('');
+    setNewsVideoUrl(''); // Added for news video support
     setEditingNewsId(null);
   };
 
@@ -712,6 +715,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     setNewsTitle(post.title || '');
     setNewsDescription(post.description || '');
     setNewsBanner(post.banner || '');
+    setNewsVideoUrl(post.videoUrl || ''); // Added for news video support
     setEditingNewsId(post.id);
 
     // Scroll to form
@@ -2221,6 +2225,17 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         <button onClick={() => setNewsBanner('')} type="button">Remove</button>
                       </div>
                     )}
+                  </div>
+
+                  <div className="form-group">
+                    <label>Video Link (Optional - Alternative to Image)</label>
+                    <input
+                      type="text"
+                      value={newsVideoUrl}
+                      onChange={(e) => setNewsVideoUrl(e.target.value)}
+                      placeholder="https://example.com/video.mp4"
+                    />
+                    <p className="field-hint">If provided, the video will play in the detail view instead of the static banner.</p>
                   </div>
 
                   <div className="form-group">

@@ -422,14 +422,18 @@ const MatchupPage = () => {
                 });
             } else {
                 let structure = [];
+                let totalSlots = null;
                 if (matchup.tournamentType === 'single_elimination') {
-                    structure = generateSingleElimination(matchup.participants);
+                    const result = generateSingleElimination(matchup.participants);
+                    structure = result.rounds;
+                    totalSlots = result.totalSlots;
                 } else if (matchup.tournamentType === 'round_robin') {
                     structure = generateRoundRobin(matchup.participants);
                 }
                 await updateDoc(matchupRef, {
                     status: 'active',
                     matchupStructure: structure,
+                    bracketTotalSlots: totalSlots,
                     startedAt: new Date()
                 });
             }
@@ -453,16 +457,27 @@ const MatchupPage = () => {
             const currentMatch = newStructure[roundIndex].matches[matchIndex];
             currentMatch.winner = winnerId;
 
-            if (matchup.tournamentType === 'single_elimination' && roundIndex < newStructure.length - 1) {
-                const nextRound = newStructure[roundIndex + 1];
-                const nextMatchIndex = Math.floor(matchIndex / 2);
-                const isFirstInPair = matchIndex % 2 === 0;
+            if (matchup.tournamentType === 'single_elimination') {
+                // Propagate Winner Upward
+                if (currentMatch.parentMatchId) {
+                    const nextRound = newStructure[roundIndex + 1];
+                    if (nextRound) {
+                        const parentMatch = nextRound.matches.find(m => m.id === currentMatch.parentMatchId);
+                        if (parentMatch) {
+                            parentMatch[currentMatch.parentSide] = winnerId;
+                        }
+                    }
+                }
 
-                if (nextRound && nextRound.matches[nextMatchIndex]) {
-                    if (isFirstInPair) {
-                        nextRound.matches[nextMatchIndex].player1 = winnerId;
-                    } else {
-                        nextRound.matches[nextMatchIndex].player2 = winnerId;
+                // Propagate Loser to 3rd Place Match
+                if (currentMatch.thirdPlaceParentId) {
+                    const finalRound = newStructure[newStructure.length - 1];
+                    if (finalRound) {
+                        const thirdPlaceMatch = finalRound.matches.find(m => m.id === currentMatch.thirdPlaceParentId);
+                        if (thirdPlaceMatch) {
+                            const loserId = (getUID(currentMatch.player1) === winnerId) ? getUID(currentMatch.player2) : getUID(currentMatch.player1);
+                            thirdPlaceMatch[currentMatch.thirdPlaceParentSide] = loserId;
+                        }
                     }
                 }
             }
@@ -1243,76 +1258,117 @@ const MatchupPage = () => {
                         </div>
 
                         {matchup.tournamentType === 'single_elimination' ? (
-                            /* ── Visual Bracket Structure ── */
+                            /* ── Visual Bracket Structure (Binary Tree Aligned) ── */
                             <div className="visual-bracket-wrapper">
                                 <div className="visual-bracket-scroll-container">
-                                    <div className="visual-bracket-grid">
-                                        {matchup.matchupStructure.map((round, rIndex) => (
-                                            <div key={round.id} className={`bracket-column round-${rIndex + 1}`}>
-                                                <div className="round-header-visual">
-                                                    <span className="round-title-visual">{round.title}</span>
-                                                    <span className="round-count-visual">{round.matches.filter(m => m.winner).length}/{round.matches.length}</span>
-                                                </div>
-                                                <div className="bracket-matches-container">
-                                                    {round.matches.map((match, mIndex) => {
-                                                        const p1 = matchup.format === 'teams' ? match.player1 : getUserById(match.player1);
-                                                        const p2 = matchup.format === 'teams' ? match.player2 : getUserById(match.player2);
-                                                        const winnerId = match.winner;
+                                    <div
+                                        className="visual-bracket-grid"
+                                        style={{
+                                            gridTemplateColumns: `repeat(${matchup.matchupStructure.length}, 340px)`,
+                                            height: `${(matchup.bracketTotalSlots || 4) * 100}px`,
+                                            position: 'relative'
+                                        }}
+                                    >
+                                        {matchup.matchupStructure.map((round, rIndex) => {
+                                            const totalSlots = matchup.bracketTotalSlots || Math.pow(2, matchup.matchupStructure.length);
 
-                                                        return (
-                                                            <div key={match.id} className={`bracket-match-card ${winnerId ? 'resolved' : ''} ${match.isThirdPlaceMatch ? 'is-third-place' : ''}`}>
-                                                                {match.isThirdPlaceMatch && <div className="match-type-overlay">3rd Place Match</div>}
-                                                                <div className="match-card-body">
-                                                                    {/* Team 1 */}
-                                                                    <div className={`match-team-row ${winnerId && winnerId === getUID(p1) ? 'winner' : winnerId ? 'loser' : ''}`}>
-                                                                        <div className="team-info-visual">
-                                                                            <img src={getAvatar(p1)} alt="" className="team-avatar-visual" />
-                                                                            <span className="team-name-visual">{getName(p1)}</span>
-                                                                        </div>
-                                                                        {isAdmin && p1 && !winnerId && !match.isBye && (
-                                                                            <button className="win-btn-visual" onClick={() => handleReportWinner(rIndex, mIndex, getUID(p1))}>✓</button>
-                                                                        )}
-                                                                        {winnerId && winnerId === getUID(p1) && <span className="winner-crown">👑</span>}
-                                                                    </div>
-                                                                    <div className="match-divider-visual">vs</div>
-                                                                    {/* Team 2 */}
-                                                                    <div className={`match-team-row ${winnerId && winnerId === getUID(p2) ? 'winner' : winnerId ? 'loser' : ''}`}>
-                                                                        <div className="team-info-visual">
-                                                                            <img src={getAvatar(p2)} alt="" className="team-avatar-visual" />
-                                                                            <span className="team-name-visual">{getName(p2)}</span>
-                                                                        </div>
-                                                                        {isAdmin && p2 && !winnerId && !match.isBye && (
-                                                                            <button className="win-btn-visual" onClick={() => handleReportWinner(rIndex, mIndex, getUID(p2))}>✓</button>
-                                                                        )}
-                                                                        {winnerId && winnerId === getUID(p2) && <span className="winner-crown">👑</span>}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="match-card-footer">
-                                                                    <span className="match-id-visual">MATCH #{mIndex + 1}</span>
-                                                                    {match.draftId ? (
-                                                                        <button className="btn-draft-visual view" onClick={() => navigate(`/tournament/${match.draftId}`)}>
-                                                                            {winnerId ? 'VIEW RESULTS' : 'ENTER DRAFT'}
-                                                                        </button>
-                                                                    ) : (isAdmin && p1 && p2 && !winnerId && !match.isBye && (
-                                                                        <button className="btn-draft-visual create" onClick={() => handleCreateDraftFromMatch(rIndex, mIndex)}>
-                                                                            CREATE DRAFT ⚔️
-                                                                        </button>
-                                                                    ))}
-                                                                </div>
+                                            return (
+                                                <div key={round.id} className={`bracket-column round-${rIndex + 1} ${rIndex === matchup.matchupStructure.length - 1 ? 'is-finals-column' : ''}`}>
+                                                    <div className="round-header-visual">
+                                                        <span className="round-title-visual">{round.title}</span>
+                                                        <span className="round-count-visual">{round.matches.filter(m => m.winner).length}/{round.matches.length}</span>
+                                                    </div>
+                                                    <div className="bracket-matches-container-v3">
+                                                        {round.matches.map((match, mIndex) => {
+                                                            const p1 = matchup.format === 'teams' ? match.player1 : getUserById(match.player1);
+                                                            const p2 = matchup.format === 'teams' ? match.player2 : getUserById(match.player2);
+                                                            const winnerId = match.winner;
+                                                            const isGrandFinal = !match.isThirdPlaceMatch && rIndex === matchup.matchupStructure.length - 1;
 
-                                                                {/* Connector Hooks (for CSS drawing) */}
-                                                                {!match.isThirdPlaceMatch && rIndex < matchup.matchupStructure.length - 1 && (
-                                                                    <div className={`connector-out ${mIndex % 2 === 0 ? 'top' : 'bottom'}`}></div>
-                                                                )}
-                                                                {rIndex > 0 && !match.isThirdPlaceMatch && (
-                                                                    <div className="connector-in"></div>
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
+                                                            // Absolute Vertical Position
+                                                            const topPos = (match.y / totalSlots) * 100;
+
+                                                            // Connector bridge height (to its parent)
+                                                            const hasParent = match.parentMatchId && !match.isThirdPlaceMatch;
+                                                            const bridgeSlots = hasParent ? Math.abs(match.y - (match.parentY || match.y)) : 0;
+                                                            const bridgePx = bridgeSlots * 100;
+
+                                                            return (
+                                                                <div
+                                                                    key={match.id}
+                                                                    className={`bracket-match-card-v3 
+                                                                        ${winnerId ? 'resolved' : ''} 
+                                                                        ${match.isThirdPlaceMatch ? 'is-third-place' : ''}
+                                                                        ${isGrandFinal ? 'is-grand-final' : ''}
+                                                                    `}
+                                                                    style={{ top: `${topPos}%` }}
+                                                                >
+                                                                    {match.isThirdPlaceMatch && <div className="match-type-overlay">3rd Place Match</div>}
+                                                                    {isGrandFinal && <div className="match-type-overlay-final">🏆 Grand Final</div>}
+
+                                                                    <div className="match-card-body">
+                                                                        {/* Team 1 */}
+                                                                        <div className={`match-team-row ${winnerId && winnerId === getUID(p1) ? 'winner' : winnerId ? 'loser' : ''}`}>
+                                                                            <div className="team-info-visual">
+                                                                                <img src={getAvatar(p1)} alt="" className="team-avatar-visual" />
+                                                                                <span className="team-name-visual">{getName(p1)}</span>
+                                                                            </div>
+                                                                            {isAdmin && p1 && !winnerId && !match.isBye && (
+                                                                                <button className="win-btn-visual" onClick={() => handleReportWinner(rIndex, mIndex, getUID(p1))}>✓</button>
+                                                                            )}
+                                                                            {winnerId && winnerId === getUID(p1) && <span className="winner-crown">👑</span>}
+                                                                        </div>
+                                                                        <div className="match-divider-visual">vs</div>
+                                                                        {/* Team 2 */}
+                                                                        <div className={`match-team-row ${winnerId && winnerId === getUID(p2) ? 'winner' : winnerId ? 'loser' : ''}`}>
+                                                                            <div className="team-info-visual">
+                                                                                <img src={getAvatar(p2)} alt="" className="team-avatar-visual" />
+                                                                                <span className="team-name-visual">{getName(p2)}</span>
+                                                                            </div>
+                                                                            {isAdmin && p2 && !winnerId && !match.isBye && (
+                                                                                <button className="win-btn-visual" onClick={() => handleReportWinner(rIndex, mIndex, getUID(p2))}>✓</button>
+                                                                            )}
+                                                                            {winnerId && winnerId === getUID(p2) && <span className="winner-crown">👑</span>}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="match-card-footer">
+                                                                        <span className="match-id-visual">MATCH #{match.id.split('-m')[1]}</span>
+                                                                        {match.draftId ? (
+                                                                            <button className="btn-draft-visual view" onClick={() => navigate(`/tournament/${match.draftId}`)}>
+                                                                                {winnerId ? 'VIEW RESULTS' : 'ENTER DRAFT'}
+                                                                            </button>
+                                                                        ) : (isAdmin && p1 && p2 && !winnerId && !match.isBye && (
+                                                                            <button className="btn-draft-visual create" onClick={() => handleCreateDraftFromMatch(rIndex, mIndex)}>
+                                                                                CREATE ⚔️
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+
+                                                                    {/* Accurate Tree Connectors */}
+                                                                    {hasParent && (
+                                                                        <>
+                                                                            <div className="connector-horizontal-out">
+                                                                                <div className="connector-joint"></div>
+                                                                            </div>
+                                                                            <div
+                                                                                className={`connector-vertical-bridge ${match.y < match.parentY ? 'down' : 'up'}`}
+                                                                                style={{ height: `${bridgePx + 2}px` }}
+                                                                            ></div>
+                                                                        </>
+                                                                    )}
+                                                                    {rIndex > 0 && !match.isThirdPlaceMatch && match.prevMatches?.length > 0 && (
+                                                                        <div className="connector-horizontal-in">
+                                                                            <div className="connector-joint"></div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>

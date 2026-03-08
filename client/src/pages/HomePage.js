@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  collection, onSnapshot, doc
+  collection, onSnapshot, doc, query, where
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../firebase';
@@ -156,6 +156,10 @@ function HomePage() {
   const [majorAnnouncement, setMajorAnnouncement] = useState(null);
   const [showMajorAnnouncement, setShowMajorAnnouncement] = useState(false);
 
+  // Admin high-visibility financial alerts
+  const [adminPendingWithdrawals, setAdminPendingWithdrawals] = useState(0);
+  const [adminPendingDeposits, setAdminPendingDeposits] = useState(0);
+
   // Listen for authentication state changes and user Firestore data
   useEffect(() => {
     let unsubscribeUserDoc = null;
@@ -286,6 +290,34 @@ function HomePage() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Admin Financial Listeners for Homepage Alerts
+  useEffect(() => {
+    if (!isAdmin) {
+      setAdminPendingWithdrawals(0);
+      setAdminPendingDeposits(0);
+      return;
+    }
+
+    // Listen for pending withdrawals
+    const withdrawalsRef = collection(db, 'withdrawals');
+    const qWithdrawals = query(withdrawalsRef, where('status', '==', 'pending'));
+    const unsubscribeWithdrawals = onSnapshot(qWithdrawals, (snapshot) => {
+      setAdminPendingWithdrawals(snapshot.docs.length);
+    }, (err) => console.error("Error listening to admin withdrawals:", err));
+
+    // Listen for pending deposits
+    const depositsRef = collection(db, 'depositNotifications');
+    const qDeposits = query(depositsRef, where('status', '==', 'pending'));
+    const unsubscribeDeposits = onSnapshot(qDeposits, (snapshot) => {
+      setAdminPendingDeposits(snapshot.docs.length);
+    }, (err) => console.error("Error listening to admin deposits:", err));
+
+    return () => {
+      unsubscribeWithdrawals();
+      unsubscribeDeposits();
+    };
+  }, [isAdmin]);
 
 
 
@@ -506,6 +538,24 @@ function HomePage() {
                 <span className="wallet-amount">{formatAuryAmount(walletBalance)} AURY</span>
               </button>
 
+              {/* Admin High-Visibility Alerts */}
+              {isAdmin && (adminPendingWithdrawals > 0 || adminPendingDeposits > 0) && (
+                <div className="admin-quick-alerts">
+                  {adminPendingWithdrawals > 0 && (
+                    <Link to="/admin/panel" className="admin-alert-badge withdrawal" title={`${adminPendingWithdrawals} Pending Withdrawals`}>
+                      <span className="alert-icon">📤</span>
+                      <span className="alert-count">{adminPendingWithdrawals}</span>
+                    </Link>
+                  )}
+                  {adminPendingDeposits > 0 && (
+                    <Link to="/admin/panel" className="admin-alert-badge deposit" title={`${adminPendingDeposits} Pending Deposits`}>
+                      <span className="alert-icon">📥</span>
+                      <span className="alert-count">{adminPendingDeposits}</span>
+                    </Link>
+                  )}
+                </div>
+              )}
+
               {/* Notifications Bell */}
               <div className="notification-menu-container" ref={notificationMenuRef}>
                 <button
@@ -723,17 +773,17 @@ function HomePage() {
                                 </div>
                               </a>
                               <a href="https://play.google.com/store/apps/details?id=io.aurory.seekersoftokane&pcampaignid=web_share" target="_blank" rel="noopener noreferrer" className="banner-store-btn play">
-                                <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play" className="play-badge" />
-                                <div className="btn-label" style={{ display: 'flex', flexDirection: 'column' }}>
-                                  <small style={{ fontSize: '10px' }}>Official Game</small>
-                                  <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Play Store</span>
+                                <img src="https://upload.wikimedia.org/wikipedia/commons/d/d0/Google_Play_Arrow_logo.svg" alt="Google Play" className="play-icon" />
+                                <div className="btn-label">
+                                  <small>Official Game</small>
+                                  <span>Play Store</span>
                                 </div>
                               </a>
                               <a href="https://testflight.apple.com/join/FuaxsScP" target="_blank" rel="noopener noreferrer" className="banner-store-btn ios">
-                                <img src="https://upload.wikimedia.org/wikipedia/commons/3/3c/Download_on_the_App_Store_Badge.svg" alt="App Store" className="app-badge" />
-                                <div className="btn-label" style={{ display: 'flex', flexDirection: 'column' }}>
-                                  <small style={{ fontSize: '10px' }}>Official Game</small>
-                                  <span style={{ fontSize: '12px', fontWeight: 'bold' }}>App Store</span>
+                                <img src="https://upload.wikimedia.org/wikipedia/commons/6/67/App_Store_%28iOS%29.svg" alt="App Store" className="app-icon" />
+                                <div className="btn-label">
+                                  <small>Official Game</small>
+                                  <span>App Store</span>
                                 </div>
                               </a>
                             </div>
@@ -2476,7 +2526,18 @@ function HomePage() {
               <button className="close-modal" onClick={() => setShowNewsModal(false)}>✖</button>
             </div>
             <div className="news-modal-content">
-              <img src={selectedNews.banner} alt="" className="news-modal-banner" />
+              {selectedNews.videoUrl ? (
+                <div className="news-modal-video-container" style={{ width: '100%', borderRadius: '12px', overflow: 'hidden', marginBottom: '20px', backgroundColor: '#000', aspectRatio: '16/9' }}>
+                  <video
+                    src={selectedNews.videoUrl}
+                    controls
+                    autoPlay
+                    style={{ width: '100%', height: '100%', display: 'block' }}
+                  />
+                </div>
+              ) : (
+                <img src={selectedNews.banner} alt="" className="news-modal-banner" />
+              )}
               <h2 className="news-modal-title">{selectedNews.title}</h2>
               <div className="news-modal-meta">
                 <div className="news-modal-author-info">

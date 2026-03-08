@@ -8,64 +8,127 @@
  * @param {Array} participants - List of UIDs or Team Objects
  * @returns {Object} - Bracket structure with rounds and matches
  */
+/**
+ * Generates a Single Elimination bracket using a binary tree structure.
+ * Each node represents a match, and winners propagate upward.
+ * @param {Array} participants - List of UIDs or Team Objects
+ * @returns {Array} - Flattened rounds array for UI compatibility
+ */
 export const generateSingleElimination = (participants) => {
     const shuffled = [...participants].sort(() => Math.random() - 0.5);
     const count = shuffled.length;
+    if (count < 2) return [];
 
-    // Calculate next power of 2 for bracket size
-    const powerOf2 = Math.pow(2, Math.ceil(Math.log2(count)));
+    // Calculate depth (number of rounds)
+    const totalRounds = Math.ceil(Math.log2(count));
+    const totalSlots = Math.pow(2, totalRounds);
 
-    const rounds = [];
-    let currentRoundMatches = [];
+    let matchCounter = 1;
+    const allMatches = [];
 
-    // Round 1 (including BYEs)
-    for (let i = 0; i < powerOf2; i += 2) {
-        const p1 = shuffled[i] || null;
-        const p2 = shuffled[i + 1] || null;
-
-        currentRoundMatches.push({
-            id: `r1-m${Math.floor(i / 2) + 1}`,
-            player1: p1,
-            player2: p2,
-            winner: p2 === null ? p1 : (p1 === null ? p2 : null), // Auto-advance if BYE
-            isBye: p1 === null || p2 === null
-        });
-    }
-
-    rounds.push({
-        id: 'round-1',
-        title: 'Round 1',
-        matches: currentRoundMatches
-    });
-
-    // Generate subsequent rounds
-    let prevMatches = currentRoundMatches;
-    let roundNum = 2;
-    while (prevMatches.length > 1) {
-        const nextMatches = [];
-        for (let i = 0; i < prevMatches.length; i += 2) {
-            const m1 = prevMatches[i];
-            const m2 = prevMatches[i + 1];
-
-            nextMatches.push({
-                id: `r${roundNum}-m${Math.floor(i / 2) + 1}`,
-                player1: m1.winner || null, // Propagate winner if already decided (e.g. Bye)
-                player2: m2.winner || null,
-                winner: null,
-                prevMatches: [m1.id, m2.id]
-            });
+    /**
+     * Recursively builds the bracket tree with coordinate slots.
+     * @param {Array} players - List of players in this subtree
+     * @param {number} round - Current round index
+     * @param {number} slotOffset - Vertical slot starting point
+     * @param {number} slotSpan - Vertical slots covered by this subtree
+     */
+    const buildNode = (players, round, slotOffset, slotSpan) => {
+        if (players.length === 1) {
+            return {
+                player: players[0],
+                y: slotOffset + (slotSpan / 2)
+            };
         }
+
+        const mid = Math.ceil(players.length / 2);
+        const leftPlayers = players.slice(0, mid);
+        const rightPlayers = players.slice(mid);
+
+        // Calculate spans proportionally
+        const subSpan = slotSpan / 2;
+        const leftSource = buildNode(leftPlayers, round - 1, slotOffset, subSpan);
+        const rightSource = buildNode(rightPlayers, round - 1, slotOffset + subSpan, subSpan);
+
+        const matchId = `r${round}-m${matchCounter++}`;
+        const match = {
+            id: matchId,
+            player1: (leftSource.player && 'uid' in leftSource.player) ? leftSource.player : null,
+            player2: (rightSource.player && 'uid' in rightSource.player) ? rightSource.player : null,
+            winner: null,
+            prevMatches: [],
+            roundIndex: round - 1,
+            y: slotOffset + (slotSpan / 2),
+            slotSpan: slotSpan
+        };
+
+        // If a source is a match, link it
+        if (leftSource.id) {
+            match.prevMatches.push(leftSource.id);
+            leftSource.parentMatchId = matchId;
+            leftSource.parentSide = 'player1';
+            leftSource.parentY = match.y;
+        }
+        if (rightSource.id) {
+            match.prevMatches.push(rightSource.id);
+            rightSource.parentMatchId = matchId;
+            rightSource.parentSide = 'player2';
+            rightSource.parentY = match.y;
+        }
+
+        allMatches.push(match);
+        return match;
+    };
+
+    // Build the tree
+    buildNode(shuffled, totalRounds, 0, totalSlots);
+
+    // Group matches into rounds
+    const rounds = [];
+    for (let i = 0; i < totalRounds; i++) {
+        const roundMatches = allMatches.filter(m => m.roundIndex === i);
+        roundMatches.sort((a, b) => a.y - b.y);
+
+        const isLastRound = i === totalRounds - 1;
+        const isSemiFinals = i === totalRounds - 2;
+
         rounds.push({
-            id: `round-${roundNum}`,
-            title: roundNum === Math.ceil(Math.log2(powerOf2)) ? 'Finals' :
-                roundNum === Math.ceil(Math.log2(powerOf2)) - 1 ? 'Semi-Finals' : `Round ${roundNum}`,
-            matches: nextMatches
+            id: `round-${i + 1}`,
+            title: isLastRound ? 'Grand Final' : (isSemiFinals ? 'Semifinals' : (totalRounds - i === 3 ? 'Quarterfinals' : `Round ${i + 1}`)),
+            matches: roundMatches
         });
-        prevMatches = nextMatches;
-        roundNum++;
     }
 
-    return rounds;
+    // 3rd Place Match Logic (Losers of Semifinals)
+    if (count >= 4) {
+        const finalRound = rounds[rounds.length - 1];
+        const semifinals = rounds[rounds.length - 2];
+        const grandFinal = finalRound.matches[0];
+
+        if (semifinals && finalRound && grandFinal) {
+            const thirdPlaceMatch = {
+                id: `r${totalRounds}-m-third`,
+                player1: null,
+                player2: null,
+                winner: null,
+                prevMatches: semifinals.matches.map(m => m.id),
+                isThirdPlaceMatch: true,
+                title: '3rd Place Match',
+                roundIndex: totalRounds - 1,
+                y: grandFinal.y + 1.5 // Distance below Grand Final
+            };
+
+            // Mark source matches for loser propagation
+            semifinals.matches.forEach((m, idx) => {
+                m.thirdPlaceParentId = thirdPlaceMatch.id;
+                m.thirdPlaceParentSide = idx === 0 ? 'player1' : 'player2';
+            });
+
+            finalRound.matches.push(thirdPlaceMatch);
+        }
+    }
+
+    return { rounds, totalSlots };
 };
 
 /**
