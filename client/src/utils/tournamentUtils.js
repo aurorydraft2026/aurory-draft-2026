@@ -115,7 +115,7 @@ export const generateSingleElimination = (participants) => {
                 isThirdPlaceMatch: true,
                 title: '3rd Place Match',
                 roundIndex: totalRounds - 1,
-                y: grandFinal.y + 1.5 // Distance below Grand Final
+                y: grandFinal.y + 1.2 // Distance below Grand Final (closer than 1.5)
             };
 
             // Mark source matches for loser propagation
@@ -227,25 +227,44 @@ export const generateRealmRoundRobin = (participants) => {
  * @returns {Array} - Rounds structure for SE finals
  */
 export const generateFinalsSingleElimination = (top4Teams) => {
+    // Standard 4-player bracket logic
     // Seeding: 
     // SF 1: Frost #1 (0) vs Fire #2 (3)
     // SF 2: Fire #1 (2) vs Frost #2 (1)
+    const seededParticipants = [top4Teams[0], top4Teams[3], top4Teams[2], top4Teams[1]];
+
     const semifinalMatches = [
         {
             id: 'finals-r1-m1',
-            player1: top4Teams[0],
-            player2: top4Teams[3],
+            player1: seededParticipants[0],
+            player2: seededParticipants[1],
             winner: null,
             phase: 'finals',
-            title: 'Semifinals 1'
+            title: 'Semifinals 1',
+            roundIndex: 0,
+            y: 1.0,
+            slotSpan: 2,
+            parentMatchId: 'finals-r2-m1',
+            parentSide: 'player1',
+            parentY: 2.0,
+            thirdPlaceParentId: 'finals-r2-m2',
+            thirdPlaceParentSide: 'player1'
         },
         {
             id: 'finals-r1-m2',
-            player1: top4Teams[2],
-            player2: top4Teams[1],
+            player1: seededParticipants[2],
+            player2: seededParticipants[3],
             winner: null,
             phase: 'finals',
-            title: 'Semifinals 2'
+            title: 'Semifinals 2',
+            roundIndex: 0,
+            y: 3.0,
+            slotSpan: 2,
+            parentMatchId: 'finals-r2-m1',
+            parentSide: 'player2',
+            parentY: 2.0,
+            thirdPlaceParentId: 'finals-r2-m2',
+            thirdPlaceParentSide: 'player2'
         }
     ];
 
@@ -256,7 +275,10 @@ export const generateFinalsSingleElimination = (top4Teams) => {
         winner: null,
         phase: 'finals',
         title: 'Grand Finals',
-        prevMatches: ['finals-r1-m1', 'finals-r1-m2']
+        prevMatches: ['finals-r1-m1', 'finals-r1-m2'],
+        roundIndex: 1,
+        y: 2.0,
+        slotSpan: 4
     };
 
     const thirdPlaceMatch = {
@@ -267,7 +289,10 @@ export const generateFinalsSingleElimination = (top4Teams) => {
         phase: 'finals',
         title: '3rd Place Match',
         prevMatches: ['finals-r1-m1', 'finals-r1-m2'],
-        isThirdPlaceMatch: true
+        isThirdPlaceMatch: true,
+        roundIndex: 1,
+        y: 3.2, // Positions it closer to the Grand Final (2.0 + 1.2)
+        slotSpan: 4
     };
 
     return [
