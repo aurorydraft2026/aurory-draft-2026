@@ -15,7 +15,9 @@ const CreateMatchupModal = ({ isOpen, onClose, user }) => {
         draftType: 'mode3',
         maxParticipants: 2,
         format: 'individual',
-        tournamentType: 'single_elimination'
+        tournamentType: 'single_elimination',
+        requiresEntryFee: false,
+        entryFeeAmount: ''
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState(null);
@@ -63,10 +65,13 @@ const CreateMatchupModal = ({ isOpen, onClose, user }) => {
 
         try {
             const matchupsRef = collection(db, 'matchups');
+            const entryFeeNano = formData.requiresEntryFee ? Math.floor((parseFloat(formData.entryFeeAmount) || 0) * 1e9) : 0;
             const docRef = await addDoc(matchupsRef, {
                 ...formData,
                 poolPrize: parseFloat(formData.poolPrize) || 0,
                 maxParticipants: parseInt(formData.maxParticipants) || 2,
+                requiresEntryFee: formData.requiresEntryFee,
+                entryFeeAmount: entryFeeNano,
                 participants: [], // List of user UIDs or Team Objects
                 participantUids: [], // Flat list of all involved UIDs (for rules/queries)
                 status: 'waiting',
@@ -85,7 +90,9 @@ const CreateMatchupModal = ({ isOpen, onClose, user }) => {
                 draftType: 'mode3',
                 maxParticipants: 2,
                 format: 'individual',
-                tournamentType: 'single_elimination'
+                tournamentType: 'single_elimination',
+                requiresEntryFee: false,
+                entryFeeAmount: ''
             });
         } catch (err) {
             console.error('Error creating matchup:', err);
@@ -223,6 +230,34 @@ const CreateMatchupModal = ({ isOpen, onClose, user }) => {
                                     <small style={{ color: '#94a3b8', marginTop: '4px', display: 'block' }}>Teams format · Min 4 teams · Two-phase with Frost ❄️ & Fire 🔥 realms</small>
                                 )}
                             </div>
+                        </div>
+
+                        <div className="form-group entry-fee-group">
+                            <label className="checkbox-label">
+                                <input
+                                    type="checkbox"
+                                    name="requiresEntryFee"
+                                    checked={formData.requiresEntryFee}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, requiresEntryFee: e.target.checked }))}
+                                />
+                                💰 Require Entry Fee?
+                            </label>
+                            {formData.requiresEntryFee && (
+                                <div className="entry-fee-input-row">
+                                    <input
+                                        type="number"
+                                        name="entryFeeAmount"
+                                        value={formData.entryFeeAmount}
+                                        onChange={handleChange}
+                                        placeholder="Entry fee in AURY"
+                                        step="0.01"
+                                        min="0"
+                                        className="form-input"
+                                        required
+                                    />
+                                    <span className="fee-unit">AURY per participant</span>
+                                </div>
+                            )}
                         </div>
                     </form>
                 </div>

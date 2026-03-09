@@ -35,7 +35,7 @@ const MatchupPage = () => {
     const [creatingDrafts, setCreatingDrafts] = useState({}); // { matchKey: true }
     const [walletBalance, setWalletBalance] = useState(0);
     const [showBalanceModal, setShowBalanceModal] = useState(false);
-    const ENTRY_FEE = 100 * 1e9; // 100 AURY in nano-AURY
+    const ENTRY_FEE = matchup?.requiresEntryFee ? (matchup?.entryFeeAmount || 0) : 0;
 
     const getUserById = useCallback((id) => {
         if (!id) return null;
@@ -408,13 +408,17 @@ const MatchupPage = () => {
 
         try {
             await runTransaction(db, async (transaction) => {
-                const walletRef = doc(db, 'wallets', user.uid);
-                const walletSnap = await transaction.get(walletRef);
-                const balance = walletSnap.exists() ? (walletSnap.data().balance || 0) : 0;
+                // Wallet check only if entry fee required
+                if (ENTRY_FEE > 0) {
+                    const walletRef = doc(db, 'wallets', user.uid);
+                    const walletSnap = await transaction.get(walletRef);
+                    const balance = walletSnap.exists() ? (walletSnap.data().balance || 0) : 0;
 
-                if (balance < ENTRY_FEE) {
-                    setShowBalanceModal(true);
-                    throw new Error(`Insufficient balance. You need 100 AURY to join.`);
+                    if (balance < ENTRY_FEE) {
+                        setShowBalanceModal(true);
+                        throw new Error(`Insufficient balance. You need ${(ENTRY_FEE / 1e9).toFixed(2)} AURY to join.`);
+                    }
+                    transaction.update(walletRef, { balance: balance - ENTRY_FEE });
                 }
 
                 const matchupRef = doc(db, 'matchups', matchupId);
@@ -426,13 +430,12 @@ const MatchupPage = () => {
                     throw new Error("Matchup is already full!");
                 }
 
-                transaction.update(walletRef, { balance: balance - ENTRY_FEE });
                 transaction.update(matchupRef, {
                     participants: arrayUnion(user.uid),
                     participantUids: arrayUnion(user.uid)
                 });
             });
-            alert('Tournament joined successfully! 100 AURY deducted.');
+            alert(ENTRY_FEE > 0 ? `Tournament joined successfully! ${(ENTRY_FEE / 1e9).toFixed(2)} AURY deducted.` : 'Tournament joined successfully!');
         } catch (err) {
             console.error('Error joining matchup:', err);
             if (!err.message.includes('Insufficient balance')) {
@@ -446,27 +449,36 @@ const MatchupPage = () => {
             const uidsToAdd = [teamData.leader, ...teamData.members];
 
             await runTransaction(db, async (transaction) => {
-                // Check all members balances
-                const walletSnaps = await Promise.all(uidsToAdd.map(uid => transaction.get(doc(db, 'wallets', uid))));
-                const insufficient = [];
+                // Wallet checks only if entry fee required
+                if (ENTRY_FEE > 0) {
+                    const walletSnaps = await Promise.all(uidsToAdd.map(uid => transaction.get(doc(db, 'wallets', uid))));
+                    const insufficient = [];
 
-                walletSnaps.forEach((snap, idx) => {
-                    const balance = snap.exists() ? (snap.data().balance || 0) : 0;
-                    if (balance < ENTRY_FEE) {
-                        const uid = uidsToAdd[idx];
-                        insufficient.push(uid);
-                    }
-                });
-
-                if (insufficient.length > 0) {
-                    // Try to get names for better error message
-                    const userSnaps = await Promise.all(insufficient.map(uid => transaction.get(doc(db, 'users', uid))));
-                    const names = insufficient.map((uid, idx) => {
-                        const s = userSnaps[idx];
-                        const d = s.exists() ? s.data() : null;
-                        return d?.auroryPlayerName || d?.displayName || uid;
+                    walletSnaps.forEach((snap, idx) => {
+                        const balance = snap.exists() ? (snap.data().balance || 0) : 0;
+                        if (balance < ENTRY_FEE) {
+                            const uid = uidsToAdd[idx];
+                            insufficient.push(uid);
+                        }
                     });
-                    throw new Error(`Insufficient balance for: ${names.join(', ')}. Each member needs 100 AURY.`);
+
+                    if (insufficient.length > 0) {
+                        const userSnaps = await Promise.all(insufficient.map(uid => transaction.get(doc(db, 'users', uid))));
+                        const names = insufficient.map((uid, idx) => {
+                            const s = userSnaps[idx];
+                            const d = s.exists() ? s.data() : null;
+                            return d?.auroryPlayerName || d?.displayName || uid;
+                        });
+                        throw new Error(`Insufficient balance for: ${names.join(', ')}. Each member needs ${(ENTRY_FEE / 1e9).toFixed(2)} AURY.`);
+                    }
+
+                    // Deduct from all
+                    uidsToAdd.forEach((uid, idx) => {
+                        const snap = walletSnaps[idx];
+                        transaction.update(doc(db, 'wallets', uid), {
+                            balance: (snap.data()?.balance || 0) - ENTRY_FEE
+                        });
+                    });
                 }
 
                 // Double check matchup capacity
@@ -477,20 +489,12 @@ const MatchupPage = () => {
                     throw new Error("Matchup is already full!");
                 }
 
-                // Deduct from all and join
-                uidsToAdd.forEach((uid, idx) => {
-                    const snap = walletSnaps[idx];
-                    transaction.update(doc(db, 'wallets', uid), {
-                        balance: (snap.data()?.balance || 0) - ENTRY_FEE
-                    });
-                });
-
                 transaction.update(matchupRef, {
                     participants: arrayUnion(teamData),
                     participantUids: arrayUnion(...uidsToAdd)
                 });
             });
-            alert('Team joined tournament successfully! 100 AURY deducted from each member.');
+            alert(ENTRY_FEE > 0 ? `Team joined tournament successfully! ${(ENTRY_FEE / 1e9).toFixed(2)} AURY deducted from each member.` : 'Team joined tournament successfully!');
         } catch (err) {
             console.error('Error joining as team:', err);
             if (err.message.includes('Insufficient balance')) {
@@ -1298,6 +1302,12 @@ const MatchupPage = () => {
                                             <span className="label">Availability</span>
                                             <span className="value">
                                                 👥 {matchup.participants.length} / {matchup.maxParticipants} Slots
+                                            </span>
+                                        </div>
+                                        <div className="detail-card">
+                                            <span className="label">Entry Fee</span>
+                                            <span className="value">
+                                                {ENTRY_FEE > 0 ? `💰 ${(ENTRY_FEE / 1e9).toFixed(2)} AURY` : '🆓 Free Entry'}
                                             </span>
                                         </div>
                                     </div>

@@ -57,6 +57,10 @@ const MatchupCard = ({ matchup, user }) => {
                         <span className="detail-icon">💎</span>
                         <span>{matchup.poolPrize} AURY Pool</span>
                     </div>
+                    <div className={`detail-item ${matchup.requiresEntryFee ? 'fee' : 'free'}`}>
+                        <span className="detail-icon">{matchup.requiresEntryFee ? '💰' : '🆓'}</span>
+                        <span>{matchup.requiresEntryFee ? `${((matchup.entryFeeAmount || 0) / 1e9).toFixed(2)} AURY` : 'Free'}</span>
+                    </div>
                 </div>
 
                 <div className="matchup-footer">

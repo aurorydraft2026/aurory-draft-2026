@@ -171,3 +171,52 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Entry Fee Checkbox + Input */
+.create-matchup-modal .entry-fee-group {
+    margin-top: 4px;
+    padding: 14px 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+}
+
+.create-matchup-modal .checkbox-label {
+    display: flex !important;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-transform: none;
+    letter-spacing: 0;
+    margin-bottom: 0;
+}
+
+.create-matchup-modal .checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent-cyan);
+    cursor: pointer;
+}
+
+.create-matchup-modal .entry-fee-input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.create-matchup-modal .entry-fee-input-row .form-input {
+    flex: 1;
+    max-width: 200px;
+}
+
+.create-matchup-modal .fee-unit {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-family: 'Outfit', sans-serif;
+    white-space: nowrap;
+}
