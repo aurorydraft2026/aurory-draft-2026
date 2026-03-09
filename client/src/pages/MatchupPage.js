@@ -598,6 +598,9 @@ const MatchupPage = () => {
             const currentMatch = newStructure[roundIndex].matches[matchIndex];
             currentMatch.winner = winnerId;
 
+            const winnerParticipant = (getUID(currentMatch.player1) === winnerId) ? currentMatch.player1 : currentMatch.player2;
+            const loserParticipant = (getUID(currentMatch.player1) === winnerId) ? currentMatch.player2 : currentMatch.player1;
+
             if (matchup.tournamentType === 'single_elimination') {
                 // Propagate Winner Upward
                 if (currentMatch.parentMatchId) {
@@ -605,7 +608,7 @@ const MatchupPage = () => {
                     if (nextRound) {
                         const parentMatch = nextRound.matches.find(m => m.id === currentMatch.parentMatchId);
                         if (parentMatch) {
-                            parentMatch[currentMatch.parentSide] = winnerId;
+                            parentMatch[currentMatch.parentSide] = winnerParticipant || null;
                         }
                     }
                 }
@@ -616,8 +619,7 @@ const MatchupPage = () => {
                     if (finalRound) {
                         const thirdPlaceMatch = finalRound.matches.find(m => m.id === currentMatch.thirdPlaceParentId);
                         if (thirdPlaceMatch) {
-                            const loserId = (getUID(currentMatch.player1) === winnerId) ? getUID(currentMatch.player2) : getUID(currentMatch.player1);
-                            thirdPlaceMatch[currentMatch.thirdPlaceParentSide] = loserId;
+                            thirdPlaceMatch[currentMatch.thirdPlaceParentSide] = loserParticipant || null;
                         }
                     }
                 }
@@ -699,7 +701,7 @@ const MatchupPage = () => {
             const winnerParticipant = (getUID(match.player1) === winnerId) ? match.player1 : match.player2;
 
             // PROPAGATE TO NEXT ROUND (SE 4-team bracket)
-            if (roundIndex === 0) {
+            if (roundIndex === 0 && winnerParticipant && loserParticipant) {
                 const nextRound = newFinalsStructure[1];
                 if (nextRound) {
                     const grandFinal = nextRound.matches[0];
@@ -1494,7 +1496,7 @@ const MatchupPage = () => {
                                                                             </div>
                                                                             <div
                                                                                 className={`connector-vertical-bridge ${match.y < match.parentY ? 'down' : 'up'}`}
-                                                                                style={{ height: `${bridgePx + 2}px` }}
+                                                                                style={{ height: `${bridgePx}px` }}
                                                                             ></div>
                                                                         </>
                                                                     )}
@@ -1896,7 +1898,7 @@ const MatchupPage = () => {
                                                                                 </div>
                                                                                 <div
                                                                                     className={`connector-vertical-bridge ${bridgeDirection}`}
-                                                                                    style={{ height: `${bridgePx + 2}px` }}
+                                                                                    style={{ height: `${bridgePx}px` }}
                                                                                 ></div>
                                                                             </>
                                                                         )}

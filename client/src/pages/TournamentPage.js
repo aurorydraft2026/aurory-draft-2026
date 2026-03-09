@@ -725,8 +725,8 @@ function TournamentPage() {
       } else if (!isDraw) {
         const winnerParticipant = overallWinner === 'A' ? bracketMatch.player1 : bracketMatch.player2;
         const winnerId = matchupData.format === 'teams'
-          ? winnerParticipant?.leader
-          : (typeof winnerParticipant === 'object' ? winnerParticipant.uid : winnerParticipant);
+          ? (winnerParticipant?.leader || null)
+          : (typeof winnerParticipant === 'object' ? (winnerParticipant?.uid || null) : (winnerParticipant || null));
 
         if (!winnerId) return;
         bracketMatch.winner = winnerId;
@@ -736,7 +736,7 @@ function TournamentPage() {
           const nextRound = structure[roundIdx + 1];
           const nextMatchIndex = Math.floor(matchIdx / 2);
           const isFirstInPair = matchIdx % 2 === 0;
-          if (nextRound?.matches?.[nextMatchIndex]) {
+          if (nextRound?.matches?.[nextMatchIndex] && winnerParticipant) {
             if (isFirstInPair) {
               nextRound.matches[nextMatchIndex].player1 = winnerParticipant;
             } else {

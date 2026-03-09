@@ -53,8 +53,8 @@ export const generateSingleElimination = (participants) => {
         const matchId = `r${round}-m${matchCounter++}`;
         const match = {
             id: matchId,
-            player1: (leftSource.player && 'uid' in leftSource.player) ? leftSource.player : null,
-            player2: (rightSource.player && 'uid' in rightSource.player) ? rightSource.player : null,
+            player1: leftSource.player || null,
+            player2: rightSource.player || null,
             winner: null,
             prevMatches: [],
             roundIndex: round - 1,

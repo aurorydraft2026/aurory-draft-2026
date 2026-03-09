@@ -820,13 +820,11 @@
 }
 
 .connector-vertical-bridge.down {
-    top: calc(50% - 1px);
-    /* Starts flush with horizontal top edge */
+    top: calc(50% + -4px);
 }
 
 .connector-vertical-bridge.up {
-    bottom: calc(50% - 1px);
-    /* Starts flush with horizontal bottom edge */
+    bottom: calc(50% + -4px);
 }
 
 .connector-horizontal-in {
