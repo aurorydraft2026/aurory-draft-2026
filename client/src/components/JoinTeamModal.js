@@ -118,7 +118,7 @@ const JoinTeamModal = ({ isOpen, onClose, onJoin, registeredUsers, currentUser }
         // Exclude already selected
         const isSelected = u.id === leader || u.id === member1 || u.id === member2;
 
-        return matchesSearch && !isSelected;
+        return matchesSearch && !isSelected && !u.isAnonymous && u.auroryPlayerId;
     });
 
     return (
@@ -227,10 +227,10 @@ const JoinTeamModal = ({ isOpen, onClose, onJoin, registeredUsers, currentUser }
                             </div>
                         </div>
                     </div>
-                    <div className="fee-notice-area">
+                    {/*<div className="fee-notice-area">
                         <p className="fee-description">💰 Tournament Entry Fee: <strong>100 AURY</strong> per member</p>
                         <p className="fee-subtext">Each selected member must have sufficient balance to join.</p>
-                    </div>
+                    </div>*/}
                 </div>
 
                 <div className="modal-footer">

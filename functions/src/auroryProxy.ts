@@ -20,6 +20,7 @@
 import fetch from 'node-fetch';
 
 const AURORY_LIVE = 'https://aggregator-api.live.aurory.io';
+const AURORY_ITEMS = 'https://items-public-api.live.aurory.io';
 const AURORY_DEV = 'https://aggregator-api.dev.aurory.io';
 
 // Whitelist of allowed API endpoints (prevents abuse)
@@ -29,7 +30,8 @@ const ALLOWED_ENDPOINTS = [
   '/v1/player-matches',
   '/v1/egg-hatches',
   '/v2/players',
-  '/v1/token-stats'
+  '/v1/token-stats',
+  '/v2/inventories'
 ];
 
 /**
@@ -71,7 +73,10 @@ export async function handleAuroryProxy(req: any, res: any): Promise<void> {
     return;
   }
 
-  const baseURL = env === 'dev' ? AURORY_DEV : AURORY_LIVE;
+  let baseURL = env === 'dev' ? AURORY_DEV : AURORY_LIVE;
+  if (endpoint.startsWith('/v2/inventories')) {
+    baseURL = AURORY_ITEMS;
+  }
   const url = `${baseURL}${endpoint}${params ? '?' + params : ''}`;
 
   try {

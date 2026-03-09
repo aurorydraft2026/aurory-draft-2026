@@ -408,7 +408,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           id: doc.id,
           ...doc.data(),
           balance: balanceMap[doc.id] || 0
-        })).filter(u => u.email);
+        })).filter(u => u.email && !u.isGuest);
 
         setAllUsers(users);
       } catch (error) {
@@ -2906,7 +2906,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       const query = usersSearchQuery.toLowerCase();
                       const name = (u.displayName || '').toLowerCase();
                       const email = (u.email || '').toLowerCase();
-                      return name.includes(query) || email.includes(query);
+                      const isMatch = name.includes(query) || email.includes(query);
+                      return isMatch && !u.isAnonymous;
                     })
                     .sort((a, b) => (isSuperAdmin(getUserEmail(a)) ? -1 : isSuperAdmin(getUserEmail(b)) ? 1 : 0))
                     .map(u => {

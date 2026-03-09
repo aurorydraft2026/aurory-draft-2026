@@ -327,7 +327,12 @@
     border-color: var(--danger);
 }
 
-/* Sidebar Participants */
+.matchup-sidebar {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
 .panel-header {
     display: flex;
     justify-content: space-between;
@@ -350,26 +355,8 @@
 }
 
 .participants-list {
-    display: flex;
     flex-direction: column;
     gap: 12px;
-    max-height: 800px;
-    /* Increased height */
-    overflow-y: auto;
-    padding-right: 8px;
-}
-
-.participants-list::-webkit-scrollbar {
-    width: 6px;
-}
-
-.participants-list::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.participants-list::-webkit-scrollbar-thumb {
-    background: var(--border-bright);
-    border-radius: 10px;
 }
 
 .participant-row {
@@ -572,7 +559,7 @@
 
 .empty-state {
     text-align: center;
-    padding: 40px 0;
+    padding: 20px 0;
     color: var(--text-muted);
 }
 
