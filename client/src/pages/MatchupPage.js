@@ -36,6 +36,12 @@ const MatchupPage = () => {
     const [creatingDrafts, setCreatingDrafts] = useState({}); // { matchKey: true }
     const [walletBalance, setWalletBalance] = useState(0);
     const [showBalanceModal, setShowBalanceModal] = useState(false);
+    
+    // Edit Modal State
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editFormData, setEditFormData] = useState({});
+    const [isSavingEdit, setIsSavingEdit] = useState(false);
+    
     const ENTRY_FEE = matchup?.requiresEntryFee ? (matchup?.entryFeeAmount || 0) : 0;
 
     const getUserById = useCallback((id) => {
@@ -819,6 +825,53 @@ const MatchupPage = () => {
         }
     };
 
+    const handleOpenEdit = () => {
+        setEditFormData({
+            description: matchup.description || '',
+            poolPrize: matchup.poolPrize || '',
+            maxParticipants: matchup.maxParticipants || 16,
+            startDate: matchup.startDate 
+                ? new Date(matchup.startDate.seconds ? matchup.startDate.toMillis() : matchup.startDate).toISOString().slice(0, 16)
+                : ''
+        });
+        setShowEditModal(true);
+    };
+
+    const handleEditChange = (e) => {
+        const { name, value } = e.target;
+        setEditFormData(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
+
+    const handleSaveEdit = async () => {
+        if (!isAdmin) return;
+        try {
+            setIsSavingEdit(true);
+            const mRef = doc(db, 'matchups', matchupId);
+            
+            const sDate = editFormData.startDate ? new Date(editFormData.startDate) : null;
+            
+            const updateConfig = {
+                description: editFormData.description,
+                poolPrize: editFormData.poolPrize,
+                maxParticipants: parseInt(editFormData.maxParticipants, 10) || 16
+            };
+            if (sDate) {
+                updateConfig.startDate = sDate;
+            }
+            
+            await updateDoc(mRef, updateConfig);
+            setShowEditModal(false);
+        } catch (error) {
+            console.error("Error updating matchup:", error);
+            alert("Failed to update matchup");
+        } finally {
+            setIsSavingEdit(false);
+        }
+    };
+
     const copyToClipboard = (text, label) => {
         navigator.clipboard.writeText(text);
         alert(`${label} copied to clipboard!`);
@@ -1389,6 +1442,7 @@ const MatchupPage = () => {
                                         {isAdmin && (
                                             <div className="admin-actions">
                                                 {matchup.status === 'waiting' && !isFull && <button className="btn-mock-hero" onClick={handleAddMock}>🧪 Add Mock</button>}
+                                                <button className="btn-edit-hero" onClick={handleOpenEdit} style={{ padding: '10px 24px', fontSize: '0.85rem' }}>✏️ Edit</button>
                                                 <button className="btn-delete-hero" onClick={handleDelete}>🗑️ Delete</button>
                                             </div>
                                         )}
@@ -2171,6 +2225,7 @@ const MatchupPage = () => {
 
                                 {isAdmin && (
                                     <div className="info-admin-actions">
+                                        <button className="btn-edit-hero" onClick={handleOpenEdit}>✏️ Edit Matchup</button>
                                         <button className="btn-delete-hero" onClick={handleDelete}>🗑️ Delete Matchup</button>
                                     </div>
                                 )}
@@ -2256,6 +2311,66 @@ const MatchupPage = () => {
                 onClose={() => setShowLeaveModal(false)}
                 onConfirm={confirmLeave}
             />
+
+            {/* Edit Matchup Modal */}
+            {showEditModal && (
+                <div className="modal-overlay">
+                    <div className="edit-matchup-modal">
+                        <div className="modal-header">
+                            <h3>✏️ Edit Matchup</h3>
+                            <button className="close-btn" onClick={() => setShowEditModal(false)}>✕</button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="form-group">
+                                <label>Start Time</label>
+                                <input 
+                                    type="datetime-local" 
+                                    name="startDate"
+                                    value={editFormData.startDate} 
+                                    onChange={handleEditChange} 
+                                    className="form-input"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Prize Pool</label>
+                                <input 
+                                    type="text" 
+                                    name="poolPrize"
+                                    value={editFormData.poolPrize} 
+                                    onChange={handleEditChange}
+                                    className="form-input" 
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Max Participants</label>
+                                <input 
+                                    type="number" 
+                                    name="maxParticipants"
+                                    value={editFormData.maxParticipants} 
+                                    onChange={handleEditChange} 
+                                    className="form-input"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Description</label>
+                                <textarea 
+                                    name="description"
+                                    value={editFormData.description} 
+                                    onChange={handleEditChange} 
+                                    className="form-input"
+                                    rows="4"
+                                />
+                            </div>
+                        </div>
+                        <div className="modal-actions">
+                            <button className="btn-cancel" onClick={() => setShowEditModal(false)}>Cancel</button>
+                            <button className="btn-save" onClick={handleSaveEdit} disabled={isSavingEdit}>
+                                {isSavingEdit ? 'Saving...' : 'Save Changes'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
