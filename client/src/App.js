@@ -8,6 +8,7 @@ import TournamentPage from './pages/TournamentPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
 import MatchupPage from './pages/MatchupPage';
+import Footer from './components/Footer';
 import './App.css';
 import AdminPanel from './components/AdminPanel';
 
@@ -80,6 +81,7 @@ function App() {
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
         </Routes>
+        <Footer />
       </div>
     </Router>
   );

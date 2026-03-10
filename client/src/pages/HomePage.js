@@ -2469,56 +2469,7 @@ function HomePage() {
           </div>
         )
       }
-      {/* Footer */}
-      <footer className="homepage-footer">
-        <div className="footer-content">
-          <div className="footer-left">
-            <p className="footer-msg">Built with ❤️ for the Aurory Tournament Community. Happy Playing! 🎮🔴</p>
-            <p className="footer-tagline">Anito Guild Community 2026</p>
-            <p className="footer-disclaimer" style={{
-              fontSize: '0.75rem',
-              color: 'rgba(255, 255, 255, 0.3)',
-              marginTop: '10px',
-              lineHeight: '1.4',
-              maxWidth: '400px'
-            }}>
-              Asgard Duels is an independent, fan-made competitive platform. We are not affiliated with, endorsed by, or associated with Aurory, Syncos, or their subsidiaries. All trademarks belong to their respective owners.
-            </p>
-            <div className="footer-legal-links">
-              <Link to="/terms">Terms of Service</Link>
-              <span className="dot">•</span>
-              <Link to="/privacy">Privacy Policy</Link>
-            </div>
-          </div>
-          <div className="footer-right">
-            <div className="footer-links-wrapper">
-              <p className="footer-links-label">Join our Discord!</p>
-              <div className="footer-links-container">
-                <a
-                  href="https://discord.gg/GQ4mbtRj"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="footer-discord-link aurory"
-                  title="Join Aurory Community Discord"
-                >
-                  <img src="/aurory-logo.png" alt="Aurory Community" className="footer-link-logo" />
-                  <span>Aurory</span>
-                </a>
-                <a
-                  href="https://discord.gg/Q4rBwzpv"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="footer-discord-link anito"
-                  title="Join Anito Guild Discord"
-                >
-                  <img src="/anito-logo.png" alt="Anito Guild" className="footer-link-logo" />
-                  <span>Anito Guild</span>
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </footer>
+      {/* News Modal integration remains if any */}
       {/* Full News Modal */}
       {showNewsModal && selectedNews && (
         <div className="modal-overlay news-modal-overlay">

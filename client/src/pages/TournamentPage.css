@@ -75,7 +75,6 @@
 
 .tournament-page {
   min-height: 100vh;
-  background: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-primary);
   padding-bottom: 40px;
