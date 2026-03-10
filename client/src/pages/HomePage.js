@@ -765,26 +765,14 @@ function HomePage() {
                           })()}
 
                           {slide.isStatic && (
-                            <div className="banner-store-links" onClick={(e) => e.stopPropagation()}>
-                              <a href="https://store.epicgames.com/en-US/p/amiko-legends-a5986d" target="_blank" rel="noopener noreferrer" className="banner-store-btn epic">
-                                <img src="https://upload.wikimedia.org/wikipedia/commons/3/31/Epic_Games_logo.svg" alt="Epic Store" />
+                            <div className="banner-store-links single-btn" onClick={(e) => e.stopPropagation()}>
+                              <a href="https://app.aurory.io/?ref=rc-rRsOLweSp8akzn6" target="_blank" rel="noopener noreferrer" className="banner-store-btn play-now">
+                                <svg viewBox="0 0 512 512" fill="currentColor" className="play-icon">
+                                  <path d="M467.51 248.83c-18.4-83.18-45.69-136.24-89.43-149.17A91.5 91.5 0 0 0 352 96c-31.17 0-71.57 14.65-96 14.65S191.17 96 160 96a91.5 91.5 0 0 0-26.08 3.66C90.19 112.59 62.9 165.65 44.5 248.83c-19.1 86.3-17.65 116-2.1 135.21 11.23 13.9 29.83 16 46 16a50.31 50.31 0 0 0 32.74-12.08L151.46 362h209.08l30.34 25.92A50.31 50.31 0 0 0 423.62 400c16.14 0 34.74-2.06 46-16C485.16 364.84 486.61 335.13 467.51 248.83ZM160 256a16 16 0 0 1-16 16H128v16a16 16 0 0 1-32 0V272H80a16 16 0 0 1 0-32H96V224a16 16 0 0 1 32 0v16h16A16 16 0 0 1 160 256Zm224 16a16 16 0 1 1 16-16A16 16 0 0 1 384 272Zm32-48a16 16 0 1 1 16-16A16 16 0 0 1 416 224Z" />
+                                </svg>
                                 <div className="btn-label">
                                   <small>Official Game</small>
-                                  <span>Epic Store</span>
-                                </div>
-                              </a>
-                              <a href="https://play.google.com/store/apps/details?id=io.aurory.seekersoftokane&pcampaignid=web_share" target="_blank" rel="noopener noreferrer" className="banner-store-btn play">
-                                <img src="https://upload.wikimedia.org/wikipedia/commons/d/d0/Google_Play_Arrow_logo.svg" alt="Google Play" className="play-icon" />
-                                <div className="btn-label">
-                                  <small>Official Game</small>
-                                  <span>Play Store</span>
-                                </div>
-                              </a>
-                              <a href="https://testflight.apple.com/join/FuaxsScP" target="_blank" rel="noopener noreferrer" className="banner-store-btn ios">
-                                <img src="https://upload.wikimedia.org/wikipedia/commons/6/67/App_Store_%28iOS%29.svg" alt="App Store" className="app-icon" />
-                                <div className="btn-label">
-                                  <small>Official Game</small>
-                                  <span>App Store</span>
+                                  <span>Play Now</span>
                                 </div>
                               </a>
                             </div>

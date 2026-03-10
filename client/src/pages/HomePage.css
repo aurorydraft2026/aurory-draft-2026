@@ -5000,6 +5000,12 @@
     height: 20px;
   }
 
+  .banner-store-btn.play-now .play-icon {
+    height: 18px;
+    width: 18px;
+    margin-right: 8px;
+  }
+
   .btn-label span {
     font-size: 0.8rem;
   }
@@ -5439,6 +5445,27 @@ input[type="file"] {
 .banner-store-btn.play .play-icon,
 .banner-store-btn.ios .app-icon {
   height: 24px;
+}
+
+.banner-store-btn.play-now {
+  background: linear-gradient(135deg, rgba(0, 200, 255, 0.15), rgba(109, 40, 217, 0.25));
+  border: 1px solid var(--accent-cyan);
+  box-shadow: 0 0 15px rgba(0, 200, 255, 0.2);
+}
+
+.banner-store-btn.play-now:hover {
+  background: linear-gradient(135deg, rgba(0, 200, 255, 0.3), rgba(109, 40, 217, 0.4));
+  border-color: #fff;
+  box-shadow: 0 0 25px rgba(0, 200, 255, 0.5);
+  transform: translateY(-3px);
+}
+
+.banner-store-btn.play-now .play-icon {
+  height: 24px;
+  width: 24px;
+  margin-right: 10px;
+  color: var(--accent-cyan);
+  filter: drop-shadow(0 0 6px var(--accent-cyan));
 }
 
 .btn-label {
