@@ -32,8 +32,23 @@ const MajorAnnouncementModal = ({ title, content, link, onClose }) => {
         if (!text) return null;
 
         return text.split('\n').map((line, i) => {
+            // Check for inline image on its own line
+            const imgMatch = line.match(/^!\[(.*?)\]\((.*?)\)$/);
+            if (imgMatch) {
+                return (
+                    <div key={i} style={{ textAlign: 'center', margin: '12px 0' }}>
+                        <img src={imgMatch[2]} alt={imgMatch[1]} className="news-body-image" style={{ maxWidth: '100%', borderRadius: '8px' }} />
+                    </div>
+                );
+            }
             // Bold
             let formattedLine = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            // Italic
+            formattedLine = formattedLine.replace(/_(.*?)_/g, '<em>$1</em>');
+            // Links
+            formattedLine = formattedLine.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+            // Inline images within text
+            formattedLine = formattedLine.replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" class="news-body-image" style="max-width:100%;border-radius:8px;" />');
             // Titles (Sections I, II, III etc)
             if (/^[IVX]+\./.test(line)) {
                 return (

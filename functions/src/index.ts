@@ -1,7 +1,7 @@
 /**
  * Asgard Duels - Cloud Functions
  *
- * 1. checkTimers      — Runs every 15s, handles timer expiry + auto-pick + phase advance
+ * 1. checkTimers      — Runs every 5s, handles timer expiry + auto-pick + phase advance
  * 2. auroryProxy      — HTTP proxy to Aurory API (no CORS issues)
  * 3. verifyMatches    — Runs every 2min, verifies completed drafts against in-game results
  */
@@ -13,7 +13,7 @@ import { onRequest } from 'firebase-functions/v2/https';
 // Initialize Firebase Admin
 admin.initializeApp();
 
-// ─── 1. TIMER CHECK (every 15 seconds) ───
+// ─── 1. TIMER CHECK (every 5 seconds) ───
 // Scans all active drafts, auto-picks when timer expires, advances phases
 import { processActiveTimers } from './checkTimers';
 
@@ -25,25 +25,25 @@ export const checkTimers = onSchedule(
         region: 'us-central1'
     },
     async () => {
-        // Run up to 4 checks within the 1-minute window (every ~15s)
+        // Run up to 12 checks within the 1-minute window (every ~5s)
         // If no active drafts are found on the first check, exit early to save compute costs
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < 12; i++) {
             try {
                 const processed = await processActiveTimers();
                 if (processed > 0) {
-                    console.log(`Timer check ${i + 1}/4: processed ${processed} draft(s)`);
+                    console.log(`Timer check ${i + 1}/12: processed ${processed} draft(s)`);
                 } else if (i === 0) {
                     // No active drafts found on first check — exit early
-                    // (saves ~45s of idle sleep per invocation)
+                    // (saves ~55s of idle sleep per invocation)
                     return;
                 }
             } catch (err) {
-                console.error(`Timer check ${i + 1}/4 error:`, err);
+                console.error(`Timer check ${i + 1}/12 error:`, err);
             }
 
-            // Wait 15 seconds before next check (except on last iteration)
-            if (i < 3) {
-                await new Promise(resolve => setTimeout(resolve, 15000));
+            // Wait 5 seconds before next check (except on last iteration)
+            if (i < 11) {
+                await new Promise(resolve => setTimeout(resolve, 5000));
             }
         }
     }

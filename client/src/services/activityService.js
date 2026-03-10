@@ -1,5 +1,6 @@
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { resolveDisplayName } from '../utils/userUtils';
 
 /**
  * Logs a user activity to Firestore.
@@ -16,7 +17,7 @@ export const logActivity = async ({ user, type, action, metadata = {} }) => {
         const activityRef = collection(db, 'activity_logs');
         await addDoc(activityRef, {
             userId: user.uid,
-            username: user.displayName || user.email?.split('@')[0] || 'Unknown',
+            username: resolveDisplayName(user),
             userEmail: user.email || '',
             type,
             action,

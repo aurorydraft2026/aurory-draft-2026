@@ -21,6 +21,7 @@ import { useNotifications } from '../hooks/useNotifications';
 import { useAppContent } from '../hooks/useAppContent';
 import MatchupsSection from '../components/MatchupsSection';
 import MajorAnnouncementModal from '../components/MajorAnnouncementModal';
+import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
 import './HomePage.css';
 
 // Your AURY deposit wallet address (replace with your actual address)
@@ -441,7 +442,7 @@ function HomePage() {
     if (getAssignedParticipants().includes(u.id)) return false;
 
     const searchLower = participantSearchQuery.toLowerCase();
-    const nameMatch = u.displayName?.toLowerCase().includes(searchLower);
+    const nameMatch = resolveDisplayName(u).toLowerCase().includes(searchLower);
     const emailMatch = u.email?.toLowerCase().includes(searchLower);
     return nameMatch || emailMatch;
   });
@@ -585,14 +586,14 @@ function HomePage() {
                   title="User Menu"
                 >
                   <img
-                    src={user.auroryProfilePicture || user.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                    src={resolveAvatar(user)}
                     alt="Profile"
                     className="profile-pic"
                     onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                   />
                   <div className="profile-names">
                     <span className="username">
-                      {user.displayName || user.email?.split('@')[0] || 'User'}
+                      {resolveDisplayName(user)}
                       {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}
                     </span>
                     <div className="profile-badges-row">
@@ -1252,7 +1253,7 @@ function HomePage() {
                           </div>
                         ) : (
                           <img
-                            src={item.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                            src={resolveAvatar(item)}
                             alt=""
                             className="top-player-avatar"
                             onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
@@ -1260,7 +1261,7 @@ function HomePage() {
                         )}
 
                         <div className="top-player-info">
-                          <span className="top-player-name">{isTeam ? item.teamName : item.displayName}</span>
+                          <span className="top-player-name">{isTeam ? item.teamName : resolveDisplayName(item)}</span>
                           <span className="top-player-record">
                             <span className="record-wins">{item.wins}W</span>
                             <span className="record-sep">·</span>
@@ -1337,8 +1338,8 @@ function HomePage() {
                         // 1v1: use actual player names
                         const playerA = teamAPlayers[0];
                         const playerB = teamBPlayers[0];
-                        teamADisplay = playerA?.auroryPlayerName || playerA?.displayName || match.teamNames?.team1 || 'Player 1';
-                        teamBDisplay = playerB?.auroryPlayerName || playerB?.displayName || match.teamNames?.team2 || 'Player 2';
+                        teamADisplay = resolveDisplayName(playerA) || match.teamNames?.team1 || 'Player 1';
+                        teamBDisplay = resolveDisplayName(playerB) || match.teamNames?.team2 || 'Player 2';
                       }
 
                       return (
@@ -1392,13 +1393,13 @@ function HomePage() {
                                   <span className="team-label">{teamADisplay}</span>
                                   {/* For 1v1, show player amiko picks; for 3v3, show roster */}
                                   {!is3v3 && teamAPlayers.map((p, i) => (
-                                    <span key={i} className="match-player-name">{p.auroryPlayerName || p.displayName || 'Player'}</span>
+                                    <span key={i} className="match-player-name">{resolveDisplayName(p)}</span>
                                   ))}
                                 </div>
                                 <div className={`match-detail-team team-${teamBColor}`}>
                                   <span className="team-label">{teamBDisplay}</span>
                                   {!is3v3 && teamBPlayers.map((p, i) => (
-                                    <span key={i} className="match-player-name">{p.auroryPlayerName || p.displayName || 'Player'}</span>
+                                    <span key={i} className="match-player-name">{resolveDisplayName(p)}</span>
                                   ))}
                                 </div>
                               </div>
@@ -1901,11 +1902,11 @@ function HomePage() {
                         {team2.leader ? (
                           <div className="assigned-user">
                             <img
-                              src={getUserById(team2.leader)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                              src={resolveAvatar(getUserById(team2.leader))}
                               alt=""
                               onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                             />
-                            <span>{getUserById(team2.leader)?.displayName || 'Unknown'}</span>
+                            <span>{resolveDisplayName(getUserById(team2.leader))}</span>
                             <button className="remove-btn" onClick={() => removeFromSlot(2, 'leader')}>✖</button>
                           </div>
                         ) : (
@@ -1925,19 +1926,19 @@ function HomePage() {
                             <div className="assigned-members-group">
                               <div className="assigned-user mini">
                                 <img
-                                  src={getUserById(team2.member1)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                  src={resolveAvatar(getUserById(team2.member1))}
                                   alt=""
                                   onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                                 />
-                                <span className="mini-name">{getUserById(team2.member1)?.displayName || 'Unknown'}</span>
+                                <span className="mini-name">{resolveDisplayName(getUserById(team2.member1))}</span>
                               </div>
                               <div className="assigned-user mini">
                                 <img
-                                  src={getUserById(team2.member2)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                  src={resolveAvatar(getUserById(team2.member2))}
                                   alt=""
                                   onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                                 />
-                                <span className="mini-name">{getUserById(team2.member2)?.displayName || 'Unknown'}</span>
+                                <span className="mini-name">{resolveDisplayName(getUserById(team2.member2))}</span>
                                 <button className="remove-btn" onClick={() => { removeFromSlot(2, 'member1'); removeFromSlot(2, 'member2'); }}>✖</button>
                               </div>
                             </div>
@@ -1989,13 +1990,13 @@ function HomePage() {
                               return (
                                 <div key={role} className="participant-item selection-active sticky-selection">
                                   <img
-                                    src={u.auroryProfilePicture || u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                    src={resolveAvatar(u)}
                                     alt=""
                                     className="participant-avatar"
                                     onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                                   />
                                   <div className="participant-info">
-                                    <span className="participant-name">{u.displayName}</span>
+                                    <span className="participant-name">{resolveDisplayName(u)}</span>
                                     <span className="participant-email">
                                       {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? 'Participant' : `Selected as ${role === 'leader' ? 'Leader' : role === 'member1' ? 'Member 1' : 'Member 2'}`}
                                     </span>
@@ -2022,13 +2023,13 @@ function HomePage() {
                                   onClick={() => assignParticipant(u.id)}
                                 >
                                   <img
-                                    src={u.auroryProfilePicture || u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
-                                    alt={u.displayName}
+                                    src={resolveAvatar(u)}
+                                    alt={resolveDisplayName(u)}
                                     className="participant-avatar"
                                     onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                                   />
                                   <div className="participant-info">
-                                    <span className="participant-name">{u.displayName || 'Unknown'}</span>
+                                    <span className="participant-name">{resolveDisplayName(u)}</span>
                                     {!u.auroryPlayerId && (
                                       <span className="unlinked-label">⚠️ No Aurory account linked</span>
                                     )}
@@ -2562,6 +2563,7 @@ function HomePage() {
                 className="news-modal-body"
                 dangerouslySetInnerHTML={{
                   __html: selectedNews.description
+                    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" class="news-body-image" />')
                     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                     .replace(/_(.*?)_/g, '<em>$1</em>')
                     .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')

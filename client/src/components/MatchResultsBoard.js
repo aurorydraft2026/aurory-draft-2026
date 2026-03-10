@@ -1,4 +1,4 @@
-import React from 'react';
+import { resolveDisplayName } from '../utils/userUtils';
 import './MatchResultsBoard.css';
 
 const MatchResultsBoard = ({
@@ -115,7 +115,7 @@ const MatchResultsBoard = ({
                                             <div className={`battle-player ${battle.winner === 'A' ? 'winner' : battle.winner ? 'loser' : ''}`}>
                                                 <span className="player-outcome">{battle.winner === 'A' ? '🏆' : battle.winner ? '💀' : '⏳'}</span>
                                                 <div className="player-info">
-                                                    <span className="player-name">{battle.playerA?.displayName || pA?.auroryPlayerName || pA?.displayName || getTeamDisplayName('A')}</span>
+                                                    <span className="player-name">{battle.playerA?.displayName || resolveDisplayName(pA) || getTeamDisplayName('A')}</span>
                                                     {battle.status === 'disqualified_A' && <span className="dq-badge">DQ</span>}
 
                                                     {battle.playerA?.usedAmikos && (
@@ -145,7 +145,7 @@ const MatchResultsBoard = ({
                                             <div className={`battle-player ${battle.winner === 'B' ? 'winner' : battle.winner ? 'loser' : ''}`}>
                                                 <span className="player-outcome">{battle.winner === 'B' ? '🏆' : battle.winner ? '💀' : '⏳'}</span>
                                                 <div className="player-info">
-                                                    <span className="player-name">{battle.playerB?.displayName || pB?.auroryPlayerName || pB?.displayName || getTeamDisplayName('B')}</span>
+                                                    <span className="player-name">{battle.playerB?.displayName || resolveDisplayName(pB) || getTeamDisplayName('B')}</span>
                                                     {battle.status === 'disqualified_B' && <span className="dq-badge">DQ</span>}
 
                                                     {battle.playerB?.usedAmikos && (
@@ -188,16 +188,16 @@ const MatchResultsBoard = ({
                                                 <button
                                                     className="battle-concede-btn team-A"
                                                     onClick={() => handleConcedeBattle(battleIdx, 'A')}
-                                                    title={`Concede this battle for ${pA?.auroryPlayerName || pA?.displayName || 'Team A'}`}
+                                                    title={`Concede this battle for ${resolveDisplayName(pA) || 'Team A'}`}
                                                 >
-                                                    🏳️ Concede {pA?.auroryPlayerName || pA?.displayName || getTeamDisplayName('A')}
+                                                    🏳️ Concede {resolveDisplayName(pA) || getTeamDisplayName('A')}
                                                 </button>
                                                 <button
                                                     className="battle-concede-btn team-B"
                                                     onClick={() => handleConcedeBattle(battleIdx, 'B')}
-                                                    title={`Concede this battle for ${pB?.auroryPlayerName || pB?.displayName || 'Team B'}`}
+                                                    title={`Concede this battle for ${resolveDisplayName(pB) || 'Team B'}`}
                                                 >
-                                                    🏳️ Concede {pB?.auroryPlayerName || pB?.displayName || getTeamDisplayName('B')}
+                                                    🏳️ Concede {resolveDisplayName(pB) || getTeamDisplayName('B')}
                                                 </button>
                                             </div>
                                         )}

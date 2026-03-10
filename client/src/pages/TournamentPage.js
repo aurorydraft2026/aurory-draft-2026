@@ -41,7 +41,10 @@ import { verifyDraftBattles, saveVerificationResults } from '../services/matchVe
 import { logActivity } from '../services/activityService';
 import LoadingScreen from '../components/LoadingScreen';
 import DraftRulesModal from '../components/DraftRulesModal';
+import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
 import './TournamentPage.css';
+
+const DEFAULT_AVATAR = 'https://cdn.discordapp.com/embed/avatars/0.png';
 
 // Helper function to get user email
 const getUserEmail = (user) => {
@@ -55,38 +58,12 @@ const getUserEmail = (user) => {
 
 // Helper function to get user display name
 const getUserDisplayName = (user) => {
-  if (!user) return 'Unknown';
-  if (user.auroryPlayerName) return user.auroryPlayerName; // Priority 1: Linked Aurory Name
-  if (user.displayName) return user.displayName; // Priority 2: Firebase Display Name
-  if (user.providerData && user.providerData.length > 0) {
-    const provider = user.providerData[0];
-    return provider.displayName || provider.uid || getUserEmail(user)?.split('@')[0] || 'Discord User';
-  }
-  return getUserEmail(user)?.split('@')[0] || 'Unknown';
+  return resolveDisplayName(user);
 };
 
 // Helper function to get user profile picture (Aurory > Discord > default)
-const DEFAULT_AVATAR = 'https://cdn.discordapp.com/embed/avatars/0.png';
 const getUserProfilePicture = (user) => {
-  if (!user) return DEFAULT_AVATAR;
-
-  // 1. Aurory Rank/Profile Pic
-  if (user.auroryProfilePicture && user.auroryProfilePicture !== '') return user.auroryProfilePicture;
-
-  // 2. Direct photoURL (Firebase)
-  if (user.photoURL && user.photoURL !== '') return user.photoURL;
-
-  // 3. Provider photoURL (Google/Discord)
-  if (user.providerData && user.providerData.length > 0) {
-    for (const provider of user.providerData) {
-      if (provider.photoURL && provider.photoURL !== '') return provider.photoURL;
-    }
-  }
-
-  // 4. Case-insensitive photoUrl fallback
-  if (user.photoUrl && user.photoUrl !== '') return user.photoUrl;
-
-  return DEFAULT_AVATAR;
+  return resolveAvatar(user);
 };
 
 // Helper function to check if user has a linked Aurory account
@@ -431,20 +408,20 @@ function TournamentPage() {
       data.timerMs = timerMs;
       data.status = 'poolShuffle';
       if (!existingDraft?.privateCode) {
-        data.privateCode = Math.floor(10000 + Math.random() * 90000).toString();
+        data.privateCode = Math.floor(100000 + Math.random() * 900000).toString();
       }
     } else if (draftType === 'mode4') {
       data.teamABans = [];
       data.teamBBans = [];
       data.bannedAmikos = [];
       if (!existingDraft?.privateCode) {
-        data.privateCode = Math.floor(10000 + Math.random() * 90000).toString();
+        data.privateCode = Math.floor(100000 + Math.random() * 900000).toString();
       }
     } else if (draftType === 'mode1' || draftType === 'mode2') {
       if (!existingDraft?.privateCodes) {
         const generatedCodes = [];
         while (generatedCodes.length < 3) {
-          const code = Math.floor(10000 + Math.random() * 90000).toString();
+          const code = Math.floor(100000 + Math.random() * 900000).toString();
           if (!generatedCodes.includes(code)) generatedCodes.push(code);
         }
         data.privateCodes = generatedCodes;
@@ -527,7 +504,7 @@ function TournamentPage() {
       return {
         team,
         uid,
-        displayName: u.auroryPlayerName || u.displayName || u.username || null,
+        displayName: resolveDisplayName(u),
         auroryPlayerId: u.auroryPlayerId || null,
         auroryPlayerName: u.auroryPlayerName || null
       };
@@ -1425,7 +1402,7 @@ function TournamentPage() {
 
         // Build display names
         const joinerUser = registeredUsers.find(u => u.uid === user.uid || u.id === user.uid);
-        const joinerName = joinerUser?.username || joinerUser?.displayName || user.displayName || 'Player';
+        const joinerName = resolveDisplayName(joinerUser || user);
 
         const updateData = {
           preAssignedTeams: updatedTeams,
@@ -4035,7 +4012,7 @@ function TournamentPage() {
       if (userVote !== team) {
         // Add vote for the selected team
         newVotes[team][voterId] = {
-          name: user?.displayName || 'Anonymous Viewer',
+          name: getUserDisplayName(user),
           isAurorian: user?.isAurorian || false,
           timestamp: Date.now()
         };
@@ -4292,12 +4269,12 @@ function TournamentPage() {
     const team2LeaderUser = editTeam2.leader ? editGetUserById(editTeam2.leader) : null;
 
     const teamNames = {
-      team1: team1LeaderUser?.auroryPlayerName || team1LeaderUser?.displayName || team1LeaderUser?.username || 'Open Slot',
-      team2: team2LeaderUser?.auroryPlayerName || team2LeaderUser?.displayName || team2LeaderUser?.username || 'Open Slot',
+      team1: team1LeaderUser ? getUserDisplayName(team1LeaderUser) : 'Open Slot',
+      team2: team2LeaderUser ? getUserDisplayName(team2LeaderUser) : 'Open Slot',
     };
     const leaderNames = {
-      team1: team1LeaderUser?.auroryPlayerName || team1LeaderUser?.displayName || 'Open Slot',
-      team2: team2LeaderUser?.auroryPlayerName || team2LeaderUser?.displayName || 'Open Slot',
+      team1: team1LeaderUser ? getUserDisplayName(team1LeaderUser) : 'Open Slot',
+      team2: team2LeaderUser ? getUserDisplayName(team2LeaderUser) : 'Open Slot',
     };
 
     try {
@@ -4472,6 +4449,14 @@ function TournamentPage() {
     return (draftState.bannedAmikos || []).includes(amikoId);
   };
 
+  // Get the user's battle index (0=leader, 1=member1, 2=member2) for code visibility
+  const getUserBattleIndex = (uid) => {
+    if (!uid || !draftState.matchPlayers) return -1;
+    const teamPlayers = draftState.matchPlayers.filter(p => p.team === userPermission);
+    const idx = teamPlayers.findIndex(p => p.uid === uid);
+    return idx; // 0=leader/battle1, 1=member1/battle2, 2=member2/battle3
+  };
+
 
   // Get team leader (first user assigned to the team)
   const getTeamLeader = (team) => {
@@ -4502,7 +4487,7 @@ function TournamentPage() {
   const getTeamDisplayName = (team) => {
     if (draftState.draftType === 'mode3' || draftState.draftType === 'mode4') {
       const leader = getTeamLeader(team);
-      return leader?.auroryPlayerName || leader?.displayName || (team === 'A' ? 'Player 1' : 'Player 2');
+      return leader ? getUserDisplayName(leader) : (team === 'A' ? 'Player 1' : 'Player 2');
     }
     const color = team === 'A' ? draftState.teamColors?.teamA : draftState.teamColors?.teamB;
     if (color === 'blue') return draftState.teamNames?.team1 || 'Team 1';
@@ -4663,7 +4648,9 @@ function TournamentPage() {
     isCoinFlipHidden,
     setIsCoinFlipHidden,
     registeredUsers,
-    isAccountLinked
+    isAccountLinked,
+    // Per-player battle code visibility
+    getUserBattleIndex
   };
 
   const draftUtils = {
@@ -4674,6 +4661,7 @@ function TournamentPage() {
     ElementBadge,
     RankStars,
     getUserProfilePicture,
+    getUserDisplayName,
     DEFAULT_AVATAR,
     currentTimerDisplay
   };
@@ -5144,7 +5132,7 @@ function TournamentPage() {
                               alt=""
                               onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_AVATAR; }}
                             />
-                            <span>{a.participant.displayName}{a.participant.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}</span>
+                            <span>{getUserDisplayName(a.participant)}{a.participant.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}</span>
                           </div>
                         ))}
                       </div>
@@ -5157,7 +5145,7 @@ function TournamentPage() {
                               alt=""
                               onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_AVATAR; }}
                             />
-                            <span>{a.participant.displayName}{a.participant.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}</span>
+                            <span>{getUserDisplayName(a.participant)}{a.participant.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}</span>
                           </div>
                         ))}
                       </div>
@@ -5264,7 +5252,7 @@ function TournamentPage() {
                             // 3 battle codes
                             const codes = [];
                             while (codes.length < 3) {
-                              const code = Math.floor(10000 + Math.random() * 90000).toString();
+                              const code = Math.floor(100000 + Math.random() * 900000).toString();
                               if (!codes.includes(code)) codes.push(code);
                             }
 
@@ -5394,23 +5382,23 @@ function TournamentPage() {
                       {p1 ? (
                         <div className="slot-player">
                           <img
-                            src={p1.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                            src={getUserProfilePicture(p1)}
                             alt="" className="slot-avatar"
                             onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                           />
-                          <span className="slot-name">{p1.auroryPlayerName || p1.displayName || p1.username || 'Player 1'}</span>
+                          <span className="slot-name">{getUserDisplayName(p1)}</span>
                           {p1Uid === draftState.createdBy && <span className="creator-badge">Creator</span>}
                           {draftState.entryPaid?.[p1Uid] > 0 && <span className="paid-badge">✓ Paid</span>}
                         </div>
                       ) : p1Invited ? (
                         <div className="slot-player invited">
                           <img
-                            src={p1Invited.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                            src={getUserProfilePicture(p1Invited)}
                             alt="" className="slot-avatar grayscale"
                             onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                           />
                           <div className="slot-invited-info">
-                            <span className="slot-name">{p1Invited.auroryPlayerName || p1Invited.displayName || p1Invited.username || 'Player 1'}</span>
+                            <span className="slot-name">{getUserDisplayName(p1Invited)}</span>
                             <span className="status-badge invite">Invitation Sent</span>
                           </div>
                         </div>
@@ -5428,23 +5416,23 @@ function TournamentPage() {
                       {p2 ? (
                         <div className="slot-player">
                           <img
-                            src={p2.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                            src={getUserProfilePicture(p2)}
                             alt="" className="slot-avatar"
                             onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                           />
-                          <span className="slot-name">{p2.auroryPlayerName || p2.displayName || p2.username || 'Player 2'}</span>
+                          <span className="slot-name">{getUserDisplayName(p2)}</span>
                           {p2Uid === draftState.createdBy && <span className="creator-badge">Creator</span>}
                           {draftState.entryPaid?.[p2Uid] > 0 && <span className="paid-badge">✓ Paid</span>}
                         </div>
                       ) : p2Invited ? (
                         <div className="slot-player invited">
                           <img
-                            src={p2Invited.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                            src={getUserProfilePicture(p2Invited)}
                             alt="" className="slot-avatar grayscale"
                             onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                           />
                           <div className="slot-invited-info">
-                            <span className="slot-name">{p2Invited.auroryPlayerName || p2Invited.displayName || p2Invited.username || 'Player 2'}</span>
+                            <span className="slot-name">{getUserDisplayName(p2Invited)}</span>
                             <span className="status-badge invite">Invitation Sent</span>
                           </div>
                         </div>
@@ -6237,11 +6225,11 @@ function TournamentPage() {
                           {editTeam1.leader ? (
                             <div className="assigned-user">
                               <img
-                                src={editGetUserById(editTeam1.leader)?.auroryProfilePicture || editGetUserById(editTeam1.leader)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                src={resolveAvatar(editGetUserById(editTeam1.leader))}
                                 alt=""
                                 onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                               />
-                              <span>{editGetUserById(editTeam1.leader)?.displayName || 'Unknown'}</span>
+                              <span>{resolveDisplayName(editGetUserById(editTeam1.leader))}</span>
                               <button className="remove-btn" onClick={() => editRemoveFromSlot(1, 'leader')}>✖</button>
                             </div>
                           ) : (
@@ -6261,19 +6249,19 @@ function TournamentPage() {
                               <div className="assigned-members-group">
                                 <div className="assigned-user mini">
                                   <img
-                                    src={editGetUserById(editTeam1.member1)?.auroryProfilePicture || editGetUserById(editTeam1.member1)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                    src={resolveAvatar(editGetUserById(editTeam1.member1))}
                                     alt=""
                                     onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                                   />
-                                  <span className="mini-name">{editGetUserById(editTeam1.member1)?.displayName || 'Unknown'}</span>
+                                  <span className="mini-name">{resolveDisplayName(editGetUserById(editTeam1.member1))}</span>
                                 </div>
                                 <div className="assigned-user mini">
                                   <img
-                                    src={editGetUserById(editTeam1.member2)?.auroryProfilePicture || editGetUserById(editTeam1.member2)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                    src={resolveAvatar(editGetUserById(editTeam1.member2))}
                                     alt=""
                                     onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                                   />
-                                  <span className="mini-name">{editGetUserById(editTeam1.member2)?.displayName || 'Unknown'}</span>
+                                  <span className="mini-name">{resolveDisplayName(editGetUserById(editTeam1.member2))}</span>
                                   <button className="remove-btn" onClick={() => { editRemoveFromSlot(1, 'member1'); editRemoveFromSlot(1, 'member2'); }}>✖</button>
                                 </div>
                               </div>
@@ -6304,11 +6292,11 @@ function TournamentPage() {
                           {editTeam2.leader ? (
                             <div className="assigned-user">
                               <img
-                                src={editGetUserById(editTeam2.leader)?.auroryProfilePicture || editGetUserById(editTeam2.leader)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                src={resolveAvatar(editGetUserById(editTeam2.leader))}
                                 alt=""
                                 onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                               />
-                              <span>{editGetUserById(editTeam2.leader)?.displayName || 'Unknown'}</span>
+                              <span>{resolveDisplayName(editGetUserById(editTeam2.leader))}</span>
                               <button className="remove-btn" onClick={() => editRemoveFromSlot(2, 'leader')}>✖</button>
                             </div>
                           ) : (
@@ -6328,19 +6316,19 @@ function TournamentPage() {
                               <div className="assigned-members-group">
                                 <div className="assigned-user mini">
                                   <img
-                                    src={editGetUserById(editTeam2.member1)?.auroryProfilePicture || editGetUserById(editTeam2.member1)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                    src={resolveAvatar(editGetUserById(editTeam2.member1))}
                                     alt=""
                                     onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                                   />
-                                  <span className="mini-name">{editGetUserById(editTeam2.member1)?.displayName || 'Unknown'}</span>
+                                  <span className="mini-name">{resolveDisplayName(editGetUserById(editTeam2.member1))}</span>
                                 </div>
                                 <div className="assigned-user mini">
                                   <img
-                                    src={editGetUserById(editTeam2.member2)?.auroryProfilePicture || editGetUserById(editTeam2.member2)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                    src={resolveAvatar(editGetUserById(editTeam2.member2))}
                                     alt=""
                                     onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                                   />
-                                  <span className="mini-name">{editGetUserById(editTeam2.member2)?.displayName || 'Unknown'}</span>
+                                  <span className="mini-name">{resolveDisplayName(editGetUserById(editTeam2.member2))}</span>
                                   <button className="remove-btn" onClick={() => { editRemoveFromSlot(2, 'member1'); editRemoveFromSlot(2, 'member2'); }}>✖</button>
                                 </div>
                               </div>
@@ -6392,13 +6380,13 @@ function TournamentPage() {
                                 return (
                                   <div key={role} className="participant-item selection-active sticky-selection">
                                     <img
-                                      src={u.auroryProfilePicture || u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                      src={resolveAvatar(u)}
                                       alt=""
                                       className="participant-avatar"
                                       onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                                     />
                                     <div className="participant-info">
-                                      <span className="participant-name">{u.displayName}</span>
+                                      <span className="participant-name">{resolveDisplayName(u)}</span>
                                       <span className="participant-email">
                                         {(editTournament.draftType === 'mode3' || editTournament.draftType === 'mode4') ? 'Participant' : `Selected as ${role === 'leader' ? 'Leader' : role === 'member1' ? 'Member 1' : 'Member 2'}`}
                                       </span>
@@ -6425,13 +6413,13 @@ function TournamentPage() {
                                     onClick={() => editAssignParticipant(u.id)}
                                   >
                                     <img
-                                      src={u.auroryProfilePicture || u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
-                                      alt={u.displayName}
+                                      src={resolveAvatar(u)}
+                                      alt={resolveDisplayName(u)}
                                       className="participant-avatar"
                                       onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                                     />
                                     <div className="participant-info">
-                                      <span className="participant-name">{u.displayName || 'Unknown'}</span>
+                                      <span className="participant-name">{resolveDisplayName(u)}</span>
                                       {!u.auroryPlayerId && (
                                         <span className="unlinked-label">⚠️ No Aurory account linked</span>
                                       )}
@@ -6479,6 +6467,8 @@ function TournamentPage() {
           copyToClipboard={copyToClipboard}
           getUserProfilePicture={getUserProfilePicture}
           DEFAULT_AVATAR={DEFAULT_AVATAR}
+          userBattleIndex={getUserBattleIndex(user?.uid)}
+          userPermission={userPermission}
         />
 
         {/* Draft Rules Modal */}

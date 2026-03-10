@@ -180,7 +180,7 @@ const Mode4Draft = ({
             ? (draftState.teamColors?.teamA === 'blue' ? draftState.teamBanners?.team1 : draftState.teamBanners?.team2)
             : (draftState.teamColors?.teamB === 'blue' ? draftState.teamBanners?.team1 : draftState.teamBanners?.team2);
 
-        const leaderImage = leader ? (getUserProfilePicture ? getUserProfilePicture(leader) : (leader.photoURL || DEFAULT_AVATAR)) : DEFAULT_AVATAR;
+        const leaderImage = leader ? getUserProfilePicture(leader) : DEFAULT_AVATAR;
         const playerBanner = teamBanner || leaderImage;
         const isCurrentTeam = draftState.currentTeam === team && draftState.status === 'active';
 
@@ -306,8 +306,8 @@ const Mode4Draft = ({
                                             const leaderUid = draftState.preAssignedTeams?.team1?.leader;
                                             if (!leaderUid) return DEFAULT_AVATAR;
                                             const foundUser = handlers.registeredUsers?.find(u => (u.uid || u.id) === leaderUid);
-                                            if (foundUser && getUserProfilePicture) return getUserProfilePicture(foundUser);
-                                            if (user && user.uid === leaderUid && getUserProfilePicture) return getUserProfilePicture(user);
+                                            if (foundUser) return getUserProfilePicture(foundUser);
+                                            if (user && user.uid === leaderUid) return getUserProfilePicture(user);
                                             return DEFAULT_AVATAR;
                                         })()}
                                         alt={p1Name}
@@ -324,8 +324,8 @@ const Mode4Draft = ({
                                             const leaderUid = draftState.preAssignedTeams?.team2?.leader;
                                             if (!leaderUid) return DEFAULT_AVATAR;
                                             const foundUser = handlers.registeredUsers?.find(u => (u.uid || u.id) === leaderUid);
-                                            if (foundUser && getUserProfilePicture) return getUserProfilePicture(foundUser);
-                                            if (user && user.uid === leaderUid && getUserProfilePicture) return getUserProfilePicture(user);
+                                            if (foundUser) return getUserProfilePicture(foundUser);
+                                            if (user && user.uid === leaderUid) return getUserProfilePicture(user);
                                             return DEFAULT_AVATAR;
                                         })()}
                                         alt={p2Name}

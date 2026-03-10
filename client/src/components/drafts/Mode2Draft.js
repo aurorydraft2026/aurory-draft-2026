@@ -21,7 +21,9 @@ const Mode2Draft = ({
         getTeamDisplayName,
         getTeamLeader,
         getTeamMembers,
-        currentTimerDisplay
+        currentTimerDisplay,
+        getUserDisplayName,
+        getUserProfilePicture
     } = utils;
 
     const timerExpired = draftState.status === 'active' && currentTimerDisplay === '00:00:00';
@@ -43,9 +45,9 @@ const Mode2Draft = ({
 
         let label = `Player ${playerIndex + 1}`;
         if (playerIndex === 0) {
-            label = leader?.displayName || 'Player 1';
+            label = leader ? getUserDisplayName(leader) : 'Player 1';
         } else {
-            label = otherMembers[playerIndex - 1]?.displayName || `Player ${playerIndex + 1}`;
+            label = (otherMembers[playerIndex - 1] ? getUserDisplayName(otherMembers[playerIndex - 1]) : null) || `Player ${playerIndex + 1}`;
         }
 
         return (
@@ -105,7 +107,7 @@ const Mode2Draft = ({
         const displayPicks = isTeamA ? displayTeamA : displayTeamB;
         const leader = getTeamLeader(team);
         // Use leader's profile as default banner if no team banner is set
-        const leaderImage = leader?.auroryProfilePicture || leader?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png';
+        const leaderImage = leader ? getUserProfilePicture(leader) : 'https://cdn.discordapp.com/embed/avatars/0.png';
 
         const rawBanner = isTeamA
             ? (draftState.teamColors?.teamA === 'blue' ? draftState.teamBanners?.team1 : draftState.teamBanners?.team2)
@@ -128,13 +130,13 @@ const Mode2Draft = ({
                 {leader && (
                     <div className="team-leader">
                         <img
-                            src={leader.photoURL && leader.photoURL !== '' ? leader.photoURL : 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                            src={getUserProfilePicture(leader)}
                             alt=""
                             className="leader-avatar"
                             onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                         />
                         <span className="leader-label">Captain:</span>
-                        <span className="leader-name">{leader.displayName}</span>
+                        <span className="leader-name">{getUserDisplayName(leader)}</span>
                     </div>
                 )}
                 <div className="team-picks-container">
@@ -240,13 +242,18 @@ const Mode2Draft = ({
                                 <div className="completed-private-codes-container">
                                     <p className="codes-intro">Private Battle Codes (3v3):</p>
                                     <div className="codes-stack">
-                                        {draftState.privateCodes.map((code, idx) => (
-                                            <div key={idx} className="code-display-compact" onClick={() => utils.copyToClipboard(code, `Private Code ${idx + 1}`)}>
-                                                <span className="code-label">Battle {idx + 1}:</span>
-                                                <span className="code-value">{code}</span>
-                                                <span className="copy-hint">📋 Click to copy</span>
-                                            </div>
-                                        ))}
+                                        {draftState.privateCodes.map((code, idx) => {
+                                            const isAdmin = userPermission === 'admin' || handlers.isSuperAdmin(handlers.getUserEmail(user));
+                                            const userBattleIdx = handlers.getUserBattleIndex ? handlers.getUserBattleIndex(user?.uid) : -1;
+                                            if (!isAdmin && userBattleIdx !== idx) return null;
+                                            return (
+                                                <div key={idx} className="code-display-compact" onClick={() => utils.copyToClipboard(code, `Private Code ${idx + 1}`)}>
+                                                    <span className="code-label">Battle {idx + 1}:</span>
+                                                    <span className="code-value">{code}</span>
+                                                    <span className="copy-hint">📋 Click to copy</span>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}

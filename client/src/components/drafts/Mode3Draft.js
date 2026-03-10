@@ -41,6 +41,7 @@ const Mode3Draft = ({
         getTeamLeader,
         copyToClipboard,
         getUserProfilePicture,
+        getUserDisplayName,
         DEFAULT_AVATAR,
         currentTimerDisplay
     } = utils;
@@ -60,7 +61,7 @@ const Mode3Draft = ({
 
         return (
             <div className="player-section" key={`player-${team}`}>
-                <div className="player-label">{leader?.displayName || (team === 'A' ? 'Player 1' : 'Player 2')}</div>
+                <div className="player-label">{leader ? getUserDisplayName(leader) : (team === 'A' ? 'Player 1' : 'Player 2')}</div>
                 <div className="player-picks">
                     {picks.slice(0, 3).map((amikoId, index) => {
                         const amiko = AMIKOS.find(a => a.id === amikoId);
@@ -118,7 +119,7 @@ const Mode3Draft = ({
             ? (draftState.teamColors?.teamA === 'blue' ? draftState.teamBanners?.team1 : draftState.teamBanners?.team2)
             : (draftState.teamColors?.teamB === 'blue' ? draftState.teamBanners?.team1 : draftState.teamBanners?.team2);
 
-        const leaderImage = leader ? (getUserProfilePicture ? getUserProfilePicture(leader) : (leader.photoURL || DEFAULT_AVATAR)) : DEFAULT_AVATAR;
+        const leaderImage = leader ? getUserProfilePicture(leader) : DEFAULT_AVATAR;
         const playerBanner = teamBanner || leaderImage;
 
 

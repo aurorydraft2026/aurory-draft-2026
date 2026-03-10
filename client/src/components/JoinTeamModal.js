@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
 import './JoinTeamModal.css';
 
 const JoinTeamModal = ({ isOpen, onClose, onJoin, registeredUsers, currentUser }) => {
@@ -15,7 +16,7 @@ const JoinTeamModal = ({ isOpen, onClose, onJoin, registeredUsers, currentUser }
             setLeader(currentUser.uid);
             // Default team name to player's name if empty
             if (!teamName) {
-                setTeamName(`${currentUser.auroryPlayerName || currentUser.displayName || 'Player'}'s Team`);
+                setTeamName(`${resolveDisplayName(currentUser) || 'Player'}'s Team`);
             }
         }
     }, [isOpen, currentUser, teamName]);
@@ -111,8 +112,7 @@ const JoinTeamModal = ({ isOpen, onClose, onJoin, registeredUsers, currentUser }
 
     const filteredUsers = registeredUsers.filter(u => {
         const search = searchQuery.toLowerCase();
-        const matchesSearch = (u.displayName?.toLowerCase().includes(search) ||
-            u.auroryPlayerName?.toLowerCase().includes(search) ||
+        const matchesSearch = (resolveDisplayName(u)?.toLowerCase().includes(search) ||
             u.email?.toLowerCase().includes(search));
 
         // Exclude already selected
@@ -179,10 +179,10 @@ const JoinTeamModal = ({ isOpen, onClose, onJoin, registeredUsers, currentUser }
                             {leader ? (
                                 <div className="assigned-user">
                                     <img
-                                        src={getUserById(leader)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                        src={resolveAvatar(getUserById(leader))}
                                         alt=""
                                     />
-                                    <span>{getUserById(leader)?.displayName || 'Unknown'}</span>
+                                    <span>{resolveDisplayName(getUserById(leader))}</span>
                                     {leader !== currentUser.uid && (
                                         <button className="remove-btn" onClick={() => setLeader(null)}>✖</button>
                                     )}
@@ -200,8 +200,8 @@ const JoinTeamModal = ({ isOpen, onClose, onJoin, registeredUsers, currentUser }
                                 <span className="slot-label">👤 Member 1</span>
                                 {member1 ? (
                                     <div className="assigned-user mini">
-                                        <img src={getUserById(member1)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
-                                        <span className="mini-name">{getUserById(member1)?.displayName || 'Unknown'}</span>
+                                        <img src={resolveAvatar(getUserById(member1))} alt="" />
+                                        <span className="mini-name">{resolveDisplayName(getUserById(member1))}</span>
                                         <button className="remove-btn" onClick={() => setMember1(null)}>✖</button>
                                     </div>
                                 ) : (
@@ -215,8 +215,8 @@ const JoinTeamModal = ({ isOpen, onClose, onJoin, registeredUsers, currentUser }
                                 <span className="slot-label">👤 Member 2</span>
                                 {member2 ? (
                                     <div className="assigned-user mini">
-                                        <img src={getUserById(member2)?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
-                                        <span className="mini-name">{getUserById(member2)?.displayName || 'Unknown'}</span>
+                                        <img src={resolveAvatar(getUserById(member2))} alt="" />
+                                        <span className="mini-name">{resolveDisplayName(getUserById(member2))}</span>
                                         <button className="remove-btn" onClick={() => setMember2(null)}>✖</button>
                                     </div>
                                 ) : (
@@ -268,12 +268,12 @@ const JoinTeamModal = ({ isOpen, onClose, onJoin, registeredUsers, currentUser }
                                                 onClick={() => handleAssign(u.id)}
                                             >
                                                 <img
-                                                    src={u.auroryProfilePicture || u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                                    src={resolveAvatar(u)}
                                                     alt=""
                                                     className="participant-avatar"
                                                 />
                                                 <div className="participant-info">
-                                                    <span className="participant-name">{u.displayName || u.username || 'Unknown'}</span>
+                                                    <span className="participant-name">{resolveDisplayName(u)}</span>
                                                     {!u.auroryPlayerId && <span className="unlinked-label">⚠️ No Aurory account</span>}
                                                 </div>
                                                 <div className="plus-indicator">+</div>

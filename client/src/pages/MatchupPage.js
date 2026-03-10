@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
 import { doc, onSnapshot, updateDoc, setDoc, arrayUnion, arrayRemove, deleteDoc, collection, getDocs, query, where, documentId, serverTimestamp, runTransaction } from 'firebase/firestore';
@@ -15,6 +15,7 @@ import {
     calculateRoundRobinStandings,
     calculateFinalsStandings
 } from '../utils/tournamentUtils';
+import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
 import './MatchupPage.css';
 
 
@@ -51,16 +52,16 @@ const MatchupPage = () => {
 
     const getName = useCallback((p) => {
         if (!p) return 'TBD';
-        return matchup?.format === 'teams' ? p.teamName : (p.auroryPlayerName || p.displayName || 'Unknown');
+        return matchup?.format === 'teams' ? p.teamName : resolveDisplayName(p);
     }, [matchup?.format]);
 
     const getAvatar = useCallback((p) => {
         if (!p) return 'https://cdn.discordapp.com/embed/avatars/0.png';
         if (matchup?.format === 'teams') {
             const leader = getUserById(p.leader);
-            return p.banner || leader?.auroryProfilePicture || 'https://cdn.discordapp.com/embed/avatars/0.png';
+            return p.banner || resolveAvatar(leader);
         }
-        return p.auroryProfilePicture || p.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png';
+        return resolveAvatar(p);
     }, [matchup?.format, getUserById]);
 
     const getUID = useCallback((p) => {
@@ -397,8 +398,41 @@ const MatchupPage = () => {
         }
     }, [matchup?.participants, matchup?.format, matchup?.participantUids]);
 
+    // Derived: Unique participants for display (filters out individuals already in teams)
+    const displayParticipants = useMemo(() => {
+        if (!matchup?.participants) return [];
+        if (matchup.format !== 'teams') return matchup.participants;
+
+        // Collect all UIDs that are part of any team
+        const teamMemberUids = new Set();
+        matchup.participants.forEach(p => {
+            if (typeof p === 'object' && !p.uid) { // It's a team object
+                teamMemberUids.add(p.leader);
+                (p.members || []).forEach(m => teamMemberUids.add(m));
+            }
+        });
+
+        // Filter: Keep team objects and individuals NOT in any team
+        return matchup.participants.filter(p => {
+            // If it's a team object (has teamName or leader/members but NO uid), keep it
+            if (typeof p === 'object' && !p.uid) return true;
+
+            // If it's a string (UID) or individual user object (with uid)
+            const uid = typeof p === 'string' ? p : p.uid;
+            return !teamMemberUids.has(uid);
+        });
+    }, [matchup?.participants, matchup?.format]);
+
     const handleJoin = async () => {
         if (!user) return;
+
+        // Anti-duplicate check
+        const isAlreadyIn = (matchup.participantUids || []).includes(user.uid);
+        if (isAlreadyIn) {
+            alert("This participant is already registered in this tournament!");
+            return;
+        }
+
         if (matchup.participants.length >= matchup.maxParticipants) return;
 
         if (matchup.format === 'teams') {
@@ -447,6 +481,25 @@ const MatchupPage = () => {
     const handleJoinTeam = async (teamData) => {
         try {
             const uidsToAdd = [teamData.leader, ...teamData.members];
+
+            // Anti-duplicate check for any team member
+            const existingUids = matchup.participantUids || [];
+            const duplicates = uidsToAdd.filter(uid => existingUids.includes(uid));
+
+            if (duplicates.length > 0) {
+                const userSnaps = await Promise.all(duplicates.map(uid => getDocs(query(collection(db, 'users'), where(documentId(), '==', uid)))));
+                const duplicateNames = duplicates.map((uid, idx) => {
+                    const snap = userSnaps[idx];
+                    const d = !snap.empty ? snap.docs[0].data() : null;
+                    return resolveDisplayName(d) || uid;
+                });
+                if (duplicates.length === 1) {
+                    alert(`${duplicateNames[0]} is already on a different team or registered in this tournament.`);
+                } else {
+                    alert(`Multiple participants are already registered or in different teams: ${duplicateNames.join(', ')}`);
+                }
+                return;
+            }
 
             await runTransaction(db, async (transaction) => {
                 // Wallet checks only if entry fee required
@@ -984,8 +1037,8 @@ const MatchupPage = () => {
                     team2: { leader: p2uid || null, member1: null, member2: null }
                 };
                 teamNames = {
-                    team1: p1user?.auroryPlayerName || p1user?.displayName || 'Player 1',
-                    team2: p2user?.auroryPlayerName || p2user?.displayName || 'Player 2'
+                    team1: resolveDisplayName(p1user),
+                    team2: resolveDisplayName(p2user)
                 };
                 teamBanners = { team1: null, team2: null };
 
@@ -1021,7 +1074,7 @@ const MatchupPage = () => {
                 activeViewers: {},
                 createdAt: serverTimestamp(),
                 createdBy: user.uid,
-                creatorDisplayName: profile?.auroryPlayerName || user.displayName || user.email || 'Admin',
+                creatorDisplayName: resolveDisplayName(profile || user) || 'Admin',
                 poolAmount: 0,
                 entryFee: 0,
                 isFriendly: true,
@@ -1035,7 +1088,7 @@ const MatchupPage = () => {
             };
 
             if (is1v1) {
-                tournamentData.privateCode = Math.floor(10000 + Math.random() * 90000).toString();
+                tournamentData.privateCode = Math.floor(100000 + Math.random() * 900000).toString();
                 if (preAssignedTeams.team1.leader && preAssignedTeams.team2.leader) {
                     tournamentData.coinFlip = {
                         phase: 'rolling',
@@ -1230,7 +1283,7 @@ const MatchupPage = () => {
                 <div className="header-info">
                     {user && (
                         <span className={`user-role ${isAdmin ? 'super-admin' : ''}`}>
-                            {isAdmin ? '👑 Admin' : `👤 ${profile?.auroryPlayerName || user.displayName || 'Player'}`}
+                            {isAdmin ? '👑 Admin' : `👤 ${resolveDisplayName(profile || user)}`}
                         </span>
                     )}
                     <button onClick={() => navigate('/')} className="back-btn">← Home</button>
@@ -1347,33 +1400,42 @@ const MatchupPage = () => {
                                 <section className="participants-panel glass-panel">
                                     <div className="panel-header">
                                         <h3>👥 Participants</h3>
-                                        <span className="count-badge">{matchup.participants.length}/{matchup.maxParticipants}</span>
+                                        <span className="count-badge">{displayParticipants.length}/{matchup.maxParticipants}</span>
                                     </div>
                                     <div className="participants-list">
-                                        {matchup.participants.length > 0 ? matchup.participants.map((p, index) => {
-                                            if (matchup.format === 'teams' && typeof p === 'object') {
-                                                const leaderUser = getUserById(p.leader);
+                                        {displayParticipants.length > 0 ? displayParticipants.map((p, index) => {
+                                            if (matchup.format === 'teams' && typeof p === 'object' && !p.uid) {
+
                                                 const isMyTeam = p.leader === user?.uid || p.members?.includes(user?.uid);
                                                 return (
-                                                    <div key={index} className={`team-participant-row ${isMyTeam ? 'is-me' : ''}`}>
-                                                        <div className="team-row-header">
-                                                            <div className="team-banner-mini">
-                                                                {p.banner ? <img src={p.banner} alt={p.teamName} /> : <div className="banner-placeholder-mini">🛡️</div>}
+                                                    <div key={index} className={`team-participant-card ${isMyTeam ? 'is-me' : ''}`}>
+                                                        {p.banner && (
+                                                            <div className="team-card-bg">
+                                                                <img src={p.banner} alt="" />
                                                             </div>
-                                                            <div className="team-main-info">
+                                                        )}
+                                                        <div className="team-card-overlay">
+                                                            <div className="team-card-header">
                                                                 <span className="team-name">{p.teamName}</span>
-                                                                <span className="team-leader-name">👑 {leaderUser?.auroryPlayerName || leaderUser?.displayName || 'Unknown'}</span>
                                                             </div>
-                                                        </div>
-                                                        <div className="team-roster-mini">
-                                                            {p.members.map(mid => {
-                                                                const mUser = getUserById(mid);
-                                                                return (
-                                                                    <div key={mid} className="roster-item-mini" title={mUser?.auroryPlayerName || mUser?.displayName}>
-                                                                        <img src={mUser?.auroryProfilePicture || mUser?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
-                                                                    </div>
-                                                                );
-                                                            })}
+                                                            <div className="team-roster-horizontal">
+                                                                {[p.leader, ...(p.members || []).filter(m => m !== p.leader)].map(mid => {
+                                                                    const mUser = getUserById(mid);
+                                                                    const isLeader = mid === p.leader;
+                                                                    return (
+                                                                        <div key={mid} className="roster-avatar-wrapper" title={mUser?.auroryPlayerName || mUser?.displayName}>
+                                                                            <div className="avatar-container">
+                                                                                <img
+                                                                                    src={mUser?.auroryProfilePicture || mUser?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                                                                    className="roster-avatar-mini"
+                                                                                    alt=""
+                                                                                />
+                                                                                {isLeader && <div className="leader-crown-badge">👑</div>}
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 );
@@ -1987,9 +2049,9 @@ const MatchupPage = () => {
                                                     return (
                                                         <div key={uid} className="player-score-row">
                                                             <div className="p-score-avatar">
-                                                                <img src={pUser?.auroryProfilePicture || pUser?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
+                                                                <img src={resolveAvatar(pUser)} alt="" />
                                                             </div>
-                                                            <span className="p-score-name">{pUser?.auroryPlayerName || pUser?.displayName || 'Unknown'}</span>
+                                                            <span className="p-score-name">{resolveDisplayName(pUser)}</span>
                                                             <div className="p-score-input-wrapper">
                                                                 {isAdmin ? (
                                                                     <input
@@ -2042,10 +2104,10 @@ const MatchupPage = () => {
                                                 <div key={item.uid} className={`leader-row rank-${index + 1}`}>
                                                     <div className="rank-badge">{index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}</div>
                                                     <div className="leader-avatar">
-                                                        <img src={pUser?.auroryProfilePicture || pUser?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
+                                                        <img src={resolveAvatar(pUser)} alt="" />
                                                     </div>
                                                     <div className="leader-info">
-                                                        <span className="leader-name">{pUser?.auroryPlayerName || pUser?.displayName || 'Unknown'}</span>
+                                                        <span className="leader-name">{resolveDisplayName(pUser)}</span>
                                                     </div>
                                                     <div className="leader-score">{item.score} <small>pts</small></div>
                                                 </div>
@@ -2132,15 +2194,15 @@ const MatchupPage = () => {
                                                         </div>
                                                         <div className="team-main-info">
                                                             <span className="team-name">{p.teamName}</span>
-                                                            <span className="team-leader-name">👑 {leaderUser?.auroryPlayerName || leaderUser?.displayName || 'Unknown'}</span>
+                                                            <span className="team-leader-name">👑 {resolveDisplayName(leaderUser)}</span>
                                                         </div>
                                                     </div>
                                                     <div className="team-roster-mini">
                                                         {p.members.map(mid => {
                                                             const mUser = getUserById(mid);
                                                             return (
-                                                                <div key={mid} className="roster-item-mini" title={mUser?.auroryPlayerName || mUser?.displayName}>
-                                                                    <img src={mUser?.auroryProfilePicture || mUser?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
+                                                                <div key={mid} className="roster-item-mini" title={resolveDisplayName(mUser)}>
+                                                                    <img src={resolveAvatar(mUser)} alt="" />
                                                                 </div>
                                                             );
                                                         })}
@@ -2155,11 +2217,11 @@ const MatchupPage = () => {
                                             <div key={targetUser.uid} className={`participant-row ${targetUser.uid === user?.uid ? 'is-me' : ''} ${targetUser.isMock ? 'is-mock' : ''}`}>
                                                 <div className="p-rank">{index + 1}</div>
                                                 <div className="p-avatar-wrapper">
-                                                    <img src={targetUser?.auroryProfilePicture || targetUser?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt={targetUser?.displayName} className="p-avatar" />
+                                                    <img src={resolveAvatar(targetUser)} alt={resolveDisplayName(targetUser)} className="p-avatar" />
                                                     {targetUser?.isAurorian && <span className="p-aurorian-logo" title="Aurorian NFT Holder">🛡️</span>}
                                                 </div>
                                                 <div className="p-info">
-                                                    <span className="p-name">{targetUser?.auroryPlayerName || targetUser?.displayName || 'Guest'}</span>
+                                                    <span className="p-name">{resolveDisplayName(targetUser)}</span>
                                                 </div>
                                             </div>
                                         );

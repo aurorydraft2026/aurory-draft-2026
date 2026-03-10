@@ -18,7 +18,9 @@ const LineupPreviewModal = ({
     voteForTeam,
     copyToClipboard,
     getUserProfilePicture,
-    DEFAULT_AVATAR
+    DEFAULT_AVATAR,
+    userBattleIndex,
+    userPermission
 }) => {
     if (!isOpen) return null;
 
@@ -156,18 +158,22 @@ const LineupPreviewModal = ({
                                         </div>
 
                                         <div className="lineup-code-column">
-                                            {(draftState.draftType === 'mode1' || draftState.draftType === 'mode2') && draftState.privateCodes && draftState.privateCodes[playerIndex] && isParticipantOrAdmin && (
-                                                <div
-                                                    className="private-code-display row-aligned copyable"
-                                                    onClick={() => copyToClipboard(draftState.privateCodes[playerIndex], `Battle Code ${playerIndex + 1}`)}
-                                                    title={`Click to copy Battle Code ${playerIndex + 1}`}
-                                                >
-                                                    <span className="code-label">BATTLE {playerIndex + 1}</span>
-                                                    <span className="code-value">{draftState.privateCodes[playerIndex]}</span>
-                                                    <span className="copy-icon-row">📋</span>
-                                                </div>
-                                            )}
-                                            {!(draftState.privateCodes && draftState.privateCodes[playerIndex]) && <div className="row-divider-line"></div>}
+                                            {(draftState.draftType === 'mode1' || draftState.draftType === 'mode2') && draftState.privateCodes && draftState.privateCodes[playerIndex] && isParticipantOrAdmin && (() => {
+                                                const isAdmin = userPermission === 'admin';
+                                                if (!isAdmin && userBattleIndex !== playerIndex) return null;
+                                                return (
+                                                    <div
+                                                        className="private-code-display row-aligned copyable"
+                                                        onClick={() => copyToClipboard(draftState.privateCodes[playerIndex], `Battle Code ${playerIndex + 1}`)}
+                                                        title={`Click to copy Battle Code ${playerIndex + 1}`}
+                                                    >
+                                                        <span className="code-label">BATTLE {playerIndex + 1}</span>
+                                                        <span className="code-value">{draftState.privateCodes[playerIndex]}</span>
+                                                        <span className="copy-icon-row">📋</span>
+                                                    </div>
+                                                );
+                                            })()}
+                                            {(!(draftState.privateCodes && draftState.privateCodes[playerIndex]) || (!userPermission !== 'admin' && userBattleIndex !== playerIndex)) && <div className="row-divider-line"></div>}
                                         </div>
 
                                         <div className="lineup-player-column">

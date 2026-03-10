@@ -675,7 +675,7 @@ async function serverFinalizeDraft(draftId: string, data: any): Promise<boolean>
     updateData.status = 'poolShuffle';
 
     if (!data.privateCode) {
-      updateData.privateCode = Math.floor(10000 + Math.random() * 90000).toString();
+      updateData.privateCode = Math.floor(100000 + Math.random() * 900000).toString();
     }
   }
 
@@ -683,7 +683,7 @@ async function serverFinalizeDraft(draftId: string, data: any): Promise<boolean>
   if ((data.draftType === 'mode1' || data.draftType === 'mode2') && !data.privateCodes) {
     const codes: string[] = [];
     while (codes.length < 3) {
-      const code = Math.floor(10000 + Math.random() * 90000).toString();
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
       if (!codes.includes(code)) codes.push(code);
     }
     updateData.privateCodes = codes;

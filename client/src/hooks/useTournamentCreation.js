@@ -40,7 +40,7 @@ export const useTournamentCreation = (user, walletBalance, registeredUsers, setS
         draftType: 'mode1',
         timerDays: 0,
         timerHours: 0,
-        timerMinutes: 1,
+        timerMinutes: 2,
         timerSeconds: 0,
         manualTimerStart: false,
         poolAmount: '',
@@ -356,7 +356,7 @@ export const useTournamentCreation = (user, walletBalance, registeredUsers, setS
             };
 
             if (is1v1) {
-                tournamentData.privateCode = Math.floor(10000 + Math.random() * 90000).toString();
+                tournamentData.privateCode = Math.floor(100000 + Math.random() * 900000).toString();
             }
 
             if (bothPlayersAssigned) {
@@ -391,7 +391,7 @@ export const useTournamentCreation = (user, walletBalance, registeredUsers, setS
                 draftType: isAdminUser ? 'mode1' : 'mode3',
                 timerDays: 0,
                 timerHours: 0,
-                timerMinutes: 1,
+                timerMinutes: 2,
                 timerSeconds: 0,
                 manualTimerStart: false,
                 poolAmount: '',

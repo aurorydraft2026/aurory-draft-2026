@@ -23,6 +23,7 @@ import { isSuperAdmin } from '../config/admins';
 import { createNotification } from '../services/notifications';
 import { logActivity } from '../services/activityService';
 import LoadingScreen from './LoadingScreen';
+import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
 import './AdminPanel.css';
 
 // Helper to get user email
@@ -609,7 +610,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         link: announcementLink,
         updatedAt: serverTimestamp(),
         updatedBy: user.uid,
-        updatedByName: user.displayName || user.email
+        updatedByName: resolveDisplayName(user)
       }, { merge: true });
 
       alert('Announcement settings saved successfully!');
@@ -664,7 +665,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         description: newsDescription,
         banner: newsBanner,
         videoUrl: newsVideoUrl || '', // Added for news video support
-        authorName: user.auroryPlayerName || user.displayName || 'Admin',
+        authorName: resolveDisplayName(user),
         authorUid: user.uid,
         updatedAt: serverTimestamp()
       };
@@ -2286,6 +2287,51 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           }
                         }}
                       >🔗</button>
+                      <button
+                        type="button"
+                        title="Insert Image (max 500KB, up to 3 images)"
+                        onClick={() => {
+                          const existingImages = (newsDescription.match(/!\[.*?\]\(.*?\)/g) || []).length;
+                          if (existingImages >= 3) {
+                            alert('Maximum 3 images per news post. Please remove an existing image first.');
+                            return;
+                          }
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = 'image/*';
+                          input.onchange = (e) => {
+                            const file = e.target.files[0];
+                            if (!file) return;
+                            if (file.size > 500 * 1024) {
+                              alert('Image too large. Please use an image under 500KB.');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              const img = new Image();
+                              img.onload = () => {
+                                const canvas = document.createElement('canvas');
+                                const MAX_SIZE = 400;
+                                let w = img.width, h = img.height;
+                                if (w > h) { if (w > MAX_SIZE) { h = Math.round(h * MAX_SIZE / w); w = MAX_SIZE; } }
+                                else { if (h > MAX_SIZE) { w = Math.round(w * MAX_SIZE / h); h = MAX_SIZE; } }
+                                canvas.width = w; canvas.height = h;
+                                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                                const compressed = canvas.toDataURL('image/jpeg', 0.6);
+                                const textArea = document.getElementById('news-description');
+                                const start = textArea.selectionStart;
+                                const text = textArea.value;
+                                const before = text.substring(0, start);
+                                const after = text.substring(start);
+                                setNewsDescription(before + '\n![image](' + compressed + ')\n' + after);
+                              };
+                              img.src = reader.result;
+                            };
+                            reader.readAsDataURL(file);
+                          };
+                          input.click();
+                        }}
+                      >📷</button>
                     </div>
                     <textarea
                       id="news-description"
@@ -2539,8 +2585,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   <div className="selected-users-list">
                     {selectedCreditUsers.map(u => (
                       <div key={u.id} className="selected-user-tag">
-                        <img src={u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
-                        <span>{u.displayName || 'Unknown'}</span>
+                        <img src={resolveAvatar(u)} alt="" />
+                        <span>{resolveDisplayName(u)}</span>
                         <button
                           onClick={() => setSelectedCreditUsers(prev => prev.filter(user => user.id !== u.id))}
                           className="remove-tag"
@@ -2568,7 +2614,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       <div className="participants-list">
                         {allUsers
                           .filter(u =>
-                            (u.displayName?.toLowerCase().includes(creditUserSearch.toLowerCase()) ||
+                            (resolveDisplayName(u).toLowerCase().includes(creditUserSearch.toLowerCase()) ||
                               u.email?.toLowerCase().includes(creditUserSearch.toLowerCase())) &&
                             !selectedCreditUsers.find(selected => selected.id === u.id)
                           )
@@ -2582,9 +2628,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 setCreditUserSearch('');
                               }}
                             >
-                              <img src={u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
+                              <img src={resolveAvatar(u)} alt="" />
                               <div className="participant-info">
-                                <span className="participant-name">{u.displayName || 'Unknown'}</span>
+                                <span className="participant-name">{resolveDisplayName(u)}</span>
                                 <span className="participant-email">{u.email}</span>
                               </div>
                               <div className="participant-balance">
@@ -2644,8 +2690,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   <div className="selected-users-list">
                     {selectedDeductUsers.map(u => (
                       <div key={u.id} className="selected-user-tag">
-                        <img src={u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
-                        <span>{u.displayName || 'Unknown'}</span>
+                        <img src={resolveAvatar(u)} alt="" />
+                        <span>{resolveDisplayName(u)}</span>
                         <button
                           onClick={() => setSelectedDeductUsers(prev => prev.filter(user => user.id !== u.id))}
                           className="remove-tag"
@@ -2673,7 +2719,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       <div className="participants-list">
                         {allUsers
                           .filter(u =>
-                            (u.displayName?.toLowerCase().includes(deductUserSearch.toLowerCase()) ||
+                            (resolveDisplayName(u).toLowerCase().includes(deductUserSearch.toLowerCase()) ||
                               u.email?.toLowerCase().includes(deductUserSearch.toLowerCase())) &&
                             !selectedDeductUsers.find(selected => selected.id === u.id)
                           )
@@ -2687,9 +2733,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 setDeductUserSearch('');
                               }}
                             >
-                              <img src={u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
+                              <img src={resolveAvatar(u)} alt="" />
                               <div className="participant-info">
-                                <span className="participant-name">{u.displayName || 'Unknown'}</span>
+                                <span className="participant-name">{resolveDisplayName(u)}</span>
                                 <span className="participant-email">{u.email}</span>
                               </div>
                               <div className="participant-balance">
@@ -2770,8 +2816,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       <>
                         {selectedNotifyUsers.map(u => (
                           <div key={u.id} className="selected-user-tag">
-                            <img src={u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
-                            <span>{u.displayName || 'Unknown'}</span>
+                            <img src={resolveAvatar(u)} alt="" />
+                            <span>{resolveDisplayName(u)}</span>
                             <button
                               onClick={() => setSelectedNotifyUsers(prev => prev.filter(user => user.id !== u.id))}
                               className="remove-tag"
@@ -2801,7 +2847,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       <div className="participants-list">
                         {allUsers
                           .filter(u =>
-                            (u.displayName?.toLowerCase().includes(notifyUserSearch.toLowerCase()) ||
+                            (resolveDisplayName(u).toLowerCase().includes(notifyUserSearch.toLowerCase()) ||
                               u.email?.toLowerCase().includes(notifyUserSearch.toLowerCase())) &&
                             !selectedNotifyUsers.find(selected => selected.id === u.id)
                           )
@@ -2815,9 +2861,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 setNotifyUserSearch('');
                               }}
                             >
-                              <img src={u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
+                              <img src={resolveAvatar(u)} alt="" />
                               <div className="participant-info">
-                                <span className="participant-name">{u.displayName || 'Unknown'}</span>
+                                <span className="participant-name">{resolveDisplayName(u)}</span>
                                 <span className="participant-email">{u.email}</span>
                               </div>
                             </div>
@@ -2904,7 +2950,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     .filter(u => {
                       if (!usersSearchQuery) return true;
                       const query = usersSearchQuery.toLowerCase();
-                      const name = (u.displayName || '').toLowerCase();
+                      const name = resolveDisplayName(u).toLowerCase();
                       const email = (u.email || '').toLowerCase();
                       const isMatch = name.includes(query) || email.includes(query);
                       return isMatch && !u.isAnonymous;
@@ -2915,8 +2961,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       return (
                         <div key={u.id} className={`user-list-item ${userIsSuper ? 'super-admin' : ''}`}>
                           <div className="col-user">
-                            <img src={u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" />
-                            <span>{u.displayName || 'Unknown'}</span>
+                            <img src={resolveAvatar(u)} alt="" />
+                            <span>{resolveDisplayName(u)}</span>
                           </div>
                           <div className="col-email">{u.email}</div>
                           <div className="col-balance">
@@ -2941,7 +2987,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                       setAllUsers(prev => prev.map(user =>
                                         user.id === u.id ? { ...user, role: newRole === 'user' ? null : newRole } : user
                                       ));
-                                      alert(`✅ Role updated for ${u.displayName || u.email}`);
+                                      alert(`✅ Role updated for ${resolveDisplayName(u)}`);
                                     } catch (error) {
                                       console.error('Error updating role:', error);
                                       alert('Error updating role: ' + error.message);
@@ -3147,11 +3193,11 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         <div key={visitor.id} className="visitor-list-item">
                           <div className="col-user">
                             <img
-                              src={visitor.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                              src={resolveAvatar(visitor)}
                               alt=""
                               style={{ width: '32px', height: '32px', borderRadius: '50%', marginRight: '8px' }}
                             />
-                            <span>{visitor.displayName || 'Unknown'}</span>
+                            <span>{resolveDisplayName(visitor)}</span>
                           </div>
                           <div className="col-email">{visitor.email || 'No email'}</div>
                           <div className="col-last-seen">
@@ -3271,7 +3317,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     {allUsers
                       .filter(u => {
                         const query = walletHistoryUserSearch.toLowerCase();
-                        const name = (u.displayName || '').toLowerCase();
+                        const name = resolveDisplayName(u).toLowerCase();
                         const email = (u.email || '').toLowerCase();
                         return name.includes(query) || email.includes(query);
                       })
@@ -3286,9 +3332,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           }}
                           style={{ cursor: 'pointer', padding: '10px', display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)' }}
                         >
-                          <img src={u.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%', marginRight: '10px' }} />
+                          <img src={resolveAvatar(u)} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%', marginRight: '10px' }} />
                           <div className="participant-info" style={{ flex: 1 }}>
-                            <span className="participant-name" style={{ display: 'block', fontWeight: 'bold' }}>{u.displayName || 'Unknown'}</span>
+                            <span className="participant-name" style={{ display: 'block', fontWeight: 'bold' }}>{resolveDisplayName(u)}</span>
                             <span className="participant-email" style={{ fontSize: '0.9em', color: '#aaa' }}>{u.email}</span>
                           </div>
                           <div className="participant-balance">
@@ -3298,7 +3344,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       ))}
                     {allUsers.filter(u => {
                       const query = walletHistoryUserSearch.toLowerCase();
-                      return (u.displayName || '').toLowerCase().includes(query) || (u.email || '').toLowerCase().includes(query);
+                      return resolveDisplayName(u).toLowerCase().includes(query) || (u.email || '').toLowerCase().includes(query);
                     }).length === 0 && (
                         <p style={{ padding: '10px', margin: 0, opacity: 0.7 }}>No users found matching "{walletHistoryUserSearch}"</p>
                       )}
@@ -3307,9 +3353,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               ) : (
                 <div className="wallet-history-content">
                   <div className="selected-user-header" style={{ display: 'flex', alignItems: 'center', gap: '15px', background: 'rgba(0,0,0,0.2)', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-                    <img src={selectedWalletHistoryUser.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" style={{ width: '50px', height: '50px', borderRadius: '50%' }} />
+                    <img src={resolveAvatar(selectedWalletHistoryUser)} alt="" style={{ width: '50px', height: '50px', borderRadius: '50%' }} />
                     <div style={{ flex: 1 }}>
-                      <h3 style={{ margin: '0 0 5px 0' }}>{selectedWalletHistoryUser.displayName || 'Unknown'}</h3>
+                      <h3 style={{ margin: '0 0 5px 0' }}>{resolveDisplayName(selectedWalletHistoryUser)}</h3>
                       <p style={{ margin: 0, color: '#aaa' }}>{selectedWalletHistoryUser.email}</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
@@ -3414,8 +3460,101 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   </div>
 
                   <div className="form-group">
-                    <label>Announcement Content (Markdown/Rich Text Support)</label>
+                    <label>Announcement Content (Rich Text)</label>
+                    <div className="rich-text-toolbar">
+                      <button
+                        type="button"
+                        title="Bold"
+                        onClick={() => {
+                          const textArea = document.getElementById('announcement-content');
+                          const start = textArea.selectionStart;
+                          const end = textArea.selectionEnd;
+                          const text = textArea.value;
+                          const before = text.substring(0, start);
+                          const selected = text.substring(start, end);
+                          const after = text.substring(end);
+                          setAnnouncementContent(before + '**' + selected + '**' + after);
+                        }}
+                      ><strong>B</strong></button>
+                      <button
+                        type="button"
+                        title="Italic"
+                        onClick={() => {
+                          const textArea = document.getElementById('announcement-content');
+                          const start = textArea.selectionStart;
+                          const end = textArea.selectionEnd;
+                          const text = textArea.value;
+                          const before = text.substring(0, start);
+                          const selected = text.substring(start, end);
+                          const after = text.substring(end);
+                          setAnnouncementContent(before + '_' + selected + '_' + after);
+                        }}
+                      ><em>I</em></button>
+                      <button
+                        type="button"
+                        title="Add Link"
+                        onClick={() => {
+                          const url = prompt('Enter URL:');
+                          if (url) {
+                            const textArea = document.getElementById('announcement-content');
+                            const start = textArea.selectionStart;
+                            const end = textArea.selectionEnd;
+                            const text = textArea.value;
+                            const before = text.substring(0, start);
+                            const selected = text.substring(start, end) || 'link text';
+                            const after = text.substring(end);
+                            setAnnouncementContent(before + '[' + selected + '](' + url + ')' + after);
+                          }
+                        }}
+                      >🔗</button>
+                      <button
+                        type="button"
+                        title="Insert Image (max 500KB, up to 3 images)"
+                        onClick={() => {
+                          const existingImages = (announcementContent.match(/!\[.*?\]\(.*?\)/g) || []).length;
+                          if (existingImages >= 3) {
+                            alert('Maximum 3 images per announcement. Please remove an existing image first.');
+                            return;
+                          }
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = 'image/*';
+                          input.onchange = (e) => {
+                            const file = e.target.files[0];
+                            if (!file) return;
+                            if (file.size > 500 * 1024) {
+                              alert('Image too large. Please use an image under 500KB.');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              const img = new Image();
+                              img.onload = () => {
+                                const canvas = document.createElement('canvas');
+                                const MAX_SIZE = 400;
+                                let w = img.width, h = img.height;
+                                if (w > h) { if (w > MAX_SIZE) { h = Math.round(h * MAX_SIZE / w); w = MAX_SIZE; } }
+                                else { if (h > MAX_SIZE) { w = Math.round(w * MAX_SIZE / h); h = MAX_SIZE; } }
+                                canvas.width = w; canvas.height = h;
+                                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                                const compressed = canvas.toDataURL('image/jpeg', 0.6);
+                                const textArea = document.getElementById('announcement-content');
+                                const start = textArea.selectionStart;
+                                const text = textArea.value;
+                                const before = text.substring(0, start);
+                                const after = text.substring(start);
+                                setAnnouncementContent(before + '\n![image](' + compressed + ')\n' + after);
+                              };
+                              img.src = reader.result;
+                            };
+                            reader.readAsDataURL(file);
+                          };
+                          input.click();
+                        }}
+                      >📷</button>
+                    </div>
                     <textarea
+                      id="announcement-content"
                       value={announcementContent}
                       onChange={(e) => setAnnouncementContent(e.target.value)}
                       placeholder="Enter the full rules or announcement details here..."
@@ -3464,7 +3603,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           <div className="admin-modal-overlay activity-modal">
             <div className="admin-modal">
               <div className="modal-header">
-                <h2>Activity Log: {selectedUserForLogs.displayName || selectedUserForLogs.email}</h2>
+                <h2>Activity Log: {resolveDisplayName(selectedUserForLogs)}</h2>
                 <button className="close-btn" onClick={() => setSelectedUserForLogs(null)}>×</button>
               </div>
               <div className="modal-body">
