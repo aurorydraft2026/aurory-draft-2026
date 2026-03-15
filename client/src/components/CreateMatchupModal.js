@@ -17,7 +17,11 @@ const CreateMatchupModal = ({ isOpen, onClose, user }) => {
         format: 'individual',
         tournamentType: 'single_elimination',
         requiresEntryFee: false,
-        entryFeeAmount: ''
+        entryFeeAmount: '',
+        prize1: '',
+        prize2: '',
+        prize3: '',
+        allowedRarities: ''
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState(null);
@@ -72,6 +76,10 @@ const CreateMatchupModal = ({ isOpen, onClose, user }) => {
                 maxParticipants: parseInt(formData.maxParticipants) || 2,
                 requiresEntryFee: formData.requiresEntryFee,
                 entryFeeAmount: entryFeeNano,
+                prize1: parseFloat(formData.prize1) || 0,
+                prize2: parseFloat(formData.prize2) || 0,
+                prize3: parseFloat(formData.prize3) || 0,
+                allowedRarities: formData.allowedRarities || '',
                 participants: [], // List of user UIDs or Team Objects
                 participantUids: [], // Flat list of all involved UIDs (for rules/queries)
                 status: 'waiting',
@@ -92,7 +100,11 @@ const CreateMatchupModal = ({ isOpen, onClose, user }) => {
                 format: 'individual',
                 tournamentType: 'single_elimination',
                 requiresEntryFee: false,
-                entryFeeAmount: ''
+                entryFeeAmount: '',
+                prize1: '',
+                prize2: '',
+                prize3: '',
+                allowedRarities: ''
             });
         } catch (err) {
             console.error('Error creating matchup:', err);
@@ -138,6 +150,18 @@ const CreateMatchupModal = ({ isOpen, onClose, user }) => {
                             ></textarea>
                         </div>
 
+                        <div className="form-group">
+                            <label>Allowed Rarities</label>
+                            <input
+                                type="text"
+                                name="allowedRarities"
+                                value={formData.allowedRarities}
+                                onChange={handleChange}
+                                placeholder="e.g. Common, Rare, Epic (Leave empty for any)"
+                                className="form-input"
+                            />
+                        </div>
+
                         <div className="form-row">
                             <div className="form-group">
                                 <label>Pool Prize (AURY) *</label>
@@ -162,6 +186,46 @@ const CreateMatchupModal = ({ isOpen, onClose, user }) => {
                                     min="2"
                                     className="form-input"
                                     required
+                                />
+                            </div>
+                        </div>
+
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label>1st Place Prize (AURY) *</label>
+                                <input
+                                    type="number"
+                                    name="prize1"
+                                    value={formData.prize1}
+                                    onChange={handleChange}
+                                    placeholder="0.00"
+                                    step="0.01"
+                                    className="form-input"
+                                    required
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>2nd Place Prize (AURY)</label>
+                                <input
+                                    type="number"
+                                    name="prize2"
+                                    value={formData.prize2}
+                                    onChange={handleChange}
+                                    placeholder="0.00"
+                                    step="0.01"
+                                    className="form-input"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>3rd Place Prize (AURY)</label>
+                                <input
+                                    type="number"
+                                    name="prize3"
+                                    value={formData.prize3}
+                                    onChange={handleChange}
+                                    placeholder="0.00"
+                                    step="0.01"
+                                    className="form-input"
                                 />
                             </div>
                         </div>

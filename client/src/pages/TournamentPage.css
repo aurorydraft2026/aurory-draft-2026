@@ -3,21 +3,12 @@
    Dark Gaming Theme with Aurory-inspired colors
    ============================================= */
 
-/* CSS Variables - Same as HomePage for consistency */
+/* CSS Variables - Tournament-specific (inherits theme from App.css) */
 :root {
-  /* Background colors */
-  --bg-primary: #0a0a0f;
-  --bg-secondary: #12121a;
-  --bg-elevated: #1a1a28;
-  --bg-card: #16161f;
-  --bg-card-hover: #1e1e2d;
-
-  /* Accent colors - Aurory inspired */
-  --accent-purple: #a855f7;
+  /* Accent colors - Tournament-specific */
   --accent-purple-dim: #7c3aed;
-  --accent-teal: #06b6d4;
+  --accent-teal: #00c8ff;
   --accent-teal-dim: #0891b2;
-  --accent-gold: #fbbf24;
   --accent-gold-dim: #d97706;
 
   /* Team colors */
@@ -33,40 +24,37 @@
   --warning: #f59e0b;
   --danger: #ef4444;
 
-  /* Text colors */
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  /* Border */
+  --border-medium: rgba(255, 255, 255, 0.12);
 
-  /* Border colors */
-  --border-subtle: #2d2d3a;
-  --border-medium: #3d3d4a;
-
-  /* Shadows */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
-  --shadow-glow-purple: 0 0 20px rgba(168, 85, 247, 0.3);
-  --shadow-glow-teal: 0 0 20px rgba(6, 182, 212, 0.3);
-  --shadow-glow-gold: 0 0 20px rgba(251, 191, 36, 0.3);
-  --shadow-glow-team-a: 0 0 20px rgba(59, 130, 246, 0.3);
-  --shadow-glow-team-b: 0 0 20px rgba(236, 72, 153, 0.3);
+  /* Shadows - Tournament specific */
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 6px 24px rgba(0, 0, 0, 0.4);
+  --shadow-glow-purple: 0 0 16px rgba(139, 92, 246, 0.2);
+  --shadow-glow-teal: 0 0 16px rgba(0, 200, 255, 0.2);
+  --shadow-glow-gold: 0 0 16px rgba(240, 178, 50, 0.2);
+  --shadow-glow-team-a: 0 0 16px rgba(59, 130, 246, 0.2);
+  --shadow-glow-team-b: 0 0 16px rgba(236, 72, 153, 0.2);
 
   /* Font */
-  --font-primary: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  --font-primary: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
 
   /* Transitions */
   --transition-fast: 0.15s ease;
   --transition-normal: 0.25s ease;
   --transition-slow: 0.4s ease;
-
-  /* Border radius */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
 }
+
+/* Light theme tournament-specific overrides */
+[data-theme="light"] {
+  --border-medium: rgba(0, 0, 0, 0.12);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 6px 24px rgba(0, 0, 0, 0.12);
+}
+
 
 /* Base Styles */
 * {
@@ -1328,7 +1316,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: var(--overlay-bg-heavy);
   backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
@@ -2267,7 +2255,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(10, 10, 15, 0.85);
+  background: var(--overlay-bg-heavy);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -3316,7 +3304,7 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: rgba(0, 0, 0, 0.9);
+  background: var(--overlay-bg-heavy);
   color: var(--text-secondary);
   padding: 6px 10px;
   border-radius: var(--radius-sm);
@@ -3650,7 +3638,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(10, 10, 15, 0.85);
+  background: var(--overlay-bg-heavy);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3729,7 +3717,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(10, 10, 15, 0.9);
+  background: var(--overlay-bg-heavy);
   backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
@@ -4132,6 +4120,9 @@
   display: flex;
   flex-direction: column;
   transition: all 0.3s ease;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-lg);
 }
 
 .team-chat-container.closed {
@@ -4781,7 +4772,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay-bg-light);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5626,7 +5617,7 @@
   top: -4px;
   right: -4px;
   font-size: 12px;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--icon-overlay-bg);
   border-radius: 50%;
   width: 20px;
   height: 20px;
@@ -5634,7 +5625,7 @@
   align-items: center;
   justify-content: center;
   z-index: 3;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--icon-overlay-border);
 }
 
 /* Preview pick element icon */
@@ -5657,7 +5648,7 @@
   top: -4px;
   right: -4px;
   font-size: 10px;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--icon-overlay-bg);
   border-radius: 50%;
   width: 18px;
   height: 18px;
@@ -5665,7 +5656,7 @@
   align-items: center;
   justify-content: center;
   z-index: 3;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--icon-overlay-border);
 }
 
 /* Element-specific card hover effects */
@@ -6110,7 +6101,7 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--overlay-bg);
   backdrop-filter: blur(8px);
   z-index: 2000;
   display: flex;
@@ -6468,7 +6459,7 @@
   position: absolute;
   top: 4px;
   right: 4px;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--icon-overlay-bg);
   color: white;
   border: none;
   border-radius: 50%;

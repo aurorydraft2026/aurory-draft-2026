@@ -10,7 +10,7 @@ const Footer = () => {
                     <p className="footer-msg">Built with ❤️ for the Aurory Tournament Community. Happy Playing! 🎮🔴</p>
                     <p className="footer-tagline">Asgard Duels Community 2026</p>
                     <p className="footer-disclaimer">
-                        Asgard Duels is an independent, fan-made competitive platform. We are not affiliated with, endorsed by, or associated with Aurory, Syncos, or their subsidiaries. All trademarks belong to their respective owners.
+                        Asgard Duels is an independent, fan-made competitive platform. We are not affiliated with, endorsed by, or associated with Aurory or their subsidiaries. All trademarks belong to their respective owners.
                     </p>
                     <div className="footer-legal-links">
                         <Link to="/terms">Terms of Service</Link>

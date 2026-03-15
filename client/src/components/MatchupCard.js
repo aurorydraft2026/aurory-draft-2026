@@ -53,14 +53,29 @@ const MatchupCard = ({ matchup, user }) => {
                         <span className="detail-icon">📅</span>
                         <span className="detail-text">Starts: {formatDate(matchup.startDate)}</span>
                     </div>
-                    <div className="detail-item prize">
-                        <span className="detail-icon">💎</span>
-                        <span>{matchup.poolPrize} AURY Pool</span>
+                    <div className="detail-item prize-pool-details">
+                        <div className="pool-main">
+                            <span className="detail-icon">💎</span>
+                            <span>{matchup.poolPrize} AURY Pool</span>
+                        </div>
+                        {(matchup.prize1 || matchup.prize2 || matchup.prize3) && (
+                            <div className="prize-tiers">
+                                {matchup.prize1 > 0 && <span className="tier">🥇 {matchup.prize1}</span>}
+                                {matchup.prize2 > 0 && <span className="tier">🥈 {matchup.prize2}</span>}
+                                {matchup.prize3 > 0 && <span className="tier">🥉 {matchup.prize3}</span>}
+                            </div>
+                        )}
                     </div>
                     <div className={`detail-item ${matchup.requiresEntryFee ? 'fee' : 'free'}`}>
                         <span className="detail-icon">{matchup.requiresEntryFee ? '💰' : '🆓'}</span>
                         <span>{matchup.requiresEntryFee ? `${((matchup.entryFeeAmount || 0) / 1e9).toFixed(2)} AURY` : 'Free'}</span>
                     </div>
+                    {matchup.allowedRarities && (
+                        <div className="detail-item">
+                            <span className="detail-icon">✨</span>
+                            <span className="detail-text">{matchup.allowedRarities}</span>
+                        </div>
+                    )}
                 </div>
 
                 <div className="matchup-footer">

@@ -1,7 +1,7 @@
 .app-footer {
     margin-top: 60px;
     padding: 40px 28px;
-    background: rgba(22, 22, 31, 0.2);
+    background: var(--bg-secondary);
     border-top: 1px solid var(--border-subtle);
     position: relative;
     z-index: 5;
@@ -45,7 +45,7 @@
 
 .footer-disclaimer {
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--text-muted);
     margin-top: 10px;
     line-height: 1.4;
     max-width: 400px;
@@ -110,8 +110,8 @@
     align-items: center;
     gap: 10px;
     padding: 10px 20px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
     border-radius: var(--radius-lg);
     color: var(--text-primary);
     text-decoration: none;
@@ -121,7 +121,7 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-card);
     white-space: nowrap;
 }
 
@@ -168,9 +168,9 @@
 }
 
 .footer-link.x-twitter {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.2);
-    color: white;
+    background: var(--bg-elevated);
+    border-color: var(--border-bright);
+    color: var(--text-bright);
 }
 
 .footer-link.x-twitter:hover {

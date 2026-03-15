@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useTheme } from '../context/ThemeContext';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   collection, onSnapshot, doc, query, where
@@ -54,6 +55,7 @@ function HomePage() {
   } = useAuth(navigate);
 
   const isAdmin = isAdminUser;
+  const { theme, toggleTheme } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const syncInProgressRef = React.useRef(false); // Guard for infinite sync loops
@@ -578,6 +580,17 @@ function HomePage() {
                 )}
               </div>
 
+              {/* Theme Toggle */}
+              <button
+                className="theme-toggle-btn"
+                onClick={toggleTheme}
+                title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                <span className={`theme-icon ${theme}`}>
+                  {theme === 'dark' ? '☀️' : '🌙'}
+                </span>
+              </button>
+
               {/* Clickable Profile Section */}
               <div className="profile-menu-container" ref={profileMenuRef}>
                 <div
@@ -617,6 +630,15 @@ function HomePage() {
             </div>
           ) : (
             <div className="login-container">
+              <button
+                className="theme-toggle-btn"
+                onClick={toggleTheme}
+                title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                <span className={`theme-icon ${theme}`}>
+                  {theme === 'dark' ? '☀️' : '🌙'}
+                </span>
+              </button>
               <button
                 className="btn-primary login-trigger-btn"
                 onClick={() => setShowLoginModal(true)}
@@ -669,7 +691,7 @@ function HomePage() {
         {/* Welcome Header - Full Width Above Grid */}
         <div className="hero-section">
           <h2>Welcome to Asgard Duels</h2>
-          <p>The ultimate competitive tactical PvP drafting platform for Amiko Legends.</p>
+          <p>Your Amiko Legends Hub for Asgard Guild.</p>
         </div>
 
         <div className="content-wrapper">

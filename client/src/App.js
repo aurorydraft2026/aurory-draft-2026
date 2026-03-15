@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { ThemeProvider } from './context/ThemeContext';
 import HomePage from './pages/HomePage';
 import TournamentPage from './pages/TournamentPage';
 import TermsPage from './pages/TermsPage';
@@ -71,20 +72,22 @@ function App() {
   }, [user]);
 
   return (
-    <Router>
-      <div className="App">
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/tournament/:tournamentId" element={<TournamentPage />} />
-          <Route path="/admin/panel" element={<AdminPanel />} />
-          <Route path="/matchup/:matchupId" element={<MatchupPage />} />
-          <Route path="/terms" element={<TermsPage />} />
-          <Route path="/privacy" element={<PrivacyPage />} />
-        </Routes>
-        <Footer />
-      </div>
-    </Router>
+    <ThemeProvider>
+      <Router>
+        <div className="App">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/tournament/:tournamentId" element={<TournamentPage />} />
+            <Route path="/admin/panel" element={<AdminPanel />} />
+            <Route path="/matchup/:matchupId" element={<MatchupPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+          </Routes>
+          <Footer />
+        </div>
+      </Router>
+    </ThemeProvider>
   );
 }
 
-export default App;
+export default App;

@@ -1,69 +1,155 @@
 @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --bg-deepest: #0a0a0f;
-  --bg-deep: #0f0f15;
-  --bg-surface: #16161f;
-  --bg-secondary: rgba(22, 22, 31, 0.85);
-  --bg-card: #16161f;
-  --bg-card-hover: #1e1e2b;
-  --bg-elevated: rgba(30, 30, 40, 0.6);
-  --bg-glass: rgba(22, 22, 31, 0.65);
-  --border-subtle: rgba(99, 130, 180, 0.12);
-  --border-default: rgba(99, 130, 180, 0.2);
-  --border-bright: rgba(99, 130, 180, 0.35);
-  --text-primary: #e8edf5;
-  --text-secondary: #8da0be;
-  --text-muted: #526480;
+  /* ── Backgrounds (Dark – default) ── */
+  --bg-deepest: #0a0a0a;
+  --bg-deep: #111111;
+  --bg-surface: #181818;
+  --bg-secondary: rgba(20, 20, 20, 0.92);
+  --bg-card: #1a1a1a;
+  --bg-card-hover: #222222;
+  --bg-elevated: rgba(255, 255, 255, 0.04);
+  --bg-glass: rgba(20, 20, 20, 0.75);
+  --bg-primary: #141414;
+  --bg-header: rgba(14, 14, 14, 0.92);
+  --bg-ticker: #000000;
+
+  /* ── Borders ── */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.1);
+  --border-bright: rgba(255, 255, 255, 0.18);
+
+  /* ── Text ── */
+  --text-primary: #e5e5e5;
+  --text-secondary: #999999;
+  --text-muted: #555555;
   --text-bright: #ffffff;
+
+  /* ── Accents (kept original) ── */
   --accent-cyan: #00c8ff;
-  --accent-cyan-glow: rgba(0, 200, 255, 0.25);
+  --accent-cyan-glow: rgba(0, 200, 255, 0.2);
   --accent-purple: #8b5cf6;
-  --accent-purple-glow: rgba(139, 92, 246, 0.25);
+  --accent-purple-glow: rgba(139, 92, 246, 0.2);
+  --accent-teal: #2dd4bf;
   --accent-gold: #f0b232;
-  --accent-gold-glow: rgba(240, 178, 50, 0.25);
+  --accent-gold-glow: rgba(240, 178, 50, 0.2);
   --accent-green: #10b981;
-  --accent-green-glow: rgba(16, 185, 129, 0.25);
+  --accent-green-glow: rgba(16, 185, 129, 0.2);
   --accent-red: #ef4444;
-  --accent-red-glow: rgba(239, 68, 68, 0.25);
+  --accent-red-glow: rgba(239, 68, 68, 0.2);
   --accent-pink: #ec4899;
+
+  /* ── Teams ── */
   --team-blue: #3b82f6;
-  --team-blue-bg: rgba(59, 130, 246, 0.15);
+  --team-blue-bg: rgba(59, 130, 246, 0.12);
   --team-red: #ef4444;
-  --team-red-bg: rgba(239, 68, 68, 0.15);
+  --team-red-bg: rgba(239, 68, 68, 0.12);
+
+  /* ── Layout ── */
   --header-height: 64px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.2);
-  --shadow-elevated: 0 8px 40px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
-  --shadow-glow-cyan: 0 0 20px var(--accent-cyan-glow), 0 0 60px rgba(0, 200, 255, 0.08);
-  --shadow-glow-purple: 0 0 20px var(--accent-purple-glow), 0 0 60px rgba(139, 92, 246, 0.08);
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+
+  /* ── Shadows ── */
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.25);
+  --shadow-elevated: 0 6px 24px rgba(0, 0, 0, 0.35);
+  --shadow-glow-cyan: 0 0 16px var(--accent-cyan-glow);
+  --shadow-glow-purple: 0 0 16px var(--accent-purple-glow);
+
+  /* ── App background gradient ── */
+  --app-bg-gradient-1: rgba(139, 92, 246, 0.04);
+  --app-bg-gradient-2: rgba(0, 200, 255, 0.03);
+
+  /* ── Overlay ── */
+  --overlay-bg: rgba(0, 0, 0, 0.7);
+  --overlay-bg-heavy: rgba(0, 0, 0, 0.85);
+  --overlay-bg-light: rgba(0, 0, 0, 0.5);
+  --slide-overlay-gradient: linear-gradient(45deg, rgba(6, 10, 20, 0.94) 0%, rgba(6, 10, 20, 0.8) 20%, rgba(6, 10, 20, 0.3) 100%);
+  --icon-overlay-bg: rgba(0, 0, 0, 0.7);
+  --icon-overlay-border: rgba(255, 255, 255, 0.2);
+
+  /* ── Banner text (on overlaid images) ── */
+  --banner-text-primary: #ffffff;
+  --banner-text-secondary: rgba(255, 255, 255, 0.75);
+  --banner-ui-bg: rgba(255, 255, 255, 0.1);
+  --banner-ui-border: rgba(255, 255, 255, 0.15);
+
+  /* ── Team card overlay ── */
+  --team-card-overlay-gradient: linear-gradient(to bottom, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.8));
+}
+
+/* ── Light Theme Overrides ── */
+[data-theme="light"] {
+  --bg-deepest: #f5f5f5;
+  --bg-deep: #eeeeee;
+  --bg-surface: #ffffff;
+  --bg-secondary: rgba(245, 245, 245, 0.95);
+  --bg-card: #ffffff;
+  --bg-card-hover: #f0f0f0;
+  --bg-elevated: rgba(0, 0, 0, 0.03);
+  --bg-glass: rgba(255, 255, 255, 0.85);
+  --bg-primary: #fafafa;
+  --bg-header: rgba(255, 255, 255, 0.92);
+  --bg-ticker: #f0f0f0;
+
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-default: rgba(0, 0, 0, 0.1);
+  --border-bright: rgba(0, 0, 0, 0.18);
+
+  --text-primary: #1a1a1a;
+  --text-secondary: #555555;
+  --text-muted: #999999;
+  --text-bright: #000000;
+
+  /* Accents stay vivid but adapt glow for light bg */
+  --accent-cyan: #0099cc;
+  --accent-cyan-glow: rgba(0, 153, 204, 0.15);
+  --accent-purple: #7c3aed;
+  --accent-purple-glow: rgba(124, 58, 237, 0.15);
+  --accent-gold: #d4990a;
+  --accent-gold-glow: rgba(212, 153, 10, 0.15);
+  --accent-green: #059669;
+  --accent-green-glow: rgba(5, 150, 105, 0.15);
+  --accent-red: #dc2626;
+  --accent-red-glow: rgba(220, 38, 38, 0.15);
+
+  --team-blue: #2563eb;
+  --team-blue-bg: rgba(37, 99, 235, 0.08);
+  --team-red: #dc2626;
+  --team-red-bg: rgba(220, 38, 38, 0.08);
+
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.08);
+  --shadow-elevated: 0 6px 24px rgba(0, 0, 0, 0.12);
+
+  --app-bg-gradient-1: rgba(139, 92, 246, 0.03);
+  --app-bg-gradient-2: rgba(0, 200, 255, 0.02);
+
+  --overlay-bg: rgba(0, 0, 0, 0.4);
+  --overlay-bg-heavy: rgba(0, 0, 0, 0.5);
+  --overlay-bg-light: rgba(0, 0, 0, 0.25);
+  --slide-overlay-gradient: linear-gradient(45deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.7) 20%, rgba(255, 255, 255, 0.15) 100%);
+  --icon-overlay-bg: rgba(255, 255, 255, 0.8);
+  --icon-overlay-border: rgba(0, 0, 0, 0.15);
+
+  --banner-text-primary: #1a1a1a;
+  --banner-text-secondary: rgba(0, 0, 0, 0.6);
+  --banner-ui-bg: rgba(0, 0, 0, 0.06);
+  --banner-ui-border: rgba(0, 0, 0, 0.12);
+
+  --team-card-overlay-gradient: linear-gradient(to bottom, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.8));
 }
 
 .App {
   min-height: 100vh;
   background: var(--bg-deepest);
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(139, 92, 246, 0.08) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(0, 200, 255, 0.05) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 50% at 10% 80%, rgba(16, 185, 129, 0.03) 0%, transparent 50%);
+    radial-gradient(ellipse 80% 50% at 50% 0%, var(--app-bg-gradient-1) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, var(--app-bg-gradient-2) 0%, transparent 50%);
   color: var(--text-primary);
   font-family: 'Outfit', sans-serif;
   position: relative;
-}
-
-.App::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(99, 130, 180, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(99, 130, 180, 0.03) 1px, transparent 1px);
-  background-size: 60px 60px;
-  pointer-events: none;
-  z-index: 0;
 }
 
 * {
@@ -78,4 +164,4 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
+}

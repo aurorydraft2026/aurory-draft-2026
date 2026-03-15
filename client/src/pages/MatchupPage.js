@@ -7,6 +7,7 @@ import { isUserSuperAdmin } from '../config/admins';
 import JoinTeamModal from '../components/JoinTeamModal';
 import InsufficientBalanceModal from '../components/InsufficientBalanceModal';
 import LeaveConfirmationModal from '../components/LeaveConfirmationModal';
+import AuroryAccountLink from '../components/AuroryAccountLink';
 import {
     generateSingleElimination,
     generateRoundRobin,
@@ -16,12 +17,20 @@ import {
     calculateFinalsStandings
 } from '../utils/tournamentUtils';
 import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
+import { useAuth } from '../hooks/useAuth';
 import './MatchupPage.css';
 
 
 const MatchupPage = () => {
     const { matchupId } = useParams();
     const navigate = useNavigate();
+    
+    const { 
+        showLoginModal, 
+        setShowLoginModal, 
+        renderLoginModalContent 
+    } = useAuth(navigate);
+
     const [matchup, setMatchup] = useState(null);
     const [participants, setParticipants] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -41,6 +50,7 @@ const MatchupPage = () => {
     const [showEditModal, setShowEditModal] = useState(false);
     const [editFormData, setEditFormData] = useState({});
     const [isSavingEdit, setIsSavingEdit] = useState(false);
+    const [showLinkModal, setShowLinkModal] = useState(false);
     
     const ENTRY_FEE = matchup?.requiresEntryFee ? (matchup?.entryFeeAmount || 0) : 0;
 
@@ -832,7 +842,11 @@ const MatchupPage = () => {
             maxParticipants: matchup.maxParticipants || 16,
             startDate: matchup.startDate 
                 ? new Date(matchup.startDate.seconds ? matchup.startDate.toMillis() : matchup.startDate).toISOString().slice(0, 16)
-                : ''
+                : '',
+            prize1: matchup.prize1 || '',
+            prize2: matchup.prize2 || '',
+            prize3: matchup.prize3 || '',
+            allowedRarities: matchup.allowedRarities || ''
         });
         setShowEditModal(true);
     };
@@ -856,7 +870,11 @@ const MatchupPage = () => {
             const updateConfig = {
                 description: editFormData.description,
                 poolPrize: editFormData.poolPrize,
-                maxParticipants: parseInt(editFormData.maxParticipants, 10) || 16
+                maxParticipants: parseInt(editFormData.maxParticipants, 10) || 16,
+                prize1: parseFloat(editFormData.prize1) || 0,
+                prize2: parseFloat(editFormData.prize2) || 0,
+                prize3: parseFloat(editFormData.prize3) || 0,
+                allowedRarities: editFormData.allowedRarities || ''
             };
             if (sDate) {
                 updateConfig.startDate = sDate;
@@ -1246,7 +1264,7 @@ const MatchupPage = () => {
     const isJoined = matchup.participants.some(p =>
         typeof p === 'string' ? p === user?.uid : (p.leader === user?.uid || p.members?.includes(user?.uid))
     );
-    const canJoin = user && profile?.auroryPlayerId && !isJoined && matchup.participants.length < matchup.maxParticipants && matchup.status === 'waiting';
+    const canJoin = user && !user.isAnonymous && profile?.auroryPlayerId && !isJoined && matchup.participants.length < matchup.maxParticipants && matchup.status === 'waiting';
     const isFull = matchup.participants.length >= matchup.maxParticipants;
 
     const sortedTeams = matchup.format === 'teams' ? [...(matchup.participants || [])]
@@ -1386,9 +1404,16 @@ const MatchupPage = () => {
                                     </div>
 
                                     <div className="details-grid">
-                                        <div className="detail-card">
-                                            <span className="label">Prize Pool</span>
-                                            <span className="value prize">💎 {matchup.poolPrize} AURY</span>
+                                        <div className="detail-card prize-card-featured">
+                                            <span className="label">Tournament Prize Pool</span>
+                                            <div className="prize-main-value">
+                                                <span className="value prize">💎 {matchup.poolPrize} AURY Pool</span>
+                                            </div>
+                                            <div className="prize-tiers-details">
+                                                {matchup.prize1 > 0 && <span className="tier-p">🥇 1st: {matchup.prize1} AURY</span>}
+                                                {matchup.prize2 > 0 && <span className="tier-p">🥈 2nd: {matchup.prize2} AURY</span>}
+                                                {matchup.prize3 > 0 && <span className="tier-p">🥉 3rd: {matchup.prize3} AURY</span>}
+                                            </div>
                                         </div>
                                         <div className="detail-card">
                                             <span className="label">Start Time</span>
@@ -1416,6 +1441,12 @@ const MatchupPage = () => {
                                                 {ENTRY_FEE > 0 ? `💰 ${(ENTRY_FEE / 1e9).toFixed(2)} AURY` : '🆓 Free Entry'}
                                             </span>
                                         </div>
+                                        {matchup.allowedRarities && (
+                                            <div className="detail-card">
+                                                <span className="label">Allowed Rarities</span>
+                                                <span className="value">✨ {matchup.allowedRarities}</span>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {matchup.description && (
@@ -1429,6 +1460,27 @@ const MatchupPage = () => {
                                 <section className="action-panel glass-panel">
                                     <div className="action-row">
                                         {canJoin && <button className="btn-join-hero" onClick={handleJoin}>Join Tournament</button>}
+                                        
+                                        {/* Guest User -> Show Log In */}
+                                        {(!user || user.isAnonymous) && matchup.status === 'waiting' && !isFull && (
+                                            <div className="unlinked-join-container">
+                                                <p className="unlinked-warning">🔑 Log in to participate in the tournament</p>
+                                                <button className="btn-join-hero" onClick={() => setShowLoginModal(true)}>
+                                                    🔑 Log In to Join
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Logged User but Unlinked -> Show Link Account */}
+                                        {user && !user.isAnonymous && !profile?.auroryPlayerId && !isJoined && matchup.status === 'waiting' && !isFull && (
+                                            <div className="unlinked-join-container">
+                                                <p className="unlinked-warning">⚠️ Link your Aurory account to participate</p>
+                                                <button className="btn-link-hero" onClick={() => setShowLinkModal(true)}>
+                                                    🔗 Link Account to Join
+                                                </button>
+                                            </div>
+                                        )}
+
                                         {isJoined && matchup.status === 'waiting' && <button className="btn-leave-hero" onClick={handleLeave}>Leave Tournament</button>}
                                         {isAdmin && matchup.status === 'waiting' && (
                                             <button
@@ -2063,6 +2115,9 @@ const MatchupPage = () => {
                                                         <div className="podium-rank-badge">{customTitles[idx]}</div>
                                                         <span className="podium-medal">{medals[idx]}</span>
                                                         <span className="podium-team">{standing.team?.teamName || 'Unknown'}</span>
+                                                        {(idx === 0 && matchup.prize1 > 0) && <span className="podium-prize-win">💰 {matchup.prize1} AURY</span>}
+                                                        {(idx === 1 && matchup.prize2 > 0) && <span className="podium-prize-win">💰 {matchup.prize2} AURY</span>}
+                                                        {(idx === 2 && matchup.prize3 > 0) && <span className="podium-prize-win">💰 {matchup.prize3} AURY</span>}
                                                         {standing.points !== undefined && <span className="podium-pts">{standing.points} pts</span>}
                                                         {standing.wins !== undefined && <span className="podium-record">{standing.wins}W {standing.draws}D {standing.losses}L</span>}
                                                     </div>
@@ -2190,9 +2245,16 @@ const MatchupPage = () => {
                                 </div>
 
                                 <div className="details-grid">
-                                    <div className="detail-card">
-                                        <span className="label">Prize Pool</span>
-                                        <span className="value prize">💎 {matchup.poolPrize} AURY</span>
+                                    <div className="detail-card prize-card-featured">
+                                        <span className="label">Tournament Prize Pool</span>
+                                        <div className="prize-main-value">
+                                            <span className="value prize">💎 {matchup.poolPrize} AURY Pool</span>
+                                        </div>
+                                        <div className="prize-tiers-details">
+                                            {matchup.prize1 > 0 && <span className="tier-p">🥇 1st: {matchup.prize1} AURY</span>}
+                                            {matchup.prize2 > 0 && <span className="tier-p">🥈 2nd: {matchup.prize2} AURY</span>}
+                                            {matchup.prize3 > 0 && <span className="tier-p">🥉 3rd: {matchup.prize3} AURY</span>}
+                                        </div>
                                     </div>
                                     <div className="detail-card">
                                         <span className="label">Start Time</span>
@@ -2214,6 +2276,12 @@ const MatchupPage = () => {
                                             {matchup.tournamentType === 'single_elimination' ? '🏆 Single Elimination' : '🔄 Round Robin'}
                                         </span>
                                     </div>
+                                    {matchup.allowedRarities && (
+                                        <div className="detail-card">
+                                            <span className="label">Allowed Rarities</span>
+                                            <span className="value">✨ {matchup.allowedRarities}</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {matchup.description && (
@@ -2312,6 +2380,14 @@ const MatchupPage = () => {
                 onConfirm={confirmLeave}
             />
 
+            <AuroryAccountLink 
+                user={user}
+                isOpen={showLinkModal}
+                onClose={() => setShowLinkModal(false)}
+            />
+
+            {showLoginModal && renderLoginModalContent()}
+
             {/* Edit Matchup Modal */}
             {showEditModal && (
                 <div className="modal-overlay">
@@ -2332,7 +2408,7 @@ const MatchupPage = () => {
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Prize Pool</label>
+                                <label>Prize Pool (Total)</label>
                                 <input 
                                     type="text" 
                                     name="poolPrize"
@@ -2341,6 +2417,41 @@ const MatchupPage = () => {
                                     className="form-input" 
                                 />
                             </div>
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label>1st Place Prize</label>
+                                    <input 
+                                        type="number" 
+                                        name="prize1"
+                                        value={editFormData.prize1} 
+                                        onChange={handleEditChange}
+                                        step="0.01"
+                                        className="form-input" 
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>2nd Place Prize</label>
+                                    <input 
+                                        type="number" 
+                                        name="prize2"
+                                        value={editFormData.prize2} 
+                                        onChange={handleEditChange}
+                                        step="0.01"
+                                        className="form-input" 
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>3rd Place Prize</label>
+                                    <input 
+                                        type="number" 
+                                        name="prize3"
+                                        value={editFormData.prize3} 
+                                        onChange={handleEditChange}
+                                        step="0.01"
+                                        className="form-input" 
+                                    />
+                                </div>
+                            </div>
                             <div className="form-group">
                                 <label>Max Participants</label>
                                 <input 
@@ -2348,6 +2459,17 @@ const MatchupPage = () => {
                                     name="maxParticipants"
                                     value={editFormData.maxParticipants} 
                                     onChange={handleEditChange} 
+                                    className="form-input"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Allowed Rarities</label>
+                                <input 
+                                    type="text" 
+                                    name="allowedRarities"
+                                    value={editFormData.allowedRarities} 
+                                    onChange={handleEditChange} 
+                                    placeholder="e.g. Common, Rare, Epic"
                                     className="form-input"
                                 />
                             </div>

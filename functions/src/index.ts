@@ -98,3 +98,7 @@ import { onTournamentDeleted, onTournamentUpdated } from './refunds';
 export const tournamentRefund = onTournamentDeleted;
 export const tournamentUpdateRefund = onTournamentUpdated;
 
+// ─── 6. TOURNAMENTS ───
+// Automatic reward distribution
+import { onMatchupCompleted } from './tournaments';
+export const tournamentRewards = onMatchupCompleted;

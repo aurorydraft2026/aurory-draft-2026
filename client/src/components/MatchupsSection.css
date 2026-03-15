@@ -12,14 +12,13 @@
 .header-title-group h3 {
     margin: 0;
     font-size: 1.8rem;
-    color: #fff;
-    text-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+    color: var(--text-primary);
 }
 
 .section-subtitle {
     margin: 4px 0 0;
     font-size: 0.9rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-secondary);
 }
 
 .create-matchup-btn-primary {

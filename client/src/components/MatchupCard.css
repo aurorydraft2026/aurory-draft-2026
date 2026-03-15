@@ -1,74 +1,18 @@
 .matchup-card {
     position: relative;
     background: var(--bg-card);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
     overflow: hidden;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-    backdrop-filter: blur(10px);
     z-index: 1;
-}
-
-/* Premium Border Animation Wrapper */
-.matchup-card::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    /* Large square to cover diagonal */
-    /* Long, opposite dual beam effect */
-    background: conic-gradient(from 0deg,
-            transparent 0%,
-            var(--accent-cyan) 5%,
-            var(--accent-purple) 20%,
-            transparent 25%,
-            transparent 50%,
-            var(--accent-teal) 55%,
-            var(--accent-gold) 70%,
-            transparent 75%,
-            transparent 100%);
-    animation: rotateBorder 6s linear infinite;
-    z-index: -1;
-    opacity: 1;
-    transition: opacity 0.3s ease;
-    filter: blur(5px);
-}
-
-/* Inner overlay to mask the center of the conic gradient */
-.matchup-card::after {
-    content: '';
-    position: absolute;
-    inset: 2px;
-    /* Adjust for desired border thickness */
-    background: var(--bg-card);
-    border-radius: calc(var(--radius-lg) - 2px);
-    z-index: -1;
-}
-
-@keyframes rotateBorder {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    100% {
-        transform: rotate(360deg);
-    }
 }
 
 .matchup-card:hover {
     transform: translateY(-4px);
-    box-shadow:
-        0 10px 40px rgba(0, 0, 0, 0.5),
-        0 0 20px rgba(0, 242, 255, 0.2);
-}
-
-.matchup-card:hover::before {
-    opacity: 1;
-    animation-duration: 2s;
-    /* Speed up on hover */
+    border-color: var(--border-bright);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
 }
 
 .card-content {
@@ -194,6 +138,35 @@
     font-weight: 600;
     font-family: 'Rajdhani', sans-serif;
     font-size: 0.85rem;
+}
+
+.prize-pool-details {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.pool-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--accent-gold);
+    font-weight: 600;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.9rem;
+}
+
+.prize-tiers {
+    display: flex;
+    gap: 15px;
+    margin-top: 2px;
+}
+
+.tier {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
 }
 
 .detail-icon {
