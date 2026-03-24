@@ -796,9 +796,62 @@
 }
 
 .visual-bracket-scroll-container {
-    overflow-x: auto;
+    overflow: auto;
     width: 100%;
     padding: 20px 0;
+    position: relative;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.bracket-zoom-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding: 10px 20px;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    border: 1px solid var(--border-subtle);
+    width: fit-content;
+    box-shadow: var(--shadow-sm);
+}
+
+.zoom-btn {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.zoom-btn:hover {
+    background: var(--accent-purple);
+    border-color: var(--accent-purple);
+    transform: translateY(-2px);
+}
+
+.zoom-btn.reset {
+    margin-left: 8px;
+    background: transparent;
+    border-color: var(--border-subtle);
+}
+
+.zoom-btn.reset:hover {
+    background: rgba(168, 85, 247, 0.1);
+    border-color: var(--accent-purple);
+}
+
+.zoom-percentage {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    min-width: 50px;
+    text-align: center;
 }
 
 .visual-bracket-grid {

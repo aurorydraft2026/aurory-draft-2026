@@ -33,7 +33,10 @@ const Mode3Draft = ({
         showRoulette,
         roulettePhase,
         walletBalance,
-        formatAuryAmount
+        formatAuryAmount,
+        isUserSuperAdmin,
+        skipCoinFlipAnimation,
+        skipRouletteAnimation
     } = handlers;
 
     const {
@@ -225,6 +228,13 @@ const Mode3Draft = ({
                                     🚪 Leave Match
                                 </button>
                             )}
+
+                            {/* Super Admin Bypass */}
+                            {isUserSuperAdmin(user) && (
+                                <button className="skip-animation-btn sa-bypass" onClick={skipCoinFlipAnimation}>
+                                    🎲 Force Random Toss (SA Bypass)
+                                </button>
+                            )}
                         </div>
                     )}
 
@@ -248,7 +258,14 @@ const Mode3Draft = ({
                 <div className="inline-overlay-content">
                     <h3>⚔️ Match Starting</h3>
                     {roulettePhase === 'scrambling' && (
-                        <p className="scramble-text">🎲 Shuffling Amiko Pools...</p>
+                        <div className="roulette-scramble-container">
+                            <p className="scramble-text">🎲 Shuffling Amiko Pools...</p>
+                            {isUserSuperAdmin(user) && (
+                                <button className="skip-animation-btn sa-bypass smaller" onClick={skipRouletteAnimation}>
+                                    ⚡ Skip Animation
+                                </button>
+                            )}
+                        </div>
                     )}
                     {roulettePhase === 'done' && (
                         <div className="roulette-done">

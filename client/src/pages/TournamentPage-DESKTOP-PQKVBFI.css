@@ -6095,44 +6095,6 @@
   cursor: not-allowed;
 }
 
-/* Super Admin Force Ready controls */
-.admin-force-ready {
-  margin-top: 12px;
-  padding: 12px;
-  background: rgba(234, 179, 8, 0.08);
-  border: 1px solid rgba(234, 179, 8, 0.2);
-  border-radius: 10px;
-  text-align: center;
-}
-
-.admin-override-label {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #fbbf24;
-  margin: 0 0 8px;
-  letter-spacing: 0.5px;
-}
-
-.force-ready-buttons {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.force-ready-btn {
-  font-size: 0.78rem !important;
-  padding: 8px 16px !important;
-  min-width: 140px;
-}
-
-.force-ready-btn:disabled {
-  background: rgba(34, 197, 94, 0.15) !important;
-  color: #4ade80 !important;
-  border: 1px solid rgba(34, 197, 94, 0.3) !important;
-  opacity: 1 !important;
-}
-
 /* ============================================================
    MODALS
    ============================================================ */
@@ -7176,3 +7138,62 @@
   background: rgba(239, 68, 68, 0.2);
   transform: translateY(-2px);
 }
+/* Super Admin Bypass Styles */
+.sa-bypass-btn, .sa-bypass {
+  background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%) !important;
+  border: 2px solid #ffd700 !important;
+  color: #fff !important;
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.3) !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  transition: all 0.3s ease !important;
+  cursor: pointer !important;
+  margin-top: 10px !important;
+}
+
+.sa-bypass-btn:hover, .sa-bypass:hover {
+  transform: translateY(-2px) scale(1.02) !important;
+  box-shadow: 0 0 25px rgba(255, 215, 0, 0.6) !important;
+  filter: brightness(1.2) !important;
+}
+
+.skip-animation-btn.sa-bypass.corner {
+  position: absolute !important;
+  top: 10px !important;
+  right: 10px !important;
+  padding: 8px 15px !important;
+  font-size: 0.8rem !important;
+  z-index: 100 !important;
+  margin: 0 !important;
+}
+
+.roll-section .sa-bypass {
+  padding: 10px 20px !important;
+  border-radius: 8px !important;
+  width: 100% !important;
+  max-width: 300px !important;
+  margin: 15px auto !important;
+  display: block !important;
+}
+
+
+.sa-bypass.smaller {
+  padding: 5px 12px !important;
+  font-size: 0.75rem !important;
+  margin-top: 5px !important;
+}
+
+.roulette-scramble-container {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.inline-overlay-content .sa-bypass {
+  width: auto !important;
+  min-width: 200px !important;
+  margin: 10px auto !important;
+}
+

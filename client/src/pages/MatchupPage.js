@@ -51,6 +51,7 @@ const MatchupPage = () => {
     const [editFormData, setEditFormData] = useState({});
     const [isSavingEdit, setIsSavingEdit] = useState(false);
     const [showLinkModal, setShowLinkModal] = useState(false);
+    const [zoomLevel, setZoomLevel] = useState(1);
     
     const ENTRY_FEE = matchup?.requiresEntryFee ? (matchup?.entryFeeAmount || 0) : 0;
 
@@ -817,6 +818,10 @@ const MatchupPage = () => {
         }
     };
 
+    const handleZoomIn = () => setZoomLevel(prev => Math.min(prev + 0.1, 2));
+    const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 0.1, 0.5));
+    const handleZoomReset = () => setZoomLevel(1);
+
     const calculateTeamScore = (team) => {
         if (!team || !matchup.playerScores) return 0;
         const uids = [team.leader, ...(team.members || [])];
@@ -1581,15 +1586,29 @@ const MatchupPage = () => {
                         {matchup.tournamentType === 'single_elimination' ? (
                             /* ── Visual Bracket Structure (Binary Tree Aligned) ── */
                             <div className="visual-bracket-wrapper">
+                                <div className="bracket-zoom-controls">
+                                    <button onClick={handleZoomOut} className="zoom-btn" title="Zoom Out">-</button>
+                                    <span className="zoom-percentage">{Math.round(zoomLevel * 100)}%</span>
+                                    <button onClick={handleZoomIn} className="zoom-btn" title="Zoom In">+</button>
+                                    <button onClick={handleZoomReset} className="zoom-btn reset" title="Reset Zoom">Reset</button>
+                                </div>
                                 <div className="visual-bracket-scroll-container">
-                                    <div
-                                        className="visual-bracket-grid"
-                                        style={{
-                                            gridTemplateColumns: `repeat(${matchup.matchupStructure.length}, 340px)`,
-                                            height: `${(matchup.bracketTotalSlots || 4) * 100}px`,
-                                            position: 'relative'
-                                        }}
-                                    >
+                                    <div style={{ 
+                                        width: 'fit-content',
+                                        height: 'fit-content',
+                                        minWidth: `${matchup.matchupStructure.length * 340 * zoomLevel}px`,
+                                        minHeight: `${(matchup.bracketTotalSlots || 4) * 100 * zoomLevel}px`
+                                    }}>
+                                        <div
+                                            className="visual-bracket-grid"
+                                            style={{
+                                                gridTemplateColumns: `repeat(${matchup.matchupStructure.length}, 340px)`,
+                                                height: `${(matchup.bracketTotalSlots || 4) * 100}px`,
+                                                position: 'relative',
+                                                transform: `scale(${zoomLevel})`,
+                                                transformOrigin: '0 0'
+                                            }}
+                                        >
                                         {matchup.matchupStructure.map((round, rIndex) => {
                                             const totalSlots = matchup.bracketTotalSlots || Math.pow(2, matchup.matchupStructure.length);
 
@@ -1690,6 +1709,7 @@ const MatchupPage = () => {
                                                 </div>
                                             );
                                         })}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1964,15 +1984,29 @@ const MatchupPage = () => {
                                 </div>
 
                                 <div className="visual-bracket-wrapper finals-bracket">
+                                    <div className="bracket-zoom-controls">
+                                        <button onClick={handleZoomOut} className="zoom-btn" title="Zoom Out">-</button>
+                                        <span className="zoom-percentage">{Math.round(zoomLevel * 100)}%</span>
+                                        <button onClick={handleZoomIn} className="zoom-btn" title="Zoom In">+</button>
+                                        <button onClick={handleZoomReset} className="zoom-btn reset" title="Reset Zoom">Reset</button>
+                                    </div>
                                     <div className="visual-bracket-scroll-container">
-                                        <div
-                                            className="visual-bracket-grid"
-                                            style={{
-                                                gridTemplateColumns: `repeat(${matchup.finalsStructure.length}, 340px)`,
-                                                height: `${Math.max(4, Math.pow(2, matchup.finalsStructure.length)) * 150}px`,
-                                                position: 'relative'
-                                            }}
-                                        >
+                                        <div style={{ 
+                                            width: 'fit-content',
+                                            height: 'fit-content',
+                                            minWidth: `${matchup.finalsStructure.length * 340 * zoomLevel}px`,
+                                            minHeight: `${Math.max(4, Math.pow(2, matchup.finalsStructure.length)) * 150 * zoomLevel}px`
+                                        }}>
+                                            <div
+                                                className="visual-bracket-grid"
+                                                style={{
+                                                    gridTemplateColumns: `repeat(${matchup.finalsStructure.length}, 340px)`,
+                                                    height: `${Math.max(4, Math.pow(2, matchup.finalsStructure.length)) * 150}px`,
+                                                    position: 'relative',
+                                                    transform: `scale(${zoomLevel})`,
+                                                    transformOrigin: '0 0'
+                                                }}
+                                            >
                                             {matchup.finalsStructure.map((round, rIndex) => {
                                                 const totalSlots = Math.max(4, Math.pow(2, matchup.finalsStructure.length));
 
@@ -2095,6 +2129,7 @@ const MatchupPage = () => {
                                         </div>
                                     </div>
                                 </div>
+                            </div>
 
                                 {/* Final Podium */}
                                 {matchup.phase === 'completed' && matchup.finalStandings && (

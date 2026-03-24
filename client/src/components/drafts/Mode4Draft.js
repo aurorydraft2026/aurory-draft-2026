@@ -40,7 +40,10 @@ const Mode4Draft = ({
         formatAuryAmount,
         showRoulette,
         roulettePhase,
-        getCurrentPhasePicks
+        getCurrentPhasePicks,
+        isUserSuperAdmin,
+        skipCoinFlipAnimation,
+        skipRouletteAnimation
     } = handlers;
 
     const {
@@ -393,6 +396,13 @@ const Mode4Draft = ({
                                     🚪 Leave Match
                                 </button>
                             )}
+
+                            {/* Super Admin Bypass */}
+                            {isUserSuperAdmin(user) && (
+                                <button className="skip-animation-btn sa-bypass" onClick={skipCoinFlipAnimation}>
+                                    🎲 Force Random Toss (SA Bypass)
+                                </button>
+                            )}
                         </div>
                     )}
 
@@ -531,6 +541,11 @@ const Mode4Draft = ({
             <div className="inline-overlay roulette-inline-overlay">
                 <div className="inline-overlay-content">
                     <h3>⚔️ Match Starting</h3>
+                    {isUserSuperAdmin(user) && (
+                        <button className="skip-animation-btn sa-bypass corner" onClick={skipRouletteAnimation}>
+                            ⚡ Skip Animation
+                        </button>
+                    )}
                     {draftState.coinFlip?.phase === 'done' && (
                         <div className="coin-done-detailed in-roulette">
                             <div className="winner-summary">

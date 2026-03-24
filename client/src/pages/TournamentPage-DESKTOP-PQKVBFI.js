@@ -27,7 +27,7 @@ import {
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { AMIKOS, getPICK_ORDER, ELEMENTS } from '../data/amikos';
 import { ElementBadge, RankStars } from '../components/AmikoEnhancements';
-import { isSuperAdmin } from '../config/admins';
+import { isSuperAdmin, isUserSuperAdmin } from '../config/admins';
 import { useSounds } from '../hooks/useSounds';
 import { createNotification } from '../services/notifications';
 import Mode1Draft from '../components/drafts/Mode1Draft';
@@ -789,7 +789,7 @@ function TournamentPage() {
     const opponentTeam = teamToConcede === 'A' ? 'B' : 'A';
     const opponentLabel = getTeamDisplayName(opponentTeam);
 
-    const isSA = isSuperAdmin(getUserEmail(user));
+    const isSA = isUserSuperAdmin(user);
     const confirmMessage = isSA
       ? `Are you sure you want to concede for ${teamLabel}? This will end the match and award the win to ${opponentLabel}.`
       : `Are you sure you want to concede? This will end the match and award the win to your opponent.`;
@@ -1114,26 +1114,17 @@ function TournamentPage() {
   };
 
   // Leader locks their roll (Blue/Red coin system)
-  // overrideTeam: optional 'team1' or 'team2' — used by Super Admin to force-ready a team
-  const lockRoll = async (overrideTeam) => {
+  const lockRoll = async () => {
     if (!user || !draftState.preAssignedTeams) return;
-
-    const userEmail = getUserEmail(user);
-    const isSA = isSuperAdmin(userEmail);
 
     const { team1, team2 } = draftState.preAssignedTeams;
     const isTeam1Leader = user.uid === team1.leader;
     const isTeam2Leader = user.uid === team2.leader;
 
-    // Super Admin can force-ready a specific team
-    if (isSA && overrideTeam) {
-      // Skip leader and account-link checks — just lock the specified team
-    } else if (!isTeam1Leader && !isTeam2Leader) {
-      return;
-    }
+    if (!isTeam1Leader && !isTeam2Leader) return;
 
-    // Check account linking (skip for SA overrides)
-    if (!isSA && !overrideTeam && !isAccountLinked(user)) {
+    // Check account linking
+    if (!isAccountLinked(user)) {
       showAlert('Aurory Account Required', 'You must link your Aurory account on the Home page before confirming your roll.');
       return;
     }
@@ -1185,12 +1176,8 @@ function TournamentPage() {
       // Now proceed with the lock
       const coinFlip = { ...draftState.coinFlip };
 
-      // Lock the appropriate team (SA override takes priority)
-      if (isSA && overrideTeam === 'team1' && !coinFlip.team1Locked) {
-        coinFlip.team1Locked = true;
-      } else if (isSA && overrideTeam === 'team2' && !coinFlip.team2Locked) {
-        coinFlip.team2Locked = true;
-      } else if (isTeam1Leader && !coinFlip.team1Locked) {
+      // Lock the appropriate team
+      if (isTeam1Leader && !coinFlip.team1Locked) {
         coinFlip.team1Locked = true;
       } else if (isTeam2Leader && !coinFlip.team2Locked) {
         coinFlip.team2Locked = true;
@@ -1259,7 +1246,7 @@ function TournamentPage() {
 
   // Admin closes/cancels the coin flip
   const closeCoinFlip = async () => {
-    if (userPermission !== 'admin' && !isCreator && !isSuperAdmin(getUserEmail(user))) return;
+    if (userPermission !== 'admin' && !isCreator && !isUserSuperAdmin(user)) return;
 
     const draftRef = doc(db, 'drafts', DRAFT_ID);
     await updateDoc(draftRef, {
@@ -1570,6 +1557,53 @@ function TournamentPage() {
     }, 2000);
   };
 
+  // ─── SUPER ADMIN BYPASSES ───
+  const skipCoinFlipAnimation = async () => {
+    if (!user || !draftState.preAssignedTeams || !draftState.coinFlip) return;
+    if (!isUserSuperAdmin(user)) return;
+
+    const result = Math.random() < 0.5 ? 'blue' : 'red';
+    const winner = result === 'blue' ? 1 : 2;
+    const choices = ['first', 'second'];
+    const turnChoice = choices[Math.floor(Math.random() * choices.length)];
+
+    const draftRef = doc(db, 'drafts', DRAFT_ID);
+    await updateDoc(draftRef, {
+      'coinFlip.result': result,
+      'coinFlip.winner': winner,
+      'coinFlip.winnerTurnChoice': turnChoice,
+      'coinFlip.phase': 'done',
+      'coinFlip.phaseChangedAt': Date.now()
+    });
+
+    logActivity({
+      user,
+      type: 'ADMIN',
+      action: 'skip_coin_flip',
+      metadata: { draftId: DRAFT_ID, winner, turnChoice }
+    });
+
+    continueDraftAfterCoinFlip(winner, turnChoice);
+  };
+
+  const skipRouletteAnimation = async () => {
+    if (!user || !isUserSuperAdmin(user)) return;
+    if (draftState.status !== 'assignment' || !draftState.finalAssignments) return;
+
+    setShowRoulette(false);
+    setRoulettePhase('done');
+
+    logActivity({
+      user,
+      type: 'ADMIN',
+      action: 'skip_roulette',
+      metadata: { draftId: DRAFT_ID }
+    });
+
+    const timerMs = draftState.timerDuration || 30 * 1000;
+    await finalizeDraft(timerMs, draftState.finalAssignments, draftState.assignmentLeaders);
+  };
+
   // Winner selects turn order (1st pick or 2nd pick)
   const selectTurnOrder = async (turnChoice) => {
     if (!user || !draftState.preAssignedTeams || !draftState.coinFlip) return;
@@ -1577,11 +1611,9 @@ function TournamentPage() {
     const { team1, team2 } = draftState.preAssignedTeams;
     const winningTeam = draftState.coinFlip.winner;
 
-    // Only the winning team's leader can select (Super Admins can override)
+    // Only the winning team's leader can select
     const winnerLeaderUid = winningTeam === 1 ? team1.leader : team2.leader;
-    const userEmail = getUserEmail(user);
-    const isSA = isSuperAdmin(userEmail);
-    if (user.uid !== winnerLeaderUid && !isSA) return;
+    if (user.uid !== winnerLeaderUid) return;
 
     const draftRef = doc(db, 'drafts', DRAFT_ID);
     await updateDoc(draftRef, {
@@ -1783,7 +1815,7 @@ function TournamentPage() {
   // Helper: can this user see private battle codes?
   // isCreator: true if this user created the draft (for settings access even when userPermission is a team letter)
   const isCreator = user && draftState.createdBy === user.uid;
-  const isParticipantOrAdmin = userPermission === 'A' || userPermission === 'B' || userPermission === 'admin' || isCreator || isSuperAdmin(getUserEmail(user));
+  const isParticipantOrAdmin = userPermission === 'A' || userPermission === 'B' || userPermission === 'admin' || isCreator || isUserSuperAdmin(user);
 
   // Listen to auth state
   // Listen for authentication state changes and user Firestore data
@@ -1990,7 +2022,7 @@ function TournamentPage() {
 
   // Listen to team chat messages
   useEffect(() => {
-    const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
+    const isAdmin = userPermission === 'admin' || isUserSuperAdmin(user);
     const effectiveTeam = isAdmin ? adminChatTeam : userPermission;
 
     // Only listen if user is on a team (A or B) or is an admin
@@ -2022,7 +2054,7 @@ function TournamentPage() {
 
   // Listen to participant chat messages (Team A, Team B, and Admins)
   useEffect(() => {
-    const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
+    const isAdmin = userPermission === 'admin' || isUserSuperAdmin(user);
     const isParticipant = userPermission === 'A' || userPermission === 'B';
 
     // Only listen if participant or admin
@@ -2053,7 +2085,7 @@ function TournamentPage() {
 
   // Listen to spectator chat messages (Viewers and Admins)
   useEffect(() => {
-    const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
+    const isAdmin = userPermission === 'admin' || isUserSuperAdmin(user);
     const isSpectator = userPermission === 'spectator';
 
     // Only listen if spectator or admin
@@ -2091,7 +2123,7 @@ function TournamentPage() {
 
   // Set default chat tab
   useEffect(() => {
-    const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
+    const isAdmin = userPermission === 'admin' || isUserSuperAdmin(user);
     if (userPermission === 'spectator') {
       setChatTab('spectator');
     } else if (draftState.draftType === 'mode3' || draftState.draftType === 'mode4') {
@@ -2105,7 +2137,7 @@ function TournamentPage() {
 
   // Listen to typing indicators
   useEffect(() => {
-    const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
+    const isAdmin = userPermission === 'admin' || isUserSuperAdmin(user);
     if (!user || !userPermission || (!isAdmin && userPermission !== 'A' && userPermission !== 'B' && userPermission !== 'spectator')) {
       setTypingUsers({});
       return;
@@ -2689,7 +2721,7 @@ function TournamentPage() {
     }
 
     // Admins and owners can see their own team's picks
-    if (userPermission === 'admin' || isSuperAdmin(getUserEmail(user)) || userPermission === team) {
+    if (userPermission === 'admin' || isUserSuperAdmin(user) || userPermission === team) {
       return true;
     }
 
@@ -2776,7 +2808,7 @@ function TournamentPage() {
 
     if (!chatInput.trim() || !user || isSendingMessage) return;
 
-    const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
+    const isAdmin = userPermission === 'admin' || isUserSuperAdmin(user);
 
     // For team chat, only team members (A or B) can send
     if (chatTab === 'team' && !isAdmin && userPermission !== 'A' && userPermission !== 'B') return;
@@ -2866,7 +2898,7 @@ function TournamentPage() {
   const handleTypingInput = (e) => {
     setChatInput(e.target.value);
 
-    const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
+    const isAdmin = userPermission === 'admin' || isUserSuperAdmin(user);
     if (!user || !userPermission || (!isAdmin && userPermission !== 'A' && userPermission !== 'B' && userPermission !== 'spectator')) return;
 
     // Only allow spectators to type in their tab if they are not anonymous
@@ -2890,7 +2922,7 @@ function TournamentPage() {
 
   // Update typing status in Firestore
   const updateTypingStatus = async (isCurrentlyTyping) => {
-    const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
+    const isAdmin = userPermission === 'admin' || isUserSuperAdmin(user);
     if (!user || !userPermission || (!isAdmin && userPermission !== 'A' && userPermission !== 'B' && userPermission !== 'spectator')) return;
 
     let typingCollection;
@@ -3213,7 +3245,7 @@ function TournamentPage() {
       return;
     }
 
-    const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
+    const isAdmin = userPermission === 'admin' || isUserSuperAdmin(user);
     if (userPermission !== team && !isAdmin) return;
 
     const isTeamLeader = (team === 'A' && user.uid === draftState.teamALeader) ||
@@ -3246,27 +3278,23 @@ function TournamentPage() {
 
   // Mode 4: Ban Draft Selection logic
   const handleMode4Selection = useCallback(async (amikoId, userTeam, isAdmin) => {
-    // Derive effective team for SA
-    let effectiveUserTeam = userTeam;
-    if (isAdmin && !effectiveUserTeam) {
-      effectiveUserTeam = draftState.currentTeam; // SA picks for the current team
-    }
-
-    if (!effectiveUserTeam && !isAdmin) {
+    if (!userTeam && !isAdmin) {
       showAlert('Not a Participant', 'Only the two draft participants can pick!');
       return;
     }
 
-    // LEADER-ONLY check (Super Admins bypass)
-    const isTeamLeader = (effectiveUserTeam === 'A' && user.uid === draftState.teamALeader) ||
-      (effectiveUserTeam === 'B' && user.uid === draftState.teamBLeader);
-    if (!isTeamLeader && !isAdmin) {
+    // LEADER-ONLY check
+    const isTeamLeader = (userTeam === 'A' && user.uid === draftState.teamALeader) ||
+      (userTeam === 'B' && user.uid === draftState.teamBLeader);
+    const isSA = isUserSuperAdmin(user);
+
+    if (!isTeamLeader && !isAdmin && !isSA) {
       showAlert('Captain Only', 'Only the team captain can make selections.');
       return;
     }
 
-    // Check if it's this team's turn (Super Admins bypass)
-    if (effectiveUserTeam !== draftState.currentTeam && !isAdmin) {
+    // Check if it's this team's turn
+    if (userTeam !== draftState.currentTeam && !isAdmin && !isSA) {
       showAlert('Not Your Turn', `It's ${draftState.currentTeam === 'A' ? 'Player 1' : 'Player 2'}'s turn!`);
       return;
     }
@@ -3350,12 +3378,6 @@ function TournamentPage() {
       const teams = draftState.preAssignedTeams || {};
       if (teams.team1?.leader === user.uid) effectiveTeam = 'A';
       else if (teams.team2?.leader === user.uid) effectiveTeam = 'B';
-      // Super Admin who isn't a participant: pick for A first, then B
-      const isSA = isSuperAdmin(getUserEmail(user));
-      if (isSA && effectiveTeam !== 'A' && effectiveTeam !== 'B') {
-        const aFull = (draftState.teamA?.length || 0) >= 3;
-        effectiveTeam = aFull ? 'B' : 'A';
-      }
     }
 
     // In 1v1 mode, check if user is a participant
@@ -3365,7 +3387,8 @@ function TournamentPage() {
     }
 
     // Check if team is locked
-    if (isTeamLocked(userTeam)) {
+    const isSA = isUserSuperAdmin(user);
+    if (isTeamLocked(userTeam) && !isSA) {
       showAlert('Picks Locked', 'You have already locked your picks!');
       return;
     }
@@ -3375,7 +3398,7 @@ function TournamentPage() {
     const myPicks = effectiveTeam === 'A' ? draftState.teamA : draftState.teamB;
 
     // Check if user is trying to pick from their own pool
-    if (!myPool?.includes(amikoId)) {
+    if (!myPool?.includes(amikoId) && !isSA) {
       showAlert('Not Your Amiko', 'You can only pick from your assigned Amikos!');
       return;
     }
@@ -3417,7 +3440,7 @@ function TournamentPage() {
 
     const isCaptainA = user.uid === draftState.teamALeader;
     const isCaptainB = user.uid === draftState.teamBLeader;
-    const isSA = isSuperAdmin(getUserEmail(user));
+    const isSA = isUserSuperAdmin(user);
 
     if (!isCaptainA && !isCaptainB && !isSA) {
       showAlert('Captain Only', 'Only team captains can ban Amikos.');
@@ -3456,7 +3479,7 @@ function TournamentPage() {
 
     const isCaptainA = user.uid === draftState.teamALeader;
     const isCaptainB = user.uid === draftState.teamBLeader;
-    const isSA = isSuperAdmin(getUserEmail(user));
+    const isSA = isUserSuperAdmin(user);
 
     let effectiveBanTeam = isCaptainA ? 'A' : isCaptainB ? 'B' : null;
     if (isSA && !effectiveBanTeam) {
@@ -3576,17 +3599,12 @@ function TournamentPage() {
     }
 
     // Check if it's the current team's turn
-    // Derive effective team for admins — SA always picks for the current team
+    // Derive effective team for admins
     let effectiveTeam = userPermission;
     if (isAdmin) {
       const teams = draftState.preAssignedTeams || {};
       if (teams.team1?.leader === user.uid) effectiveTeam = 'A';
       else if (teams.team2?.leader === user.uid) effectiveTeam = 'B';
-      // Super Admin who isn't a participant: pick for current team
-      const isSA = isSuperAdmin(getUserEmail(user));
-      if (isSA && effectiveTeam !== 'A' && effectiveTeam !== 'B') {
-        effectiveTeam = draftState.currentTeam;
-      }
     }
 
     if (effectiveTeam !== draftState.currentTeam) {
@@ -3594,10 +3612,10 @@ function TournamentPage() {
       return;
     }
 
-    // LEADER-ONLY: Check if user is the team leader (Super Admins bypass)
+    // LEADER-ONLY: Check if user is the team leader
     const isTeamLeader = (draftState.currentTeam === 'A' && user.uid === draftState.teamALeader) ||
       (draftState.currentTeam === 'B' && user.uid === draftState.teamBLeader);
-    const isSA = isSuperAdmin(getUserEmail(user));
+    const isSA = isUserSuperAdmin(user);
 
     if (!isTeamLeader && !isSA) {
       showAlert('Captain Only', 'Only the team captain can make picks. Suggest picks in team chat!');
@@ -3661,7 +3679,8 @@ function TournamentPage() {
     }
 
     // Don't allow picks while waiting for lock confirmation
-    if (draftState.awaitingLockConfirmation) {
+    const isSA = isUserSuperAdmin(user);
+    if (draftState.awaitingLockConfirmation && !isSA) {
       showAlert('Confirm Picks', 'Please confirm your picks before continuing!');
       return;
     }
@@ -3671,7 +3690,7 @@ function TournamentPage() {
       return;
     }
 
-    const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
+    const isAdmin = userPermission === 'admin' || isUserSuperAdmin(user);
     const userTeam = userPermission === 'A' ? 'A' : userPermission === 'B' ? 'B' : null;
 
     // Route to appropriate handler based on draft type
@@ -3700,10 +3719,10 @@ function TournamentPage() {
       return;
     }
 
-    const isAdmin = userPermission === 'admin' || isSuperAdmin(getUserEmail(user));
+    const isAdmin = userPermission === 'admin' || isUserSuperAdmin(user);
     if (userPermission !== team && !isAdmin) return;
 
-    // LEADER-ONLY: Check if user is the team leader (Super Admins bypass)
+    // LEADER-ONLY: Check if user is the team leader
     const isTeamLeader = (team === 'A' && user.uid === draftState.teamALeader) ||
       (team === 'B' && user.uid === draftState.teamBLeader);
 
@@ -3735,7 +3754,7 @@ function TournamentPage() {
 
   // ─── FORCE PROCEED: Super admin fallback when server timer doesn't fire ───
   const forceProceed = async () => {
-    if (!isSuperAdmin(getUserEmail(user))) return;
+    if (!isUserSuperAdmin(user)) return;
     if (draftState.status !== 'active') {
       showAlert('Not Active', 'The draft is not active.');
       return;
@@ -3860,7 +3879,7 @@ function TournamentPage() {
 
   // Reset draft
   const resetDraft = () => {
-    if (userPermission !== 'admin' && !isCreator && !isSuperAdmin(getUserEmail(user))) return;
+    if (userPermission !== 'admin' && !isCreator && !isUserSuperAdmin(user)) return;
 
     setShowAdminPanel(false);
 
@@ -3922,7 +3941,7 @@ function TournamentPage() {
       setSearchQuery('');
     };
 
-    if (isSuperAdmin(getUserEmail(user))) {
+    if (isUserSuperAdmin(user)) {
       performReset();
     } else {
       (async () => {
@@ -3937,7 +3956,7 @@ function TournamentPage() {
 
   // Start timer manually
   const startTimer = async () => {
-    if (userPermission !== 'admin' && !isCreator && !isSuperAdmin(getUserEmail(user))) return;
+    if (userPermission !== 'admin' && !isCreator && !isUserSuperAdmin(user)) return;
     if (draftState.status !== 'active') return;
     if (draftState.timerStarted) return;
 
@@ -3957,7 +3976,7 @@ function TournamentPage() {
 
   // Delete tournament
   const deleteTournament = () => {
-    if (userPermission !== 'admin' && !isCreator && !isSuperAdmin(getUserEmail(user))) return;
+    if (userPermission !== 'admin' && !isCreator && !isUserSuperAdmin(user)) return;
 
     setShowAdminPanel(false);
     setShowRoulette(false); // Stop UI animations immediately
@@ -4650,6 +4669,7 @@ function TournamentPage() {
     setShowLineupPreview,
     isTeamLocked,
     lock1v1Picks,
+    isUserSuperAdmin,
     isSuperAdmin,
     getUserEmail,
     getPICK_ORDER,
@@ -4682,6 +4702,8 @@ function TournamentPage() {
     setIsCoinFlipHidden,
     registeredUsers,
     isAccountLinked,
+    skipCoinFlipAnimation,
+    skipRouletteAnimation,
     // Per-player battle code visibility
     getUserBattleIndex
   };
@@ -4736,17 +4758,17 @@ function TournamentPage() {
           <div className="header-info">
             {user ? (
               <>
-                <span className={`user-role ${isSuperAdmin(getUserEmail(user)) ? 'super-admin' :
+                <span className={`user-role ${isUserSuperAdmin(user) ? 'super-admin' :
                   userPermission === 'admin' ? '' :
                     userPermission === 'A' ? `team-${draftState.teamColors?.teamA || 'blue'}` :
                       userPermission === 'B' ? `team-${draftState.teamColors?.teamB || 'red'}` : ''}`}>
-                  {isSuperAdmin(getUserEmail(user)) ? '⭐ Super Admin' :
+                  {isUserSuperAdmin(user) ? '⭐ Super Admin' :
                     userPermission === 'admin' ? '👑 Host' :
                       userPermission === 'A' ? `${draftState.teamColors?.teamA === 'blue' ? '🔵' : '🔴'} ${getUserDisplayName(user)}` :
                         userPermission === 'B' ? `${draftState.teamColors?.teamB === 'blue' ? '🔵' : '🔴'} ${getUserDisplayName(user)}` : ''}
                   {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder" style={{ marginLeft: '4px' }}>🛡️</span>}
                 </span>
-                {(userPermission === 'admin' || isCreator || isSuperAdmin(getUserEmail(user))) && (
+                {(userPermission === 'admin' || isCreator || isUserSuperAdmin(user)) && (
                   (() => {
                     const is1v1 = ['mode3', 'mode4'].includes(draftState.draftType);
                     const isParticipant = user && draftState.preAssignedTeams && (
@@ -4754,7 +4776,7 @@ function TournamentPage() {
                       user.uid === draftState.preAssignedTeams.team2?.leader
                     );
                     const isDraftActive = draftState.status === 'active';
-                    const hideSettings = is1v1 && isParticipant && isDraftActive && !isSuperAdmin(getUserEmail(user));
+                    const hideSettings = is1v1 && isParticipant && isDraftActive && !isUserSuperAdmin(user);
 
                     if (hideSettings) return null;
 
@@ -4894,7 +4916,7 @@ function TournamentPage() {
                   <div className="modal-header-actions">
                     <h2>{draftState.draftType === 'mode3' ? '✅ Please Confirm' : '🪙 Flip Coin'}</h2>
                     <div className="modal-header-actions-group">
-                      {(userPermission === 'admin' || isCreator || isSuperAdmin(getUserEmail(user))) && (
+                      {(userPermission === 'admin' || isCreator || isUserSuperAdmin(user)) && (
                         <button className="close-modal-btn" onClick={closeCoinFlip} title="Cancel Coin Flip">Close</button>
                       )}
                       <button className="hide-modal-btn" onClick={() => setIsCoinFlipHidden(true)}>Hide</button>
@@ -5025,33 +5047,15 @@ function TournamentPage() {
                       {/* Non-leaders see waiting message */}
                       {user && draftState.preAssignedTeams &&
                         user.uid !== draftState.preAssignedTeams.team1?.leader &&
-                        user.uid !== draftState.preAssignedTeams.team2?.leader &&
-                        !isSuperAdmin(getUserEmail(user)) && (
+                        user.uid !== draftState.preAssignedTeams.team2?.leader && (
                           <p className="waiting-message">Waiting for team leaders to confirm...</p>
                         )}
-
-                      {/* Super Admin Force Ready controls */}
-                      {user && isSuperAdmin(getUserEmail(user)) && (
-                          <div className="admin-force-ready">
-                            <p className="admin-override-label">👑 Super Admin Override</p>
-                            <div className="force-ready-buttons">
-                              <button
-                                className="roll-btn force-ready-btn"
-                                onClick={() => lockRoll('team1')}
-                                disabled={draftState.coinFlip.team1Locked}
-                              >
-                                {draftState.coinFlip.team1Locked ? '✓ T1 Ready' : `Force Ready: ${draftState.teamNames?.team1 || 'Team 1'}`}
-                              </button>
-                              <button
-                                className="roll-btn force-ready-btn"
-                                onClick={() => lockRoll('team2')}
-                                disabled={draftState.coinFlip.team2Locked}
-                              >
-                                {draftState.coinFlip.team2Locked ? '✓ T2 Ready' : `Force Ready: ${draftState.teamNames?.team2 || 'Team 2'}`}
-                              </button>
-                            </div>
-                          </div>
-                        )}
+                      {/* Super Admin Bypass */}
+                      {isUserSuperAdmin(user) && (
+                        <button className="skip-animation-btn sa-bypass" onClick={skipCoinFlipAnimation}>
+                          🎲 Force Random Toss
+                        </button>
+                      )}
                     </div>
                   )}
 
@@ -5090,8 +5094,7 @@ function TournamentPage() {
                       <p className="choice-text">
                         {user && draftState.preAssignedTeams && (
                           (draftState.coinFlip.winner === 1 && user.uid === draftState.preAssignedTeams.team1?.leader) ||
-                          (draftState.coinFlip.winner === 2 && user.uid === draftState.preAssignedTeams.team2?.leader) ||
-                          isSuperAdmin(getUserEmail(user))
+                          (draftState.coinFlip.winner === 2 && user.uid === draftState.preAssignedTeams.team2?.leader)
                         ) ? (
                           <>Choose your turn order:</>
                         ) : (
@@ -5099,11 +5102,10 @@ function TournamentPage() {
                         )}
                       </p>
 
-                      {/* Show turn choice buttons to winner OR Super Admin */}
+                      {/* Show turn choice buttons only to winner */}
                       {user && draftState.preAssignedTeams && (
                         (draftState.coinFlip.winner === 1 && user.uid === draftState.preAssignedTeams.team1?.leader) ||
-                        (draftState.coinFlip.winner === 2 && user.uid === draftState.preAssignedTeams.team2?.leader) ||
-                        isSuperAdmin(getUserEmail(user))
+                        (draftState.coinFlip.winner === 2 && user.uid === draftState.preAssignedTeams.team2?.leader)
                       ) && (
                           <div className="turn-choice-buttons">
                             <button
@@ -5140,6 +5142,11 @@ function TournamentPage() {
             <div className="modal-overlay roulette-overlay">
               <div className="roulette-modal">
                 <h2>🪙 Team Assignment</h2>
+                {isUserSuperAdmin(user) && (
+                  <button className="skip-animation-btn sa-bypass corner" onClick={skipRouletteAnimation}>
+                    ⚡ Skip Animation
+                  </button>
+                )}
 
                 {roulettePhase === 'scrambling' && (
                   <p className="scramble-text">Shuffling teams...</p>
@@ -5224,7 +5231,7 @@ function TournamentPage() {
 
         {/* Admin Panel Modal */}
         {
-          (userPermission === 'admin' || isCreator || isSuperAdmin(getUserEmail(user))) && showAdminPanel && (
+          (userPermission === 'admin' || isCreator || isUserSuperAdmin(user)) && showAdminPanel && (
             <div className="modal-overlay" onClick={() => setShowAdminPanel(false)}>
               <div className="admin-panel-modal" onClick={e => e.stopPropagation()}>
                 <div className="admin-panel-header">
@@ -5277,14 +5284,14 @@ function TournamentPage() {
                     )}
 
                     {/* Force Proceed - Super Admin only, when timer is frozen */}
-                    {isSuperAdmin(getUserEmail(user)) && draftState.status === 'active' && (
+                    {isUserSuperAdmin(user) && draftState.status === 'active' && (
                       <button onClick={forceProceed} className="action-btn force-proceed">
                         ⚡ Force Proceed
                       </button>
                     )}
 
                     {/* Mock Complete - Super Admin only, 3v3 modes only */}
-                    {isSuperAdmin(getUserEmail(user)) && ['mode1', 'mode2'].includes(draftState.draftType) && draftState.status !== 'completed' && (
+                    {isUserSuperAdmin(user) && ['mode1', 'mode2'].includes(draftState.draftType) && draftState.status !== 'completed' && (
                       <button
                         onClick={async () => {
                           const confirmed = await showConfirm('Mock Complete', 'Populate this draft with mock teams and skip to completed state? This is for testing only.');
@@ -5615,6 +5622,11 @@ function TournamentPage() {
                           <button onClick={triggerLockConfirmation} className="ready-to-lock-btn">
                             {isBan ? '🚫 Ready to Lock Bans' : '🔒 Ready to Lock Picks'}
                           </button>
+                          {isUserSuperAdmin(user) && (
+                            <button onClick={confirmLockPicks} className="ready-to-lock-btn sa-bypass-btn">
+                              ⚡ Confirm & Advance (SA Bypass)
+                            </button>
+                          )}
                         </>
                       );
                     }
@@ -5661,22 +5673,22 @@ function TournamentPage() {
           {['mode3', 'mode4'].includes(draftState.draftType) &&
             (draftState.status === 'active' || (draftState.status === 'completed' && !draftState.overallWinner)) && (
               <div className="central-concede-area">
-                {(userPermission === 'A' || isSuperAdmin(getUserEmail(user))) && (
+                {(userPermission === 'A' || isUserSuperAdmin(user)) && (
                   <button
                     className="concede-btn team-A"
                     onClick={() => handleConcede('A')}
-                    title={isSuperAdmin(getUserEmail(user)) ? `Concede for ${getTeamDisplayName('A')}` : "Concede Match"}
+                    title={isUserSuperAdmin(user) ? `Concede for ${getTeamDisplayName('A')}` : "Concede Match"}
                   >
-                    🏳️ {isSuperAdmin(getUserEmail(user)) ? `Concede ${getTeamDisplayName('A')}` : "Concede"}
+                    🏳️ {isUserSuperAdmin(user) ? `Concede ${getTeamDisplayName('A')}` : "Concede"}
                   </button>
                 )}
-                {(userPermission === 'B' || isSuperAdmin(getUserEmail(user))) && (
+                {(userPermission === 'B' || isUserSuperAdmin(user)) && (
                   <button
                     className="concede-btn team-B"
                     onClick={() => handleConcede('B')}
-                    title={isSuperAdmin(getUserEmail(user)) ? `Concede for ${getTeamDisplayName('B')}` : "Concede Match"}
+                    title={isUserSuperAdmin(user) ? `Concede for ${getTeamDisplayName('B')}` : "Concede Match"}
                   >
-                    🏳️ {isSuperAdmin(getUserEmail(user)) ? `Concede ${getTeamDisplayName('B')}` : "Concede"}
+                    🏳️ {isUserSuperAdmin(user) ? `Concede ${getTeamDisplayName('B')}` : "Concede"}
                   </button>
                 )}
               </div>
@@ -5776,7 +5788,7 @@ function TournamentPage() {
                 <span className="chat-icon">💬</span>
                 <span className="chat-label">
                   {chatTab === 'team'
-                    ? `${getTeamDisplayName((userPermission === 'admin' || isSuperAdmin(getUserEmail(user))) ? adminChatTeam : userPermission)} Chat`
+                    ? `${getTeamDisplayName((userPermission === 'admin' || isUserSuperAdmin(user)) ? adminChatTeam : userPermission)} Chat`
                     : chatTab === 'freeforall'
                       ? 'Participants Chat'
                       : 'Free For All Chat'}
@@ -5796,7 +5808,7 @@ function TournamentPage() {
                         className={`chat-tab ${chatTab === 'team' ? 'active' : ''}`}
                         onClick={() => setChatTab('team')}
                       >
-                        🔒 {(userPermission === 'admin' || isSuperAdmin(getUserEmail(user))) ? 'Team Chat' : `${getTeamDisplayName(userPermission)} Chat`}
+                        🔒 {(userPermission === 'admin' || isUserSuperAdmin(user)) ? 'Team Chat' : `${getTeamDisplayName(userPermission)} Chat`}
                         {chatMessages.length > 0 && <span className="tab-badge">{chatMessages.length}</span>}
                       </button>
                     )}
@@ -5821,7 +5833,7 @@ function TournamentPage() {
                   </div>
 
                   {/* Admin Team Chat Toggle */}
-                  {chatTab === 'team' && (userPermission === 'admin' || isSuperAdmin(getUserEmail(user))) && (
+                  {chatTab === 'team' && (userPermission === 'admin' || isUserSuperAdmin(user)) && (
                     <div className="admin-chat-toggle">
                       <button
                         className={`team-toggle-btn team-${draftState.teamColors?.teamA || 'blue'} ${adminChatTeam === 'A' ? 'active' : ''}`}
@@ -5839,7 +5851,7 @@ function TournamentPage() {
                   )}
 
                   <div className={`chat-messages team-${chatTab === 'team'
-                    ? ((userPermission === 'admin' || isSuperAdmin(getUserEmail(user)))
+                    ? ((userPermission === 'admin' || isUserSuperAdmin(user))
                       ? (draftState.teamColors?.[`team${adminChatTeam}`] || 'blue')
                       : (draftState.teamColors?.[`team${userPermission}`] || 'blue')
                     )
