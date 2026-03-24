@@ -27,7 +27,7 @@ import {
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { AMIKOS, getPICK_ORDER, ELEMENTS } from '../data/amikos';
 import { ElementBadge, RankStars } from '../components/AmikoEnhancements';
-import { isSuperAdmin } from '../config/admins';
+import { isSuperAdmin, isUserSuperAdmin } from '../config/admins';
 import { useSounds } from '../hooks/useSounds';
 import { createNotification } from '../services/notifications';
 import Mode1Draft from '../components/drafts/Mode1Draft';
@@ -4683,7 +4683,11 @@ function TournamentPage() {
     registeredUsers,
     isAccountLinked,
     // Per-player battle code visibility
-    getUserBattleIndex
+    getUserBattleIndex,
+    // Super Admin checks (user-object based)
+    isUserSuperAdmin,
+    skipCoinFlipAnimation: () => {}, // Stub — not yet implemented
+    skipRouletteAnimation: () => {}  // Stub — not yet implemented
   };
 
   const draftUtils = {

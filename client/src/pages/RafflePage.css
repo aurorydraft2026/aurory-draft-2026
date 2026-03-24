@@ -1,0 +1,417 @@
+.raffle-page {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  min-height: 100vh;
+  color: white;
+}
+
+/* ─── Page Header (matches Tournament/Matchup pages) ─── */
+.raffle-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.raffle-page-title h1 {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 800;
+  text-transform: capitalize;
+  background: linear-gradient(45deg, #fff, #b1a2ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.raffle-page-subtitle {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.45);
+  display: block;
+  margin-top: 0.2rem;
+}
+
+.back-home-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.7);
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.back-home-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+/* ─── AURY Prize Badge ─── */
+.aury-prize-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 150px;
+  height: 150px;
+  background: linear-gradient(135deg, #1e3a5f, #0f172a);
+  border-radius: 12px;
+  border: 2px solid #fbbf24;
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.2);
+}
+
+.aury-prize-badge .aury-amount {
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: #fbbf24;
+  line-height: 1;
+}
+
+.aury-prize-badge .aury-label {
+  font-size: 1rem;
+  font-weight: 700;
+  color: rgba(251, 191, 36, 0.7);
+  letter-spacing: 2px;
+}
+
+/* ─── Edit Button ─── */
+.raffle-btn.edit-btn {
+  background: rgba(33, 150, 243, 0.15);
+  color: #42a5f5;
+  border: 1px solid rgba(33, 150, 243, 0.3);
+  width: 100%;
+}
+
+.raffle-btn.edit-btn:hover {
+  background: rgba(33, 150, 243, 0.25);
+}
+
+.raffle-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 50vh;
+  font-size: 1.5rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.raffle-header {
+  background: rgba(25, 25, 45, 0.8);
+  border-radius: 20px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.item-info-top {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.raffle-item-large {
+  width: 150px;
+  height: 150px;
+  object-fit: contain;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.item-text-top h1 {
+  margin: 0 0 0.5rem 0;
+  font-size: 2.5rem;
+  background: linear-gradient(45deg, #fff, #b1a2ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.item-text-top p {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 1.1rem;
+  margin: 0 0 1rem 0;
+  max-width: 600px;
+}
+
+.raffle-item-link {
+  color: #8bc34a;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.raffle-item-link:hover {
+  color: #aed581;
+}
+
+.raffle-stats-strip {
+  display: flex;
+  gap: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 1.5rem;
+}
+
+.raffle-stat-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.raffle-stat-label {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.raffle-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #ffca28;
+}
+
+.raffle-main {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 2rem;
+}
+
+.wheel-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.admin-wheel-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  width: 100%;
+  max-width: 500px;
+}
+
+.raffle-btn.admin-shuffle,
+.raffle-btn.admin-mock,
+.raffle-btn.admin-start {
+    flex: 1;
+    min-width: 140px;
+    font-size: 0.85rem;
+    padding: 0.7rem 1rem;
+    white-space: normal;
+    text-align: center;
+}
+
+.raffle-btn {
+  padding: 0.8rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.raffle-btn.secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.raffle-btn.secondary:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.raffle-btn.admin-shuffle {
+    background: #673ab7;
+    color: white;
+}
+
+.raffle-btn.admin-mock {
+    background: #2196f3;
+    color: white;
+}
+
+.raffle-btn.admin-mock:hover {
+    background: #1e88e5;
+}
+
+.raffle-btn.admin-start {
+    background: #4caf50;
+    color: white;
+}
+
+.raffle-btn.admin-start:disabled {
+    background: #388e3c;
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.raffle-btn.danger {
+  background: rgba(244, 67, 54, 0.2);
+  color: #f44336;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.raffle-btn.danger:hover {
+  background: rgba(244, 67, 54, 0.3);
+}
+
+.raffle-actions-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.join-btn-large {
+  width: 100%;
+  padding: 1.5rem;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.join-btn-large:hover {
+  background: #1d4ed8;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(37, 99, 235, 0.4);
+}
+
+.join-btn-large.disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.joined-status {
+    padding: 1.5rem;
+    background: rgba(76, 175, 80, 0.1);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    border-radius: 12px;
+    color: #4caf50;
+    text-align: center;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.check {
+    margin-right: 0.5rem;
+}
+
+@media (max-width: 900px) {
+  .raffle-main {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .raffle-actions-aside {
+    order: -1;
+  }
+
+  .item-info-top {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+
+  .item-text-top h1 {
+    font-size: 1.8rem;
+  }
+
+  .raffle-stats-strip {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .raffle-stat-box {
+    align-items: center;
+  }
+}
+
+@media (max-width: 600px) {
+    .raffle-page {
+        padding: 1rem;
+    }
+
+    .raffle-page-header {
+        flex-direction: column;
+        gap: 0.8rem;
+        align-items: flex-start;
+    }
+
+    .raffle-page-title h1 {
+        font-size: 1.3rem;
+    }
+
+    .back-home-btn {
+        align-self: flex-end;
+    }
+
+    .raffle-header {
+        padding: 1.5rem;
+    }
+
+    .admin-wheel-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .raffle-btn.admin-shuffle,
+    .raffle-btn.admin-mock,
+    .raffle-btn.admin-start {
+        width: 100%;
+        min-width: unset;
+    }
+
+    .aury-prize-badge {
+        width: 100px;
+        height: 100px;
+    }
+
+    .aury-prize-badge .aury-amount {
+        font-size: 1.8rem;
+    }
+}
+
+/* Prize Celebration Button */
+.prize-celebration-btn {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b) !important;
+    color: #000 !important;
+    font-weight: 800 !important;
+    box-shadow: 0 4px 15px rgba(251, 191, 36, 0.3) !important;
+    margin-bottom: 1rem !important;
+    width: 100% !important;
+    padding: 1.2rem !important;
+    font-size: 1.1rem !important;
+    border: none !important;
+    border-radius: 12px !important;
+    cursor: pointer !important;
+    transition: all 0.2s !important;
+}
+
+.prize-celebration-btn:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(251, 191, 36, 0.4) !important;
+    filter: brightness(1.1) !important;
+}
+
+.admin-start.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #1e293b !important;
+    color: rgba(255,255,255,0.3) !important;
+}

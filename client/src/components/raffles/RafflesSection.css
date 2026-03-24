@@ -1,5 +1,6 @@
-.matchups-section {
-    margin-bottom: 40px;
+.raffles-section {
+    margin-bottom: 60px;
+    padding: 0 20px;
 }
 
 .section-header {
@@ -23,18 +24,18 @@
     line-height: 1.2;
 }
 
-.section-subtitle {
-    margin: 4px 0 0;
-    font-size: 0.9rem;
-    color: var(--text-secondary);
+.raffles-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
 }
 
-.create-matchup-btn-primary {
-    background: linear-gradient(90deg, #facc15 0%, #eab308 100%);
+.create-raffle-btn-primary {
+    background: linear-gradient(90deg, #818cf8 0%, #6366f1 100%);
     border: none;
     padding: 10px 20px;
     border-radius: 8px;
-    color: #000;
+    color: #fff;
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s;
@@ -46,19 +47,13 @@
     letter-spacing: 0.5px;
 }
 
-.create-matchup-btn-primary:hover {
+.create-raffle-btn-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(234, 179, 8, 0.4);
+    box-shadow: 0 5px 15px rgba(99, 102, 241, 0.4);
 }
 
-.matchups-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-}
-
-.matchups-loading,
-.no-matchups {
+.raffles-loading,
+.no-raffles {
     background: rgba(255, 255, 255, 0.02);
     border: 1px dashed rgba(255, 255, 255, 0.1);
     border-radius: 12px;
@@ -71,49 +66,13 @@
     gap: 16px;
 }
 
-.empty-icon {
-    font-size: 3rem;
-    opacity: 0.5;
-}
-
-.admin-hint {
-    font-size: 0.85rem;
-    color: #facc15;
-    opacity: 0.8;
-}
-
-.loader {
-    width: 32px;
-    height: 32px;
-    border: 3px solid rgba(255, 255, 255, 0.1);
-    border-top: 3px solid #00f2fe;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    100% {
-        transform: rotate(360deg);
-    }
-}
-
 @media (max-width: 768px) {
-    .section-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 16px;
-    }
-
-    .create-matchup-btn-primary {
+    .create-raffle-btn-primary {
         width: 100%;
         justify-content: center;
     }
 
-    .matchups-grid {
+    .raffles-grid {
         grid-template-columns: 1fr;
     }
 }

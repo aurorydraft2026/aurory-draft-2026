@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { auth, db, discordProvider, googleProvider } from '../firebase';
 import { signInWithPopup, signInWithRedirect, getRedirectResult, getAdditionalUserInfo, signOut, onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, getDocs, collection } from 'firebase/firestore';
+import { doc, setDoc, getDocs, collection, onSnapshot } from 'firebase/firestore';
 import { isSuperAdmin } from '../config/admins';
 import { logActivity } from '../services/activityService';
 
@@ -33,15 +33,42 @@ export const useAuth = (navigate) => {
 
         handleRedirectResult();
 
+        let unsubProfile = null;
+
         const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
             if (firebaseUser) {
                 setUser(firebaseUser);
+                
+                if (unsubProfile) {
+                    unsubProfile();
+                    unsubProfile = null;
+                }
+
+                const userRef = doc(db, 'users', firebaseUser.uid);
+                unsubProfile = onSnapshot(userRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const userData = docSnap.data();
+                        setUser(prevUser => {
+                            if (!prevUser || prevUser.uid !== firebaseUser.uid) return prevUser;
+                            return { ...prevUser, ...userData };
+                        });
+                    }
+                }, (error) => {
+                    console.error('Error listening to user profile:', error);
+                });
             } else {
                 setUser(null);
+                if (unsubProfile) {
+                    unsubProfile();
+                    unsubProfile = null;
+                }
             }
         });
 
-        return () => unsubscribe();
+        return () => {
+            unsubscribe();
+            if (unsubProfile) unsubProfile();
+        };
     }, []);
 
     // Fetch registered users for participant selection

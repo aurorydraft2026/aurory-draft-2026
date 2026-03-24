@@ -21,6 +21,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useNotifications } from '../hooks/useNotifications';
 import { useAppContent } from '../hooks/useAppContent';
 import MatchupsSection from '../components/MatchupsSection';
+import RafflesSection from '../components/raffles/RafflesSection';
 import MajorAnnouncementModal from '../components/MajorAnnouncementModal';
 import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
 import './HomePage.css';
@@ -528,6 +529,8 @@ function HomePage() {
             className="logo-mobile"
           />
         </div>
+
+
         <div className="auth-section">
           {user ? (
             <div className="user-info">
@@ -820,6 +823,9 @@ function HomePage() {
               </div>
             )}
 
+            {/* Raffles Section */}
+            <RafflesSection user={user} isAdmin={isAdmin} />
+
             {/* Matchups Section */}
             <MatchupsSection user={user} isAdmin={isAdmin} />
 
@@ -828,12 +834,13 @@ function HomePage() {
               <div className="tournaments-header">
                 <div className="header-title-group">
                   <h3>♟️All Drafts </h3>
-                  {user && (
-                    <button onClick={() => setShowCreateModal(true)} className="inline-create-btn">
-                      <span className="plus-icon">+</span> Create Draft
-                    </button>
-                  )}
+                  <p className="section-subtitle">Join community-created 3v3 and 1v1 drafts</p>
                 </div>
+                {user && (
+                  <button onClick={() => setShowCreateModal(true)} className="create-draft-btn-primary">
+                    <span className="plus-icon">+</span> Create Draft
+                  </button>
+                )}
               </div>
 
               {/* Filter Tabs */}

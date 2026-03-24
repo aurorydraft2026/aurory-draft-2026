@@ -1,0 +1,236 @@
+.create-modal.create-raffle-modal {
+    background: var(--bg-surface);
+    width: 90%;
+    max-width: 680px;
+    max-height: 85vh;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--border-default);
+    box-shadow: var(--shadow-elevated);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: modalSlideUp 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+@keyframes modalSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.create-raffle-modal .modal-header {
+    background: transparent;
+    padding: 20px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.create-raffle-modal .modal-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-family: 'Exo 2', sans-serif;
+    font-weight: 700;
+    color: var(--text-bright);
+}
+
+.create-raffle-modal .close-modal {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 6px 10px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.create-raffle-modal .close-modal:hover {
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+}
+
+.create-raffle-modal .modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.create-raffle-modal .form-group {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.create-raffle-modal .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.create-raffle-modal .form-group label {
+    display: block;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 6px;
+}
+
+.create-raffle-modal .form-input,
+.create-raffle-modal .form-textarea {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg-deep);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.88rem;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.create-raffle-modal .form-input:focus,
+.create-raffle-modal .form-textarea:focus {
+    outline: none;
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 0 3px var(--accent-cyan-glow);
+}
+
+.create-raffle-modal .modal-footer {
+    padding: 16px 24px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.create-raffle-modal .create-btn {
+    flex: 1;
+    padding: 12px;
+    background: linear-gradient(135deg, #818cf8, #6366f1);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-family: 'Exo 2', sans-serif;
+    font-weight: 700;
+    font-size: 0.9rem;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.create-raffle-modal .create-btn:hover:not(:disabled) {
+    box-shadow: 0 4px 24px rgba(99, 102, 241, 0.3);
+    transform: translateY(-1px);
+}
+
+.create-raffle-modal .cancel-btn {
+    flex: 1;
+    padding: 10px 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-family: 'Outfit', sans-serif;
+    font-weight: 500;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.create-raffle-modal .image-input-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.create-raffle-modal .upload-divider {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-align: center;
+}
+
+.create-raffle-modal .file-input {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.create-raffle-modal .raffle-image-preview {
+    margin-top: 15px;
+    width: 100%;
+    height: 120px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+}
+
+.create-raffle-modal .raffle-image-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+/* Entry Fee Group Styling */
+.create-raffle-modal .entry-fee-group {
+    margin-top: 4px;
+    padding: 14px 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+}
+
+.create-raffle-modal .checkbox-label {
+    display: flex !important;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-transform: none;
+    letter-spacing: 0;
+    margin-bottom: 0;
+}
+
+.create-raffle-modal .entry-fee-input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.create-raffle-modal .entry-fee-input-row .form-input {
+    flex: 1;
+    max-width: 200px;
+}
+
+.create-raffle-modal .fee-unit {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-family: 'Outfit', sans-serif;
+    white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+    .create-raffle-modal .form-row {
+        grid-template-columns: 1fr;
+    }
+}

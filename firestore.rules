@@ -431,5 +431,22 @@ service cloud.firestore {
         )
       );
     }
+
+    // =============================================
+    // RAFFLES
+    // =============================================
+    match /raffles/{raffleId} {
+      // Anyone can read raffles
+      allow read: if true;
+      
+      // Only admins can create/delete raffles
+      allow create, delete: if isAdmin();
+      
+      // Admins can update everything, users can only update the participants list to join
+      allow update: if isAdmin() || (
+        isAuthenticated() && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants', 'participantsCount', 'totalFeesCollected', 'updatedAt'])
+      );
+    }
   }
 }

@@ -11,6 +11,8 @@ import PrivacyPage from './pages/PrivacyPage';
 import MatchupPage from './pages/MatchupPage';
 import Footer from './components/Footer';
 import './App.css';
+import RafflePage from './pages/RafflePage';
+import RafflesListingPage from './pages/RafflesListingPage';
 import AdminPanel from './components/AdminPanel';
 
 function App() {
@@ -80,6 +82,8 @@ function App() {
             <Route path="/tournament/:tournamentId" element={<TournamentPage />} />
             <Route path="/admin/panel" element={<AdminPanel />} />
             <Route path="/matchup/:matchupId" element={<MatchupPage />} />
+            <Route path="/raffles" element={<RafflesListingPage />} />
+            <Route path="/raffle/:id" element={<RafflePage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
           </Routes>

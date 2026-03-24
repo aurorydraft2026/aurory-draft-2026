@@ -1,0 +1,256 @@
+.raffle-wheel-container {
+  position: relative;
+  width: 500px;
+  height: 500px;
+  margin: 2rem auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  user-select: none;
+}
+
+.raffle-wheel-outer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: visible;
+}
+
+/* Decorative outer ring */
+.wheel-outer-ring {
+  position: absolute;
+  width: calc(100% + 16px);
+  height: calc(100% + 16px);
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    #264653, #2a9d8f, #e9c46a, #f4a261, #e76f51,
+    #264653, #2a9d8f, #e9c46a, #f4a261, #e76f51,
+    #264653
+  );
+  z-index: -1;
+  box-shadow: 
+    0 0 30px rgba(0, 0, 0, 0.5),
+    inset 0 0 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Spinning wheel */
+.raffle-wheel-canvas {
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+  border-radius: 50%;
+  overflow: hidden;
+  /* Default: no transition (JS pre-spin uses none). 
+     The JS dynamically sets transition for the winner spin. */
+}
+
+.raffle-wheel-svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Slice text */
+.wheel-slice-text {
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  fill: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+/* Center button */
+.wheel-center-button {
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-radius: 50%;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  border: 5px solid #ffffff;
+  box-shadow: 
+    0 4px 15px rgba(0, 0, 0, 0.3),
+    inset 0 -2px 5px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+  color: #333;
+  font-weight: bold;
+}
+
+.wheel-center-button:hover {
+  transform: scale(1.08);
+  box-shadow: 
+    0 6px 20px rgba(0, 0, 0, 0.35),
+    inset 0 -2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.wheel-center-button:active {
+  transform: scale(0.95);
+}
+
+.wheel-center-button.disabled {
+  cursor: not-allowed;
+  transform: none;
+  opacity: 0.8;
+}
+
+.wheel-center-button.has-link {
+  cursor: pointer;
+  border-color: #fbbf24;
+  background: linear-gradient(135deg, #1e3a5f, #0f172a);
+}
+
+.wheel-center-button.has-link:hover {
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+}
+
+.wheel-center-button.aury-center {
+  background: linear-gradient(135deg, #1e3a5f, #0f172a);
+  border-color: #fbbf24;
+  width: 100px;
+  height: 100px;
+}
+
+.wheel-aury-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+
+.wheel-aury-num {
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: #fbbf24;
+}
+
+.wheel-aury-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: rgba(251, 191, 36, 0.7);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.wheel-item-icon {
+  font-size: 28px;
+}
+
+/* Arrow pointer — positioned at top */
+.wheel-arrow-container {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.wheel-arrow {
+  width: 0;
+  height: 0;
+  border-left: 16px solid transparent;
+  border-right: 16px solid transparent;
+  border-top: 30px solid #E63946;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.4));
+}
+
+/* Loading overlay on wheel */
+.wheel-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  animation: overlay-fadein 0.3s ease;
+}
+
+@keyframes overlay-fadein {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.wheel-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 255, 255, 0.15);
+  border-top-color: #fbbf24;
+  border-radius: 50%;
+  animation: spinner-rotate 0.8s linear infinite;
+}
+
+@keyframes spinner-rotate {
+  to { transform: rotate(360deg); }
+}
+
+.wheel-loading-text {
+  color: #ffffff;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .raffle-wheel-container {
+    width: 320px;
+    height: 320px;
+    margin: 1rem auto;
+  }
+  
+  .wheel-center-button {
+    width: 65px;
+    height: 65px;
+    border-width: 3px;
+  }
+  
+  .wheel-item-icon {
+    font-size: 20px !important;
+    width: 30px !important;
+    height: 30px !important;
+  }
+
+  .wheel-slice-text {
+    font-size: 10px;
+  }
+
+  .wheel-arrow-container {
+    top: -12px;
+  }
+
+  .wheel-arrow {
+    border-left-width: 12px;
+    border-right-width: 12px;
+    border-top-width: 22px;
+  }
+}
+
+@media (max-width: 380px) {
+  .raffle-wheel-container {
+    width: 280px;
+    height: 280px;
+  }
+}

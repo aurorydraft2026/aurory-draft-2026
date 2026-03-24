@@ -1,0 +1,136 @@
+.participants-modal {
+    max-width: 650px !important;
+    height: 70vh !important;
+    background: #0f172a !important; /* Ensure dark background */
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.participants-modal .modal-header h2 {
+    color: #ffffff !important;
+}
+
+.participants-modal .modal-header p {
+    color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.participants-modal .close-btn {
+    color: #ffffff !important;
+    opacity: 0.8;
+}
+
+.participants-modal .close-btn:hover {
+    opacity: 1;
+}
+
+.participants-grid-header {
+    display: grid;
+    grid-template-columns: 80px 1fr 150px 150px;
+    padding: 1.2rem 2rem;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    margin-bottom: 0.8rem;
+    font-weight: 800;
+    font-size: 0.9rem;
+    color: #ffffff !important; /* Force visibility */
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.participants-scroll-area {
+    max-height: calc(70vh - 220px);
+    overflow-y: auto;
+    padding-right: 8px;
+}
+
+.participants-scroll-area::-webkit-scrollbar {
+    width: 6px;
+}
+
+.participants-scroll-area::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 10px;
+}
+
+.participants-scroll-area::-webkit-scrollbar-thumb {
+    background: linear-gradient(to bottom, #2563eb, #7c3aed);
+    border-radius: 10px;
+}
+
+.participant-row {
+    display: grid;
+    grid-template-columns: 80px 1fr 150px 150px;
+    padding: 1.2rem 2rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    align-items: center;
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    margin-bottom: 4px;
+}
+
+.participant-row:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateX(5px);
+    border-color: rgba(37, 99, 235, 0.3);
+}
+
+.p-rank {
+    font-weight: 900;
+    color: #fbbf24;
+    font-size: 1.1rem;
+    text-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
+}
+
+.p-name {
+    font-weight: 700;
+    color: #ffffff;
+    font-size: 1rem;
+}
+
+.p-id {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.6);
+    letter-spacing: 0.5px;
+}
+
+.p-date {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.5);
+    text-align: right;
+    font-weight: 500;
+}
+
+.no-participants {
+    padding: 4rem;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.4);
+    font-style: italic;
+    font-size: 1.1rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 16px;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 650px) {
+    .participants-modal {
+        max-width: 95vw !important;
+        height: 85vh !important;
+    }
+
+    .participants-grid-header,
+    .participant-row {
+        grid-template-columns: 50px 1fr 0px 90px;
+        font-size: 0.8rem;
+        padding: 1rem;
+    }
+
+    .p-id {
+        display: none;
+    }
+    
+    .p-name {
+        font-size: 0.9rem;
+    }
+}

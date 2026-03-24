@@ -1,0 +1,266 @@
+.raffle-winner-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    backdrop-filter: blur(10px);
+}
+
+.raffle-winner-modal-content {
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+    width: 90%;
+    max-width: 500px;
+    max-height: 95vh;
+    overflow-y: auto;
+    border-radius: 24px;
+    border: 2px solid #fbbf24;
+    overflow-x: hidden;
+    position: relative;
+    box-shadow: 0 0 50px rgba(251, 191, 36, 0.3);
+    animation: winner-entrance 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.raffle-winner-modal-content::-webkit-scrollbar {
+    width: 4px;
+}
+
+.raffle-winner-modal-content::-webkit-scrollbar-thumb {
+    background: #fbbf24;
+    border-radius: 4px;
+}
+
+.raffle-prize-image-container {
+    margin-bottom: 1rem;
+    perspective: 1000px;
+}
+
+.raffle-prize-image {
+    width: 120px;
+    height: 120px;
+    object-fit: contain;
+    filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.5));
+    animation: prize-float 3s infinite ease-in-out;
+}
+
+@keyframes prize-float {
+    0%, 100% { transform: translateY(0) rotateY(0deg); }
+    50% { transform: translateY(-10px) rotateY(10deg); }
+}
+
+@keyframes winner-entrance {
+    from { transform: scale(0.7) translateY(50px); opacity: 0; }
+    to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.raffle-winner-shine {
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(251, 191, 36, 0.1) 0%, transparent 70%);
+    animation: shine-rotate 10s linear infinite;
+}
+
+@keyframes shine-rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.raffle-winner-body {
+    padding: 3rem 2rem;
+    position: relative;
+    z-index: 10;
+    text-align: center;
+}
+
+.raffle-celebration-container {
+    margin-bottom: 1.5rem;
+}
+
+.raffle-trophy-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.raffle-trophy-main {
+    font-size: 6rem;
+    display: block;
+    filter: drop-shadow(0 0 20px rgba(251, 191, 36, 0.8));
+    animation: trophy-bounce 2s infinite ease-in-out;
+}
+
+@keyframes trophy-bounce {
+    0%, 100% { transform: translateY(0) rotate(-5deg); }
+    50% { transform: translateY(-15px) rotate(5deg); }
+}
+
+.raffle-sparkle {
+    position: absolute;
+    font-size: 1.5rem;
+    animation: sparkle-anim 1.5s infinite;
+}
+
+.s1 { top: -10px; left: -10px; animation-delay: 0s; }
+.s2 { top: -20px; right: -10px; animation-delay: 0.5s; }
+.s3 { bottom: 10px; right: -20px; animation-delay: 1s; }
+
+@keyframes sparkle-anim {
+    0%, 100% { transform: scale(0); opacity: 0; }
+    50% { transform: scale(1.2); opacity: 1; }
+}
+
+.raffle-winner-title {
+    font-size: 2rem;
+    font-weight: 900;
+    background: linear-gradient(to bottom, #fbbf24, #d97706);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin: 0 0 1rem 0;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    word-break: break-word;
+}
+
+.raffle-winner-profile {
+    margin: 2rem 0;
+}
+
+.winner-avatar {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    border-radius: 50%;
+    margin: 0 auto 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: white;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.raffle-winner-name {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: white;
+    margin-bottom: 0.2rem;
+}
+
+.raffle-winner-id {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.5);
+    font-family: monospace;
+}
+
+.raffle-win-box {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.raffle-win-box p {
+    margin: 0 0 0.5rem 0;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 1rem;
+}
+
+.raffle-prize-name {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #fbbf24;
+}
+
+.raffle-winner-note {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.4);
+    line-height: 1.5;
+    margin-bottom: 2rem;
+}
+
+.raffle-winner-claim-btn {
+    width: 100%;
+    background: linear-gradient(to right, #fbbf24, #f59e0b);
+    color: #000;
+    border: none;
+    padding: 1rem;
+    font-size: 1.2rem;
+    font-weight: 800;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+}
+
+.raffle-winner-claim-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+    filter: brightness(1.1);
+}
+
+.raffle-winner-claim-btn:active {
+    transform: translateY(0);
+}
+
+/* AURY Prize Display */
+.raffle-prize-aury {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    margin: 1rem 0;
+}
+
+.prize-aury-amount {
+    font-size: 3rem;
+    font-weight: 900;
+    color: #fbbf24;
+    line-height: 1;
+}
+
+.prize-aury-unit {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: rgba(251, 191, 36, 0.7);
+    letter-spacing: 3px;
+}
+
+/* Mobile fixes */
+@media (max-width: 500px) {
+    .raffle-winner-body {
+        padding: 2rem 1.2rem;
+    }
+
+    .raffle-winner-title {
+        font-size: 1.4rem;
+        letter-spacing: 1px;
+    }
+
+    .raffle-trophy-main {
+        font-size: 4rem;
+    }
+
+    .raffle-winner-name {
+        font-size: 1.3rem;
+    }
+
+    .prize-aury-amount {
+        font-size: 2.2rem;
+    }
+
+    .raffle-winner-modal-content {
+        width: 95%;
+        max-height: 90vh;
+    }
+}
