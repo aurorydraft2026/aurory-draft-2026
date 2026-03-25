@@ -443,6 +443,12 @@ const MatchupPage = () => {
     const handleJoin = async () => {
         if (!user) return;
 
+        // Auto-show connect modal if Aurory account not linked
+        if (profile && !profile.auroryPlayerId) {
+            setShowLinkModal(true);
+            return;
+        }
+
         // Anti-duplicate check
         const isAlreadyIn = (matchup.participantUids || []).includes(user.uid);
         if (isAlreadyIn) {

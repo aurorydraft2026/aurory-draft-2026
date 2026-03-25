@@ -103,6 +103,50 @@
     overflow: hidden;
 }
 
+/* Raffle-specific override to preserve line breaks */
+.raffles-section .matchup-description {
+    white-space: pre-wrap;
+    display: block;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+    overflow: visible;
+}
+
+.raffle-prize-display {
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.raffle-prize-image-sm {
+    max-height: 80px;
+    width: auto;
+    object-fit: contain;
+}
+
+.raffle-aury-prize-sm {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+}
+
+.raffle-aury-icon-sm {
+    width: 32px;
+    height: 32px;
+}
+
+.raffle-aury-amount-sm {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #ffca28;
+    font-family: 'Exo 2', sans-serif;
+}
+
 .matchup-details {
     display: flex;
     flex-direction: column;

@@ -16,13 +16,16 @@ import RaffleWheel from '../components/raffles/RaffleWheel';
 import RaffleParticipantsModal from '../components/raffles/RaffleParticipantsModal';
 import RaffleWinnerModal from '../components/raffles/RaffleWinnerModal';
 import CreateRaffleModal from '../components/raffles/CreateRaffleModal';
+import AuroryAccountLink from '../components/AuroryAccountLink';
 import './RafflePage.css';
 
-const RafflePage = () => {
+  const RafflePage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, isAdminUser } = useAuth(navigate);
+  const { user, isAdminUser, setShowLoginModal } = useAuth(navigate);
   const { formatAuryAmount } = useWallet(user);
+
+  console.log('🔍 RafflePage Auth State:', { user, isAdminUser });
 
   const [raffle, setRaffle] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -30,6 +33,7 @@ const RafflePage = () => {
   const [showParticipants, setShowParticipants] = useState(false);
   const [showWinner, setShowWinner] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showAuroryModal, setShowAuroryModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
 
@@ -57,12 +61,12 @@ const RafflePage = () => {
 
   const handleJoin = async () => {
     if (!user) {
-      alert('Please login to join the raffle');
+      setShowLoginModal(true);
       return;
     }
 
     if (!user.auroryPlayerId) {
-        alert('Please connect your Aurory account first');
+        setShowAuroryModal(true);
         return;
     }
 
@@ -224,6 +228,16 @@ const RafflePage = () => {
                         <div className="joined-status">
                             <span className="check">✓</span> You are in this raffle
                         </div>
+                    ) : (!user || user.isAnonymous) ? (
+                        <div className="guest-join-container">
+                            <button 
+                                className="join-btn-large disabled"
+                                disabled
+                            >
+                                Join Raffle
+                            </button>
+                            <p className="login-note">Log in to participate</p>
+                        </div>
                     ) : (
                         <button 
                             className={`join-btn-large ${!canJoin ? 'disabled' : ''}`}
@@ -284,6 +298,12 @@ const RafflePage = () => {
           editData={raffle}
         />
       )}
+
+      <AuroryAccountLink
+        user={user}
+        isOpen={showAuroryModal}
+        onClose={() => setShowAuroryModal(false)}
+      />
     </div>
   );
 };

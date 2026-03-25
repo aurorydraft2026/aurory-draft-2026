@@ -32,10 +32,10 @@ const RafflesSection = ({ user, isAdmin }) => {
     }, []);
 
     return (
-        <section className="raffles-section">
+        <section className="tournaments-section raffles-section">
             <div className="section-header">
                 <div className="header-title-group">
-                    <h3>🎟️ active Raffles</h3>
+                    <h3>🎟️ All Raffles</h3>
                     <p className="section-subtitle">Win premium items and tokens in our community raffles</p>
                 </div>
                 {isAdmin && (
@@ -51,7 +51,7 @@ const RafflesSection = ({ user, isAdmin }) => {
                     <span>Loading raffles...</span>
                 </div>
             ) : raffles.length > 0 ? (
-                <div className="raffles-grid">
+                <div className="tournaments-grid raffles-grid">
                     {raffles.map(raffle => (
                         <RaffleHomeCard
                             key={raffle.id}

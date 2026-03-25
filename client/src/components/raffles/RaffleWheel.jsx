@@ -38,6 +38,7 @@ const RaffleWheel = ({
   const wheelRef = useRef(null);
   const preSpinRef = useRef(null);
   const isPreSpinning = useRef(false);
+  const isInternalSpinningRef = useRef(false);
 
   const isSpinning = externalIsSpinning || internalIsSpinning;
 
@@ -73,7 +74,7 @@ const RaffleWheel = ({
         if (!isPreSpinning.current) return;
         const delta = now - lastTime;
         lastTime = now;
-        setRotation(prev => prev + (delta * 0.08)); // Slow idle ~30 deg/sec
+        setRotation(prev => prev + (delta * 0.015)); // Even slower idle ~5 deg/sec
         preSpinRef.current = requestAnimationFrame(animatePreSpin);
       };
       preSpinRef.current = requestAnimationFrame(animatePreSpin);
@@ -95,6 +96,7 @@ const RaffleWheel = ({
 
   const startSpinAnimation = useCallback(() => {
     setInternalIsSpinning(true);
+    isInternalSpinningRef.current = true;
 
     const winnerIndex = participants.findIndex(p => p.uid === winnerId);
     if (winnerIndex === -1) {
@@ -102,39 +104,52 @@ const RaffleWheel = ({
       return;
     }
 
-    const spinDuration = 10000 + Math.random() * 4000; // 10-14 seconds for extra thrill!
-
-    // Re-enable the CSS transition with a dramatic ease-out
+    // Phase 1: Fast linear spin (The "Sustained Thrill")
+    const fastDuration = 6000; // 6 seconds of max speed
+    const fastestSpeed = 3.5; // rotations per second (high energy)
+    
+    // Calculate how much we'll rotate in Phase 1
+    const fastRotationDelta = (fastDuration / 1000) * fastestSpeed * 360;
+    const fastRotationTarget = rotation + fastRotationDelta;
+    
     if (wheelRef.current) {
-      wheelRef.current.style.transition = `transform ${spinDuration / 1000}s cubic-bezier(0.0, 0.6, 0.1, 1.0)`;
+      wheelRef.current.style.transition = `transform ${fastDuration / 1000}s linear`;
     }
+    setRotation(fastRotationTarget);
 
-    const extraCircles = 12 + Math.floor(Math.random() * 6); // 12-18 full circles
-    const winnerAngle = winnerIndex * sliceAngle;
-
-    // Random jitter: scatter within the middle 70% of the slice (avoid edges)
-    const randomOffset = (Math.random() * 0.7 - 0.35) * sliceAngle;
-
-    // The final rotation (mod 360) MUST equal (270 - winnerAngle + jitter)
-    // because: slice at winnerAngle + finalRotation = 270° (top arrow position)
-    const desiredFinalAngle = ((270 - winnerAngle + randomOffset) % 360 + 360) % 360;
-
-    // Calculate how much to rotate from the current position to reach desiredFinalAngle
-    const currentAngle = ((rotation % 360) + 360) % 360;
-    let delta = desiredFinalAngle - currentAngle;
-    if (delta <= 0) delta += 360; // Always rotate forward
-
-    // Add extra full circles for the dramatic spin effect
-    const targetRotation = rotation + delta + (extraCircles * 360);
-    setRotation(targetRotation);
-
-    // When the CSS transition ends, fire the callback
+    // Phase 2: Deceleration to winner
     setTimeout(() => {
+      // Ensure we're still spinning (hasn't been stopped)
+      if (!isInternalSpinningRef.current) return;
+
+      const slowDuration = 11000 + Math.random() * 2000; // ~12 seconds deceleration
+      const extraCircles = 12 + Math.floor(Math.random() * 6); // More circles for longer duration
+      const winnerAngle = winnerIndex * sliceAngle;
+
+      // Random jitter: scatter within the middle 70% of the slice
+      const randomOffset = (Math.random() * 0.7 - 0.35) * sliceAngle;
+      const desiredFinalAngle = ((270 - winnerAngle + randomOffset) % 360 + 360) % 360;
+
+      // Calculate where we are now (at the end of Phase 1)
+      const currentAngle = ((fastRotationTarget % 360) + 360) % 360;
+      let slowDelta = desiredFinalAngle - currentAngle;
+      if (slowDelta <= 0) slowDelta += 360; // Always rotate forward
+
+      const finalRotation = fastRotationTarget + slowDelta + (extraCircles * 360);
+
+      if (wheelRef.current) {
+        wheelRef.current.style.transition = `transform ${slowDuration / 1000}s cubic-bezier(0.1, 0.45, 0.1, 1.0)`;
+      }
+      setRotation(finalRotation);
+
+      // Final completion
       setTimeout(() => {
         setInternalIsSpinning(false);
+        isInternalSpinningRef.current = false;
         if (onSpinEnd) onSpinEnd();
-      }, 800);
-    }, spinDuration);
+      }, slowDuration + 500);
+
+    }, fastDuration);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [participants, winnerId, sliceAngle, rotation, onSpinEnd]);

@@ -10,7 +10,7 @@ const RaffleHomeCard = ({ raffle }) => {
     };
 
     return (
-        <div className={`matchup-card raffle-card-style ${raffle.status}`} onClick={handleView}>
+        <div className={`tournament-card ${raffle.status}`} onClick={handleView}>
             <div className="card-content">
                 <div className="tournament-header">
                     <h4 className="matchup-title">{raffle.itemType} Raffle</h4>
@@ -18,10 +18,21 @@ const RaffleHomeCard = ({ raffle }) => {
                         <span className="mode-badge mode-mode3">
                             RAFFLE
                         </span>
-                        <span className={`status-badge ${raffle.status}`}>
+                        <span className={`status-badge ${raffle.status === 'completed' ? 'ended' : raffle.status}`}>
                             {raffle.status === 'active' ? 'Open' : raffle.status === 'spinning' ? 'Spinning' : raffle.status === 'completed' ? 'Ended' : raffle.status}
                         </span>
                     </div>
+                </div>
+                
+                <div className="raffle-prize-display">
+                    {raffle.itemType === 'aury' ? (
+                        <div className="raffle-aury-prize-sm">
+                            <img src="/aury-icon.png" alt="AURY" className="raffle-aury-icon-sm" />
+                            <span className="raffle-aury-amount-sm">{raffle.auryAmount}</span>
+                        </div>
+                    ) : (
+                        raffle.itemImage && <img src={raffle.itemImage} alt={raffle.itemType} className="raffle-prize-image-sm" />
+                    )}
                 </div>
 
                 <p className="matchup-description">{raffle.description}</p>

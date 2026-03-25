@@ -1,6 +1,5 @@
 .raffles-section {
     margin-bottom: 60px;
-    padding: 0 20px;
 }
 
 .section-header {
@@ -10,25 +9,9 @@
     margin-bottom: 24px;
 }
 
-.header-title-group h3 {
-    margin: 0;
-    font-family: 'Exo 2', sans-serif;
-    font-weight: 800;
-    font-size: 1.5rem;
-    color: var(--text-bright);
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    border-left: 3px solid var(--accent-cyan);
-    padding-left: 12px;
-    background: radial-gradient(circle at left, rgba(0, 200, 255, 0.08) 0%, transparent 60%);
-    line-height: 1.2;
-}
+/* Inherited styles from HomePage.css */
 
-.raffles-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-}
+
 
 .create-raffle-btn-primary {
     background: linear-gradient(90deg, #818cf8 0%, #6366f1 100%);
@@ -66,13 +49,18 @@
     gap: 16px;
 }
 
+/* Red Ended Badge */
+.status-badge.ended {
+    background: rgba(239, 68, 68, 0.1) !important;
+    color: #ef4444 !important;
+    border: 1px solid rgba(239, 68, 68, 0.2) !important;
+}
+
+
+
 @media (max-width: 768px) {
     .create-raffle-btn-primary {
         width: 100%;
         justify-content: center;
-    }
-
-    .raffles-grid {
-        grid-template-columns: 1fr;
     }
 }

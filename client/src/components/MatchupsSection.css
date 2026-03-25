@@ -9,19 +9,7 @@
     margin-bottom: 24px;
 }
 
-.header-title-group h3 {
-    margin: 0;
-    font-family: 'Exo 2', sans-serif;
-    font-weight: 800;
-    font-size: 1.5rem;
-    color: var(--text-bright);
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    border-left: 3px solid var(--accent-cyan);
-    padding-left: 12px;
-    background: radial-gradient(circle at left, rgba(0, 200, 255, 0.08) 0%, transparent 60%);
-    line-height: 1.2;
-}
+/* Inherited styles from HomePage.css */
 
 .section-subtitle {
     margin: 4px 0 0;

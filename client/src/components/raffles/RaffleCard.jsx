@@ -29,7 +29,15 @@ const RaffleCard = ({ raffle }) => {
   return (
     <div className="raffle-card" onClick={() => navigate(`/raffle/${id}`)}>
       <div className="raffle-card-image-container">
-        <img src={itemImage || '/images/default-item.png'} alt={itemType} className="raffle-card-image" />
+        {itemType === 'aury' ? (
+          <div className="raffle-card-aury-prize">
+            <img src="/aury-icon.png" alt="AURY" className="raffle-card-aury-icon" />
+            <span className="raffle-card-aury-amount">{raffle.auryAmount}</span>
+            <span className="raffle-card-aury-label">AURY</span>
+          </div>
+        ) : (
+          <img src={itemImage || '/images/default-item.png'} alt={itemType} className="raffle-card-image" />
+        )}
         {isCompleted && <div className="raffle-winner-badge">Winner: {winner?.playerName}</div>}
       </div>
       

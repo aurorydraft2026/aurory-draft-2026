@@ -466,6 +466,12 @@ function HomePage() {
       tournament.joinable &&
       tournament.status === 'waiting';
 
+    // NEW: Automated linkage check for joining
+    if (isJoinable && user && !isParticipating && !user.auroryPlayerId) {
+      setShowAuroryModal(true);
+      return;
+    }
+
     // If joinable and user isn't already a participant, show rules first
     if (isJoinable && user && !isParticipating) {
       setSelectedTournamentForRules(tournament);
@@ -583,16 +589,18 @@ function HomePage() {
                 )}
               </div>
 
-              {/* Theme Toggle */}
-              <button
-                className="theme-toggle-btn"
-                onClick={toggleTheme}
-                title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-              >
-                <span className={`theme-icon ${theme}`}>
-                  {theme === 'dark' ? '☀️' : '🌙'}
-                </span>
-              </button>
+              {/* Theme Toggle - Admin Only */}
+              {isAdmin && (
+                <button
+                  className="theme-toggle-btn"
+                  onClick={toggleTheme}
+                  title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                >
+                  <span className={`theme-icon ${theme}`}>
+                    {theme === 'dark' ? '☀️' : '🌙'}
+                  </span>
+                </button>
+              )}
 
               {/* Clickable Profile Section */}
               <div className="profile-menu-container" ref={profileMenuRef}>
@@ -633,15 +641,17 @@ function HomePage() {
             </div>
           ) : (
             <div className="login-container">
-              <button
-                className="theme-toggle-btn"
-                onClick={toggleTheme}
-                title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-              >
-                <span className={`theme-icon ${theme}`}>
-                  {theme === 'dark' ? '☀️' : '🌙'}
-                </span>
-              </button>
+              {isAdmin && (
+                <button
+                  className="theme-toggle-btn"
+                  onClick={toggleTheme}
+                  title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                >
+                  <span className={`theme-icon ${theme}`}>
+                    {theme === 'dark' ? '☀️' : '🌙'}
+                  </span>
+                </button>
+              )}
               <button
                 className="btn-primary login-trigger-btn"
                 onClick={() => setShowLoginModal(true)}
@@ -831,7 +841,7 @@ function HomePage() {
 
             {/* Drafts Grid */}
             <div className="tournaments-section">
-              <div className="tournaments-header">
+              <div className="section-header">
                 <div className="header-title-group">
                   <h3>♟️All Drafts </h3>
                   <p className="section-subtitle">Join community-created 3v3 and 1v1 drafts</p>

@@ -32,6 +32,7 @@
   color: rgba(255, 255, 255, 0.45);
   display: block;
   margin-top: 0.2rem;
+  white-space: pre-wrap;
 }
 
 .back-home-btn {
@@ -139,6 +140,7 @@
   font-size: 1.1rem;
   margin: 0 0 1rem 0;
   max-width: 600px;
+  white-space: pre-wrap;
 }
 
 .raffle-item-link {
@@ -309,6 +311,18 @@
 
 .check {
     margin-right: 0.5rem;
+}
+
+.login-note {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    padding: 10px;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.85rem;
+    margin-top: 1rem;
+    text-align: center;
+    font-weight: 500;
 }
 
 @media (max-width: 900px) {

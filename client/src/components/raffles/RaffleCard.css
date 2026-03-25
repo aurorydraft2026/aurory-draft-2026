@@ -32,6 +32,40 @@
   padding: 1.5rem;
 }
 
+.raffle-card-aury-prize {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.1) 0%, transparent 70%);
+}
+
+.raffle-card-aury-icon {
+  width: 60px;
+  height: 60px;
+  margin-bottom: 0.5rem;
+  filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.4));
+}
+
+.raffle-card-aury-amount {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #ffca28;
+  line-height: 1;
+}
+
+.raffle-card-aury-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: rgba(251, 191, 36, 0.6);
+  letter-spacing: 1px;
+}
+
 .raffle-card-content {
   padding: 1.5rem;
   display: flex;
@@ -54,11 +88,7 @@
   color: white;
   margin-bottom: 1rem;
   line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  white-space: pre-wrap;
 }
 
 .raffle-card-info {

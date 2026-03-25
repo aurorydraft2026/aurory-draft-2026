@@ -106,6 +106,7 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
                 <option value="amiko">Amiko</option>
                 <option value="eggs">Eggs</option>
                 <option value="skins">Skins</option>
+                <option value="aurorian">Aurorian</option>
                 <option value="aury">AURY</option>
                 <option value="other">Other</option>
               </select>
