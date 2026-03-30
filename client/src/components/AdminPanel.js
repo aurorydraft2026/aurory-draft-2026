@@ -227,6 +227,15 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   const [selectedCreditCurrency, setSelectedCreditCurrency] = useState('AURY');
   const [selectedDeductCurrency, setSelectedDeductCurrency] = useState('AURY');
 
+  // Valcoins Global Configuration state
+  const [valcoinConfig, setValcoinConfig] = useState({
+    dailyCheckIn: 10,
+    linkAurory: 50,
+    joinRaffle: 20,
+    joinTournament: 30
+  });
+  const [valcoinConfigLoading, setValcoinConfigLoading] = useState(false);
+
   // Handle image upload to Base64
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -618,6 +627,32 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     return () => unsubscribe();
   }, [activeTab]);
 
+  // Fetch Valcoin Settings
+  useEffect(() => {
+    if (activeTab !== 'manage_valcoins') return;
+
+    setValcoinConfigLoading(true);
+    const docRef = doc(db, 'settings', 'valcoin_rewards');
+
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setValcoinConfig({
+          dailyCheckIn: data.dailyCheckIn ?? 10,
+          linkAurory: data.linkAurory ?? 50,
+          joinRaffle: data.joinRaffle ?? 20,
+          joinTournament: data.joinTournament ?? 30
+        });
+      }
+      setValcoinConfigLoading(false);
+    }, (error) => {
+      console.error('Error fetching valcoin config:', error);
+      setValcoinConfigLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [activeTab]);
+
   const handleSaveAnnouncement = async () => {
     setProcessingId('save_announcement');
     try {
@@ -644,6 +679,43 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       alert('Error saving announcement settings: ' + error.message);
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  const handleSaveValcoinConfig = async () => {
+    setProcessingId('save_valcoins');
+    try {
+      await setDoc(doc(db, 'settings', 'valcoin_rewards'), {
+        ...valcoinConfig,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.uid,
+        updatedByName: resolveDisplayName(user)
+      }, { merge: true });
+
+      alert('Valcoin configuration saved successfully!');
+      
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'update_valcoin_config',
+        metadata: valcoinConfig
+      });
+    } catch (error) {
+      console.error('Error saving valcoin config:', error);
+      alert('Error saving valcoin config: ' + error.message);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRestoreValcoinDefaults = () => {
+    if (window.confirm('Are you sure you want to restore the default Valcoin values?')) {
+      setValcoinConfig({
+        dailyCheckIn: 10,
+        linkAurory: 50,
+        joinRaffle: 20,
+        joinTournament: 30
+      });
     }
   };
 
@@ -1761,36 +1833,44 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       <div className="admin-layout">
         <div className="admin-sidebar">
           {/* Balance Category */}
-          {isSuperAdminUser && (
-            <div className={`admin-category ${expandedCategory === 'balance' ? 'expanded' : ''}`}>
-              <div
-                className="category-title"
-                onClick={() => {
-                  console.log('Toggling balance. Current:', expandedCategory);
-                  setExpandedCategory(expandedCategory === 'balance' ? '' : 'balance');
-                }}
-                role="button"
-                tabIndex={0}
-              >
-                <h3>Balance</h3>
-                <span className="mobile-only-arrow">{expandedCategory === 'balance' ? '▲' : '▼'}</span>
-              </div>
-              <div className="category-tabs">
-                <button
-                  className={`admin-tab ${activeTab === 'credit' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('credit')}
-                >
-                  💰 Manual Credit
-                </button>
-                <button
-                  className={`admin-tab ${activeTab === 'deduct' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('deduct')}
-                >
-                  📉 Deductions
-                </button>
-              </div>
+          <div className={`admin-category ${expandedCategory === 'balance' ? 'expanded' : ''}`}>
+            <div
+              className="category-title"
+              onClick={() => {
+                console.log('Toggling balance. Current:', expandedCategory);
+                setExpandedCategory(expandedCategory === 'balance' ? '' : 'balance');
+              }}
+              role="button"
+              tabIndex={0}
+            >
+              <h3>Balance</h3>
+              <span className="mobile-only-arrow">{expandedCategory === 'balance' ? '▲' : '▼'}</span>
             </div>
-          )}
+            <div className="category-tabs">
+              {isSuperAdminUser && (
+                <>
+                  <button
+                    className={`admin-tab ${activeTab === 'credit' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('credit')}
+                  >
+                    💰 Manual Credit
+                  </button>
+                  <button
+                    className={`admin-tab ${activeTab === 'deduct' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('deduct')}
+                  >
+                    📉 Deductions
+                  </button>
+                </>
+              )}
+              <button
+                className={`admin-tab ${activeTab === 'manage_valcoins' ? 'active' : ''}`}
+                onClick={() => setActiveTab('manage_valcoins')}
+              >
+                🛡️ Manage Valcoins
+              </button>
+            </div>
+          </div>
 
           {/* Transactions Category */}
           <div className={`admin-category ${expandedCategory === 'transactions' ? 'expanded' : ''}`}>
@@ -2676,7 +2756,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             </div>
           )}
 
-          {activeTab === 'credit' && (
+          {activeTab === 'credit' && isSuperAdminUser && (
             <div className="credit-section">
               <div className="section-info">
                 <p>📥 Select multiple players to credit AURY or USDC simultaneously.</p>
@@ -2805,7 +2885,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             </div>
           )}
 
-          {activeTab === 'deduct' && (
+          {activeTab === 'deduct' && isSuperAdminUser && (
             <div className="credit-section deduct-section">
               <div className="section-info deduct-info">
                 <p>📉 Subtract balance from users for corrections or adjustments.</p>
@@ -2931,6 +3011,85 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   {processingId === 'deduct' ? 'Processing...' : `📉 Deduct balance from ${selectedDeductUsers.length} Users`}
                 </button>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'manage_valcoins' && (
+            <div className="manage-valcoins-section">
+              <div className="section-info">
+                <p>⚙️ Configure the default number of Valcoins users earn globally for various activities.</p>
+              </div>
+
+              {valcoinConfigLoading ? (
+                <LoadingScreen message="Loading configuration..." />
+              ) : (
+                <div className="credit-form">
+                  <h3>Valcoin Rewards Matrix</h3>
+                  
+                  <div className="form-group" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '15px' }}>
+                    <div className="input-group">
+                      <label>Daily Check-In Default</label>
+                      <input
+                        type="number"
+                        min="0"
+                        className="credit-input"
+                        value={valcoinConfig.dailyCheckIn}
+                        onChange={(e) => setValcoinConfig({...valcoinConfig, dailyCheckIn: parseInt(e.target.value) || 0})}
+                      />
+                    </div>
+
+                    <div className="input-group">
+                      <label>Link Aurory Profile</label>
+                      <input
+                        type="number"
+                        min="0"
+                        className="credit-input"
+                        value={valcoinConfig.linkAurory}
+                        onChange={(e) => setValcoinConfig({...valcoinConfig, linkAurory: parseInt(e.target.value) || 0})}
+                      />
+                    </div>
+
+                    <div className="input-group">
+                      <label>Join a Raffle</label>
+                      <input
+                        type="number"
+                        min="0"
+                        className="credit-input"
+                        value={valcoinConfig.joinRaffle}
+                        onChange={(e) => setValcoinConfig({...valcoinConfig, joinRaffle: parseInt(e.target.value) || 0})}
+                      />
+                    </div>
+
+                    <div className="input-group">
+                      <label>Join a Tournament</label>
+                      <input
+                        type="number"
+                        min="0"
+                        className="credit-input"
+                        value={valcoinConfig.joinTournament}
+                        onChange={(e) => setValcoinConfig({...valcoinConfig, joinTournament: parseInt(e.target.value) || 0})}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="action-buttons" style={{ marginTop: '30px' }}>
+                    <button 
+                      className="approve-btn" 
+                      onClick={handleSaveValcoinConfig}
+                      disabled={processingId === 'save_valcoins'}
+                    >
+                      {processingId === 'save_valcoins' ? 'Saving...' : '💾 Save Configuration'}
+                    </button>
+                    <button 
+                      className="reject-btn"
+                      onClick={handleRestoreValcoinDefaults}
+                      disabled={processingId === 'save_valcoins'}
+                    >
+                      🔄 Restore Defaults
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -3129,6 +3288,18 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                   onChange={async (e) => {
                                     const newRole = e.target.value;
                                     try {
+                                      if (newRole === 'delete') {
+                                        if (!window.confirm(`⚠️ WARNING: Are you SURE you want to permanently delete user ${resolveDisplayName(u)}? This will remove their platform profile data.`)) {
+                                          e.target.value = u.role || 'user'; 
+                                          return;
+                                        }
+                                        setProcessingId(`role-${u.id}`);
+                                        await deleteDoc(doc(db, 'users', u.id));
+                                        setAllUsers(prev => prev.filter(user => user.id !== u.id));
+                                        alert(`✅ User gracefully deleted.`);
+                                        return;
+                                      }
+
                                       setProcessingId(`role-${u.id}`);
                                       const userRef = doc(db, 'users', u.id);
                                       await updateDoc(userRef, {
@@ -3140,8 +3311,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                       ));
                                       alert(`✅ Role updated for ${resolveDisplayName(u)}`);
                                     } catch (error) {
-                                      console.error('Error updating role:', error);
-                                      alert('Error updating role: ' + error.message);
+                                      console.error('Error updating role/deleting:', error);
+                                      alert('Error: ' + error.message);
+                                      e.target.value = u.role || 'user';
                                     } finally {
                                       setProcessingId(null);
                                     }
@@ -3151,6 +3323,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 >
                                   <option value="user">User</option>
                                   <option value="admin">Admin</option>
+                                  {isSuperAdminUser && <option value="delete">🗑️ Delete User</option>}
                                 </select>
                                 <button
                                   className="manage-btn"

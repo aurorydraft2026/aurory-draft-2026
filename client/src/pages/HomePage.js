@@ -126,7 +126,8 @@ function HomePage() {
     leaderboardMode, setLeaderboardMode,
     selectedMonth, setSelectedMonth,
     availableMonths,
-    topPlayers
+    topPlayers,
+    topValcoinsUsers
   } = useLeaderboard(registeredUsers);
 
   const {
@@ -1227,6 +1228,45 @@ function HomePage() {
                 )}
               </div>
             </div>
+
+            {/* Top Valcoins section */}
+            <div className="top-players-section valcoins-leaderboard">
+              <div className="top-players-header">
+                <h3>✨ Top Valcoins Earners</h3>
+              </div>
+              <div className="top-players-list">
+                {!topValcoinsUsers || topValcoinsUsers.length === 0 ? (
+                  <div className="top-players-empty">
+                    <p>No players with Valcoins yet</p>
+                  </div>
+                ) : (
+                  topValcoinsUsers.map((item, idx) => {
+                    return (
+                      <div key={item.uid || item.id} className={`top-player-row ${idx < 3 ? `rank-${idx + 1}` : ''}`}>
+                        <span className="top-player-rank">
+                          {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
+                        </span>
+
+                        <img
+                          src={resolveAvatar(item)}
+                          alt=""
+                          className="top-player-avatar"
+                          onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                        />
+
+                        <div className="top-player-info">
+                          <span className="top-player-name">{resolveDisplayName(item)}</span>
+                        </div>
+                        <div className="top-player-winrate valcoin-amount" style={{ color: '#fbcd02', fontWeight: 700 }}>
+                          {(item.points || 0).toLocaleString()} <span style={{fontSize:'0.8em'}}>Valcoins</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
             {/* Best Player of the Month */}
             <div className="top-players-section">
               <div className="top-players-header">

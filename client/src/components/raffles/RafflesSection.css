@@ -63,4 +63,35 @@
         width: 100%;
         justify-content: center;
     }
+
+    /* Convert grid to horizontal carousel on mobile */
+    .tournaments-grid.raffles-grid {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-snap-type: x mandatory;
+        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
+        gap: 16px;
+        padding-bottom: 24px; /* Space for shadow/scroll */
+        
+        /* Full bleed scrolling to negate container padding (14px from HomePage.css) */
+        margin-left: -14px;
+        margin-right: -14px;
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+
+    .tournaments-grid.raffles-grid > * {
+        flex: 0 0 85%;
+        min-width: 280px;
+        max-width: 340px;
+        scroll-snap-align: center;
+        margin-bottom: 0; /* Override any grid item margins */
+    }
+
+    .tournaments-grid.raffles-grid::-webkit-scrollbar {
+        display: none; /* Hide scrollbar completely on mobile for sleek look */
+    }
 }

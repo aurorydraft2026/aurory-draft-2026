@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
-import { doc, onSnapshot, updateDoc, setDoc, arrayUnion, arrayRemove, deleteDoc, collection, getDocs, query, where, documentId, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, setDoc, arrayUnion, arrayRemove, deleteDoc, collection, getDoc, getDocs, query, where, documentId, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { isUserSuperAdmin } from '../config/admins';
 import JoinTeamModal from '../components/JoinTeamModal';
@@ -494,8 +494,16 @@ const MatchupPage = () => {
                 });
             });
 
-            // Award points for joining tournament (+30)
-            await awardPoints(user.uid, 30, 'tournament_join', `Joined tournament: ${matchup.title || 'Untitled'}`);
+            // Award points for joining tournament (Dynamic from Settings)
+            let pointsAmount = 30;
+            const configRef = doc(db, 'settings', 'valcoin_rewards');
+            const configSnap = await getDoc(configRef);
+            if (configSnap.exists()) {
+                pointsAmount = configSnap.data().joinTournament ?? 30;
+            }
+            if (pointsAmount > 0) {
+                await awardPoints(user.uid, pointsAmount, 'tournament_join', `Joined tournament: ${matchup.title || 'Untitled'}`);
+            }
 
             alert(ENTRY_FEE > 0 ? `Tournament joined successfully! ${(ENTRY_FEE / 1e9).toFixed(2)} AURY deducted.` : 'Tournament joined successfully!');
         } catch (err) {
@@ -575,10 +583,18 @@ const MatchupPage = () => {
                 });
             });
 
-            // Award points for all members (+30 each)
-            await Promise.allSettled(uidsToAdd.map(uid => 
-                awardPoints(uid, 30, 'tournament_join', `Joined tournament: ${matchup.title || 'Untitled'}`)
-            ));
+            // Award points for all members (Dynamic from Settings)
+            let pointsAmount = 30;
+            const configRef = doc(db, 'settings', 'valcoin_rewards');
+            const configSnap = await getDoc(configRef);
+            if (configSnap.exists()) {
+                pointsAmount = configSnap.data().joinTournament ?? 30;
+            }
+            if (pointsAmount > 0) {
+                await Promise.allSettled(uidsToAdd.map(uid => 
+                    awardPoints(uid, pointsAmount, 'tournament_join', `Joined tournament: ${matchup.title || 'Untitled'}`)
+                ));
+            }
 
             alert(ENTRY_FEE > 0 ? `Team joined tournament successfully! ${(ENTRY_FEE / 1e9).toFixed(2)} AURY deducted from each member.` : 'Team joined tournament successfully!');
         } catch (err) {

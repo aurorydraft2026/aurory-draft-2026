@@ -260,8 +260,8 @@ service cloud.firestore {
         allow update, delete: if isAdmin();
       }
       
-      // No one can delete users
-      allow delete: if false;
+      // Only Super Admins can delete users
+      allow delete: if isSuperAdmin();
     }
 
     // Notifications subcollection (Dedicated match for clarity)

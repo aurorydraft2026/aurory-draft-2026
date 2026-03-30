@@ -14,6 +14,7 @@ export const useAuth = (navigate) => {
     const [showLogoutSuccessModal, setShowLogoutSuccessModal] = useState(false);
     const [isAuthenticating, setIsAuthenticating] = useState(false);
     const [registeredUsers, setRegisteredUsers] = useState([]);
+    const [dailyCheckInAmount, setDailyCheckInAmount] = useState(10);
     const profileMenuRef = useRef(null);
 
     // Auth state listener and redirect result handler
@@ -91,6 +92,13 @@ export const useAuth = (navigate) => {
     useEffect(() => {
         if (user) {
             fetchRegisteredUsers();
+            const configRef = doc(db, 'settings', 'valcoin_rewards');
+            const unsubConfig = onSnapshot(configRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    setDailyCheckInAmount(docSnap.data().dailyCheckIn ?? 10);
+                }
+            });
+            return () => unsubConfig();
         }
     }, [user]);
 
@@ -281,7 +289,7 @@ export const useAuth = (navigate) => {
         
         try {
             const userRef = doc(db, 'users', user.uid);
-            await runTransaction(db, async (transaction) => {
+            const awardedAmount = await runTransaction(db, async (transaction) => {
                 const userDoc = await transaction.get(userRef);
                 if (!userDoc.exists()) throw new Error('User not found');
                 
@@ -294,26 +302,35 @@ export const useAuth = (navigate) => {
                     throw new Error('You have already checked in today! Come back tomorrow.');
                 }
                 
+                let amount = 10;
+                const configRef = doc(db, 'settings', 'valcoin_rewards');
+                const configSnap = await transaction.get(configRef);
+                if (configSnap.exists()) {
+                    amount = configSnap.data().dailyCheckIn ?? 10;
+                }
+                
                 transaction.update(userRef, {
-                    points: increment(10),
+                    points: increment(amount),
                     lastDailyCheckIn: todayStr,
                     updatedAt: serverTimestamp()
                 });
                 
                 const historyRef = doc(collection(db, 'users', user.uid, 'pointsHistory'));
                 transaction.set(historyRef, {
-                    amount: 10,
+                    amount: amount,
                     type: 'daily_checkin',
                     description: 'Daily check-in reward',
                     timestamp: serverTimestamp()
                 });
+                
+                return amount;
             });
 
             logActivity({
                 user,
                 type: 'POINTS',
                 action: 'daily_checkin',
-                metadata: { amount: 10 }
+                metadata: { amount: awardedAmount }
             });
 
             // Note: points update will be reflected automatically via onSnapshot listener
@@ -365,13 +382,21 @@ export const useAuth = (navigate) => {
                             <span className="stat-label">✨ Total Valcoins</span>
                             <span className="stat-value">{user.points || 0}</span>
                         </div>
-                        <button 
-                            className={`daily-checkin-btn ${user.lastDailyCheckIn === new Date().toISOString().split('T')[0] ? 'checked-in' : ''}`}
-                            onClick={handleDailyCheckIn}
-                            disabled={user.lastDailyCheckIn === new Date().toISOString().split('T')[0]}
-                        >
-                            {user.lastDailyCheckIn === new Date().toISOString().split('T')[0] ? '✅ Checked In Today' : '📅 Daily Check-in (+10)'}
-                        </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <button 
+                                className={`daily-checkin-btn ${user.lastDailyCheckIn === new Date().toISOString().split('T')[0] ? 'checked-in' : ''}`}
+                                onClick={handleDailyCheckIn}
+                                disabled={user.lastDailyCheckIn === new Date().toISOString().split('T')[0] || !user.auroryPlayerId}
+                                style={!user.auroryPlayerId ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                            >
+                                {user.lastDailyCheckIn === new Date().toISOString().split('T')[0] ? '✅ Checked In Today' : `📅 Daily Check-in (+${dailyCheckInAmount})`}
+                            </button>
+                            {!user.auroryPlayerId && (
+                                <span style={{ fontSize: '12px', color: '#ff4d4d', textAlign: 'center', marginTop: '-4px' }}>
+                                    ⚠️ Connect your Aurory account to check in.
+                                </span>
+                            )}
+                        </div>
                     </div>
 
                     <div className="user-modal-actions">

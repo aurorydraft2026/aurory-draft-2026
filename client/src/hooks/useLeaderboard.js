@@ -185,6 +185,15 @@ export const useLeaderboard = (registeredUsers) => {
         return Array.from(months).sort().reverse();
     }, [matchHistory]);
 
+    // Compute top Valcoins users
+    const topValcoinsUsers = useMemo(() => {
+        if (!registeredUsers) return [];
+        return [...registeredUsers]
+            .filter(u => (u.points || 0) > 0)
+            .sort((a, b) => (b.points || 0) - (a.points || 0))
+            .slice(0, 10);
+    }, [registeredUsers]);
+
     return {
         matchHistory,
         matchHistoryLoading,
@@ -193,6 +202,7 @@ export const useLeaderboard = (registeredUsers) => {
         leaderboardMode, setLeaderboardMode,
         selectedMonth, setSelectedMonth,
         availableMonths,
-        topPlayers
+        topPlayers,
+        topValcoinsUsers
     };
 };

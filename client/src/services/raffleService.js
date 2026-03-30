@@ -153,29 +153,38 @@ export async function joinRaffle(raffleId, user, auroryData) {
         updatedAt: serverTimestamp()
       });
 
-      // Award Points (+20)
-      const userRef = doc(db, 'users', user.uid);
-      transaction.update(userRef, {
-        points: increment(20),
-        updatedAt: serverTimestamp()
-      });
+      // Award Points (Dynamic configurable amount, default 20)
+      let pointsAwarded = 20;
+      const configRef = doc(db, 'settings', 'valcoin_rewards');
+      const configSnap = await transaction.get(configRef);
+      if (configSnap.exists()) {
+          pointsAwarded = configSnap.data().joinRaffle ?? 20;
+      }
 
-      // Log points history
-      const historyRef = doc(collection(db, 'users', user.uid, 'pointsHistory'));
-      transaction.set(historyRef, {
-        amount: 20,
-        type: 'raffle_join',
-        description: `Joined raffle: ${raffle.itemType}`,
-        timestamp: serverTimestamp()
-      });
+      if (pointsAwarded > 0) {
+        const userRef = doc(db, 'users', user.uid);
+        transaction.update(userRef, {
+          points: increment(pointsAwarded),
+          updatedAt: serverTimestamp()
+        });
 
-      return { success: true };
+        // Log points history
+        const historyRef = doc(collection(db, 'users', user.uid, 'pointsHistory'));
+        transaction.set(historyRef, {
+          amount: pointsAwarded,
+          type: 'raffle_join',
+          description: `Joined raffle: ${raffle.itemType}`,
+          timestamp: serverTimestamp()
+        });
+      }
+
+      return { success: true, pointsAwarded };
     });
 
-    if (result.success) {
+    if (result.success && result.pointsAwarded > 0) {
       await createNotification(user.uid, {
         title: 'Valcoins Awarded!',
-        message: `You earned 20 Valcoins for joining the ${raffleName} raffle!`,
+        message: `You earned ${result.pointsAwarded} Valcoins for joining the ${raffleName} raffle!`,
         type: 'points'
       });
     }

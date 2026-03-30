@@ -89,8 +89,14 @@ export const dailyCheckIn = async (userId) => {
                 }
             }
 
-            // Award 10 points
-            const amount = 10;
+            // Award points (Dynamic from Settings)
+            let amount = 10;
+            const configRef = doc(db, 'settings', 'valcoin_rewards');
+            const configSnap = await transaction.get(configRef);
+            if (configSnap.exists()) {
+                amount = configSnap.data().dailyCheckIn ?? 10;
+            }
+
             transaction.update(userRef, {
                 points: increment(amount),
                 lastDailyCheckIn: serverTimestamp(),
@@ -106,7 +112,7 @@ export const dailyCheckIn = async (userId) => {
                 timestamp: serverTimestamp()
             });
 
-            return { success: true, message: 'Check-in successful! +10 Valcoins', points: amount };
+            return { success: true, message: `Check-in successful! +${amount} Valcoins`, points: amount };
         });
 
         if (result.success) {

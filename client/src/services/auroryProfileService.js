@@ -653,7 +653,7 @@ export async function linkAuroryAccount(userId, auroryData) {
 
     // 2. Proceed with linking
     const userRef = doc(db, 'users', userId);
-    let pointsAwarded = false;
+    let pointsAwarded = 0;
     await runTransaction(db, async (transaction) => {
       const userSnap = await transaction.get(userRef);
       if (!userSnap.exists()) throw new Error('User not found');
@@ -672,16 +672,23 @@ export async function linkAuroryAccount(userId, auroryData) {
       };
       
       if (isFirstLink) {
-        updateData.points = increment(50);
-        pointsAwarded = true;
+        let amount = 50;
+        const configRef = doc(db, 'settings', 'valcoin_rewards');
+        const configSnap = await transaction.get(configRef);
+        if (configSnap.exists()) {
+          amount = configSnap.data().linkAurory ?? 50;
+        }
+
+        updateData.points = increment(amount);
+        pointsAwarded = amount;
       }
       
       transaction.update(userRef, updateData);
       
-      if (isFirstLink) {
+      if (isFirstLink && pointsAwarded > 0) {
         const historyRef = doc(collection(db, 'users', userId, 'pointsHistory'));
         transaction.set(historyRef, {
-          amount: 50,
+          amount: pointsAwarded,
           type: 'registration',
           description: 'Aurory account linking reward (Registration)',
           timestamp: serverTimestamp()
@@ -689,10 +696,10 @@ export async function linkAuroryAccount(userId, auroryData) {
       }
     });
 
-    if (pointsAwarded) {
+    if (pointsAwarded > 0) {
       await createNotification(userId, {
         title: 'Registration Reward!',
-        message: 'You earned 50 Valcoins for linking your Aurory account. Welcome to Asgard Duels!',
+        message: `You earned ${pointsAwarded} Valcoins for linking your Aurory account. Welcome to Asgard Duels!`,
         type: 'points'
       });
     }

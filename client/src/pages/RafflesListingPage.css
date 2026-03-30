@@ -97,4 +97,41 @@
     .header-text h1 {
         font-size: 2rem;
     }
+    
+    .raffles-grid {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-snap-type: x mandatory;
+        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
+        gap: 1.2rem;
+        padding-bottom: 1rem;
+        /* Negate page padding to allow full-bleed scroll */
+        margin-left: -2rem;
+        margin-right: -2rem;
+        padding-left: 2rem;
+        padding-right: 2rem;
+    }
+
+    .raffles-grid > * {
+        flex: 0 0 85%;
+        min-width: 260px;
+        max-width: 320px;
+        scroll-snap-align: start;
+    }
+
+    .raffles-grid::-webkit-scrollbar {
+        height: 4px;
+    }
+    .raffles-grid::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 4px;
+        margin: 0 2rem;
+    }
+    .raffles-grid::-webkit-scrollbar-thumb {
+        background: rgba(255, 202, 40, 0.4);
+        border-radius: 4px;
+    }
 }

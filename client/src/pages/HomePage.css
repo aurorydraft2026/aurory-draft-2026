@@ -941,7 +941,7 @@
 
   .content-wrapper {
     display: flex;
-    gap: 24px;
+    gap: 32px;
     align-items: flex-start;
   }
 
@@ -1997,6 +1997,8 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+    padding-left: 32px;
+    border-left: 1px solid var(--border-subtle);
   }
 
   /* --- Top Players of the Month --- */
@@ -4953,6 +4955,16 @@
       flex-direction: column;
       overflow: hidden;
       width: 100%;
+    }
+
+    .right-sidebar {
+      width: 100%;
+      position: static;
+      padding: 0;
+      border-left: none;
+      overflow: hidden;
+      max-width: 100%;
+      box-sizing: border-box;
     }
 
     .main-column {
