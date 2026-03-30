@@ -1876,7 +1876,7 @@ const MatchupPage = () => {
                                                             <th>W</th>
                                                             <th>D</th>
                                                             <th>L</th>
-                                                            <th>Pts</th>
+                                                            <th>VC</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -2169,7 +2169,7 @@ const MatchupPage = () => {
                                                         {(idx === 0 && matchup.prize1 > 0) && <span className="podium-prize-win">💰 {matchup.prize1} AURY</span>}
                                                         {(idx === 1 && matchup.prize2 > 0) && <span className="podium-prize-win">💰 {matchup.prize2} AURY</span>}
                                                         {(idx === 2 && matchup.prize3 > 0) && <span className="podium-prize-win">💰 {matchup.prize3} AURY</span>}
-                                                        {standing.points !== undefined && <span className="podium-pts">{standing.points} pts</span>}
+                                                        {standing.points !== undefined && <span className="podium-pts">{standing.points} Valcoins</span>}
                                                         {standing.wins !== undefined && <span className="podium-record">{standing.wins}W {standing.draws}D {standing.losses}L</span>}
                                                     </div>
                                                 );
@@ -2200,7 +2200,7 @@ const MatchupPage = () => {
                                                 </div>
                                                 <div className="team-score-info">
                                                     <span className="team-score-name">{team.teamName}</span>
-                                                    <span className="team-score-total">Total: {calculateTeamScore(team)} pts</span>
+                                                    <span className="team-score-total">Total: {calculateTeamScore(team)} Valcoins</span>
                                                 </div>
                                             </div>
                                             <div className="player-scores-list">
@@ -2222,7 +2222,7 @@ const MatchupPage = () => {
                                                                         min="0"
                                                                     />
                                                                 ) : (
-                                                                    <span className="score-display">{matchup.playerScores?.[uid] || 0} pts</span>
+                                                                    <span className="score-display">{matchup.playerScores?.[uid] || 0} Valcoins</span>
                                                                 )}
                                                             </div>
                                                         </div>
@@ -2249,7 +2249,7 @@ const MatchupPage = () => {
                                                     <div className="leader-info">
                                                         <span className="leader-name">{team.teamName}</span>
                                                     </div>
-                                                    <div className="leader-score">{calculateTeamScore(team)} <small>pts</small></div>
+                                                    <div className="leader-score">{calculateTeamScore(team)} <small>Valcoins</small></div>
                                                 </div>
                                             ))}
                                         </div>
@@ -2269,7 +2269,7 @@ const MatchupPage = () => {
                                                     <div className="leader-info">
                                                         <span className="leader-name">{resolveDisplayName(pUser)}</span>
                                                     </div>
-                                                    <div className="leader-score">{item.score} <small>pts</small></div>
+                                                    <div className="leader-score">{item.score} <small>Valcoins</small></div>
                                                 </div>
                                             );
                                         })}

@@ -41,8 +41,8 @@ export const awardPoints = async (userId, amount, type, description) => {
 
         // Add user notification
         await createNotification(userId, {
-            title: 'Points Awarded!',
-            message: `You earned ${amount} points for: ${description}`,
+            title: 'Valcoins Awarded!',
+            message: `You earned ${amount} Valcoins for: ${description}`,
             type: 'points'
         });
 
@@ -106,14 +106,14 @@ export const dailyCheckIn = async (userId) => {
                 timestamp: serverTimestamp()
             });
 
-            return { success: true, message: 'Check-in successful! +10 pts', points: amount };
+            return { success: true, message: 'Check-in successful! +10 Valcoins', points: amount };
         });
 
         if (result.success) {
             // Add user notification
             await createNotification(userId, {
                 title: 'Daily Reward!',
-                message: `You received ${result.points} points for your daily check-in.`,
+                message: `You received ${result.points} Valcoins for your daily check-in.`,
                 type: 'points'
             });
         }

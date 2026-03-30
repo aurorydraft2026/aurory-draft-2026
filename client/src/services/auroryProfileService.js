@@ -692,7 +692,7 @@ export async function linkAuroryAccount(userId, auroryData) {
     if (pointsAwarded) {
       await createNotification(userId, {
         title: 'Registration Reward!',
-        message: 'You earned 50 points for linking your Aurory account. Welcome to Asgard Duels!',
+        message: 'You earned 50 Valcoins for linking your Aurory account. Welcome to Asgard Duels!',
         type: 'points'
       });
     }

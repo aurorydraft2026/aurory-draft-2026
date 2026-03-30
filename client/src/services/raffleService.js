@@ -174,8 +174,8 @@ export async function joinRaffle(raffleId, user, auroryData) {
 
     if (result.success) {
       await createNotification(user.uid, {
-        title: 'Points Awarded!',
-        message: `You earned 20 points for joining the ${raffleName} raffle!`,
+        title: 'Valcoins Awarded!',
+        message: `You earned 20 Valcoins for joining the ${raffleName} raffle!`,
         type: 'points'
       });
     }

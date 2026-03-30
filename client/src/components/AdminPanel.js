@@ -13,6 +13,7 @@ import {
   addDoc,
   serverTimestamp,
   runTransaction,
+  increment,
   limit,
   writeBatch,
   deleteDoc,
@@ -185,11 +186,11 @@ Realm of Fire
 
 Each team will compete against every other team within their assigned group in a Round Robin format.
 
-IV. Valhalla Points System
-Teams compete for Valhalla Points (VP) during the Group Stage.
-3 points per individual player win
-Maximum of 9 points per match (3 players × 3 points)
-1 point per player in case of a draw
+IV. Valcoins System
+Teams compete for Valcoins during the Group Stage.
+3 Valcoins per individual player win
+Maximum of 9 Valcoins per match (3 players × 3 Valcoins)
+1 Valcoin per player in case of a draw
 
 V. Match Rules and Draft Mechanics
 1. Coin Toss
@@ -1322,12 +1323,14 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
     try {
       // Smallest unit based on currency
-      const decimals = selectedCreditCurrency === 'USDC' ? 1e6 : 1e9;
-      const amountInSmallestUnit = Math.floor(amount * decimals);
+      const isValcoins = selectedCreditCurrency === 'Valcoins';
+      const decimals = selectedCreditCurrency === 'USDC' ? 1e6 : (isValcoins ? 1 : 1e9);
+      const amountInSmallestUnit = isValcoins ? Math.floor(amount) : Math.floor(amount * decimals);
 
       // Process each user
       const results = await Promise.allSettled(selectedCreditUsers.map(async (selectedUser) => {
         const walletRef = doc(db, 'wallets', selectedUser.id);
+        const userRef = doc(db, 'users', selectedUser.id);
 
         await runTransaction(db, async (transaction) => {
           const walletDoc = await transaction.get(walletRef);
@@ -1342,30 +1345,44 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           const updateData = {
             updatedAt: serverTimestamp()
           };
-          if (selectedCreditCurrency === 'USDC') {
-            updateData.usdcBalance = currentBalance + amountInSmallestUnit;
+          
+          if (isValcoins) {
+            updateData.points = increment(amountInSmallestUnit);
+            transaction.update(userRef, updateData);
           } else {
-            updateData.balance = currentBalance + amountInSmallestUnit;
+            if (selectedCreditCurrency === 'USDC') {
+              updateData.usdcBalance = currentBalance + amountInSmallestUnit;
+            } else {
+              updateData.balance = currentBalance + amountInSmallestUnit;
+            }
+            transaction.set(walletRef, updateData, { merge: true });
           }
-
-          transaction.set(walletRef, updateData, { merge: true });
         });
 
         // Add transaction to user's history
-        const txRef = collection(db, 'wallets', selectedUser.id, 'transactions');
-        await addDoc(txRef, {
-          type: 'deposit',
-          amount: amountInSmallestUnit,
-          currency: selectedCreditCurrency,
-          reason: creditReason || 'Credit by admin',
-          timestamp: serverTimestamp(),
-          processedBy: getUserEmail(user) || user.displayName || user.uid
-        });
+        if (isValcoins) {
+          await addDoc(collection(db, 'users', selectedUser.id, 'pointsHistory'), {
+            amount: amountInSmallestUnit,
+            type: 'manual_credit',
+            description: creditReason || 'Valcoins credited by admin',
+            timestamp: serverTimestamp()
+          });
+        } else {
+          const txRef = collection(db, 'wallets', selectedUser.id, 'transactions');
+          await addDoc(txRef, {
+            type: 'deposit',
+            amount: amountInSmallestUnit,
+            currency: selectedCreditCurrency,
+            reason: creditReason || 'Credit by admin',
+            timestamp: serverTimestamp(),
+            processedBy: getUserEmail(user) || user.displayName || user.uid
+          });
+        }
 
         // Notify User
         await createNotification(selectedUser.id, {
-          type: 'deposit',
-          title: 'Balance Notification',
+          type: isValcoins ? 'points' : 'deposit',
+          title: isValcoins ? 'Valcoins Awarded!' : 'Balance Notification',
           message: `${amount} ${selectedCreditCurrency} has been added to your account.`,
           link: '#'
         });
@@ -1428,24 +1445,28 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
     try {
       // Smallest unit based on currency
-      const decimals = selectedDeductCurrency === 'USDC' ? 1e6 : 1e9;
-      const amountInSmallestUnit = Math.floor(amount * decimals);
+      const isValcoins = selectedDeductCurrency === 'Valcoins';
+      const decimals = selectedDeductCurrency === 'USDC' ? 1e6 : (isValcoins ? 1 : 1e9);
+      const amountInSmallestUnit = isValcoins ? Math.floor(amount) : Math.floor(amount * decimals);
 
       // Process each user
       const results = await Promise.allSettled(selectedDeductUsers.map(async (selectedUser) => {
         const walletRef = doc(db, 'wallets', selectedUser.id);
+        const userRef = doc(db, 'users', selectedUser.id);
 
         await runTransaction(db, async (transaction) => {
           const walletDoc = await transaction.get(walletRef);
+          const userDoc = await transaction.get(userRef);
 
           if (!walletDoc.exists()) {
             throw new Error('User wallet not found');
           }
 
           const data = walletDoc.data();
-          const currentBalance = selectedDeductCurrency === 'USDC' 
-            ? (data.usdcBalance || 0) 
-            : (data.balance || 0);
+          const userData = userDoc.exists() ? userDoc.data() : {};
+          const currentBalance = isValcoins 
+            ? (userData.points || 0)
+            : (selectedDeductCurrency === 'USDC' ? (data.usdcBalance || 0) : (data.balance || 0));
 
           // Optional: Prevent negative balance
           if (currentBalance < amountInSmallestUnit) {
@@ -1457,32 +1478,46 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           const updateData = {
             updatedAt: serverTimestamp()
           };
-          if (selectedDeductCurrency === 'USDC') {
-            updateData.usdcBalance = currentBalance - amountInSmallestUnit;
+          
+          if (isValcoins) {
+            updateData.points = currentBalance - amountInSmallestUnit;
+            transaction.update(userRef, updateData);
           } else {
-            updateData.balance = currentBalance - amountInSmallestUnit;
+            if (selectedDeductCurrency === 'USDC') {
+              updateData.usdcBalance = currentBalance - amountInSmallestUnit;
+            } else {
+              updateData.balance = currentBalance - amountInSmallestUnit;
+            }
+            transaction.update(walletRef, updateData);
           }
-
-          transaction.update(walletRef, updateData);
         });
 
         // Add transaction to user's history
-        const txRef = collection(db, 'wallets', selectedUser.id, 'transactions');
-        await addDoc(txRef, {
-          type: 'withdrawal',
-          amount: amountInSmallestUnit,
-          currency: selectedDeductCurrency,
-          reason: deductReason || 'Balance Adjustment by Admin',
-          timestamp: serverTimestamp(),
-          processedBy: getUserEmail(user) || user.displayName || user.uid,
-          status: 'completed'
-        });
+        if (isValcoins) {
+          await addDoc(collection(db, 'users', selectedUser.id, 'pointsHistory'), {
+            amount: -amountInSmallestUnit,
+            type: 'manual_deduction',
+            description: deductReason || 'Valcoins deducted by admin',
+            timestamp: serverTimestamp()
+          });
+        } else {
+          const txRef = collection(db, 'wallets', selectedUser.id, 'transactions');
+          await addDoc(txRef, {
+            type: 'withdrawal',
+            amount: amountInSmallestUnit,
+            currency: selectedDeductCurrency,
+            reason: deductReason || 'Balance Adjustment by Admin',
+            timestamp: serverTimestamp(),
+            processedBy: getUserEmail(user) || user.displayName || user.uid,
+            status: 'completed'
+          });
+        }
 
         // Notify User
         await createNotification(selectedUser.id, {
-          type: 'withdrawal',
-          title: 'Balance Notification',
-          message: 'Your account balance has been adjusted.',
+          type: isValcoins ? 'points' : 'withdrawal',
+          title: isValcoins ? 'Valcoins Deduction' : 'Balance Notification',
+          message: `${amount} ${selectedDeductCurrency} has been deducted from your account.`,
           link: '#'
         });
       }));
@@ -2658,6 +2693,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     className={`toggle-btn ${selectedCreditCurrency === 'USDC' ? 'active' : ''}`}
                     onClick={() => setSelectedCreditCurrency('USDC')}
                   >USDC</button>
+                  <button 
+                    className={`toggle-btn ${selectedCreditCurrency === 'Valcoins' ? 'active' : ''}`}
+                    onClick={() => setSelectedCreditCurrency('Valcoins')}
+                  >Valcoins</button>
                 </div>
               </div>
 
@@ -2716,10 +2755,13 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 <span className="participant-email">{u.email}</span>
                               </div>
                               <div className="participant-balance">
-                                {selectedCreditCurrency === 'USDC' 
-                                  ? formatAmount(u.usdcBalance || 0, 'USDC') 
-                                  : formatAmount(u.balance || 0, 'AURY')
-                                } {selectedCreditCurrency}
+                                {selectedCreditCurrency === 'Valcoins'
+                                  ? `${u.points || 0} Valcoins`
+                                  : (selectedCreditCurrency === 'USDC' 
+                                      ? formatAmount(u.usdcBalance || 0, 'USDC') 
+                                      : formatAmount(u.balance || 0, 'AURY')
+                                    ) + ' ' + selectedCreditCurrency
+                                }
                               </div>
                             </div>
                           ))
@@ -2780,6 +2822,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     className={`toggle-btn ${selectedDeductCurrency === 'USDC' ? 'active' : ''}`}
                     onClick={() => setSelectedDeductCurrency('USDC')}
                   >USDC</button>
+                  <button 
+                    className={`toggle-btn ${selectedDeductCurrency === 'Valcoins' ? 'active' : ''}`}
+                    onClick={() => setSelectedDeductCurrency('Valcoins')}
+                  >Valcoins</button>
                 </div>
               </div>
 
@@ -2838,10 +2884,13 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 <span className="participant-email">{u.email}</span>
                               </div>
                               <div className="participant-balance">
-                                {selectedDeductCurrency === 'USDC' 
-                                  ? formatAmount(u.usdcBalance || 0, 'USDC') 
-                                  : formatAmount(u.balance || 0, 'AURY')
-                                } {selectedDeductCurrency}
+                                {selectedDeductCurrency === 'Valcoins'
+                                  ? `${u.points || 0} Valcoins`
+                                  : (selectedDeductCurrency === 'USDC' 
+                                      ? formatAmount(u.usdcBalance || 0, 'USDC') 
+                                      : formatAmount(u.balance || 0, 'AURY')
+                                    ) + ' ' + selectedDeductCurrency
+                                }
                               </div>
                             </div>
                           ))
