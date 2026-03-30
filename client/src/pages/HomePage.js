@@ -854,7 +854,7 @@ function HomePage() {
             <MatchupsSection user={user} isAdmin={isAdmin} />
 
             {/* Drafts Grid */}
-            <div className="tournaments-section">
+            <div className="tournaments-section drafts-section dashboard-widget">
               <div className="section-header">
                 <div className="header-title-group">
                   <h3>♟️All Drafts </h3>

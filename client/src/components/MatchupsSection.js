@@ -30,10 +30,10 @@ const MatchupsSection = ({ user, isAdmin }) => {
     }, []);
 
     return (
-        <section className="matchups-section">
+        <section className="matchups-section dashboard-widget">
             <div className="section-header">
                 <div className="header-title-group">
-                    <h3>🏆 Tournaments</h3>
+                    <h3>🏆 Tourneys</h3>
                     <p className="section-subtitle">Join upcoming tournaments and earn rewards</p>
                 </div>
                 {isAdmin && (

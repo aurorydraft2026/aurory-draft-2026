@@ -1247,11 +1247,50 @@
   }
 
   /* ============================================================
+   GLASS-MORPHIC DASHBOARD WIDGET MIXIN
+   ============================================================ */
+  .dashboard-widget {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xl);
+    padding: 32px;
+    margin-bottom: 32px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* When an existing section gets this widget, we reset its native margins to rely on the widget spacing */
+  .tournaments-section.dashboard-widget,
+  .matchups-section.dashboard-widget,
+  .raffles-section.dashboard-widget {
+    margin-top: 0;
+    margin-bottom: 32px;
+  }
+
+  /* Specific Widget Theming (Neon Accents) */
+  .raffles-section.dashboard-widget {
+    background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.05), rgba(255, 255, 255, 0.01) 50%);
+    border-top: 1px solid rgba(99, 102, 241, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 0 20px rgba(99, 102, 241, 0.03);
+  }
+
+  .matchups-section.dashboard-widget {
+    background: radial-gradient(circle at top left, rgba(234, 179, 8, 0.05), rgba(255, 255, 255, 0.01) 50%);
+    border-top: 1px solid rgba(234, 179, 8, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 0 20px rgba(234, 179, 8, 0.03);
+  }
+
+  .drafts-section.dashboard-widget {
+    background: radial-gradient(circle at top, rgba(0, 200, 255, 0.04), rgba(255, 255, 255, 0.01) 60%);
+    border-top: 1px solid rgba(0, 200, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 0 20px rgba(0, 200, 255, 0.03);
+  }
+
+  /* ============================================================
    DRAFTS SECTION
    ============================================================ */
   .tournaments-section {
-    margin-top: 50px;
-    margin-bottom: 40px;
     position: relative;
   }
 
@@ -5122,8 +5161,20 @@
       font-size: 0.8rem;
     }
 
+    .dashboard-widget {
+      padding: 16px;
+      margin-bottom: 24px;
+      border-radius: var(--radius-lg);
+    }
+
+    .tournaments-section.dashboard-widget,
+    .matchups-section.dashboard-widget,
+    .raffles-section.dashboard-widget {
+      margin-top: 0;
+      margin-bottom: 24px;
+    }
+
     .tournaments-section {
-      padding: 0;
       overflow: hidden;
       max-width: 100%;
       box-sizing: border-box;
@@ -6554,6 +6605,12 @@
   }
 
   @media (max-width: 768px) {
+    .section-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
     .admin-quick-alerts {
       gap: 4px;
       margin: 0 5px;

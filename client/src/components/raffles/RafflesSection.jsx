@@ -32,7 +32,7 @@ const RafflesSection = ({ user, isAdmin }) => {
     }, []);
 
     return (
-        <section className="tournaments-section raffles-section">
+        <section className="tournaments-section raffles-section dashboard-widget">
             <div className="section-header">
                 <div className="header-title-group">
                     <h3>🎟️ All Raffles</h3>
