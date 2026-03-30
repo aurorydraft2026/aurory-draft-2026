@@ -234,3 +234,10 @@
         grid-template-columns: 1fr;
     }
 }
+
+.form-help-text {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    font-style: italic;
+}

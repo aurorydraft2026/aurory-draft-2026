@@ -90,6 +90,14 @@ export async function joinRaffle(raffleId, user, auroryData) {
       if (raffle.status !== 'active') throw new Error('Raffle is no longer active');
       if (raffle.participantsCount >= raffle.maxParticipants) throw new Error('Raffle is full');
 
+      // Check if end date has passed
+      if (raffle.endDate) {
+        const endDate = raffle.endDate.toDate ? raffle.endDate.toDate() : new Date(raffle.endDate);
+        if (endDate < new Date()) {
+          throw new Error('Raffle entry period has ended');
+        }
+      }
+
       // Check if user already joined
       const isAlreadyJoined = raffle.participants?.some(p => p.uid === user.uid);
       if (isAlreadyJoined) throw new Error('You have already joined this raffle');
@@ -348,6 +356,34 @@ export async function addMockParticipants(raffleId, count = 5) {
     return { success: true };
   } catch (error) {
     console.error('Error adding mock participants:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Manually close raffle entries (Admin only)
+ * @param {string} raffleId - Raffle ID
+ * @param {Object} user - Admin closing the entries
+ */
+export async function closeRaffleEntries(raffleId, user) {
+  try {
+    const raffleRef = doc(db, 'raffles', raffleId);
+    await updateDoc(raffleRef, {
+      status: 'entries_closed',
+      entriesClosedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    logActivity({
+      user,
+      type: 'ADMIN',
+      action: 'close_raffle_entries',
+      metadata: { raffleId }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error closing raffle entries:', error);
     return { success: false, error: error.message };
   }
 }

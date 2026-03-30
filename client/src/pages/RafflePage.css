@@ -429,3 +429,18 @@
     background: #1e293b !important;
     color: rgba(255,255,255,0.3) !important;
 }
+
+.raffle-btn.admin-close-entries {
+    background: #f44336;
+    color: white;
+}
+
+.raffle-btn.admin-close-entries:hover {
+    background: #d32f2f;
+}
+
+.joined-status.expired {
+    background: rgba(244, 67, 54, 0.1);
+    border: 1px solid rgba(244, 67, 54, 0.3);
+    color: #f44336;
+}

@@ -10,12 +10,14 @@ import {
   deleteRaffle, 
   shuffleParticipants, 
   completeRaffle,
+  closeRaffleEntries,
   addMockParticipants
 } from '../services/raffleService';
 import RaffleWheel from '../components/raffles/RaffleWheel';
 import RaffleParticipantsModal from '../components/raffles/RaffleParticipantsModal';
 import RaffleWinnerModal from '../components/raffles/RaffleWinnerModal';
 import CreateRaffleModal from '../components/raffles/CreateRaffleModal';
+import RaffleConfirmationModal from '../components/raffles/RaffleConfirmationModal';
 import AuroryAccountLink from '../components/AuroryAccountLink';
 import './RafflePage.css';
 
@@ -36,6 +38,11 @@ import './RafflePage.css';
   const [showAuroryModal, setShowAuroryModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  
+  const triggerConfirm = (actionConfig) => {
+    setConfirmAction(actionConfig);
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -85,12 +92,20 @@ import './RafflePage.css';
   const handleStartSpin = async () => {
     if (!isAdminUser || isStarting) return;
     
-    setIsStarting(true);
-    const result = await startRaffle(id, user);
-    if (!result.success) {
-      alert(result.error);
-      setIsStarting(false);
-    }
+    triggerConfirm({
+        title: "🚀 Start Raffle?",
+        message: "This will pick a winner and start the animation. This cannot be undone!",
+        confirmText: "Start Spinning",
+        type: "warning",
+        onConfirm: async () => {
+            setIsStarting(true);
+            const result = await startRaffle(id, user);
+            if (!result.success) {
+                alert(result.error);
+                setIsStarting(false);
+            }
+        }
+    });
   };
 
   const handleSpinEnd = async () => {
@@ -100,34 +115,77 @@ import './RafflePage.css';
     setShowWinner(true);
   };
 
+  const handleCloseEntries = async () => {
+    if (!isAdminUser) return;
+    
+    triggerConfirm({
+        title: "🔒 Close entries?",
+        message: "No more users will be able to join this raffle. You can still spin later.",
+        confirmText: "Close Now",
+        type: "info",
+        onConfirm: async () => {
+            const result = await closeRaffleEntries(id, user);
+            if (!result.success) {
+                alert(result.error);
+            }
+        }
+    });
+  };
+
   const handleDelete = async () => {
-    if (!window.confirm('Are you sure you want to delete this raffle? Participants will be refunded.')) return;
-    setIsDeleting(true);
-    const result = await deleteRaffle(id, user);
-    if (result.success) {
-      navigate('/');
-    } else if (result.error === 'Raffle not found') {
-      navigate('/');
-    } else {
-      alert(result.error);
-    }
+    if (!isAdminUser) return;
+
+    triggerConfirm({
+        title: "🗑️ Delete Raffle?",
+        message: "Are you sure? Participants will be automatically refunded their entry fees.",
+        confirmText: "Delete Forever",
+        type: "danger",
+        onConfirm: async () => {
+            setIsDeleting(true);
+            const result = await deleteRaffle(id, user);
+            if (result.success) {
+                navigate('/');
+            } else if (result.error === 'Raffle not found') {
+                navigate('/');
+            } else {
+                alert(result.error);
+                setIsDeleting(false);
+            }
+        }
+    });
   };
 
   const handleShuffle = async () => {
-    const result = await shuffleParticipants(id, user);
-    if (!result.success) {
-      alert(result.error);
-    }
+    triggerConfirm({
+        title: "🔀 Shuffle Participants?",
+        message: "This will randomize the order of slices on the wheel.",
+        confirmText: "Shuffle",
+        type: "info",
+        onConfirm: async () => {
+            const result = await shuffleParticipants(id, user);
+            if (!result.success) {
+                alert(result.error);
+            }
+        }
+    });
   };
   
   const handleAddMock = async () => {
       const count = prompt('How many mock participants to add?', '5');
       if (!count || isNaN(count)) return;
       
-      const result = await addMockParticipants(id, parseInt(count));
-      if (!result.success) {
-        alert(result.error);
-      }
+      triggerConfirm({
+          title: "🧪 Add Mock Participants?",
+          message: `Add ${count} test accounts to this raffle?`,
+          confirmText: "Add Mock",
+          type: "info",
+          onConfirm: async () => {
+              const result = await addMockParticipants(id, parseInt(count));
+              if (!result.success) {
+                alert(result.error);
+              }
+          }
+      });
   };
 
   if (loading) return <div className="raffle-loading">Loading Raffle...</div>;
@@ -136,7 +194,11 @@ import './RafflePage.css';
   const isJoined = raffle.participants?.some(p => p.uid === user?.uid);
   const isSpinning = raffle.status === 'spinning';
   const isCompleted = raffle.status === 'completed';
-  const canJoin = !isJoined && !isSpinning && !isCompleted && raffle.participantsCount < raffle.maxParticipants;
+  const isEntriesClosed = raffle.status === 'entries_closed';
+  
+  const isExpired = raffle.endDate && (raffle.endDate.toDate ? raffle.endDate.toDate() : new Date(raffle.endDate)) < new Date();
+  
+  const canJoin = !isJoined && !isSpinning && !isCompleted && !isEntriesClosed && !isExpired && raffle.participantsCount < raffle.maxParticipants;
   const isAury = raffle.itemType === 'aury';
 
   return (
@@ -185,6 +247,14 @@ import './RafflePage.css';
             <span className="raffle-stat-label">Participants</span>
             <span className="raffle-stat-value">{raffle.participantsCount} / {raffle.maxParticipants}</span>
           </div>
+          {raffle.endDate && (
+            <div className="raffle-stat-box">
+              <span className="raffle-stat-label">Ends At</span>
+              <span className="raffle-stat-value">
+                {new Date(raffle.endDate.toDate ? raffle.endDate.toDate() : raffle.endDate).toLocaleString()}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -205,6 +275,11 @@ import './RafflePage.css';
                 >
                     {isStarting ? 'Please wait...' : 'Start Raffle (Spin)'}
                 </button>
+                {raffle.status === 'active' && (
+                    <button className="raffle-btn admin-close-entries" onClick={handleCloseEntries}>
+                        🔒 Close Entries
+                    </button>
+                )}
             </div>
           )}
 
@@ -222,7 +297,7 @@ import './RafflePage.css';
         </div>
 
         <div className="raffle-actions-aside">
-            {!isSpinning && !isCompleted && (
+            {!isSpinning && !isCompleted && !isEntriesClosed && !isExpired && (
                 <div className="joining-section">
                     {isJoined ? (
                         <div className="joined-status">
@@ -247,6 +322,14 @@ import './RafflePage.css';
                             {joining ? 'Joining...' : 'Join Raffle'}
                         </button>
                     )}
+                </div>
+            )}
+
+            {(isEntriesClosed || isExpired) && !isSpinning && !isCompleted && (
+                <div className="joining-section disabled">
+                    <div className="joined-status expired">
+                         Entries Closed
+                    </div>
                 </div>
             )}
 
@@ -303,6 +386,12 @@ import './RafflePage.css';
         user={user}
         isOpen={showAuroryModal}
         onClose={() => setShowAuroryModal(false)}
+      />
+
+      <RaffleConfirmationModal 
+        isOpen={!!confirmAction}
+        onClose={() => setConfirmAction(null)}
+        {...confirmAction}
       />
     </div>
   );

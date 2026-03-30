@@ -68,7 +68,9 @@ const RaffleCard = ({ raffle }) => {
           </button>
         ) : (
           <button className="raffle-join-button completed">
-            {isCompleted ? 'Raffle Ended' : 'Spinning...'}
+            {status === 'completed' ? 'Raffle Ended' : 
+             status === 'entries_closed' ? 'Entries Closed' : 
+             'Spinning...'}
           </button>
         )}
       </div>

@@ -59,6 +59,19 @@ const RaffleWheel = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, winnerId]);
 
+  // Handle initial positioning for completed raffles (e.g. on page reload)
+  useEffect(() => {
+    if (status === 'completed' && winnerId && participants.length > 0 && !internalIsSpinning && rotation === 0) {
+      const winnerIndex = participants.findIndex(p => p.uid === winnerId);
+      if (winnerIndex !== -1) {
+        const winnerAngle = winnerIndex * sliceAngle;
+        // Point matching the arrow at the top (270 degrees)
+        const finalAngle = ((270 - winnerAngle) % 360 + 360) % 360;
+        setRotation(finalAngle);
+      }
+    }
+  }, [status, winnerId, participants, sliceAngle, internalIsSpinning, rotation]);
+
   // Pre-spin: always idle-rotate while raffle is open (not spinning/completed)
   useEffect(() => {
     const shouldPreSpin = status !== 'spinning' && status !== 'completed' && !internalIsSpinning;

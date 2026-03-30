@@ -15,6 +15,7 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
   const [minParticipants, setMinParticipants] = useState(2);
   const [maxParticipants, setMaxParticipants] = useState(20);
   const [auryAmount, setAuryAmount] = useState(100);
+  const [endDate, setEndDate] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Populate fields when editing
@@ -29,6 +30,7 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
       setMinParticipants(editData.minParticipants || 2);
       setMaxParticipants(editData.maxParticipants || 20);
       setAuryAmount(editData.auryAmount || 100);
+      setEndDate(editData.endDate || '');
     }
   }, [editData]);
 
@@ -53,7 +55,8 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
       entryFee: isFree ? 0 : parseFloat(entryFee),
       minParticipants: parseInt(minParticipants),
       maxParticipants: parseInt(maxParticipants),
-      auryAmount: isAury ? parseFloat(auryAmount) : 0
+      auryAmount: isAury ? parseFloat(auryAmount) : 0,
+      endDate: endDate ? new Date(endDate) : null
     };
 
     if (isEditMode) {
@@ -218,6 +221,18 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
                   min={minParticipants}
                 />
               </div>
+            </div>
+
+            <div className="form-group">
+              <label>📅 Raffle End Date & Time</label>
+              <input 
+                type="datetime-local" 
+                className="form-input"
+                value={endDate} 
+                onChange={(e) => setEndDate(e.target.value)} 
+                required
+              />
+              <small className="form-help-text">Joining will be disabled after this time.</small>
             </div>
           </form>
         </div>
