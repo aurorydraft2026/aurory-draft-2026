@@ -2389,3 +2389,40 @@ input[type=number] {
     transform: translateY(0);
   }
 }
+
+/* Currency Toggle Group Selection */
+.currency-toggle-group {
+  display: flex;
+  gap: 12px;
+  background: var(--bg-primary);
+  padding: 6px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  width: fit-content;
+  margin-bottom: 8px;
+}
+
+.toggle-btn {
+  padding: 8px 24px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: var(--font-primary);
+}
+
+.toggle-btn:hover:not(.active) {
+  background: var(--bg-card-hover);
+  color: var(--text-secondary);
+}
+
+.toggle-btn.active {
+  background: var(--bg-elevated);
+  color: var(--accent-gold);
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.2);
+}

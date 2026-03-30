@@ -1442,6 +1442,8 @@ function TournamentPage() {
 
         transaction.update(draftRef, updateData);
 
+        transaction.update(draftRef, updateData);
+
         // Log locally
         logActivity({
           user,

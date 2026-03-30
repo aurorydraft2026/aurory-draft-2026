@@ -8,6 +8,7 @@ import { logActivity } from '../services/activityService';
 
 export const useWallet = (user) => {
     const [walletBalance, setWalletBalance] = useState(0);
+    const [usdcBalance, setUsdcBalance] = useState(0);
     const [showWalletModal, setShowWalletModal] = useState(false);
     const [walletTab, setWalletTab] = useState('deposit');
     const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -18,11 +19,13 @@ export const useWallet = (user) => {
     const [depositTxSignature, setDepositTxSignature] = useState('');
     const [depositAmount, setDepositAmount] = useState('');
     const [depositNote, setDepositNote] = useState('');
+    const [selectedCurrency, setSelectedCurrency] = useState('AURY');
 
     // Fetch wallet balance and transactions
     useEffect(() => {
         if (!user) {
             setWalletBalance(0);
+            setUsdcBalance(0);
             setTransactions([]);
             return;
         }
@@ -31,9 +34,12 @@ export const useWallet = (user) => {
         const walletRef = doc(db, 'wallets', user.uid);
         const unsubscribeBalance = onSnapshot(walletRef, (docSnap) => {
             if (docSnap.exists()) {
-                setWalletBalance(docSnap.data().balance || 0);
+                const data = docSnap.data();
+                setWalletBalance(data.balance || 0);
+                setUsdcBalance(data.usdcBalance || 0);
             } else {
                 setWalletBalance(0);
+                setUsdcBalance(0);
             }
         });
 
@@ -61,6 +67,13 @@ export const useWallet = (user) => {
         });
     };
 
+    const formatUsdcAmount = (amount) => {
+        return (amount / 1e6).toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    };
+
     const formatTransactionTime = (timestamp) => {
         if (!timestamp) return 'Pending';
         const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -81,24 +94,27 @@ export const useWallet = (user) => {
             return;
         }
 
+        const decimals = selectedCurrency === 'AURY' ? 1e9 : 1e6;
+        const currentCurrencyBalance = selectedCurrency === 'AURY' ? walletBalance : usdcBalance;
+        const amountInSmallestUnit = Math.floor(amount * decimals);
+
         const taxRate = 0.025;
-        const netAmount = amount * (1 - taxRate);
+        const netAmountCalc = amount * (1 - taxRate);
 
         logActivity({
             user,
             type: 'WALLET',
-            action: 'withdraw_request',
+            action: `withdraw_request_${selectedCurrency}`,
             metadata: {
                 amount: amount,
+                currency: selectedCurrency,
                 address: withdrawAddress,
-                calculation: `${amount} - 2.5% tax = ${netAmount.toFixed(4)} (Available withdrawal)`
+                calculation: `${amount} - 2.5% tax = ${netAmountCalc.toFixed(4)} (Available withdrawal)`
             }
         });
 
-        const amountInSmallestUnit = Math.floor(amount * 1e9);
-
-        if (amountInSmallestUnit > walletBalance) {
-            alert('Insufficient balance');
+        if (amountInSmallestUnit > currentCurrencyBalance) {
+            alert(`Insufficient ${selectedCurrency} balance`);
             return;
         }
 
@@ -118,29 +134,36 @@ export const useWallet = (user) => {
                     throw new Error('Wallet not found');
                 }
 
-                const currentBalance = walletDoc.data().balance || 0;
+                const data = walletDoc.data();
+                const currentBal = selectedCurrency === 'AURY' ? (data.balance || 0) : (data.usdcBalance || 0);
 
-                if (currentBalance < amountInSmallestUnit) {
+                if (currentBal < amountInSmallestUnit) {
                     throw new Error('Insufficient balance');
                 }
 
-                const taxRate = 0.025;
                 const taxAmount = Math.floor(amountInSmallestUnit * taxRate);
                 const netAmount = amountInSmallestUnit - taxAmount;
 
-                transaction.update(walletRef, {
-                    balance: currentBalance - amountInSmallestUnit,
+                const updateData = {
                     updatedAt: serverTimestamp()
-                });
+                };
+                if (selectedCurrency === 'AURY') {
+                    updateData.balance = currentBal - amountInSmallestUnit;
+                } else {
+                    updateData.usdcBalance = currentBal - amountInSmallestUnit;
+                }
+
+                transaction.update(walletRef, updateData);
 
                 const withdrawalRef = doc(collection(db, 'withdrawals'));
                 transaction.set(withdrawalRef, {
                     userId: user.uid,
                     userEmail: user.email,
                     userName: user.displayName,
-                    amount: amountInSmallestUnit, // Gross amount deducted
+                    amount: amountInSmallestUnit,
+                    currency: selectedCurrency,
                     taxAmount: taxAmount,
-                    netAmount: netAmount,         // Amount user will actually receive
+                    netAmount: netAmount,
                     walletAddress: withdrawAddress,
                     status: 'pending',
                     createdAt: serverTimestamp()
@@ -148,26 +171,27 @@ export const useWallet = (user) => {
             });
 
             const txRef = collection(db, 'wallets', user.uid, 'transactions');
-            const taxRate = 0.025;
-            const taxAmount = Math.floor(amountInSmallestUnit * taxRate);
-            const netAmount = amountInSmallestUnit - taxAmount;
+            const taxRateFinal = 0.025;
+            const taxAmountFinal = Math.floor(amountInSmallestUnit * taxRateFinal);
+            const netAmountFinal = amountInSmallestUnit - taxAmountFinal;
 
             await addDoc(txRef, {
                 type: 'withdrawal_pending',
                 amount: amountInSmallestUnit,
-                taxAmount: taxAmount,
-                netAmount: netAmount,
+                currency: selectedCurrency,
+                taxAmount: taxAmountFinal,
+                netAmount: netAmountFinal,
                 walletAddress: withdrawAddress,
                 status: 'pending',
                 timestamp: serverTimestamp()
             });
 
-            alert('Withdrawal request submitted! Balance deducted. It will be processed within 24 hours.');
+            alert(`Withdrawal request submitted! ${selectedCurrency} balance deducted. It will be processed within 24 hours.`);
 
             await createNotification(user.uid, {
                 type: 'withdrawal',
                 title: 'Withdrawal Requested',
-                message: `Your withdrawal for ${amount} AURY has been submitted for approval.`,
+                message: `Your withdrawal for ${amount} ${selectedCurrency} has been submitted for approval.`,
                 link: '#'
             });
 
@@ -193,9 +217,10 @@ export const useWallet = (user) => {
         logActivity({
             user,
             type: 'WALLET',
-            action: 'deposit_notify',
+            action: `deposit_notify_${selectedCurrency}`,
             metadata: {
                 amount: amount,
+                currency: selectedCurrency,
                 signature: depositTxSignature,
                 note: depositNote
             }
@@ -210,17 +235,18 @@ export const useWallet = (user) => {
                 userName: user.displayName,
                 createdAt: serverTimestamp(),
                 amount: amount,
+                currency: selectedCurrency,
                 txSignature: depositTxSignature || '',
                 note: depositNote || '',
                 status: 'pending'
             });
 
-            alert('✅ Admin has been notified! Your deposit will be credited soon.');
+            alert(`✅ Admin has been notified! Your ${selectedCurrency} deposit will be credited soon.`);
 
             await createNotification(user.uid, {
                 type: 'deposit',
                 title: 'Deposit Notified',
-                message: `Admin has been notified of your ${amount} AURY deposit. It will be credited soon.`,
+                message: `Admin has been notified of your ${amount} ${selectedCurrency} deposit. It will be credited soon.`,
                 link: '#'
             });
 
@@ -247,6 +273,8 @@ export const useWallet = (user) => {
 
     return {
         walletBalance,
+        usdcBalance,
+        selectedCurrency, setSelectedCurrency,
         showWalletModal, setShowWalletModal,
         walletTab, setWalletTab,
         withdrawAmount, setWithdrawAmount,
@@ -258,9 +286,11 @@ export const useWallet = (user) => {
         depositAmount, setDepositAmount,
         depositNote, setDepositNote,
         formatAuryAmount,
+        formatUsdcAmount,
         formatTransactionTime,
         submitWithdrawal,
         submitDepositNotification,
         copyToClipboard
     };
 };
+

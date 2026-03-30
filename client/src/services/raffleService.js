@@ -6,8 +6,10 @@ import {
   deleteDoc,
   getDoc,
   serverTimestamp,
-  runTransaction
+  runTransaction,
+  increment
 } from 'firebase/firestore';
+import { createNotification } from './notifications';
 import { db } from '../firebase';
 import { logActivity } from './activityService';
 
@@ -78,15 +80,17 @@ export async function updateRaffle(raffleId, updates, user) {
  * @param {Object} auroryData - User's Aurory account data
  */
 export async function joinRaffle(raffleId, user, auroryData) {
+  let raffleName = 'Raffle';
   try {
     const raffleRef = doc(db, 'raffles', raffleId);
     const walletRef = doc(db, 'wallets', user.uid);
 
-    return await runTransaction(db, async (transaction) => {
+    const result = await runTransaction(db, async (transaction) => {
       const raffleSnap = await transaction.get(raffleRef);
       if (!raffleSnap.exists()) throw new Error('Raffle not found');
 
       const raffle = raffleSnap.data();
+      raffleName = raffle.itemType || 'Raffle';
       if (raffle.status !== 'active') throw new Error('Raffle is no longer active');
       if (raffle.participantsCount >= raffle.maxParticipants) throw new Error('Raffle is full');
 
@@ -149,8 +153,34 @@ export async function joinRaffle(raffleId, user, auroryData) {
         updatedAt: serverTimestamp()
       });
 
+      // Award Points (+20)
+      const userRef = doc(db, 'users', user.uid);
+      transaction.update(userRef, {
+        points: increment(20),
+        updatedAt: serverTimestamp()
+      });
+
+      // Log points history
+      const historyRef = doc(collection(db, 'users', user.uid, 'pointsHistory'));
+      transaction.set(historyRef, {
+        amount: 20,
+        type: 'raffle_join',
+        description: `Joined raffle: ${raffle.itemType}`,
+        timestamp: serverTimestamp()
+      });
+
       return { success: true };
     });
+
+    if (result.success) {
+      await createNotification(user.uid, {
+        title: 'Points Awarded!',
+        message: `You earned 20 points for joining the ${raffleName} raffle!`,
+        type: 'points'
+      });
+    }
+
+    return result;
   } catch (error) {
     console.error('Error joining raffle:', error);
     return { success: false, error: error.message };

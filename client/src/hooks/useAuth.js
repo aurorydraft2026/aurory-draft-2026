@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { auth, db, discordProvider, googleProvider } from '../firebase';
 import { signInWithPopup, signInWithRedirect, getRedirectResult, getAdditionalUserInfo, signOut, onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, getDocs, collection, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, getDocs, collection, onSnapshot, runTransaction, increment, serverTimestamp } from 'firebase/firestore';
 import { isSuperAdmin } from '../config/admins';
 import { logActivity } from '../services/activityService';
 
@@ -275,6 +275,54 @@ export const useAuth = (navigate) => {
         }
     };
 
+    // Handle Daily Check-in
+    const handleDailyCheckIn = async () => {
+        if (!user || isAuthenticating) return;
+        
+        try {
+            const userRef = doc(db, 'users', user.uid);
+            await runTransaction(db, async (transaction) => {
+                const userDoc = await transaction.get(userRef);
+                if (!userDoc.exists()) throw new Error('User not found');
+                
+                const data = userDoc.data();
+                const now = new Date();
+                // Use UTC date string for consistency
+                const todayStr = now.toISOString().split('T')[0];
+                
+                if (data.lastDailyCheckIn === todayStr) {
+                    throw new Error('You have already checked in today! Come back tomorrow.');
+                }
+                
+                transaction.update(userRef, {
+                    points: increment(10),
+                    lastDailyCheckIn: todayStr,
+                    updatedAt: serverTimestamp()
+                });
+                
+                const historyRef = doc(collection(db, 'users', user.uid, 'pointsHistory'));
+                transaction.set(historyRef, {
+                    amount: 10,
+                    type: 'daily_checkin',
+                    description: 'Daily check-in reward',
+                    timestamp: serverTimestamp()
+                });
+            });
+
+            logActivity({
+                user,
+                type: 'POINTS',
+                action: 'daily_checkin',
+                metadata: { amount: 10 }
+            });
+
+            // Note: points update will be reflected automatically via onSnapshot listener
+        } catch (error) {
+            console.error('Daily check-in error:', error);
+            alert(error.message);
+        }
+    };
+
     const renderUserProfileContent = ({ setShowAuroryModal }) => {
         if (!user) return null;
         return (
@@ -310,6 +358,20 @@ export const useAuth = (navigate) => {
 
                             {user.isAurorian && <span className="aurorian-tag">Aurorian Holder</span>}
                         </div>
+                    </div>
+
+                    <div className="user-stats-grid">
+                        <div className="user-stat-card points-card">
+                            <span className="stat-label">✨ Total Points</span>
+                            <span className="stat-value">{user.points || 0}</span>
+                        </div>
+                        <button 
+                            className={`daily-checkin-btn ${user.lastDailyCheckIn === new Date().toISOString().split('T')[0] ? 'checked-in' : ''}`}
+                            onClick={handleDailyCheckIn}
+                            disabled={user.lastDailyCheckIn === new Date().toISOString().split('T')[0]}
+                        >
+                            {user.lastDailyCheckIn === new Date().toISOString().split('T')[0] ? '✅ Checked In Today' : '📅 Daily Check-in (+10)'}
+                        </button>
                     </div>
 
                     <div className="user-modal-actions">

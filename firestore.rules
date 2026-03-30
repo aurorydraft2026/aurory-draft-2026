@@ -250,6 +250,15 @@ service cloud.firestore {
                          (request.resource.data.role == resource.data.role)
                        )) || isSuperAdmin();
 
+      // Subcollection: Points History
+      match /pointsHistory/{historyId} {
+        // Users can read their own points history, admins can read all
+        allow read: if isOwner(userId) || isAdmin();
+        // Users can create their own points history entries (for client-side awarding)
+        allow create: if isOwner(userId) || isAdmin();
+        // Points history is immutable
+        allow update, delete: if isAdmin();
+      }
       
       // No one can delete users
       allow delete: if false;
@@ -277,10 +286,11 @@ service cloud.firestore {
       // Users can create their own wallet
       allow create: if isOwner(walletId) || isAdmin();
 
-      // Users can update their own wallet ONLY if balance is decreasing or staying same
-      // This allows withdrawals but prevents balance manipulation
+      // Users can update their own wallet ONLY if balances (AURY or USDC) are decreasing or staying same
+      // This allows the client to deduct fees but prevents balance manipulation
       allow update: if (isOwner(walletId) || isAuthenticated()) &&
-                       request.resource.data.balance <= resource.data.balance;
+                       request.resource.data.balance <= resource.data.balance &&
+                       request.resource.data.get('usdcBalance', 0) <= resource.data.get('usdcBalance', 0);
 
       // Admins can update any wallet (for deposits, refunds, etc.)
       // Restricted to Super Admins for manual credit/deduction

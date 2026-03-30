@@ -6561,3 +6561,143 @@
       justify-content: center;
     }
   }
+/* User Stats / Points in Profile Modal */
+.user-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding: 0 4px;
+}
+
+.user-stat-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: all 0.2s ease;
+}
+
+.points-card {
+    border-color: rgba(255, 215, 0, 0.3);
+    background: radial-gradient(circle at top right, rgba(255, 215, 0, 0.1), transparent 70%);
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--accent-gold);
+    font-family: 'Exo 2', sans-serif;
+}
+
+.daily-checkin-btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: var(--radius-md);
+    font-family: 'Exo 2', sans-serif;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    border: none;
+    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+    color: white;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.daily-checkin-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 200, 255, 0.4);
+    filter: brightness(1.1);
+}
+
+.daily-checkin-btn.checked-in {
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+    cursor: default;
+}
+
+.daily-checkin-btn:disabled {
+    opacity: 0.8;
+}
+
+
+/* Wallet Header Balance Alignment */
+.wallet-balances-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin-right: 8px !important;
+}
+
+.wallet-btn.usdc-btn {
+  border-color: rgba(39, 117, 202, 0.4) !important;
+  color: #2775ca !important;
+}
+
+.wallet-btn.usdc-btn:hover {
+  border-color: #2775ca !important;
+  box-shadow: 0 0 12px rgba(39, 117, 202, 0.3) !important;
+}
+
+
+/* Wallet Modal Currency Selector Styles */
+.currency-selector {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 8px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+}
+
+.currency-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.currency-btn img {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: contain;
+}
+
+.currency-btn.active {
+    background: var(--bg-card-hover);
+    border-color: var(--accent-gold);
+    color: var(--accent-gold);
+    box-shadow: 0 0 15px var(--accent-gold-glow);
+}
+
+.currency-btn:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+}

@@ -108,10 +108,14 @@ function HomePage() {
     depositAmount, setDepositAmount,
     depositNote, setDepositNote,
     formatAuryAmount,
+    formatUsdcAmount,
     formatTransactionTime,
     submitWithdrawal,
     submitDepositNotification,
-    copyToClipboard
+    copyToClipboard,
+    usdcBalance,
+    selectedCurrency,
+    setSelectedCurrency
   } = useWallet(user);
 
   const {
@@ -542,13 +546,22 @@ function HomePage() {
             <div className="user-info">
 
               {/* Wallet Balance */}
-              <button
-                className="wallet-btn"
-                onClick={() => setShowWalletModal(true)}
-              >
-                <img src="/aury-icon.png" alt="AURY" className="wallet-icon-img" />
-                <span className="wallet-amount">{formatAuryAmount(walletBalance)} AURY</span>
-              </button>
+              <div className="wallet-balances-header">
+                <button
+                  className="wallet-btn aury-btn"
+                  onClick={() => { setSelectedCurrency('AURY'); setShowWalletModal(true); }}
+                >
+                  <img src="/aury-icon.png" alt="AURY" className="wallet-icon-img" />
+                  <span className="wallet-amount">{formatAuryAmount(walletBalance)} AURY</span>
+                </button>
+                <button
+                  className="wallet-btn usdc-btn"
+                  onClick={() => { setSelectedCurrency('USDC'); setShowWalletModal(true); }}
+                >
+                  <img src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png" alt="USDC" className="wallet-icon-img" />
+                  <span className="wallet-amount">{formatUsdcAmount(usdcBalance)} USDC</span>
+                </button>
+              </div>
 
               {/* Admin High-Visibility Alerts */}
               {isAdmin && (adminPendingWithdrawals > 0 || adminPendingDeposits > 0) && (
@@ -2113,14 +2126,35 @@ function HomePage() {
           <div className="modal-overlay">
             <div className="wallet-modal">
               <div className="modal-header">
-                <h3><img src="/aury-icon.png" alt="" className="modal-aury-icon" /> AURY Wallet</h3>
+                <h3>
+                  <img src={selectedCurrency === 'AURY' ? "/aury-icon.png" : "https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png"} alt="" className="modal-aury-icon" /> 
+                  {selectedCurrency} Wallet
+                </h3>
                 <button className="close-modal" onClick={() => setShowWalletModal(false)}>✖</button>
+              </div>
+
+              {/* Currency Selector */}
+              <div className="currency-selector">
+                <button 
+                  className={`currency-btn ${selectedCurrency === 'AURY' ? 'active' : ''}`}
+                  onClick={() => setSelectedCurrency('AURY')}
+                >
+                  <img src="/aury-icon.png" alt="AURY" /> AURY
+                </button>
+                <button 
+                  className={`currency-btn ${selectedCurrency === 'USDC' ? 'active' : ''}`}
+                  onClick={() => setSelectedCurrency('USDC')}
+                >
+                  <img src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png" alt="USDC" /> USDC
+                </button>
               </div>
 
               {/* Wallet Balance Display */}
               <div className="wallet-balance-display">
-                <span className="balance-label">Available Balance</span>
-                <span className="balance-amount">{formatAuryAmount(walletBalance)} AURY</span>
+                <span className="balance-label">Available {selectedCurrency}</span>
+                <span className="balance-amount">
+                  {selectedCurrency === 'AURY' ? formatAuryAmount(walletBalance) : formatUsdcAmount(usdcBalance)} {selectedCurrency}
+                </span>
               </div>
 
               {/* Wallet Tabs */}
@@ -2150,7 +2184,7 @@ function HomePage() {
                 {walletTab === 'deposit' && (
                   <div className="deposit-section">
                     <p className="deposit-instructions">
-                      Send AURY tokens to the address below.
+                      Send {selectedCurrency} tokens to the address below.
                       Your balance will be updated after admin confirmation.
                     </p>
 
@@ -2194,10 +2228,10 @@ function HomePage() {
                       </div>
 
                       <div className="form-group">
-                        <label>Amount Sent (AURY)</label>
+                        <label>Amount Sent ({selectedCurrency})</label>
                         <input
                           type="number"
-                          placeholder="Enter amount you sent..."
+                          placeholder={`Enter amount of ${selectedCurrency} you sent...`}
                           value={depositAmount}
                           onChange={(e) => setDepositAmount(e.target.value)}
                           min="0"
@@ -2234,7 +2268,7 @@ function HomePage() {
                 {walletTab === 'withdraw' && (
                   <div className="withdraw-section">
                     <div className="form-group">
-                      <label>Amount (AURY)</label>
+                      <label>Amount ({selectedCurrency})</label>
                       <div className="amount-input-wrapper">
                         <input
                           type="number"
@@ -2246,13 +2280,16 @@ function HomePage() {
                         />
                         <button
                           className="max-btn"
-                          onClick={() => setWithdrawAmount((walletBalance / 1e9).toString())}
+                          onClick={() => {
+                            const maxVal = selectedCurrency === 'AURY' ? (walletBalance / 1e9) : (usdcBalance / 1e6);
+                            setWithdrawAmount(maxVal.toString());
+                          }}
                         >
                           MAX
                         </button>
                       </div>
                       <span className="available-balance">
-                        Available: {formatAuryAmount(walletBalance)} AURY
+                        Available: {selectedCurrency === 'AURY' ? formatAuryAmount(walletBalance) : formatUsdcAmount(usdcBalance)} {selectedCurrency}
                       </span>
                     </div>
 
@@ -2270,7 +2307,7 @@ function HomePage() {
                     {/* Simplified Tax Breakdown */}
                     {withdrawAmount && !isNaN(parseFloat(withdrawAmount)) && (
                       <div className="withdraw-tax-simple">
-                        <p>{parseFloat(withdrawAmount).toFixed(2)} - 2.5% tax = <span className="net-amount">{(parseFloat(withdrawAmount) * 0.975).toFixed(4)} AURY</span> (Available withdrawal)</p>
+                        <p>{parseFloat(withdrawAmount).toFixed(2)} - 2.5% tax = <span className="net-amount">{(parseFloat(withdrawAmount) * 0.975).toFixed(4)} {selectedCurrency}</span> (Available withdrawal)</p>
                       </div>
                     )}
 
@@ -2375,7 +2412,7 @@ function HomePage() {
                               </div>
                               <div className={`tx-amount ${amountClass}`}>
                                 {amountClass === 'positive' ? '+' : '-'}
-                                {formatAuryAmount(tx.amount)} AURY
+                                {tx.currency === 'USDC' ? formatUsdcAmount(tx.amount) : formatAuryAmount(tx.amount)} {tx.currency || 'AURY'}
                               </div>
                             </div>
                           );

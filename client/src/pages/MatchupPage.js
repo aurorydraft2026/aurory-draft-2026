@@ -18,6 +18,7 @@ import {
 } from '../utils/tournamentUtils';
 import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
 import { useAuth } from '../hooks/useAuth';
+import { awardPoints } from '../services/pointsService';
 import './MatchupPage.css';
 
 
@@ -492,6 +493,10 @@ const MatchupPage = () => {
                     participantUids: arrayUnion(user.uid)
                 });
             });
+
+            // Award points for joining tournament (+30)
+            await awardPoints(user.uid, 30, 'tournament_join', `Joined tournament: ${matchup.title || 'Untitled'}`);
+
             alert(ENTRY_FEE > 0 ? `Tournament joined successfully! ${(ENTRY_FEE / 1e9).toFixed(2)} AURY deducted.` : 'Tournament joined successfully!');
         } catch (err) {
             console.error('Error joining matchup:', err);
@@ -564,12 +569,17 @@ const MatchupPage = () => {
                 if (mData.participants.length >= mData.maxParticipants) {
                     throw new Error("Matchup is already full!");
                 }
-
                 transaction.update(matchupRef, {
                     participants: arrayUnion(teamData),
                     participantUids: arrayUnion(...uidsToAdd)
                 });
             });
+
+            // Award points for all members (+30 each)
+            await Promise.allSettled(uidsToAdd.map(uid => 
+                awardPoints(uid, 30, 'tournament_join', `Joined tournament: ${matchup.title || 'Untitled'}`)
+            ));
+
             alert(ENTRY_FEE > 0 ? `Team joined tournament successfully! ${(ENTRY_FEE / 1e9).toFixed(2)} AURY deducted from each member.` : 'Team joined tournament successfully!');
         } catch (err) {
             console.error('Error joining as team:', err);

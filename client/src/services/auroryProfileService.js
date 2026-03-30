@@ -4,10 +4,11 @@
 
 import {
   doc, getDoc, updateDoc, serverTimestamp,
-  collection, query, where, getDocs
+  collection, query, where, getDocs, runTransaction, increment
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { auroryFetch } from './auroryProxyClient';
+import { createNotification } from './notifications';
 
 // ============================================================================
 // API FUNCTIONS
@@ -652,15 +653,50 @@ export async function linkAuroryAccount(userId, auroryData) {
 
     // 2. Proceed with linking
     const userRef = doc(db, 'users', userId);
-    await updateDoc(userRef, {
-      auroryPlayerId: auroryData.playerId,
-      auroryPlayerName: auroryData.playerName,
-      auroryWallet: auroryData.wallet || null,
-      auroryProfilePicture: auroryData.profilePicture || null,
-      isAurorian: auroryData.isAurorian || false,
-      auroryLinkedAt: serverTimestamp(),
-      auroryLastSync: serverTimestamp()
+    let pointsAwarded = false;
+    await runTransaction(db, async (transaction) => {
+      const userSnap = await transaction.get(userRef);
+      if (!userSnap.exists()) throw new Error('User not found');
+      
+      const userData = userSnap.data();
+      const isFirstLink = !userData.auroryPlayerId;
+      
+      const updateData = {
+        auroryPlayerId: auroryData.playerId,
+        auroryPlayerName: auroryData.playerName,
+        auroryWallet: auroryData.wallet || null,
+        auroryProfilePicture: auroryData.profilePicture || null,
+        isAurorian: auroryData.isAurorian || false,
+        auroryLinkedAt: serverTimestamp(),
+        auroryLastSync: serverTimestamp()
+      };
+      
+      if (isFirstLink) {
+        updateData.points = increment(50);
+        pointsAwarded = true;
+      }
+      
+      transaction.update(userRef, updateData);
+      
+      if (isFirstLink) {
+        const historyRef = doc(collection(db, 'users', userId, 'pointsHistory'));
+        transaction.set(historyRef, {
+          amount: 50,
+          type: 'registration',
+          description: 'Aurory account linking reward (Registration)',
+          timestamp: serverTimestamp()
+        });
+      }
     });
+
+    if (pointsAwarded) {
+      await createNotification(userId, {
+        title: 'Registration Reward!',
+        message: 'You earned 50 points for linking your Aurory account. Welcome to Asgard Duels!',
+        type: 'points'
+      });
+    }
+
 
     return { success: true };
   } catch (error) {

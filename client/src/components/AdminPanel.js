@@ -24,6 +24,7 @@ import { createNotification } from '../services/notifications';
 import { logActivity } from '../services/activityService';
 import LoadingScreen from './LoadingScreen';
 import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
+import { awardPoints } from '../services/pointsService';
 import './AdminPanel.css';
 
 // Helper to get user email
@@ -36,13 +37,17 @@ const getUserEmail = (user) => {
   return null;
 };
 
-// Format AURY amount (9 decimals)
-const formatAuryAmount = (amount) => {
-  return (amount / 1e9).toLocaleString('en-US', {
+// Format amount based on currency
+const formatAmount = (amount, currency = 'AURY') => {
+  const divisor = currency === 'USDC' ? 1e6 : 1e9;
+  const decimals = currency === 'USDC' ? 2 : 4;
+  return (amount / divisor).toLocaleString('en-US', {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 4
+    maximumFractionDigits: decimals
   });
 };
+
+const formatAuryAmount = (amount) => formatAmount(amount, 'AURY');
 
 function AdminPanel() {
   const navigate = useNavigate();
@@ -216,6 +221,10 @@ IX. General Conduct
 Teams are expected to follow fair play standards.
 All decisions made by tournament organizers may change throughout the tourney.`);
   const [announcementLink, setAnnouncementLink] = useState('');
+
+  // Selected currencies for manual operations
+  const [selectedCreditCurrency, setSelectedCreditCurrency] = useState('AURY');
+  const [selectedDeductCurrency, setSelectedDeductCurrency] = useState('AURY');
 
   // Handle image upload to Base64
   const handleImageUpload = (e) => {
@@ -402,14 +411,22 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         // Create a map of balances for easy lookup
         const balanceMap = {};
         walletsSnapshot.forEach(doc => {
-          balanceMap[doc.id] = doc.data().balance || 0;
+          const data = doc.data();
+          balanceMap[doc.id] = {
+            balance: data.balance || 0,
+            usdcBalance: data.usdcBalance || 0
+          };
         });
 
-        const users = usersSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          balance: balanceMap[doc.id] || 0
-        })).filter(u => u.email && !u.isGuest);
+        const users = usersSnapshot.docs.map(doc => {
+          const balances = balanceMap[doc.id] || { balance: 0, usdcBalance: 0 };
+          return {
+            id: doc.id,
+            ...doc.data(),
+            balance: balances.balance,
+            usdcBalance: balances.usdcBalance
+          };
+        }).filter(u => u.email && !u.isGuest);
 
         setAllUsers(users);
       } catch (error) {
@@ -1075,6 +1092,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         await addDoc(txRef, {
           type: 'withdrawal',
           amount: withdrawal.amount,
+          currency: withdrawal.currency || 'AURY',
           walletAddress: withdrawal.walletAddress,
           txSignature: txSig,
           timestamp: serverTimestamp(),
@@ -1088,9 +1106,12 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         await createNotification(withdrawal.userId, {
           type: 'withdrawal',
           title: 'Withdrawal Approved',
-          message: `Your withdrawal has been approved. You should receive ${formatAuryAmount(withdrawal.netAmount || (withdrawal.amount * 0.975))} AURY (after 2.5% tax).`,
+          message: `Your withdrawal has been approved. You should receive ${formatAmount(withdrawal.netAmount || (withdrawal.amount * 0.975), withdrawal.currency)} ${withdrawal.currency || 'AURY'} (after 2.5% tax).`,
           link: '#'
         });
+
+        // Award points for withdrawal (+10)
+        await awardPoints(withdrawal.userId, 10, 'withdrawal', `${withdrawal.currency || 'AURY'} Withdrawal completed`);
 
       } else {
         // REJECT: Refund the balance to the user
@@ -1101,13 +1122,21 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             throw new Error('User wallet not found');
           }
 
-          const currentBalance = walletDoc.data().balance || 0;
+          const currentBalance = withdrawal.currency === 'USDC' 
+            ? (walletDoc.data().usdcBalance || 0) 
+            : (walletDoc.data().balance || 0);
 
           // Refund the withdrawal amount
-          transaction.update(walletRef, {
-            balance: currentBalance + withdrawal.amount,
+          const updateData = {
             updatedAt: serverTimestamp()
-          });
+          };
+          if (withdrawal.currency === 'USDC') {
+            updateData.usdcBalance = currentBalance + withdrawal.amount;
+          } else {
+            updateData.balance = currentBalance + withdrawal.amount;
+          }
+
+          transaction.update(walletRef, updateData);
 
           // Update withdrawal status
           transaction.update(withdrawalRef, {
@@ -1122,6 +1151,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         await addDoc(txRef, {
           type: 'withdrawal_rejected_refund',
           amount: withdrawal.amount,
+          currency: withdrawal.currency || 'AURY',
           walletAddress: withdrawal.walletAddress,
           reason: 'Rejected by admin - balance refunded',
           timestamp: serverTimestamp()
@@ -1133,7 +1163,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         await createNotification(withdrawal.userId, {
           type: 'withdrawal',
           title: 'Withdrawal Rejected',
-          message: `Your withdrawal of ${formatAuryAmount(withdrawal.amount)} AURY (before tax) was rejected. Balance has been refunded.`,
+          message: `Your withdrawal of ${formatAmount(withdrawal.amount, withdrawal.currency)} ${withdrawal.currency || 'AURY'} (before tax) was rejected. Balance has been refunded.`,
           link: '#'
         });
       }
@@ -1154,12 +1184,13 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   };
 
   // Process deposit notification (credit user balance)
-  const processDepositNotification = async (notificationId, userId, amountAury) => {
+  const processDepositNotification = async (notificationId, userId, amountVal, currency = 'AURY') => {
     setProcessingId(notificationId);
 
     try {
-      // Convert AURY to smallest unit (9 decimals)
-      const amountInSmallestUnit = Math.floor(parseFloat(amountAury) * 1e9);
+      // Determine decimals based on currency
+      const decimals = currency === 'USDC' ? 1e6 : 1e9;
+      const amountInSmallestUnit = Math.floor(parseFloat(amountVal) * decimals);
 
       if (isNaN(amountInSmallestUnit) || amountInSmallestUnit <= 0) {
         alert('Invalid amount');
@@ -1175,14 +1206,22 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
         let currentBalance = 0;
         if (walletDoc.exists()) {
-          currentBalance = walletDoc.data().balance || 0;
+          currentBalance = currency === 'USDC' 
+            ? (walletDoc.data().usdcBalance || 0) 
+            : (walletDoc.data().balance || 0);
         }
 
         // Update or create wallet with new balance
-        transaction.set(walletRef, {
-          balance: currentBalance + amountInSmallestUnit,
+        const updateData = {
           updatedAt: serverTimestamp()
-        }, { merge: true });
+        };
+        if (currency === 'USDC') {
+          updateData.usdcBalance = currentBalance + amountInSmallestUnit;
+        } else {
+          updateData.balance = currentBalance + amountInSmallestUnit;
+        }
+
+        transaction.set(walletRef, updateData, { merge: true });
 
         // Mark notification as processed
         transaction.update(notificationRef, {
@@ -1197,25 +1236,29 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       await addDoc(txRef, {
         type: 'deposit',
         amount: amountInSmallestUnit,
+        currency: currency,
         timestamp: serverTimestamp(),
         processedBy: getUserEmail(user) || user.displayName || user.uid
       });
 
-      alert(`✅ Successfully credited ${amountAury} AURY to user!`);
+      alert(`✅ Successfully credited ${amountVal} ${currency} to user!`);
 
       // Notify User
       await createNotification(userId, {
         type: 'deposit',
         title: 'Deposit Credited',
-        message: `Your deposit of ${amountAury} AURY has been verified and credited!`,
+        message: `Your deposit of ${amountVal} ${currency} has been verified and credited!`,
         link: '#'
       });
+
+      // Award points for deposit (+10)
+      await awardPoints(userId, 10, 'deposit', `${currency} Deposit verified`);
 
       logActivity({
         user,
         type: 'ADMIN',
         action: 'deposit_approve',
-        metadata: { notificationId, userId, amount: amountAury }
+        metadata: { notificationId, userId, amount: amountVal }
       });
 
     } catch (error) {
@@ -1271,15 +1314,16 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to credit ${amount} AURY to ${selectedCreditUsers.length} users?`)) {
+    if (!window.confirm(`Are you sure you want to credit ${amount} ${selectedCreditCurrency} to ${selectedCreditUsers.length} users?`)) {
       return;
     }
 
     setProcessingId('credit');
 
     try {
-      // Convert to smallest unit (9 decimals)
-      const amountInSmallestUnit = Math.floor(amount * 1e9);
+      // Smallest unit based on currency
+      const decimals = selectedCreditCurrency === 'USDC' ? 1e6 : 1e9;
+      const amountInSmallestUnit = Math.floor(amount * decimals);
 
       // Process each user
       const results = await Promise.allSettled(selectedCreditUsers.map(async (selectedUser) => {
@@ -1290,13 +1334,21 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
           let currentBalance = 0;
           if (walletDoc.exists()) {
-            currentBalance = walletDoc.data().balance || 0;
+            currentBalance = selectedCreditCurrency === 'USDC' 
+              ? (walletDoc.data().usdcBalance || 0) 
+              : (walletDoc.data().balance || 0);
           }
 
-          transaction.set(walletRef, {
-            balance: currentBalance + amountInSmallestUnit,
+          const updateData = {
             updatedAt: serverTimestamp()
-          }, { merge: true });
+          };
+          if (selectedCreditCurrency === 'USDC') {
+            updateData.usdcBalance = currentBalance + amountInSmallestUnit;
+          } else {
+            updateData.balance = currentBalance + amountInSmallestUnit;
+          }
+
+          transaction.set(walletRef, updateData, { merge: true });
         });
 
         // Add transaction to user's history
@@ -1304,6 +1356,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         await addDoc(txRef, {
           type: 'deposit',
           amount: amountInSmallestUnit,
+          currency: selectedCreditCurrency,
           reason: creditReason || 'Credit by admin',
           timestamp: serverTimestamp(),
           processedBy: getUserEmail(user) || user.displayName || user.uid
@@ -1313,16 +1366,19 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         await createNotification(selectedUser.id, {
           type: 'deposit',
           title: 'Balance Notification',
-          message: `${amount} credits has been added to your account.`,
+          message: `${amount} ${selectedCreditCurrency} has been added to your account.`,
           link: '#'
         });
+
+        // Award points for credit (+10)
+        await awardPoints(selectedUser.id, 10, 'manual_credit', `Admin credit: ${amount} ${selectedCreditCurrency}`);
       }));
 
       const succeeded = results.filter(r => r.status === 'fulfilled').length;
       const failed = results.filter(r => r.status === 'rejected').length;
 
       if (failed === 0) {
-        alert(`✅ Successfully credited ${amount} AURY to ${succeeded} users!`);
+        alert(`✅ Successfully credited ${amount} ${selectedCreditCurrency} to ${succeeded} users!`);
       } else {
         alert(`⚠️ Processed with some issues: ${succeeded} succeeded, ${failed} failed. Check console.`);
       }
@@ -1364,15 +1420,16 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to deduct ${amount} AURY from ${selectedDeductUsers.length} users?`)) {
+    if (!window.confirm(`Are you sure you want to deduct ${amount} ${selectedDeductCurrency} from ${selectedDeductUsers.length} users?`)) {
       return;
     }
 
     setProcessingId('deduct');
 
     try {
-      // Convert to smallest unit (9 decimals)
-      const amountInSmallestUnit = Math.floor(amount * 1e9);
+      // Smallest unit based on currency
+      const decimals = selectedDeductCurrency === 'USDC' ? 1e6 : 1e9;
+      const amountInSmallestUnit = Math.floor(amount * decimals);
 
       // Process each user
       const results = await Promise.allSettled(selectedDeductUsers.map(async (selectedUser) => {
@@ -1385,19 +1442,28 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             throw new Error('User wallet not found');
           }
 
-          const currentBalance = walletDoc.data().balance || 0;
+          const data = walletDoc.data();
+          const currentBalance = selectedDeductCurrency === 'USDC' 
+            ? (data.usdcBalance || 0) 
+            : (data.balance || 0);
 
           // Optional: Prevent negative balance
           if (currentBalance < amountInSmallestUnit) {
-            if (!window.confirm(`${selectedUser.displayName || selectedUser.email} only has ${formatAuryAmount(currentBalance)} AURY. Deducting this will result in a negative balance. Proceed?`)) {
+            if (!window.confirm(`${selectedUser.displayName || selectedUser.email} only has ${formatAmount(currentBalance, selectedDeductCurrency)} ${selectedDeductCurrency}. Deducting this will result in a negative balance. Proceed?`)) {
               throw new Error('Operation cancelled by admin due to insufficient funds.');
             }
           }
 
-          transaction.update(walletRef, {
-            balance: currentBalance - amountInSmallestUnit,
+          const updateData = {
             updatedAt: serverTimestamp()
-          });
+          };
+          if (selectedDeductCurrency === 'USDC') {
+            updateData.usdcBalance = currentBalance - amountInSmallestUnit;
+          } else {
+            updateData.balance = currentBalance - amountInSmallestUnit;
+          }
+
+          transaction.update(walletRef, updateData);
         });
 
         // Add transaction to user's history
@@ -1405,6 +1471,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         await addDoc(txRef, {
           type: 'withdrawal',
           amount: amountInSmallestUnit,
+          currency: selectedDeductCurrency,
           reason: deductReason || 'Balance Adjustment by Admin',
           timestamp: serverTimestamp(),
           processedBy: getUserEmail(user) || user.displayName || user.uid,
@@ -1424,7 +1491,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       const failed = results.filter(r => r.status === 'rejected').length;
 
       if (failed === 0) {
-        alert(`✅ Successfully deducted ${amount} AURY from ${succeeded} users!`);
+        alert(`✅ Successfully deducted ${amount} ${selectedDeductCurrency} from ${succeeded} users!`);
       } else {
         alert(`⚠️ Processed with some issues: ${succeeded} succeeded, ${failed} failed. Check console.`);
       }
@@ -2414,15 +2481,15 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       <div className="withdrawal-details">
                         <div className="detail-row">
                           <span className="label">Requested (Gross):</span>
-                          <span className="value amount">{formatAuryAmount(withdrawal.amount)} AURY</span>
+                          <span className="value amount">{formatAmount(withdrawal.amount, withdrawal.currency)} {withdrawal.currency || 'AURY'}</span>
                         </div>
                         <div className="detail-row tax-highlight">
                           <span className="label">Tax (2.5%):</span>
-                          <span className="value">-{formatAuryAmount(withdrawal.taxAmount || (withdrawal.amount * 0.025))} AURY</span>
+                          <span className="value">-{formatAmount(withdrawal.taxAmount || (withdrawal.amount * 0.025), withdrawal.currency)} {withdrawal.currency || 'AURY'}</span>
                         </div>
                         <div className="detail-row net-highlight">
                           <span className="label">SEND TO USER (Net):</span>
-                          <span className="value received">{formatAuryAmount(withdrawal.netAmount || (withdrawal.amount * 0.975))} AURY</span>
+                          <span className="value received">{formatAmount(withdrawal.netAmount || (withdrawal.amount * 0.975), withdrawal.currency)} {withdrawal.currency || 'AURY'}</span>
                         </div>
                         <div className="detail-row">
                           <span className="label">Wallet Address:</span>
@@ -2437,7 +2504,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       <div className="withdrawal-actions">
                         <input
                           type="text"
-                          placeholder="Enter TX signature after sending AURY..."
+                          placeholder={`Enter TX signature after sending ${withdrawal.currency || 'AURY'}...`}
                           value={approvalTxSignature[withdrawal.id] || ''}
                           onChange={(e) => setApprovalTxSignature(prev => ({
                             ...prev,
@@ -2514,7 +2581,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       <div className="deposit-details">
                         <div className="detail-row">
                           <span className="label">Amount Claimed:</span>
-                          <span className="value amount">{notification.amount} AURY</span>
+                          <span className="value amount">{notification.amount} {notification.currency || 'AURY'}</span>
                         </div>
                         {notification.txSignature && (
                           <div className="detail-row">
@@ -2551,7 +2618,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             onClick={() => processDepositNotification(
                               notification.id,
                               notification.userId,
-                              notification.amount
+                              notification.amount,
+                              notification.currency || 'AURY'
                             )}
                             disabled={processingId === notification.id}
                           >
@@ -2576,7 +2644,21 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           {activeTab === 'credit' && (
             <div className="credit-section">
               <div className="section-info">
-                <p>📥 Select multiple players to credit AURY simultaneously.</p>
+                <p>📥 Select multiple players to credit AURY or USDC simultaneously.</p>
+              </div>
+
+              <div className="form-group">
+                <label>Currency</label>
+                <div className="currency-toggle-group">
+                  <button 
+                    className={`toggle-btn ${selectedCreditCurrency === 'AURY' ? 'active' : ''}`}
+                    onClick={() => setSelectedCreditCurrency('AURY')}
+                  >AURY</button>
+                  <button 
+                    className={`toggle-btn ${selectedCreditCurrency === 'USDC' ? 'active' : ''}`}
+                    onClick={() => setSelectedCreditCurrency('USDC')}
+                  >USDC</button>
+                </div>
               </div>
 
               <div className="credit-form">
@@ -2634,7 +2716,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 <span className="participant-email">{u.email}</span>
                               </div>
                               <div className="participant-balance">
-                                {formatAuryAmount(u.balance)} AURY
+                                {selectedCreditCurrency === 'USDC' 
+                                  ? formatAmount(u.usdcBalance || 0, 'USDC') 
+                                  : formatAmount(u.balance || 0, 'AURY')
+                                } {selectedCreditCurrency}
                               </div>
                             </div>
                           ))
@@ -2645,10 +2730,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 </div>
 
                 <div className="form-group">
-                  <label>Amount (AURY) - Will be sent to EACH user</label>
+                  <label>Amount ({selectedCreditCurrency}) - Will be sent to EACH user</label>
                   <input
                     type="number"
-                    placeholder="Enter amount to send to each selected user..."
+                    placeholder={`Enter amount of ${selectedCreditCurrency} to send to each selected user...`}
                     value={creditAmount}
                     onChange={(e) => setCreditAmount(e.target.value)}
                     onWheel={(e) => e.target.blur()}
@@ -2682,6 +2767,20 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             <div className="credit-section deduct-section">
               <div className="section-info deduct-info">
                 <p>📉 Subtract balance from users for corrections or adjustments.</p>
+              </div>
+
+              <div className="form-group">
+                <label>Currency</label>
+                <div className="currency-toggle-group">
+                  <button 
+                    className={`toggle-btn ${selectedDeductCurrency === 'AURY' ? 'active' : ''}`}
+                    onClick={() => setSelectedDeductCurrency('AURY')}
+                  >AURY</button>
+                  <button 
+                    className={`toggle-btn ${selectedDeductCurrency === 'USDC' ? 'active' : ''}`}
+                    onClick={() => setSelectedDeductCurrency('USDC')}
+                  >USDC</button>
+                </div>
               </div>
 
               <div className="credit-form">
@@ -2739,7 +2838,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 <span className="participant-email">{u.email}</span>
                               </div>
                               <div className="participant-balance">
-                                {formatAuryAmount(u.balance)} AURY
+                                {selectedDeductCurrency === 'USDC' 
+                                  ? formatAmount(u.usdcBalance || 0, 'USDC') 
+                                  : formatAmount(u.balance || 0, 'AURY')
+                                } {selectedDeductCurrency}
                               </div>
                             </div>
                           ))
@@ -2750,10 +2852,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 </div>
 
                 <div className="form-group">
-                  <label>Amount (AURY) - Will be deducted from EACH user</label>
+                  <label>Amount ({selectedDeductCurrency}) - Will be deducted from EACH user</label>
                   <input
                     type="number"
-                    placeholder="Enter amount to deduct from each selected user..."
+                    placeholder={`Enter amount of ${selectedDeductCurrency} to deduct from each selected user...`}
                     value={deductAmount}
                     onChange={(e) => setDeductAmount(e.target.value)}
                     onWheel={(e) => e.target.blur()}
