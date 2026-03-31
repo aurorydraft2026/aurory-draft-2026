@@ -1232,7 +1232,7 @@ function HomePage() {
             {/* Top Valcoins section */}
             <div className="top-players-section valcoins-leaderboard">
               <div className="top-players-header">
-                <h3>✨ Top Valcoins Earners</h3>
+                <h3><img src="/valcoin-icon.jpg" alt="" className="valcoin-icon" /> Top Valcoins Earners</h3>
               </div>
               <div className="top-players-list">
                 {!topValcoinsUsers || topValcoinsUsers.length === 0 ? (
@@ -1257,8 +1257,9 @@ function HomePage() {
                         <div className="top-player-info">
                           <span className="top-player-name">{resolveDisplayName(item)}</span>
                         </div>
-                        <div className="top-player-winrate valcoin-amount" style={{ color: '#fbcd02', fontWeight: 700 }}>
-                          {(item.points || 0).toLocaleString()} <span style={{fontSize:'0.8em'}}>Valcoins</span>
+                        <div className="top-player-winrate valcoin-amount" style={{ color: '#fbcd02', fontWeight: 700, display: 'flex', alignItems: 'center' }}>
+                          <img src="/valcoin-icon.jpg" alt="" className="valcoin-icon small" />
+                          {(item.points || 0).toLocaleString()} <span style={{fontSize:'0.8em', marginLeft: '4px'}}>Valcoins</span>
                         </div>
                       </div>
                     );

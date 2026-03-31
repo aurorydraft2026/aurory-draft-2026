@@ -7,6 +7,29 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Valcoin Branding */
+.valcoin-icon {
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
+  margin-right: 4px;
+  margin-bottom: 2px;
+  display: inline-block;
+  object-fit: contain;
+  border-radius: 50%;
+  filter: drop-shadow(0 0 3px rgba(251, 205, 2, 0.5));
+}
+
+.valcoin-icon.large {
+  width: 24px;
+  height: 24px;
+}
+
+.valcoin-icon.small {
+  width: 14px;
+  height: 14px;
+}
+
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;

@@ -2188,7 +2188,7 @@ const MatchupPage = () => {
                                                         {(idx === 0 && matchup.prize1 > 0) && <span className="podium-prize-win">💰 {matchup.prize1} AURY</span>}
                                                         {(idx === 1 && matchup.prize2 > 0) && <span className="podium-prize-win">💰 {matchup.prize2} AURY</span>}
                                                         {(idx === 2 && matchup.prize3 > 0) && <span className="podium-prize-win">💰 {matchup.prize3} AURY</span>}
-                                                        {standing.points !== undefined && <span className="podium-pts">{standing.points} Valcoins</span>}
+                                                        {standing.points !== undefined && <span className="podium-pts"><img src="/valcoin-icon.jpg" alt="" className="valcoin-icon small" />{standing.points} Valcoins</span>}
                                                         {standing.wins !== undefined && <span className="podium-record">{standing.wins}W {standing.draws}D {standing.losses}L</span>}
                                                     </div>
                                                 );
@@ -2219,7 +2219,7 @@ const MatchupPage = () => {
                                                 </div>
                                                 <div className="team-score-info">
                                                     <span className="team-score-name">{team.teamName}</span>
-                                                    <span className="team-score-total">Total: {calculateTeamScore(team)} Valcoins</span>
+                                                    <span className="team-score-total">Total: <img src="/valcoin-icon.jpg" alt="" className="valcoin-icon" />{calculateTeamScore(team)} Valcoins</span>
                                                 </div>
                                             </div>
                                             <div className="player-scores-list">
@@ -2241,7 +2241,7 @@ const MatchupPage = () => {
                                                                         min="0"
                                                                     />
                                                                 ) : (
-                                                                    <span className="score-display">{matchup.playerScores?.[uid] || 0} Valcoins</span>
+                                                                    <span className="score-display"><img src="/valcoin-icon.jpg" alt="" className="valcoin-icon small" />{matchup.playerScores?.[uid] || 0} Valcoins</span>
                                                                 )}
                                                             </div>
                                                         </div>
@@ -2268,7 +2268,7 @@ const MatchupPage = () => {
                                                     <div className="leader-info">
                                                         <span className="leader-name">{team.teamName}</span>
                                                     </div>
-                                                    <div className="leader-score">{calculateTeamScore(team)} <small>Valcoins</small></div>
+                                                    <div className="leader-score"><img src="/valcoin-icon.jpg" alt="" className="valcoin-icon small" />{calculateTeamScore(team)} <small>Valcoins</small></div>
                                                 </div>
                                             ))}
                                         </div>
@@ -2288,7 +2288,7 @@ const MatchupPage = () => {
                                                     <div className="leader-info">
                                                         <span className="leader-name">{resolveDisplayName(pUser)}</span>
                                                     </div>
-                                                    <div className="leader-score">{item.score} <small>Valcoins</small></div>
+                                                    <div className="leader-score"><img src="/valcoin-icon.jpg" alt="" className="valcoin-icon small" />{item.score} <small>Valcoins</small></div>
                                                 </div>
                                             );
                                         })}

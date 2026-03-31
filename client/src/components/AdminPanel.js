@@ -186,7 +186,7 @@ Realm of Fire
 
 Each team will compete against every other team within their assigned group in a Round Robin format.
 
-IV. Valcoins System
+IV. <img src="/valcoin-icon.jpg" alt="" className="valcoin-icon" /> Valcoins System
 Teams compete for Valcoins during the Group Stage.
 3 Valcoins per individual player win
 Maximum of 9 Valcoins per match (3 players × 3 Valcoins)
@@ -1585,7 +1585,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         await createNotification(selectedUser.id, {
           type: isValcoins ? 'points' : 'withdrawal',
           title: isValcoins ? 'Valcoins Deduction' : 'Balance Notification',
-          message: `${amount} ${selectedDeductCurrency} has been deducted from your account.`,
+          message: isValcoins ? 'Your Valcoin has been adjusted.' : `${amount} ${selectedDeductCurrency} has been deducted from your account.`,
           link: '#'
         });
       }));
@@ -3020,7 +3020,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 <LoadingScreen message="Loading configuration..." />
               ) : (
                 <div className="credit-form">
-                  <h3>Valcoin Rewards Matrix</h3>
+                  <h3><img src="/valcoin-icon.jpg" alt="" className="valcoin-icon" /> Valcoin Rewards Matrix</h3>
                   
                   <div className="form-group" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '15px' }}>
                     <div className="input-group">

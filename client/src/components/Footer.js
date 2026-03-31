@@ -33,14 +33,14 @@ const Footer = () => {
                                 <span>Aurory</span>
                             </a>
                             <a
-                                href="https://discord.gg/kFdCJRu7"
+                                href="https://discord.gg/FNH9uKDD"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="footer-link discord asgard"
-                                title="Join Asgard Duels Community Discord"
+                                title="Join Asgard Guild Discord"
                             >
-                                <img src="/AsgardDuels logos/AD_logo_mobile_colored.svg" alt="Asgard Duels" className="footer-link-logo" />
-                                <span>Asgard Duels</span>
+                                <img src="/asgard-guild-logo.jpg" alt="Asgard Guild" className="footer-link-logo" />
+                                <span>Asgard Guild</span>
                             </a>
                             <a
                                 href="https://x.com/asgardduel"
