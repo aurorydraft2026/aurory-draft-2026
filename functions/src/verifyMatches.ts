@@ -295,14 +295,35 @@ async function processRefund(draftId: string, draftData: any): Promise<void> {
       const snap = await tx.get(draftRef);
       if (snap.data()?.payoutComplete) return;
 
+      const uids = Object.keys(entryPaid);
+      // Batch read all wallets
+      const walletSnaps = await Promise.all(
+        uids.map(uid => tx.get(admin.firestore().doc(`wallets/${uid}`)))
+      );
+
+      const walletMap = new Map();
+      walletSnaps.forEach((snap, idx) => {
+        walletMap.set(uids[idx], snap);
+      });
+
       for (const [uid, amount] of Object.entries(entryPaid)) {
         if ((amount as number) <= 0) continue;
+        const walletSnap = walletMap.get(uid);
+        const balance = walletSnap?.exists ? (walletSnap.data()?.balance || 0) : 0;
         const walletRef = admin.firestore().doc(`wallets/${uid}`);
-        const walletSnap = await tx.get(walletRef);
-        const balance = walletSnap.exists ? (walletSnap.data()?.balance || 0) : 0;
-        tx.set(walletRef, { balance: balance + (amount as number), updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        
+        tx.set(walletRef, { 
+          balance: balance + (amount as number), 
+          updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+        }, { merge: true });
+
         const txRef = admin.firestore().collection(`wallets/${uid}/transactions`).doc();
-        tx.set(txRef, { type: 'refund_draw', amount, draftId, timestamp: admin.firestore.FieldValue.serverTimestamp() });
+        tx.set(txRef, { 
+          type: 'refund_draw', 
+          amount, 
+          draftId, 
+          timestamp: admin.firestore.FieldValue.serverTimestamp() 
+        });
       }
       tx.update(draftRef, { payoutComplete: true, payoutData: { refunded: true, processedAt: Date.now() } });
     });

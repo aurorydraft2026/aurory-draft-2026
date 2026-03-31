@@ -43,7 +43,7 @@ const Footer = () => {
                                 <span>Asgard Duels</span>
                             </a>
                             <a
-                                href="https://x.com/AsgardDuels"
+                                href="https://x.com/asgardduel"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="footer-link x-twitter"

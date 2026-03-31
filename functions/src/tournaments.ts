@@ -52,34 +52,38 @@ export const onMatchupCompleted = functions.firestore
 
                 if (currentData?.rewardsDistributed) return;
 
+                const winnerUids = finalStandings
+                    .filter((s: any) => (prizes[s.rank] || 0) > 0 && s.teamId)
+                    .map((s: any) => s.teamId);
+                
+                // 4. Batch read all winner wallets
+                const walletSnaps = await Promise.all(
+                    winnerUids.map((uid: string) => transaction.get(admin.firestore().collection('wallets').doc(uid)))
+                );
+                
+                const walletMap = new Map();
+                walletSnaps.forEach((snap, idx) => {
+                    walletMap.set(winnerUids[idx], snap);
+                });
+
                 for (const standing of finalStandings) {
                     const rank = standing.rank;
                     const prizeAury = prizes[rank] || 0;
-                    
                     if (prizeAury <= 0) continue;
 
-                    // standing.teamId is the winner's UID (leader UID if it's a team)
                     const winnerUid = standing.teamId;
-                    if (!winnerUid) {
-                        console.warn(`No winner UID found for rank ${rank} in tournament ${matchupId}`);
-                        continue;
-                    }
+                    if (!winnerUid) continue;
 
-                    // Convert AURY (float) to nanoAURY (integer) for wallet balance
                     const prizeNano = Math.floor(prizeAury * 1e9);
+                    const walletSnap = walletMap.get(winnerUid);
+                    const currentBalance = walletSnap?.exists ? (walletSnap.data()?.balance || 0) : 0;
 
                     const walletRef = admin.firestore().collection('wallets').doc(winnerUid);
-                    const walletDoc = await transaction.get(walletRef);
-                    
-                    const currentBalance = walletDoc.exists ? (walletDoc.data()?.balance || 0) : 0;
-
-                    // Update wallet balance
                     transaction.set(walletRef, {
                         balance: currentBalance + prizeNano,
                         updatedAt: admin.firestore.FieldValue.serverTimestamp()
                     }, { merge: true });
 
-                    // Create transaction record
                     const txRef = admin.firestore().collection('wallets').doc(winnerUid).collection('transactions').doc();
                     transaction.set(txRef, {
                         type: 'tournament_prize',

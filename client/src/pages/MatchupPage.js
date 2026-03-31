@@ -466,6 +466,15 @@ const MatchupPage = () => {
 
         try {
             await runTransaction(db, async (transaction) => {
+                const matchupRef = doc(db, 'matchups', matchupId);
+                const matchupSnap = await transaction.get(matchupRef);
+                if (!matchupSnap.exists()) throw new Error("Matchup does not exist!");
+
+                const mData = matchupSnap.data();
+                if (mData.participants.length >= mData.maxParticipants) {
+                    throw new Error("Matchup is already full!");
+                }
+
                 // Wallet check only if entry fee required
                 if (ENTRY_FEE > 0) {
                     const walletRef = doc(db, 'wallets', user.uid);
@@ -477,15 +486,6 @@ const MatchupPage = () => {
                         throw new Error(`Insufficient balance. You need ${(ENTRY_FEE / 1e9).toFixed(2)} AURY to join.`);
                     }
                     transaction.update(walletRef, { balance: balance - ENTRY_FEE });
-                }
-
-                const matchupRef = doc(db, 'matchups', matchupId);
-                const matchupSnap = await transaction.get(matchupRef);
-                if (!matchupSnap.exists()) throw new Error("Matchup does not exist!");
-
-                const mData = matchupSnap.data();
-                if (mData.participants.length >= mData.maxParticipants) {
-                    throw new Error("Matchup is already full!");
                 }
 
                 transaction.update(matchupRef, {
@@ -538,6 +538,16 @@ const MatchupPage = () => {
             }
 
             await runTransaction(db, async (transaction) => {
+                // Double check matchup capacity
+                const matchupRef = doc(db, 'matchups', matchupId);
+                const matchupSnap = await transaction.get(matchupRef);
+                if (!matchupSnap.exists()) throw new Error("Matchup does not exist!");
+
+                const mData = matchupSnap.data();
+                if (mData.participants.length >= mData.maxParticipants) {
+                    throw new Error("Matchup is already full!");
+                }
+
                 // Wallet checks only if entry fee required
                 if (ENTRY_FEE > 0) {
                     const walletSnaps = await Promise.all(uidsToAdd.map(uid => transaction.get(doc(db, 'wallets', uid))));
@@ -570,13 +580,6 @@ const MatchupPage = () => {
                     });
                 }
 
-                // Double check matchup capacity
-                const matchupRef = doc(db, 'matchups', matchupId);
-                const matchupSnap = await transaction.get(matchupRef);
-                const mData = matchupSnap.data();
-                if (mData.participants.length >= mData.maxParticipants) {
-                    throw new Error("Matchup is already full!");
-                }
                 transaction.update(matchupRef, {
                     participants: arrayUnion(teamData),
                     participantUids: arrayUnion(...uidsToAdd)

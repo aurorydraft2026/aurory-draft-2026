@@ -109,6 +109,14 @@ export async function joinRaffle(raffleId, user, auroryData) {
       const entryFee = raffle.isFree ? 0 : (raffle.entryFee || 0);
       const entryFeeSmallestUnit = Math.floor(entryFee * 1e9);
 
+      // Award Points (Dynamic configurable amount, default 20)
+      let pointsAwarded = 20;
+      const configRef = doc(db, 'settings', 'valcoin_rewards');
+      const configSnap = await transaction.get(configRef);
+      if (configSnap.exists()) {
+          pointsAwarded = configSnap.data().joinRaffle ?? 20;
+      }
+
       if (entryFeeSmallestUnit > 0) {
         const walletSnap = await transaction.get(walletRef);
         if (!walletSnap.exists()) throw new Error('Wallet not found');
@@ -153,13 +161,6 @@ export async function joinRaffle(raffleId, user, auroryData) {
         updatedAt: serverTimestamp()
       });
 
-      // Award Points (Dynamic configurable amount, default 20)
-      let pointsAwarded = 20;
-      const configRef = doc(db, 'settings', 'valcoin_rewards');
-      const configSnap = await transaction.get(configRef);
-      if (configSnap.exists()) {
-          pointsAwarded = configSnap.data().joinRaffle ?? 20;
-      }
 
       if (pointsAwarded > 0) {
         const userRef = doc(db, 'users', user.uid);
@@ -395,6 +396,98 @@ export async function addMockParticipants(raffleId, count = 5) {
     return { success: true };
   } catch (error) {
     console.error('Error adding mock participants:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Remove a participant from a raffle (Admin only)
+ * @param {string} raffleId - Raffle ID
+ * @param {string} participantUid - UID of user to remove
+ * @param {Object} adminUser - Admin performing the removal
+ */
+export async function removeRaffleParticipant(raffleId, participantUid, adminUser) {
+  try {
+    const raffleRef = doc(db, 'raffles', raffleId);
+    const walletRef = doc(db, 'wallets', participantUid);
+
+    const result = await runTransaction(db, async (transaction) => {
+      // READS
+      const raffleSnap = await transaction.get(raffleRef);
+      if (!raffleSnap.exists()) throw new Error('Raffle not found');
+      
+      const raffle = raffleSnap.data();
+      if (raffle.status !== 'active' && raffle.status !== 'entries_closed') {
+        throw new Error('Can only remove participants from active or entries-closed raffles');
+      }
+
+      const participants = raffle.participants || [];
+      const participantIndex = participants.findIndex(p => p.uid === participantUid);
+      
+      if (participantIndex === -1) throw new Error('Participant not found in this raffle');
+
+      const entryFee = raffle.isFree ? 0 : (raffle.entryFee || 0);
+      const entryFeeSmallestUnit = Math.floor(entryFee * 1e9);
+
+      // If there was an entry fee, we need a refund
+      let refundSuccessful = false;
+      if (entryFeeSmallestUnit > 0) {
+        const walletSnap = await transaction.get(walletRef);
+        if (walletSnap.exists()) {
+          const currentBalance = walletSnap.data().balance || 0;
+          
+          // WRITES (Wallet)
+          transaction.update(walletRef, {
+            balance: currentBalance + entryFeeSmallestUnit,
+            updatedAt: serverTimestamp()
+          });
+
+          const txRef = doc(collection(db, 'wallets', participantUid, 'transactions'));
+          transaction.set(txRef, {
+            type: 'raffle_refund',
+            amount: entryFeeSmallestUnit,
+            raffleId: raffleId,
+            itemName: raffle.itemType,
+            status: 'completed',
+            reason: 'Removed by Admin',
+            timestamp: serverTimestamp()
+          });
+          
+          refundSuccessful = true;
+        }
+      }
+
+      // WRITES (Raffle)
+      const updatedParticipants = participants.filter(p => p.uid !== participantUid);
+      transaction.update(raffleRef, {
+        participants: updatedParticipants,
+        participantsCount: updatedParticipants.length,
+        totalFeesCollected: (raffle.totalFeesCollected || 0) - (refundSuccessful ? entryFeeSmallestUnit : 0),
+        updatedAt: serverTimestamp()
+      });
+
+      // Log admin activity
+      logActivity({
+        user: adminUser,
+        type: 'ADMIN',
+        action: 'remove_raffle_participant',
+        metadata: { raffleId, participantUid, refunded: refundSuccessful }
+      });
+
+      return { success: true, refunded: refundSuccessful, itemName: raffle.itemType };
+    });
+
+    if (result.success) {
+      await createNotification(participantUid, {
+        title: 'Removed from Raffle',
+        message: `Admin removed you from the ${result.itemName} raffle. ${result.refunded ? 'Your entry fee has been refunded.' : ''}`,
+        type: 'raffle'
+      });
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error removing participant:', error);
     return { success: false, error: error.message };
   }
 }

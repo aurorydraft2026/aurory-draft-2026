@@ -11,7 +11,8 @@ import {
   shuffleParticipants, 
   completeRaffle,
   closeRaffleEntries,
-  addMockParticipants
+  addMockParticipants,
+  removeRaffleParticipant
 } from '../services/raffleService';
 import RaffleWheel from '../components/raffles/RaffleWheel';
 import RaffleParticipantsModal from '../components/raffles/RaffleParticipantsModal';
@@ -188,6 +189,23 @@ import './RafflePage.css';
       });
   };
 
+  const handleRemoveParticipant = async (participant) => {
+    if (!isAdminUser) return;
+    
+    triggerConfirm({
+        title: "🗑️ Remove Participant?",
+        message: `Remove ${participant.playerName} from this raffle? Their entry fee will be automatically refunded if they paid one.`,
+        confirmText: "Remove User",
+        type: "danger",
+        onConfirm: async () => {
+            const result = await removeRaffleParticipant(id, participant.uid, user);
+            if (!result.success) {
+                alert(result.error);
+            }
+        }
+    });
+  };
+
   if (loading) return <div className="raffle-loading">Loading Raffle...</div>;
   if (!raffle) return null;
 
@@ -360,6 +378,8 @@ import './RafflePage.css';
         <RaffleParticipantsModal 
             participants={raffle.participants} 
             onClose={() => setShowParticipants(false)} 
+            isAdmin={isAdminUser}
+            onRemoveParticipant={handleRemoveParticipant}
         />
       )}
 

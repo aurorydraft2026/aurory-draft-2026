@@ -63,17 +63,27 @@ export const onTournamentDeleted = functions.firestore
 
         try {
             await admin.firestore().runTransaction(async (transaction) => {
+                // Batch read all wallets
+                const walletSnaps = await Promise.all(
+                    uids.map(uid => transaction.get(admin.firestore().collection('wallets').doc(uid)))
+                );
+                
+                const walletMap = new Map();
+                walletSnaps.forEach((snap, idx) => {
+                    walletMap.set(uids[idx], snap);
+                });
+
                 for (const uid of uids) {
                     const amount = refunds[uid];
-                    const walletRef = admin.firestore().collection('wallets').doc(uid);
-                    const walletDoc = await transaction.get(walletRef);
+                    const walletSnap = walletMap.get(uid);
 
-                    if (!walletDoc.exists) {
+                    if (!walletSnap?.exists) {
                         console.warn(`Wallet for user ${uid} not found during refund. Skipping.`);
                         continue;
                     }
 
-                    const currentBalance = walletDoc.data()?.balance || 0;
+                    const currentBalance = walletSnap.data()?.balance || 0;
+                    const walletRef = admin.firestore().collection('wallets').doc(uid);
 
                     // Credit balance
                     transaction.update(walletRef, {
@@ -169,7 +179,18 @@ export const onTournamentUpdated = functions.firestore
 
                 const entryPaidUpdates: { [key: string]: number } = {};
 
-                for (const uid of Object.keys(refunds)) {
+                const refundUids = Object.keys(refunds);
+                // Batch read all wallets
+                const walletSnaps = await Promise.all(
+                    refundUids.map(uid => transaction.get(admin.firestore().collection('wallets').doc(uid)))
+                );
+
+                const walletMap = new Map();
+                walletSnaps.forEach((snap, idx) => {
+                    walletMap.set(refundUids[idx], snap);
+                });
+
+                for (const uid of refundUids) {
                     // Double-check: still has positive entryPaid (hasn't been refunded by another trigger)
                     const amount = currentEntryPaid[uid];
                     if (typeof amount !== 'number' || amount <= 0) {
@@ -177,15 +198,14 @@ export const onTournamentUpdated = functions.firestore
                         continue;
                     }
 
-                    const walletRef = admin.firestore().collection('wallets').doc(uid);
-                    const walletDoc = await transaction.get(walletRef);
-
-                    if (!walletDoc.exists) {
+                    const walletSnap = walletMap.get(uid);
+                    if (!walletSnap?.exists) {
                         console.warn(`Wallet for user ${uid} not found. Skipping refund.`);
                         continue;
                     }
 
-                    const currentBalance = walletDoc.data()?.balance || 0;
+                    const currentBalance = walletSnap.data()?.balance || 0;
+                    const walletRef = admin.firestore().collection('wallets').doc(uid);
 
                     // Credit balance back to wallet
                     transaction.update(walletRef, {

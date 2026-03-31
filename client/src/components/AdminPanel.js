@@ -1182,7 +1182,6 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           message: `Your withdrawal has been approved. You should receive ${formatAmount(withdrawal.netAmount || (withdrawal.amount * 0.975), withdrawal.currency)} ${withdrawal.currency || 'AURY'} (after 2.5% tax).`,
           link: '#'
         });
-
         // Award points for withdrawal (+10)
         await awardPoints(withdrawal.userId, 10, 'withdrawal', `${withdrawal.currency || 'AURY'} Withdrawal completed`);
 
@@ -1326,7 +1325,6 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
       // Award points for deposit (+10)
       await awardPoints(userId, 10, 'deposit', `${currency} Deposit verified`);
-
       logActivity({
         user,
         type: 'ADMIN',
@@ -1459,8 +1457,6 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           link: '#'
         });
 
-        // Award points for credit (+10)
-        await awardPoints(selectedUser.id, 10, 'manual_credit', `Admin credit: ${amount} ${selectedCreditCurrency}`);
       }));
 
       const succeeded = results.filter(r => r.status === 'fulfilled').length;
