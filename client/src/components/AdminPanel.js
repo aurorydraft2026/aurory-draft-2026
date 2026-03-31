@@ -18,6 +18,7 @@ import {
   writeBatch,
   deleteDoc,
   setDoc,
+  getDoc
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { isSuperAdmin } from '../config/admins';
@@ -57,6 +58,8 @@ function AdminPanel() {
   const [activeTab, setActiveTab] = useState('credit');
   const [pendingWithdrawals, setPendingWithdrawals] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
+  const [userBalanceType, setUserBalanceType] = useState('AURY'); // Added for balance selector
+
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
   const [expandedCategory, setExpandedCategory] = useState('balance'); // Default expanded category on mobile
@@ -73,6 +76,7 @@ function AdminPanel() {
   // History state
   const [processedWithdrawals, setProcessedWithdrawals] = useState([]);
   const [processedDeposits, setProcessedDeposits] = useState([]);
+  const [manualAdjustmentLogs, setManualAdjustmentLogs] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
   // Credit form
@@ -292,7 +296,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   }, []);
 
   // Check if current user is admin/super admin
-  const isSuperAdminUser = user && isSuperAdmin(getUserEmail(user));
+  const isSuperAdminUser = user && (isSuperAdmin(getUserEmail(user)) || user.role === 'superadmin');
   const isAdminUser = user && (isSuperAdminUser || user.role === 'admin');
   const isAdmin = isAdminUser; // Keep for existing checks in the file
 
@@ -515,12 +519,13 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     return () => unsubscribe();
   }, [isAdmin]);
 
-  // Fetch History (processed withdrawals and deposits)
+  // Fetch History (processed withdrawals, deposits, and manual adjustments)
   useEffect(() => {
     if (!isAdmin || activeTab !== 'history') return;
 
     setHistoryLoading(true);
 
+    // 1. Processed Withdrawals
     const withdrawalsRef = collection(db, 'withdrawals');
     const qWithdrawals = query(
       withdrawalsRef,
@@ -536,6 +541,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       setProcessedWithdrawals(processed);
     });
 
+    // 2. Processed Deposits
     const depositsRef = collection(db, 'depositNotifications');
     const qDeposits = query(
       depositsRef,
@@ -549,6 +555,24 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         ...doc.data()
       }));
       setProcessedDeposits(processed);
+    });
+
+    // 3. Manual Adjustments (from Activity Logs)
+    const logsRef = collection(db, 'activity_logs');
+    const qManual = query(
+      logsRef,
+      where('type', '==', 'ADMIN'),
+      where('action', 'in', ['manual_credit', 'manual_deduct']),
+      orderBy('timestamp', 'desc'),
+      limit(200)
+    );
+
+    const unsubscribeManual = onSnapshot(qManual, (snapshot) => {
+      const logs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setManualAdjustmentLogs(logs);
       setHistoryLoading(false);
     }, (error) => {
       console.error('Error fetching history:', error);
@@ -558,6 +582,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     return () => {
       unsubscribeWithdrawals();
       unsubscribeDeposits();
+      unsubscribeManual();
     };
   }, [isAdmin, activeTab]);
 
@@ -1517,30 +1542,50 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       const decimals = selectedDeductCurrency === 'USDC' ? 1e6 : (isValcoins ? 1 : 1e9);
       const amountInSmallestUnit = isValcoins ? Math.floor(amount) : Math.floor(amount * decimals);
 
+      // PRE-CHECK: Fetch all user data first to check for potential negative balances
+      const preCheckResults = await Promise.all(selectedDeductUsers.map(async (selectedUser) => {
+          const walletSnap = await getDoc(doc(db, 'wallets', selectedUser.id));
+          const userSnap = await getDoc(doc(db, 'users', selectedUser.id));
+          
+          let currentBalance = 0;
+          if (isValcoins) {
+              currentBalance = userSnap.exists() ? (userSnap.data().points || 0) : 0;
+          } else {
+              if (!walletSnap.exists()) return { user: selectedUser, error: 'Wallet not found' };
+              currentBalance = selectedDeductCurrency === 'USDC' 
+                  ? (walletSnap.data().usdcBalance || 0) 
+                  : (walletSnap.data().balance || 0);
+          }
+          
+          return { user: selectedUser, insufficient: currentBalance < amountInSmallestUnit, currentBalance };
+      }));
+
+      const insufficientUsers = preCheckResults.filter(r => r.insufficient);
+      if (insufficientUsers.length > 0) {
+          const names = insufficientUsers.map(r => r.user.displayName || r.user.email).join(', ');
+          if (!window.confirm(`The following users have insufficient balance for this deduction: ${names}.\n\nProceeding will result in negative balances. Continue?`)) {
+              setProcessingId(null);
+              return;
+          }
+      }
+
       // Process each user
       const results = await Promise.allSettled(selectedDeductUsers.map(async (selectedUser) => {
         const walletRef = doc(db, 'wallets', selectedUser.id);
         const userRef = doc(db, 'users', selectedUser.id);
 
         await runTransaction(db, async (transaction) => {
-          const walletDoc = await transaction.get(walletRef);
           const userDoc = await transaction.get(userRef);
-
-          if (!walletDoc.exists()) {
-            throw new Error('User wallet not found');
-          }
-
-          const data = walletDoc.data();
-          const userData = userDoc.exists() ? userDoc.data() : {};
-          const currentBalance = isValcoins 
-            ? (userData.points || 0)
-            : (selectedDeductCurrency === 'USDC' ? (data.usdcBalance || 0) : (data.balance || 0));
-
-          // Optional: Prevent negative balance
-          if (currentBalance < amountInSmallestUnit) {
-            if (!window.confirm(`${selectedUser.displayName || selectedUser.email} only has ${formatAmount(currentBalance, selectedDeductCurrency)} ${selectedDeductCurrency}. Deducting this will result in a negative balance. Proceed?`)) {
-              throw new Error('Operation cancelled by admin due to insufficient funds.');
-            }
+          
+          // Only get wallet if not Valcoins
+          let currentBalance = 0;
+          if (isValcoins) {
+            currentBalance = userDoc.exists() ? (userDoc.data().points || 0) : 0;
+          } else {
+            const walletDoc = await transaction.get(walletRef);
+            if (!walletDoc.exists()) throw new Error('User wallet not found');
+            const data = walletDoc.data();
+            currentBalance = selectedDeductCurrency === 'USDC' ? (data.usdcBalance || 0) : (data.balance || 0);
           }
 
           const updateData = {
@@ -1549,7 +1594,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           
           if (isValcoins) {
             updateData.points = currentBalance - amountInSmallestUnit;
-            transaction.update(userRef, updateData);
+            transaction.set(userRef, updateData, { merge: true });
           } else {
             if (selectedDeductCurrency === 'USDC') {
               updateData.usdcBalance = currentBalance - amountInSmallestUnit;
@@ -1597,6 +1642,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         alert(`✅ Successfully deducted ${amount} ${selectedDeductCurrency} from ${succeeded} users!`);
       } else {
         alert(`⚠️ Processed with some issues: ${succeeded} succeeded, ${failed} failed. Check console.`);
+        console.error('Deduction failures:', results.filter(r => r.status === 'rejected'));
       }
 
       logActivity({
@@ -1617,9 +1663,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
     } catch (error) {
       console.error('Bulk deduction error:', error);
-      if (error.message !== 'Operation cancelled by admin due to insufficient funds.') {
-        alert('Error deducting balance: ' + error.message);
-      }
+      alert('Error deducting balance: ' + error.message);
     }
 
     setProcessingId(null);
@@ -1770,6 +1814,72 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     } catch (error) {
       console.error('Error clearing logs:', error);
       alert('Error clearing logs: ' + error.message);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // Clear all transaction history (Super Admin only)
+  const clearTransactionHistory = async () => {
+    if (!isSuperAdminUser) return;
+    if (!window.confirm('CRITICAL: Are you sure you want to permanently delete ALL transaction history? This includes processed withdrawals, deposits, and adjustment logs. This cannot be undone.')) {
+      return;
+    }
+
+    setProcessingId('clear_history');
+    try {
+      const batch = writeBatch(db);
+      let totalDeleted = 0;
+
+      // 1. Withdrawals
+      const withdrawalsRef = collection(db, 'withdrawals');
+      const wSnap = await getDocs(query(withdrawalsRef, where('status', 'in', ['completed', 'rejected'])));
+      wSnap.forEach(doc => {
+        batch.delete(doc.ref);
+        totalDeleted++;
+      });
+
+      // 2. Deposit Notifications
+      const depositsRef = collection(db, 'depositNotifications');
+      const dSnap = await getDocs(query(depositsRef, where('status', 'in', ['processed', 'dismissed'])));
+      dSnap.forEach(doc => {
+        batch.delete(doc.ref);
+        totalDeleted++;
+      });
+
+      // 3. Adjustment Logs (subset of activity logs)
+      const logsRef = collection(db, 'activity_logs');
+      const lSnap = await getDocs(query(
+        logsRef, 
+        where('type', '==', 'ADMIN'), 
+        where('action', 'in', ['manual_credit', 'manual_deduct'])
+      ));
+      lSnap.forEach(doc => {
+        batch.delete(doc.ref);
+        totalDeleted++;
+      });
+
+      if (totalDeleted === 0) {
+        alert('No history to clear.');
+        return;
+      }
+
+      await batch.commit();
+      setProcessedWithdrawals([]);
+      setProcessedDeposits([]);
+      setManualAdjustmentLogs([]);
+      
+      alert(`✅ Successfully cleared ${totalDeleted} history records.`);
+
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'clear_transaction_history',
+        metadata: { count: totalDeleted }
+      });
+    } catch (error) {
+      console.error('Error clearing history:', error);
+      alert('Error clearing history: ' + error.message);
     } finally {
       setProcessingId(null);
     }
@@ -3248,7 +3358,18 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 <div className="user-list-header">
                   <div className="col-user">User</div>
                   <div className="col-email">Email</div>
-                  <div className="col-balance">Balance</div>
+                  <div className="col-holder">Holder</div>
+                  <div className="col-balance">
+                    <select 
+                      value={userBalanceType} 
+                      onChange={(e) => setUserBalanceType(e.target.value)}
+                      className="balance-type-select"
+                    >
+                      <option value="AURY">AURY Balance</option>
+                      <option value="USDC">USDC Balance</option>
+                      <option value="Valcoins">Valcoins</option>
+                    </select>
+                  </div>
                   <div className="col-role">Role</div>
                 </div>
                 <div className="user-list-body">
@@ -3271,8 +3392,26 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             <span>{resolveDisplayName(u)}</span>
                           </div>
                           <div className="col-email">{u.email}</div>
+                          <div className="col-holder">
+                            {u.isAurorian ? (
+                              <span className="holder-badge" title="Aurorian NFT Holder">🛡️ Yes</span>
+                            ) : (
+                              <span className="non-holder-badge">No</span>
+                            )}
+                          </div>
                           <div className="col-balance">
-                            {formatAuryAmount(u.balance || 0)} AURY
+                            {userBalanceType === 'AURY' && (
+                              <span className="balance-aury">{formatAuryAmount(u.balance || 0)} AURY</span>
+                            )}
+                            {userBalanceType === 'USDC' && (
+                              <span className="balance-usdc">{formatAmount(u.usdcBalance || 0, 'USDC')} USDC</span>
+                            )}
+                            {userBalanceType === 'Valcoins' && (
+                              <span className="balance-valcoins">
+                                <img src="/valcoin-icon.jpg" alt="" className="valcoin-icon-mini" /> 
+                                {u.points || 0}
+                              </span>
+                            )}
                           </div>
                           <div className="col-role">
                             {userIsSuper ? (
@@ -3343,8 +3482,17 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
           {activeTab === 'history' && (
             <div className="history-section">
-              <div className="section-info">
-                <p>📜 History of processed withdrawals and deposit notifications.</p>
+              <div className="section-info history-header-info">
+                <p>📜 Comprehensive history of withdrawals, deposits, and balance adjustments (AURY, USDC, and Valcoins).</p>
+                {isSuperAdminUser && (
+                  <button
+                    className="clear-btn-admin"
+                    onClick={clearTransactionHistory}
+                    disabled={processingId === 'clear_history'}
+                  >
+                    🗑️ {processingId === 'clear_history' ? 'Cleaning...' : 'Remove All History'}
+                  </button>
+                )}
               </div>
 
               {historyLoading ? (
@@ -3363,7 +3511,6 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                               <th>User</th>
                               <th>Amount</th>
                               <th>Status</th>
-                              <th>Processed By</th>
                               <th>Date</th>
                             </tr>
                           </thead>
@@ -3376,13 +3523,12 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                     <span className="email">{w.userEmail}</span>
                                   </div>
                                 </td>
-                                <td className="amount">{formatAuryAmount(w.amount)} AURY</td>
+                                <td className="amount">{formatAmount(w.amount, w.currency || 'AURY')} {w.currency || 'AURY'}</td>
                                 <td>
                                   <span className={`status-badge ${w.status}`}>
                                     {w.status === 'completed' ? 'Approved' : 'Rejected'}
                                   </span>
                                 </td>
-                                <td className="processor">{w.processedBy || 'System'}</td>
                                 <td className="date">{formatTime(w.processedAt)}</td>
                               </tr>
                             ))}
@@ -3404,7 +3550,6 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                               <th>User</th>
                               <th>Amount</th>
                               <th>Status</th>
-                              <th>Processed By</th>
                               <th>Date</th>
                             </tr>
                           </thead>
@@ -3417,16 +3562,61 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                     <span className="email">{d.userEmail}</span>
                                   </div>
                                 </td>
-                                <td className="amount">{d.amount} AURY</td>
+                                <td className="amount">{d.amount} {d.currency || 'AURY'}</td>
                                 <td>
                                   <span className={`status-badge ${d.status}`}>
                                     {d.status === 'processed' ? 'Credited' : 'Dismissed'}
                                   </span>
                                 </td>
-                                <td className="processor">{d.processedBy || 'System'}</td>
-                                <td className="date">{formatTime(d.processedAt)}</td>
+                                <td className="date">{d.processedAt ? formatTime(d.processedAt) : 'N/A'}</td>
                               </tr>
                             ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="history-block full-width">
+                    <h3>Manual Adjustments & Rewards History</h3>
+                    {manualAdjustmentLogs.length === 0 ? (
+                      <p className="empty-mini">No manual adjustment records found.</p>
+                    ) : (
+                      <div className="history-table-wrapper">
+                        <table className="history-table">
+                          <thead>
+                            <tr>
+                              <th>Action</th>
+                              <th>User Count</th>
+                              <th>Amount / Metadata</th>
+                              <th>Date</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {manualAdjustmentLogs.map(log => {
+                              const amount = log.metadata?.amount;
+                              const currency = log.metadata?.currency || (log.action.includes('deduct') ? 'Valcoins' : 'AURY');
+                              const isPointAction = currency === 'Valcoins';
+                              
+                              return (
+                                <tr key={log.id}>
+                                  <td>
+                                    <span className={`action-tag ${log.action}`}>
+                                      {log.action.replace('_', ' ')}
+                                    </span>
+                                  </td>
+                                  <td>{log.metadata?.userCount || 1} users</td>
+                                  <td className="amount">
+                                    {isPointAction ? (
+                                      <><img src="/valcoin-icon.jpg" alt="" className="valcoin-icon-mini" /> {amount}</>
+                                    ) : (
+                                      <>{amount} {currency}</>
+                                    )}
+                                  </td>
+                                  <td className="date">{formatTime(log.timestamp)}</td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>

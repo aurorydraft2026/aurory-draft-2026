@@ -844,7 +844,7 @@
     z-index: 20;
     height: 28px;
     background: var(--bg-ticker);
-    border-bottom: 2px solid var(--border-subtle);
+    border-bottom: 2px solid var(--border-default);
     display: flex;
     align-items: center;
     overflow: hidden;
@@ -990,7 +990,7 @@
     height: 380px;
     border-radius: var(--radius-xl);
     overflow: hidden;
-    border: 1px solid var(--border-subtle);
+    border: 1.5px solid var(--border-default);
     box-shadow: var(--shadow-card);
     user-select: none;
     touch-action: pan-y;
@@ -1251,7 +1251,7 @@
    ============================================================ */
   .dashboard-widget {
     background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border-subtle);
+    border: 1.5px solid var(--border-default);
     border-radius: var(--radius-xl);
     padding: 32px;
     margin-bottom: 32px;
@@ -1271,19 +1271,19 @@
   /* Specific Widget Theming (Neon Accents) */
   .raffles-section.dashboard-widget {
     background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.05), rgba(255, 255, 255, 0.01) 50%);
-    border-top: 1px solid rgba(99, 102, 241, 0.2);
+    border-top: 1.5px solid rgba(99, 102, 241, 0.2);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 0 20px rgba(99, 102, 241, 0.03);
   }
 
   .matchups-section.dashboard-widget {
     background: radial-gradient(circle at top left, rgba(234, 179, 8, 0.05), rgba(255, 255, 255, 0.01) 50%);
-    border-top: 1px solid rgba(234, 179, 8, 0.2);
+    border-top: 1.5px solid rgba(234, 179, 8, 0.2);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 0 20px rgba(234, 179, 8, 0.03);
   }
 
   .drafts-section.dashboard-widget {
     background: radial-gradient(circle at top, rgba(0, 200, 255, 0.04), rgba(255, 255, 255, 0.01) 60%);
-    border-top: 1px solid rgba(0, 200, 255, 0.2);
+    border-top: 1.5px solid rgba(0, 200, 255, 0.2);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 0 20px rgba(0, 200, 255, 0.03);
   }
 
@@ -5042,7 +5042,7 @@
       min-height: 280px;
       height: auto;
       border-radius: var(--radius-lg);
-      border: 1px solid var(--border-subtle);
+      border: 1.5px solid var(--border-default);
       overflow: hidden;
       position: relative;
       box-sizing: border-box;
@@ -6664,10 +6664,20 @@
 }
 
 .stat-value {
-    font-size: 1.5rem;
+    font-size: 2.2rem;
     font-weight: 800;
     color: var(--accent-gold);
-    font-family: 'Exo 2', sans-serif;
+    display: flex;
+    align-items: center;
+    line-height: 1;
+}
+
+.profile-points-icon {
+    width: 34px;
+    height: 34px;
+    margin-right: 12px;
+    vertical-align: middle;
+    filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.4));
 }
 
 .daily-checkin-btn {
@@ -6704,22 +6714,102 @@
 }
 
 
-/* Wallet Header Balance Alignment */
+/* Unified Wallet Header Balance */
 .wallet-balances-header {
-  display: flex !important;
-  align-items: center !important;
-  gap: 10px !important;
-  margin-right: 8px !important;
+  display: flex;
+  align-items: center;
+  margin-right: 12px;
 }
 
-.wallet-btn.usdc-btn {
-  border-color: rgba(39, 117, 202, 0.4) !important;
-  color: #2775ca !important;
+.unified-wallet-btn {
+  display: flex;
+  align-items: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 4px 12px;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--text-primary);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  height: 38px;
 }
 
-.wallet-btn.usdc-btn:hover {
-  border-color: #2775ca !important;
-  box-shadow: 0 0 12px rgba(39, 117, 202, 0.3) !important;
+.unified-wallet-btn:hover {
+  border-color: var(--accent-cyan);
+  background: var(--bg-card-hover);
+  box-shadow: 0 0 15px rgba(0, 243, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.wallet-balance-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.95rem;
+}
+
+.wallet-balance-item .wallet-icon-img {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
+.wallet-amount {
+  white-space: nowrap;
+}
+
+.wallet-separator {
+  width: 1px;
+  height: 18px;
+  background: var(--border-default);
+  opacity: 0.5;
+}
+
+.mobile-wallet-icon {
+  display: none;
+}
+
+.mobile-wallet-icon svg {
+  width: 20px;
+  height: 20px;
+  color: var(--text-primary);
+  stroke: currentColor;
+}
+
+@media (max-width: 768px) {
+  .wallet-balance-item, .wallet-separator {
+    display: none;
+  }
+  
+  .mobile-wallet-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(0 0 8px rgba(0, 243, 255, 0.2));
+  }
+  
+  .unified-wallet-btn {
+    padding: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px; /* Slightly square for minimal look */
+    justify-content: center;
+    border-color: var(--border-default);
+    background: var(--bg-card);
+  }
+  
+  .unified-wallet-btn:hover {
+    border-color: var(--accent-cyan);
+    background: var(--bg-elevated);
+  }
+  
+  .wallet-balances-header {
+    margin-right: 8px;
+  }
 }
 
 

@@ -379,8 +379,11 @@ export const useAuth = (navigate) => {
 
                     <div className="user-stats-grid">
                         <div className="user-stat-card points-card">
-                            <span className="stat-label"><img src="/valcoin-icon.jpg" alt="" className="valcoin-icon small" /> Total Valcoins</span>
-                            <span className="stat-value">{user.points || 0}</span>
+                            <span className="stat-label">Total Valcoins</span>
+                            <span className="stat-value">
+                                <img src="/valcoin-icon.jpg" alt="" className="valcoin-icon profile-points-icon" />
+                                {user.points || 0}
+                            </span>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <button 

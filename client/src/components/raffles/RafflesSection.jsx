@@ -9,6 +9,7 @@ const RafflesSection = ({ user, isAdmin }) => {
     const [raffles, setRaffles] = useState([]);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [filter, setFilter] = useState('active');
 
     useEffect(() => {
         const rafflesRef = collection(db, 'raffles');
@@ -31,6 +32,32 @@ const RafflesSection = ({ user, isAdmin }) => {
         return () => unsubscribe();
     }, []);
 
+    const filterTabs = [
+        { key: 'active', label: 'Open', icon: '🟢' },
+        { key: 'ended', label: 'Ended', icon: '✅' },
+        { key: 'joined', label: 'Joined', icon: '👤' }
+    ];
+
+    const getFilteredRaffles = () => {
+        return raffles.filter(r => {
+            if (filter === 'active') return r.status === 'active' || r.status === 'spinning' || r.status === 'entries_closed';
+            if (filter === 'ended') return r.status === 'completed';
+            if (filter === 'joined') return user && r.participants?.some(p => p.uid === user.uid);
+            return true;
+        });
+    };
+
+    const getTabCount = (key) => {
+        return raffles.filter(r => {
+            if (key === 'active') return r.status === 'active' || r.status === 'spinning' || r.status === 'entries_closed';
+            if (key === 'ended') return r.status === 'completed';
+            if (key === 'joined') return user && r.participants?.some(p => p.uid === user.uid);
+            return true;
+        }).length;
+    };
+
+    const filteredRaffles = getFilteredRaffles();
+
     return (
         <section className="tournaments-section raffles-section dashboard-widget">
             <div className="section-header">
@@ -45,14 +72,37 @@ const RafflesSection = ({ user, isAdmin }) => {
                 )}
             </div>
 
+            <div className="tournament-filters">
+                <div className="filter-tabs-row">
+                    {filterTabs.map(tab => {
+                        const count = getTabCount(tab.key);
+                        return (
+                            <button
+                                key={tab.key}
+                                className={`filter-tab ${filter === tab.key ? 'active' : ''}`}
+                                onClick={() => setFilter(tab.key)}
+                            >
+                                <span className="filter-tab-icon">{tab.icon}</span>
+                                <span className="filter-tab-label">{tab.label}</span>
+                                {count > 0 && (
+                                    <span className="filter-tab-count">
+                                        {count}
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
             {loading ? (
                 <div className="raffles-loading">
                     <div className="loader"></div>
                     <span>Loading raffles...</span>
                 </div>
-            ) : raffles.length > 0 ? (
+            ) : filteredRaffles.length > 0 ? (
                 <div className="tournaments-grid raffles-grid">
-                    {raffles.map(raffle => (
+                    {filteredRaffles.map(raffle => (
                         <RaffleHomeCard
                             key={raffle.id}
                             raffle={raffle}
@@ -62,8 +112,12 @@ const RafflesSection = ({ user, isAdmin }) => {
             ) : (
                 <div className="no-raffles">
                     <div className="empty-icon">🎟️</div>
-                    <p>No active raffles yet.</p>
-                    {isAdmin && <p className="admin-hint">Click "Create Raffle" to start the first one!</p>}
+                    <p>
+                        {filter === 'active' ? 'No active raffles yet.' : 
+                         filter === 'ended' ? 'No ended raffles found.' : 
+                         'You haven\'t joined any raffles yet.'}
+                    </p>
+                    {isAdmin && filter === 'active' && <p className="admin-hint">Click "Create Raffle" to start the first one!</p>}
                 </div>
             )}
 

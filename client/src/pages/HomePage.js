@@ -549,18 +549,26 @@ function HomePage() {
               {/* Wallet Balance */}
               <div className="wallet-balances-header">
                 <button
-                  className="wallet-btn aury-btn"
-                  onClick={() => { setSelectedCurrency('AURY'); setShowWalletModal(true); }}
+                  className="unified-wallet-btn"
+                  onClick={() => setShowWalletModal(true)}
+                  title="My Wallet"
                 >
-                  <img src="/aury-icon.png" alt="AURY" className="wallet-icon-img" />
-                  <span className="wallet-amount">{formatAuryAmount(walletBalance)} AURY</span>
-                </button>
-                <button
-                  className="wallet-btn usdc-btn"
-                  onClick={() => { setSelectedCurrency('USDC'); setShowWalletModal(true); }}
-                >
-                  <img src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png" alt="USDC" className="wallet-icon-img" />
-                  <span className="wallet-amount">{formatUsdcAmount(usdcBalance)} USDC</span>
+                  <div className="wallet-balance-item">
+                    <img src="/aury-icon.png" alt="AURY" className="wallet-icon-img" />
+                    <span className="wallet-amount">{formatAuryAmount(walletBalance)}</span>
+                  </div>
+                  <div className="wallet-separator"></div>
+                  <div className="wallet-balance-item">
+                    <img src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png" alt="USDC" className="wallet-icon-img" />
+                    <span className="wallet-amount">{formatUsdcAmount(usdcBalance)}</span>
+                  </div>
+                  <span className="mobile-wallet-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/>
+                      <path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/>
+                      <path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/>
+                    </svg>
+                  </span>
                 </button>
               </div>
 
@@ -604,7 +612,7 @@ function HomePage() {
               </div>
 
               {/* Theme Toggle - Admin Only */}
-              {isAdmin && (
+              {isSuperAdminUser && (
                 <button
                   className="theme-toggle-btn"
                   onClick={toggleTheme}
@@ -655,7 +663,7 @@ function HomePage() {
             </div>
           ) : (
             <div className="login-container">
-              {isAdmin && (
+              {isSuperAdminUser && (
                 <button
                   className="theme-toggle-btn"
                   onClick={toggleTheme}

@@ -102,3 +102,8 @@ export const tournamentUpdateRefund = onTournamentUpdated;
 // Automatic reward distribution
 import { onMatchupCompleted } from './tournaments';
 export const tournamentRewards = onMatchupCompleted;
+
+// ─── 7. DISCORD ANNOUNCEMENTS ───
+// Automatic notifications to Discord webhooks
+import { onRaffleCreated } from './discord';
+export const onRaffleCreatedAnnouncement = onRaffleCreated;

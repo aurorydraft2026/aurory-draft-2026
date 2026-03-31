@@ -29,10 +29,16 @@ service cloud.firestore {
               request.auth.token.email.lower() == 'asgardduels@gmail.com');
     }
 
+    // New helper: Dynamic Super Admin check via Database Role
+    function isDynamicSuperAdmin() {
+      return request.auth != null && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'superadmin';
+    }
+
     
     // Combined check - try both methods
     function isSuperAdmin() {
-      return isSuperAdminByUid() || isSuperAdminByEmail();
+      return isSuperAdminByUid() || isSuperAdminByEmail() || isDynamicSuperAdmin();
     }
     
     // Check if user has staff privileges (Super Admin OR assigned Admin role)
@@ -248,7 +254,11 @@ service cloud.firestore {
       allow update: if (isOwner(userId) && (
                          !('role' in request.resource.data) || 
                          (request.resource.data.role == resource.data.role)
-                       )) || isSuperAdmin();
+                       )) || (isAdmin() && (
+                         !('role' in request.resource.data) || 
+                         (request.resource.data.role == resource.data.role) ||
+                         isSuperAdmin()
+                       ));
 
       // Subcollection: Points History
       match /pointsHistory/{historyId} {
