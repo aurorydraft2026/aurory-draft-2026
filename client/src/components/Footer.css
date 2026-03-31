@@ -3,8 +3,6 @@
     padding: 40px 28px;
     background: var(--bg-secondary);
     border-top: 1px solid var(--border-subtle);
-    position: relative;
-    z-index: 5;
 }
 
 .footer-content {

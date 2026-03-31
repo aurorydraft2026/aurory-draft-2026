@@ -105,5 +105,6 @@ export const tournamentRewards = onMatchupCompleted;
 
 // ─── 7. DISCORD ANNOUNCEMENTS ───
 // Automatic notifications to Discord webhooks
-import { onRaffleCreated } from './discord';
+import { onRaffleCreated, onRaffleWinnerSet } from './discord';
 export const onRaffleCreatedAnnouncement = onRaffleCreated;
+export const onRaffleWinnerAnnouncement = onRaffleWinnerSet;

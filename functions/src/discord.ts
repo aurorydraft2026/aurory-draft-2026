@@ -101,3 +101,85 @@ export const onRaffleCreated = functions.firestore
             console.error(`❌ Error announcing raffle ${raffleId} to Discord:`, error.message);
         }
     });
+
+/**
+ * Trigger: When a raffle is updated and a winner is chosen
+ * Goal: Automatically announce the winner to Discord
+ */
+export const onRaffleWinnerSet = functions.firestore
+    .document('raffles/{raffleId}')
+    .onUpdate(async (change, context) => {
+        const after = change.after.data();
+        const before = change.before.data();
+        const raffleId = context.params.raffleId;
+
+        if (!after || !before) return;
+
+        // Condition Check: Raffle status becomes 'completed' (when the wheel stops and completeRaffle is called)
+        const wasNotCompleted = before.status !== 'completed';
+        const isNowCompleted = after.status === 'completed';
+        const hasWinnerSet = !!after.winner;
+
+        if (wasNotCompleted && isNowCompleted && hasWinnerSet) {
+            console.log(`📣 Raffle Winner Selected: ${after.winner.displayName} for ${after.itemType}`);
+
+            try {
+                const winnerName = after.winner.displayName || 'Unknown Winner';
+                const prizeName = after.itemType || 'Unknown Prize';
+                const participantsCount = after.participantsCount || 0;
+
+                // Build the Discord Success Embed (Success Green: #2ECC71)
+                const embed = {
+                    title: `🎊 RAFFLE WINNER ANNOUNCED! 🎊`,
+                    description: `The lucky winner of the **${prizeName}** has been chosen!`,
+                    color: 0x2ECC71, 
+                    fields: [
+                        {
+                            name: '🏆 Winner',
+                            value: `**${winnerName}**`,
+                            inline: false
+                        },
+                        {
+                            name: '🎁 Prize',
+                            value: prizeName,
+                            inline: true
+                        },
+                        {
+                            name: '👥 Total Entries',
+                            value: `${participantsCount} Participants`,
+                            inline: true
+                        }
+                    ],
+                    footer: {
+                        text: 'Asgard Duels • Fair & Honest Raffles',
+                        icon_url: 'https://asgard-duels.web.app/favicon.ico'
+                    },
+                    timestamp: new Date().toISOString()
+                };
+
+                // Add prize image as a large image if available
+                if (after.itemImage && after.itemImage.startsWith('http')) {
+                    (embed as any).image = { url: after.itemImage };
+                }
+
+                // Send to Discord via Webhook
+                const response = await fetch(RAFFLE_WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        content: `🎉 **Congratulations to our latest winner!** 🎊`,
+                        embeds: [embed]
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Discord Webhook failed with status ${response.status}: ${errorText}`);
+                }
+
+                console.log(`✅ Successfully announced winner of ${raffleId} to Discord`);
+            } catch (error: any) {
+                console.error(`❌ Error announcing winner of ${raffleId} to Discord:`, error.message);
+            }
+        }
+    });

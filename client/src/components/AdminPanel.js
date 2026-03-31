@@ -1950,7 +1950,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               tabIndex={0}
             >
               <h3>Balance</h3>
-              <span className="mobile-only-arrow">{expandedCategory === 'balance' ? '▲' : '▼'}</span>
+              <span className="category-arrow">▼</span>
             </div>
             <div className="category-tabs">
               {isSuperAdminUser && (
@@ -1994,7 +1994,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   </span>
                 )}
               </h3>
-              <span className="mobile-only-arrow">{expandedCategory === 'transactions' ? '▲' : '▼'}</span>
+              <span className="category-arrow">▼</span>
             </div>
             <div className="category-tabs">
               <button
@@ -2035,7 +2035,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               tabIndex={0}
             >
               <h3>Campaigns</h3>
-              <span className="mobile-only-arrow">{expandedCategory === 'campaigns' ? '▲' : '▼'}</span>
+              <span className="category-arrow">▼</span>
             </div>
             <div className="category-tabs">
               <button
@@ -2080,7 +2080,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               tabIndex={0}
             >
               <h3>User Management</h3>
-              <span className="mobile-only-arrow">{expandedCategory === 'users' ? '▲' : '▼'}</span>
+              <span className="category-arrow">▼</span>
             </div>
             <div className="category-tabs">
               {isSuperAdminUser && (
@@ -3358,6 +3358,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 <div className="user-list-header">
                   <div className="col-user">User</div>
                   <div className="col-email">Email</div>
+                  <div className="col-linked">Linked</div>
                   <div className="col-holder">Holder</div>
                   <div className="col-balance">
                     <select 
@@ -3392,6 +3393,13 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             <span>{resolveDisplayName(u)}</span>
                           </div>
                           <div className="col-email">{u.email}</div>
+                          <div className="col-linked">
+                            {u.auroryPlayerId ? (
+                              <span className="linked-badge" title={`Linked to ${u.auroryPlayerName || 'Aurory Account'}`}>🔗 Yes</span>
+                            ) : (
+                              <span className="non-linked-badge">No</span>
+                            )}
+                          </div>
                           <div className="col-holder">
                             {u.isAurorian ? (
                               <span className="holder-badge" title="Aurorian NFT Holder">🛡️ Yes</span>
