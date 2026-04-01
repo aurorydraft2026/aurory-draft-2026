@@ -467,6 +467,32 @@ service cloud.firestore {
         isAuthenticated() && 
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants', 'participantsCount', 'totalFeesCollected', 'updatedAt'])
       );
+
+      // Raffle Chat sub-collection
+      match /chatAll/{messageId} {
+        // Anyone can read the FFA chat
+        allow read: if true;
+        
+        // Only real users with linked accounts can send messages
+        allow create: if isRealUser() && 
+                         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('auroryPlayerId', null) != null &&
+                         request.resource.data.senderUid == request.auth.uid;
+        
+        // Members and admins can update messages (for reactions)
+        allow update: if isAuthenticated() && 
+                         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('auroryPlayerId', null) != null;
+        
+        // Admins can delete any message
+        allow delete: if isAdmin();
+      }
+
+      // Typing indicators for Raffle
+      match /typingAll/{typingId} {
+        allow read: if true;
+        allow write: if isRealUser() && 
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('auroryPlayerId', null) != null;
+        allow delete: if isAdmin();
+      }
     }
   }
 }

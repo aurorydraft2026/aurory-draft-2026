@@ -3107,12 +3107,30 @@
     transform: translateY(-2px);
 }
 
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 20px;
+}
+
 .edit-matchup-modal {
     background: var(--bg-deep);
     border: 1px solid var(--border-bright);
     border-radius: var(--radius-lg);
     width: 90%;
     max-width: 500px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
     animation: fadeIn 0.3s ease-out;
     overflow: hidden;
@@ -3152,6 +3170,21 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.edit-matchup-modal .modal-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.edit-matchup-modal .modal-body::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.edit-matchup-modal .modal-body::-webkit-scrollbar-thumb {
+    background: var(--accent-teal);
+    border-radius: 3px;
 }
 
 .edit-matchup-modal .form-group {

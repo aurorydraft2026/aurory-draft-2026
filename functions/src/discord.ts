@@ -7,6 +7,7 @@ import fetch from 'node-fetch';
  * but for now we use the provided URL for immediate setup.
  */
 const RAFFLE_WEBHOOK_URL = 'https://discord.com/api/webhooks/1488618433569489159/vFkiaYCtoi_eoFEWxWRc_LKBDjS0k1Z8ga1-7iRIB33JzunuWvCeqjKvE10VewQETsUK';
+const MATCHUP_WEBHOOK_URL = 'https://discord.com/api/webhooks/1488913883010699326/ZpuxD5BhbdpE5N78k0rsSW2oP3DryTKEIIE-oONR48-G0LAvPi-inp0aUJ3A67Bj0Kvv';
 
 /**
  * Trigger: When a new raffle is created in Firestore
@@ -180,6 +181,144 @@ export const onRaffleWinnerSet = functions.firestore
                 console.log(`✅ Successfully announced winner of ${raffleId} to Discord`);
             } catch (error: any) {
                 console.error(`❌ Error announcing winner of ${raffleId} to Discord:`, error.message);
+            }
+        }
+    });
+
+/**
+ * Trigger: When a new matchup or tournament is created in Firestore
+ * Goal: Announce it to the Discord server
+ */
+export const onMatchupCreated = functions.firestore
+    .document('matchups/{matchupId}')
+    .onCreate(async (snap, context) => {
+        const matchup = snap.data();
+        const matchupId = context.params.matchupId;
+
+        if (!matchup) return;
+
+        console.log(`📣 New Matchup Detected: ${matchup.title} (${matchupId})`);
+
+        try {
+            // 1. Format pricing
+            const poolPrize = matchup.poolPrize || 0;
+            const entryFee = (matchup.entryFeeAmount || 0) / 1e9;
+            const priceText = matchup.requiresEntryFee ? `🎟️ ${entryFee} AURY` : '🆓 FREE';
+
+            // 2. Format Matchup Names (Player vs Player)
+            let matchTitle = matchup.title || 'New Tournament';
+            if (matchup.format === 'individual' && matchup.participants && matchup.participants.length === 2) {
+                const uids = matchup.participants;
+                const userDocs = await Promise.all(uids.map((uid: string) => 
+                    require('firebase-admin').firestore().collection('users').doc(uid).get()
+                ));
+                const names = userDocs.map(doc => doc.exists ? (doc.data()?.displayName || 'Unknown') : 'Unknown');
+                matchTitle = `🆚 ${names[0]} vs ${names[1]}`;
+            }
+
+            // 3. Build the Discord Embed (Azure Blue: #3498DB)
+            const embed = {
+                title: matchTitle,
+                description: matchup.description || 'No description provided.',
+                url: `https://asgard-duels.web.app/matchup/${matchupId}`,
+                color: 0x3498DB,
+                fields: [
+                    {
+                        name: '💰 Prize Pool',
+                        value: `${poolPrize} AURY`,
+                        inline: true
+                    },
+                    {
+                        name: '🎟️ Entry',
+                        value: priceText,
+                        inline: true
+                    },
+                    {
+                        name: '⚔️ Mode',
+                        value: matchup.draftType || 'TBD',
+                        inline: true
+                    }
+                ],
+                footer: {
+                    text: 'Asgard Duels • Tournament Matchups',
+                    icon_url: 'https://asgard-duels.web.app/favicon.ico'
+                },
+                timestamp: new Date().toISOString()
+            };
+
+            // 4. Send to Discord
+            await fetch(MATCHUP_WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    content: '🚀 **A new Tournament Matchup has been posted!**',
+                    embeds: [embed]
+                })
+            });
+
+            console.log(`✅ Successfully announced matchup ${matchupId} to Discord`);
+        } catch (error: any) {
+            console.error(`❌ Error announcing matchup ${matchupId} to Discord:`, error.message);
+        }
+    });
+
+/**
+ * Trigger: When a tournament is completed
+ * Goal: Announce the top winners to Discord
+ */
+export const onMatchupWinner = functions.firestore
+    .document('matchups/{matchupId}')
+    .onUpdate(async (change, context) => {
+        const after = change.after.data();
+        const before = change.before.data();
+        const matchupId = context.params.matchupId;
+
+        if (!after || !before) return;
+
+        // Check if phase changed to 'completed'
+        if (before.phase !== 'completed' && after.phase === 'completed' && after.finalStandings) {
+            console.log(`📣 Tournament Completed: ${after.title}`);
+
+            try {
+                const standings = after.finalStandings || [];
+                // Sort by rank to ensure 1, 2, 3 order
+                standings.sort((a: any, b: any) => a.rank - b.rank);
+
+                const winnersText = standings.slice(0, 3).map((s: any) => {
+                    const medal = s.rank === 1 ? '🥇' : s.rank === 2 ? '🥈' : '🥉';
+                    return `${medal} **${s.playerName || 'Unknown'}**`;
+                }).join('\n');
+
+                const embed = {
+                    title: `🏆 TOURNAMENT COMPLETED: ${after.title}`,
+                    description: `The battles are over! Here are the final rankings:`,
+                    color: 0xF1C40F, // Goldish Color
+                    fields: [
+                        {
+                            name: '📊 Final Results',
+                            value: winnersText || 'No winners recorded.',
+                            inline: false
+                        }
+                    ],
+                    footer: {
+                        text: 'Asgard Duels • Official Results',
+                        icon_url: 'https://asgard-duels.web.app/favicon.ico'
+                    },
+                    timestamp: new Date().toISOString()
+                };
+
+                await fetch(MATCHUP_WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        content: '🎉 **Tournament Results are in!** 🎊',
+                        embeds: [embed]
+                    })
+                });
+
+                console.log(`✅ Successfully announced results of ${matchupId} to Discord`);
+            } catch (error: any) {
+                console.error(`❌ Error announcing results of ${matchupId} to Discord:`, error.message);
             }
         }
     });

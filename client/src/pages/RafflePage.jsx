@@ -1,9 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { 
+  doc, 
+  onSnapshot, 
+  collection, 
+  addDoc, 
+  setDoc,
+  query, 
+  orderBy, 
+  limit, 
+  serverTimestamp, 
+  runTransaction,
+  deleteDoc
+} from 'firebase/firestore';
 import { useAuth } from '../hooks/useAuth';
 import { useWallet } from '../hooks/useWallet';
+import { useRef } from 'react';
 import { 
   joinRaffle, 
   startRaffle, 
@@ -20,6 +33,7 @@ import RaffleWinnerModal from '../components/raffles/RaffleWinnerModal';
 import CreateRaffleModal from '../components/raffles/CreateRaffleModal';
 import RaffleConfirmationModal from '../components/raffles/RaffleConfirmationModal';
 import AuroryAccountLink from '../components/AuroryAccountLink';
+import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
 import './RafflePage.css';
 
   const RafflePage = () => {
@@ -28,7 +42,7 @@ import './RafflePage.css';
   const { user, isAdminUser, setShowLoginModal } = useAuth(navigate);
   const { formatAuryAmount } = useWallet(user);
 
-  console.log('🔍 RafflePage Auth State:', { user, isAdminUser });
+
 
   const [raffle, setRaffle] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -40,6 +54,20 @@ import './RafflePage.css';
   const [isDeleting, setIsDeleting] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
+  
+  // Chat State
+  const [messages, setMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [typingUsers, setTypingUsers] = useState({});
+  const [showReactionPicker, setShowReactionPicker] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  
+  const chatEndRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+  const lastReadTimeRef = useRef(Date.now());
+  const lastTypingUpdateRef = useRef(0);
   
   const triggerConfirm = (actionConfig) => {
     setConfirmAction(actionConfig);
@@ -66,6 +94,182 @@ import './RafflePage.css';
 
     return () => unsubscribe();
   }, [id, navigate, isDeleting]);
+
+  // ─── CHAT LISTENERS ───
+  useEffect(() => {
+    if (!id) return;
+
+    const chatRef = collection(db, 'raffles', id, 'chatAll');
+    const chatQuery = query(chatRef, orderBy('timestamp', 'asc'), limit(100));
+
+    const unsubscribe = onSnapshot(chatQuery, (snapshot) => {
+      const msgs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toMillis?.() || doc.data().timestamp
+      }));
+      setMessages(msgs);
+
+      // Handle unread count if chat is closed
+      if (!isChatOpen && msgs.length > 0) {
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg.timestamp > lastReadTimeRef.current && lastMsg.senderUid !== user?.uid) {
+          setUnreadCount(prev => prev + 1);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [id, isChatOpen, user?.uid]);
+
+  // Listen to typing indicators
+  useEffect(() => {
+    if (!id || !isChatOpen) return;
+
+    const typingRef = collection(db, 'raffles', id, 'typingAll');
+    const unsubscribe = onSnapshot(typingRef, (snapshot) => {
+      const now = Date.now();
+      const typers = {};
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        // Only show typers from last 5 seconds
+        if (data.timestamp && (now - data.timestamp) < 5000 && doc.id !== user?.uid) {
+          typers[doc.id] = { name: data.name, timestamp: data.timestamp };
+        }
+      });
+      setTypingUsers(typers);
+    });
+
+    return () => unsubscribe();
+  }, [id, isChatOpen, user?.uid]);
+
+  // Auto-scroll chat
+  useEffect(() => {
+    if (chatEndRef.current && isChatOpen) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+    if (isChatOpen) {
+      setUnreadCount(0);
+      lastReadTimeRef.current = Date.now();
+    }
+  }, [messages, isChatOpen]);
+
+  // ─── CHAT HANDLERS ───
+  const sendChatMessage = async (e) => {
+    e.preventDefault();
+    if (!user || !chatInput.trim() || isSendingMessage) return;
+
+    // Permissions check: Must be linked and not anonymous
+    if (user.isAnonymous || !user.auroryPlayerId) {
+      alert('You must link your Aurory account to participate in the chat.');
+      return;
+    }
+
+    setIsSendingMessage(true);
+    try {
+      const chatRef = collection(db, 'raffles', id, 'chatAll');
+      await addDoc(chatRef, {
+        text: chatInput.trim(),
+        senderUid: user.uid,
+        senderName: resolveDisplayName(user) || 'Anonymous',
+        senderPhoto: resolveAvatar(user) || null,
+        senderIsAurorian: user.isAurorian || false,
+        timestamp: serverTimestamp(),
+        reactions: {}
+      });
+
+      // Maintain 100 message limit by deleting oldest
+      if (messages.length >= 100) {
+        const oldestId = messages[0].id;
+        const oldestRef = doc(db, 'raffles', id, 'chatAll', oldestId);
+        await deleteDoc(oldestRef);
+      }
+
+      setChatInput('');
+      
+      // Clear typing status immediately
+      const typingDocRef = doc(db, 'raffles', id, 'typingAll', user.uid);
+      await deleteDoc(typingDocRef);
+    } catch (error) {
+      console.error('Error sending message:', error);
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
+  const handleTypingInput = async (e) => {
+    setChatInput(e.target.value);
+    if (!user || user.isAnonymous || !user.auroryPlayerId) return;
+
+    // Throttled update to Firestore (once every 3 seconds)
+    const typingDocRef = doc(db, 'raffles', id, 'typingAll', user.uid);
+    const now = Date.now();
+    
+    if (now - lastTypingUpdateRef.current > 3000) {
+      lastTypingUpdateRef.current = now;
+      try {
+        await setDoc(typingDocRef, {
+          name: resolveDisplayName(user) || 'Someone',
+          timestamp: now
+        });
+      } catch (err) {}
+    }
+      
+    // Debounce cleanup
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(async () => {
+      try {
+        await deleteDoc(typingDocRef);
+      } catch (e) {}
+    }, 3000);
+  };
+
+  const deleteChatMessage = async (messageId) => {
+    if (!isAdminUser) return;
+    
+    if (window.confirm('Are you sure you want to delete this message?')) {
+      try {
+        await deleteDoc(doc(db, 'raffles', id, 'chatAll', messageId));
+      } catch (error) {
+        console.error('Error deleting message:', error);
+      }
+    }
+  };
+
+  const toggleReaction = async (messageId, emoji) => {
+    if (!user || user.isAnonymous || !user.auroryPlayerId) return;
+
+    const messageRef = doc(db, 'raffles', id, 'chatAll', messageId);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const msgDoc = await transaction.get(messageRef);
+        if (!msgDoc.exists()) return;
+
+        const data = msgDoc.data();
+        const reactions = data.reactions || {};
+        const emojiReactions = reactions[emoji] || [];
+        
+        let newEmojiReactions;
+        if (emojiReactions.includes(user.uid)) {
+          newEmojiReactions = emojiReactions.filter(uid => uid !== user.uid);
+        } else {
+          newEmojiReactions = [...emojiReactions, user.uid];
+        }
+
+        const newReactions = { ...reactions, [emoji]: newEmojiReactions };
+        transaction.update(messageRef, { reactions: newReactions });
+      });
+    } catch (error) {
+      console.error('Error toggling reaction:', error);
+    }
+    setShowReactionPicker(null);
+  };
+
+  const formatChatTime = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
 
   const handleJoin = async () => {
     if (!user) {
@@ -413,6 +617,145 @@ import './RafflePage.css';
         onClose={() => setConfirmAction(null)}
         {...confirmAction}
       />
+
+      {/* ─── CHAT SYSTEM ─── */}
+      <div className="raffle-chat-container">
+        {isChatOpen && (
+          <div className="chat-panel">
+            <div className="chat-header-bar">
+              <span className="chat-icon">💬</span>
+              <h3>Raffle Chat</h3>
+            </div>
+            
+            <div className="chat-messages">
+              {messages.length === 0 ? (
+                <div className="chat-empty">
+                  <p>No messages yet. Be the first to say hello!</p>
+                </div>
+              ) : (
+                messages.map((msg) => (
+                  <div key={msg.id} className={`chat-message ${msg.senderUid === user?.uid ? 'own' : ''}`}>
+                    <img 
+                      src={msg.senderPhoto || 'https://cdn.discordapp.com/embed/avatars/0.png'} 
+                      alt="" 
+                      className="chat-avatar" 
+                      onError={(e) => { 
+                        e.target.onerror = null; 
+                        e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; 
+                      }}
+                    />
+                    <div className="chat-content">
+                      <div className="chat-msg-header">
+                        <span className="chat-sender">
+                          {msg.senderName}
+                          {msg.senderIsAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder"> 🛡️</span>}
+                        </span>
+                        <span className="chat-time">{formatChatTime(msg.timestamp)}</span>
+                      </div>
+                      
+                      <div className="chat-text-wrapper">
+                        <p className="chat-text">{msg.text}</p>
+                        
+                        <div className="chat-msg-actions">
+                          {isAdminUser && (
+                            <button 
+                              className="delete-msg-btn"
+                              onClick={() => deleteChatMessage(msg.id)}
+                              title="Delete message"
+                            >
+                              🗑️
+                            </button>
+                          )}
+                          {(isAdminUser || (user && !user.isAnonymous && user.auroryPlayerId)) && (
+                            <button 
+                              className="add-reaction-btn"
+                              onClick={() => setShowReactionPicker(showReactionPicker === msg.id ? null : msg.id)}
+                            >
+                              +
+                            </button>
+                          )}
+                          {showReactionPicker === msg.id && (
+                            <div className="reaction-picker">
+                              {['👍', '❤️', '😂', '😮', '😢'].map(emoji => (
+                                <button 
+                                  key={emoji} 
+                                  className="reaction-option"
+                                  onClick={() => toggleReaction(msg.id, emoji)}
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                        <div className="message-reactions">
+                          {Object.entries(msg.reactions).map(([emoji, uids]) => (
+                            uids.length > 0 && (
+                              <div 
+                                key={emoji} 
+                                className={`reaction-bubble ${uids.includes(user?.uid) ? 'reacted' : ''}`}
+                                onClick={() => toggleReaction(msg.id, emoji)}
+                              >
+                                <span className="reaction-emoji">{emoji}</span>
+                                <span className="reaction-count">{uids.length}</span>
+                              </div>
+                            )
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {Object.keys(typingUsers).length > 0 && (
+              <div className="typing-indicator">
+                <div className="typing-dots">
+                  <span></span><span></span><span></span>
+                </div>
+                <span>
+                  {Object.values(typingUsers).map(u => u.name).join(', ')} {Object.keys(typingUsers).length === 1 ? 'is' : 'are'} typing...
+                </span>
+              </div>
+            )}
+
+            <div className="chat-input-wrapper">
+              {(!user || user.isAnonymous) ? (
+                <div className="chat-viewer-notice">Log in to participate in the chat</div>
+              ) : !user.auroryPlayerId ? (
+                <div className="chat-viewer-notice">Link your Aurory account to chat</div>
+              ) : (
+                <form className="chat-input-form" onSubmit={sendChatMessage}>
+                  <input 
+                    type="text" 
+                    placeholder="Type a message..." 
+                    value={chatInput}
+                    onChange={handleTypingInput}
+                    maxLength={200}
+                  />
+                  <button type="submit" className="chat-send-btn" disabled={!chatInput.trim() || isSendingMessage}>
+                    {isSendingMessage ? '...' : '✈️'}
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
+
+        <button className="chat-toggle-btn" onClick={() => setIsChatOpen(!isChatOpen)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span className="chat-icon">{isChatOpen ? '❌' : '💬'}</span>
+            <span className="chat-label">{isChatOpen ? 'Close Chat' : 'Raffle Chat'}</span>
+            {!isChatOpen && unreadCount > 0 && <span className="chat-badge">{unreadCount}</span>}
+          </div>
+          <span className="toggle-icon">{isChatOpen ? '▼' : '▲'}</span>
+        </button>
+      </div>
     </div>
   );
 };
