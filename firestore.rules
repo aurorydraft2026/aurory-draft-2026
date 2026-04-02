@@ -257,7 +257,8 @@ service cloud.firestore {
                        )) || (isAdmin() && (
                          !('role' in request.resource.data) || 
                          (request.resource.data.role == resource.data.role) ||
-                         isSuperAdmin()
+                         isSuperAdmin() ||
+                         (!(resource.data.get('role', 'user') in ['admin', 'superadmin']) && (request.resource.data.get('role', 'user') in ['user', 'blocked', null]))
                        ));
 
       // Subcollection: Points History

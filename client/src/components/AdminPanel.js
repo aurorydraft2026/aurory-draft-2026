@@ -1069,50 +1069,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     setPayoutLoading(false);
   };
 
-  // Handle cleanup of inactive guests
-  const handleCleanupInactiveGuests = async () => {
-    if (!isSuperAdminUser) return;
-    if (!window.confirm('⚠️ Are you sure you want to delete ALL anonymous guest accounts that have been inactive for over 24 hours? This will remove them from both Auth and Firestore and cannot be undone.')) {
-      return;
-    }
 
-    setProcessingId('cleanup_guests');
-    try {
-      const token = await auth.currentUser.getIdToken();
-      const projectId = auth.app.options.projectId;
-
-      const response = await fetch(`https://us-central1-${projectId}.cloudfunctions.net/cleanupInactiveGuests`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ data: {} })
-      });
-
-      const result = await response.json();
-      if (result.error) {
-        throw new Error(result.error.message || result.error);
-      }
-
-      alert(`✅ Cleanup successful! ${result.result.message}`);
-
-      logActivity({
-        user,
-        type: 'ADMIN',
-        action: 'cleanup_inactive_guests',
-        metadata: {
-          count: result.result.count,
-          threshold: '24 hours'
-        }
-      });
-    } catch (error) {
-      console.error('Cleanup error:', error);
-      alert('Error during cleanup: ' + error.message);
-    } finally {
-      setProcessingId(null);
-    }
-  };
 
   const handleRestoreTickerDefaults = async () => {
     if (!isAdminUser) return;
@@ -2083,12 +2040,12 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               <span className="category-arrow">▼</span>
             </div>
             <div className="category-tabs">
-              {isSuperAdminUser && (
+              {isAdminUser && (
                 <button
                   className={`admin-tab ${activeTab === 'users' ? 'active' : ''}`}
                   onClick={() => setActiveTab('users')}
                 >
-                  👥 Assign Users
+                  👥 Users
                 </button>
               )}
               {isAdminUser && (
@@ -3322,18 +3279,35 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             </div>
           )}
 
-          {activeTab === 'users' && isSuperAdminUser && (
+          {activeTab === 'users' && isAdminUser && (
             <div className="users-assignment-section">
-              <div className="section-info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <p>👥 Manage user roles. Admins can process deposits and withdrawals but cannot manually credit/deduct balance.</p>
-                <button
-                  className="clear-btn-admin"
-                  onClick={handleCleanupInactiveGuests}
-                  disabled={processingId === 'cleanup_guests'}
-                >
-                  🗑️ {processingId === 'cleanup_guests' ? 'Cleaning...' : 'Cleanup Inactive Guests (1d)'}
-                </button>
-              </div>
+              {(() => {
+                  const registeredUsers = allUsers.filter(u => !u.isAnonymous);
+                  const totalCount = registeredUsers.length;
+                  const linkedCount = registeredUsers.filter(u => u.auroryPlayerId).length;
+                  const notLinkedCount = totalCount - linkedCount;
+
+                  return (
+                    <div className="section-info users-stats-header">
+                      <div className="stats-grid">
+                        <div className="stat-item">
+                          <span className="label">Total Users</span>
+                          <span className="value">{totalCount}</span>
+                        </div>
+                        <div className="stat-item split">
+                          <div className="sub-stat linked">
+                            <span className="label">🔗 Linked</span>
+                            <span className="value">{linkedCount}</span>
+                          </div>
+                          <div className="sub-stat not-linked">
+                            <span className="label">🚫 Not Linked</span>
+                            <span className="value">{notLinkedCount}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+              })()}
 
               {/* Search Bar */}
               <div className="search-bar" style={{ marginBottom: '20px' }}>
@@ -3371,6 +3345,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       <option value="Valcoins">Valcoins</option>
                     </select>
                   </div>
+                  <div className="col-last-checkin">Last Claim</div>
+                  <div className="col-streak">Streak</div>
                   <div className="col-role">Role</div>
                 </div>
                 <div className="user-list-body">
@@ -3421,6 +3397,110 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                               </span>
                             )}
                           </div>
+                          <div className="col-last-checkin">
+                            {isSuperAdminUser ? (
+                              <div className="date-edit-wrapper">
+                                <input
+                                  type="text"
+                                  placeholder="YYYY-MM-DD"
+                                  defaultValue={u.lastDailyCheckIn || ''}
+                                  onBlur={async (e) => {
+                                    const newDate = e.target.value.trim();
+                                    if (newDate === (u.lastDailyCheckIn || '')) return;
+                                    // Basic validation
+                                    if (newDate && !/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
+                                      alert('Invalid format. Use YYYY-MM-DD');
+                                      e.target.value = u.lastDailyCheckIn || '';
+                                      return;
+                                    }
+
+                                    try {
+                                      await updateDoc(doc(db, 'users', u.id), {
+                                        lastDailyCheckIn: newDate || null,
+                                        updatedAt: serverTimestamp()
+                                      });
+                                      setAllUsers(prev => prev.map(user => 
+                                        user.id === u.id ? { ...user, lastDailyCheckIn: newDate || null } : user
+                                      ));
+                                    } catch (err) {
+                                      console.error('Error updating check-in date:', err);
+                                      alert('Update failed');
+                                    }
+                                  }}
+                                  className="date-edit-input"
+                                />
+                                <button
+                                  className="set-yesterday-btn"
+                                  title="Set to Yesterday for testing"
+                                  onClick={async () => {
+                                    const yesterday = new Date();
+                                    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+                                    const yesterdayStr = yesterday.toISOString().split('T')[0];
+                                    
+                                    try {
+                                      setProcessingId(`date-${u.id}`);
+                                      await updateDoc(doc(db, 'users', u.id), {
+                                        lastDailyCheckIn: yesterdayStr,
+                                        updatedAt: serverTimestamp()
+                                      });
+                                      setAllUsers(prev => prev.map(user => 
+                                        user.id === u.id ? { ...user, lastDailyCheckIn: yesterdayStr } : user
+                                      ));
+                                      alert(`✅ Last Check-in set to ${yesterdayStr}`);
+                                    } catch (err) {
+                                      console.error('Error setting yesterday:', err);
+                                      alert('Failed to set yesterday');
+                                    } finally {
+                                      setProcessingId(null);
+                                    }
+                                  }}
+                                  disabled={processingId === `date-${u.id}`}
+                                >
+                                  Yesterday
+                                </button>
+                              </div>
+                            ) : (
+                              <span>{u.lastDailyCheckIn || 'Never'}</span>
+                            )}
+                          </div>
+                          <div className="col-streak">
+                            {isSuperAdminUser ? (
+                              <input
+                                type="number"
+                                min="0"
+                                defaultValue={u.checkInStreak || 0}
+                                onBlur={async (e) => {
+                                  const newStreak = parseInt(e.target.value);
+                                  if (isNaN(newStreak) || newStreak < 0) {
+                                    e.target.value = u.checkInStreak || 0;
+                                    return;
+                                  }
+                                  if (newStreak === (u.checkInStreak || 0)) return;
+
+                                  try {
+                                    const userRef = doc(db, 'users', u.id);
+                                    await updateDoc(userRef, {
+                                      checkInStreak: newStreak,
+                                      updatedAt: serverTimestamp()
+                                    });
+                                    // Update local state
+                                    setAllUsers(prev => prev.map(user => 
+                                      user.id === u.id ? { ...user, checkInStreak: newStreak } : user
+                                    ));
+                                    console.log(`✅ Streak updated for ${u.id} to ${newStreak}`);
+                                  } catch (error) {
+                                    console.error('Error updating streak:', error);
+                                    alert('Failed to update streak');
+                                    e.target.value = u.checkInStreak || 0;
+                                  }
+                                }}
+                                className="streak-edit-input"
+                                title="Edit streak (SuperAdmin only)"
+                              />
+                            ) : (
+                              <span className="streak-value">🔥 {u.checkInStreak || 0}</span>
+                            )}
+                          </div>
                           <div className="col-role">
                             {userIsSuper ? (
                               <span className="badge-super">Super Admin</span>
@@ -3462,21 +3542,28 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                     }
                                   }}
                                   disabled={processingId === `role-${u.id}`}
-                                  className="role-select"
+                                  className={`role-select ${u.role === 'blocked' ? 'blocked' : ''}`}
                                 >
                                   <option value="user">User</option>
                                   <option value="admin">Admin</option>
+                                  {u.role === 'blocked' ? (
+                                    <option value="user">✅ Unblock User</option>
+                                  ) : (
+                                    <option value="blocked">🚫 Block User</option>
+                                  )}
                                   {isSuperAdminUser && <option value="delete">🗑️ Delete User</option>}
                                 </select>
-                                <button
-                                  className="manage-btn"
-                                  onClick={() => {
-                                    setSelectedUserForLogs(u);
-                                    fetchUserLogs(u.id);
-                                  }}
-                                >
-                                  📊 Logs
-                                </button>
+                                {isSuperAdminUser && (
+                                  <button
+                                    className="manage-btn"
+                                    onClick={() => {
+                                      setSelectedUserForLogs(u);
+                                      fetchUserLogs(u.id);
+                                    }}
+                                  >
+                                    📊 Logs
+                                  </button>
+                                )}
                               </div>
                             )}
                           </div>
@@ -3676,17 +3763,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
           {activeTab === 'visitors' && isAdminUser && (
             <div className="visitors-section">
-              <div className="section-info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="section-info">
                 <p>🌐 Users who visited the website in the last 3 days.</p>
-                {isSuperAdminUser && (
-                  <button
-                    className="clear-btn-admin"
-                    onClick={handleCleanupInactiveGuests}
-                    disabled={processingId === 'cleanup_guests'}
-                  >
-                    🗑️ {processingId === 'cleanup_guests' ? 'Cleaning...' : 'Cleanup Inactive Guests (1d)'}
-                  </button>
-                )}
               </div>
 
               {onlineVisitors.length === 0 ? (

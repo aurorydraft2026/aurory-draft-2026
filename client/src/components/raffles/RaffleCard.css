@@ -32,7 +32,7 @@
   padding: 1.5rem;
 }
 
-.raffle-card-aury-prize {
+.raffle-card-currency-prize {
   position: absolute;
   top: 0;
   left: 0;
@@ -42,29 +42,56 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle, rgba(251, 191, 36, 0.1) 0%, transparent 70%);
+  padding: 1rem;
 }
 
-.raffle-card-aury-icon {
-  width: 60px;
-  height: 60px;
-  margin-bottom: 0.5rem;
-  filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.4));
+.raffle-card-currency-prize.aury {
+  background: transparent;
 }
 
-.raffle-card-aury-amount {
-  font-size: 2rem;
-  font-weight: 800;
-  color: #ffca28;
+.raffle-card-currency-prize.usdc {
+  background: transparent;
+}
+
+.raffle-card-currency-icon {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 0.75rem;
+  transition: transform 0.3s ease;
+}
+
+.aury .raffle-card-currency-icon {
+  filter: none;
+}
+
+.usdc .raffle-card-currency-icon {
+  filter: none;
+}
+
+.raffle-card-currency-amount {
+  font-size: 2.5rem;
+  font-weight: 900;
   line-height: 1;
 }
 
-.raffle-card-aury-label {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: rgba(251, 191, 36, 0.6);
-  letter-spacing: 1px;
+.aury .raffle-card-currency-amount {
+  color: #ffca28;
 }
+
+.usdc .raffle-card-currency-amount {
+  color: #2563eb;
+}
+
+.raffle-card-currency-label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  margin-top: 0.25rem;
+  opacity: 0.8;
+}
+
+.aury .raffle-card-currency-label { color: #fbc02d; }
+.usdc .raffle-card-currency-label { color: #60a5fa; }
 
 .raffle-card-content {
   padding: 1.5rem;

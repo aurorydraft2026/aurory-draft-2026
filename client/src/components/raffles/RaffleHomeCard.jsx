@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import './RaffleHomeCard.css';
 import '../MatchupCard.css'; // Reuse existing matchup card styles
 
 const RaffleHomeCard = ({ raffle }) => {
@@ -13,7 +14,7 @@ const RaffleHomeCard = ({ raffle }) => {
         <div className={`tournament-card ${raffle.status}`} onClick={handleView}>
             <div className="card-content">
                 <div className="tournament-header">
-                    <h4 className="matchup-title">{raffle.itemType} Raffle</h4>
+                    <h4 className="matchup-title">{raffle.itemType?.toUpperCase()} Raffle</h4>
                     <div className="card-badges">
                         <span className="mode-badge mode-mode3">
                             RAFFLE
@@ -25,10 +26,16 @@ const RaffleHomeCard = ({ raffle }) => {
                 </div>
                 
                 <div className="raffle-prize-display">
-                    {raffle.itemType === 'aury' ? (
-                        <div className="raffle-aury-prize-sm">
-                            <img src="/aury-icon.png" alt="AURY" className="raffle-aury-icon-sm" />
-                            <span className="raffle-aury-amount-sm">{raffle.auryAmount}</span>
+                    {raffle.itemType === 'aury' || raffle.itemType === 'usdc' ? (
+                        <div className={`raffle-currency-prize-sm ${raffle.itemType}`}>
+                            <img 
+                                src={process.env.PUBLIC_URL + (raffle.itemType === 'aury' ? '/aury-icon.png' : '/usdc-icon.png')} 
+                                alt={raffle.itemType.toUpperCase()} 
+                                className="raffle-currency-icon-sm" 
+                            />
+                            <span className="raffle-currency-amount-sm">
+                                {raffle.itemType === 'aury' ? raffle.auryAmount : raffle.usdcAmount}
+                            </span>
                         </div>
                     ) : (
                         raffle.itemImage && <img src={raffle.itemImage} alt={raffle.itemType} className="raffle-prize-image-sm" />
@@ -40,12 +47,12 @@ const RaffleHomeCard = ({ raffle }) => {
                 <div className="matchup-details">
                     <div className="detail-item">
                         <span className="detail-icon">🎁</span>
-                        <span className="detail-text">Item: {raffle.itemType}</span>
+                        <span className="detail-text">Item: {raffle.itemType?.toUpperCase()}</span>
                     </div>
                     <div className="detail-item prize-pool-details">
                         <div className="pool-main">
                             <span className="detail-icon">💰</span>
-                            <span>{raffle.isFree ? 'FREE' : `${raffle.entryFee} AURY`} Entry</span>
+                            <span>{raffle.isFree ? 'FREE' : `${raffle.entryFee} ${raffle.entryFeeCurrency || 'AURY'}`} Entry</span>
                         </div>
                     </div>
                     {raffle.status === 'completed' && raffle.winner && (

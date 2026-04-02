@@ -12,9 +12,11 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
   const [description, setDescription] = useState('');
   const [isFree, setIsFree] = useState(true);
   const [entryFee, setEntryFee] = useState(0);
+  const [entryFeeCurrency, setEntryFeeCurrency] = useState('AURY');
   const [minParticipants, setMinParticipants] = useState(2);
   const [maxParticipants, setMaxParticipants] = useState(20);
   const [auryAmount, setAuryAmount] = useState(100);
+  const [usdcAmount, setUsdcAmount] = useState(10);
   const [endDate, setEndDate] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -27,16 +29,20 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
       setDescription(editData.description || '');
       setIsFree(editData.isFree ?? true);
       setEntryFee(editData.entryFee || 0);
+      setEntryFeeCurrency(editData.entryFeeCurrency || 'AURY');
       setMinParticipants(editData.minParticipants || 2);
       setMaxParticipants(editData.maxParticipants || 20);
-      setAuryAmount(editData.auryAmount || 100);
-      setEndDate(editData.endDate || '');
+      setAuryAmount(editData.auryAmount || 0);
+      setUsdcAmount(editData.usdcAmount || 0);
+      setEndDate(editData.endDate ? new Date(editData.endDate).toISOString().slice(0, 16) : '');
     }
   }, [editData]);
 
   if (!isOpen) return null;
 
   const isAury = itemType === 'aury';
+  const isUsdc = itemType === 'usdc';
+  const isCurrencyPrize = isAury || isUsdc;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -48,15 +54,17 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
 
     const raffleData = {
       itemType,
-      itemImage: isAury ? '' : itemImage,
-      itemLink: isAury ? '' : itemLink,
+      itemImage: isCurrencyPrize ? '' : itemImage,
+      itemLink: isCurrencyPrize ? '' : itemLink,
       description,
       isFree,
       entryFee: isFree ? 0 : parseFloat(entryFee),
+      entryFeeCurrency,
       minParticipants: parseInt(minParticipants),
       maxParticipants: parseInt(maxParticipants),
       auryAmount: isAury ? parseFloat(auryAmount) : 0,
-      endDate: endDate ? new Date(endDate) : null
+      usdcAmount: isUsdc ? parseFloat(usdcAmount) : 0,
+      endDate: endDate ? new Date(endDate).toISOString() : null
     };
 
     if (isEditMode) {
@@ -110,21 +118,23 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
                 <option value="eggs">Eggs</option>
                 <option value="skins">Skins</option>
                 <option value="aurorian">Aurorian</option>
-                <option value="aury">AURY</option>
+                <option value="aury">AURY (Token)</option>
+                <option value="usdc">USDC (Token)</option>
                 <option value="other">Other</option>
               </select>
             </div>
 
-            {isAury ? (
+            {isCurrencyPrize ? (
               <div className="form-group">
-                <label>💰 AURY Amount</label>
+                <label>💰 {isAury ? 'AURY' : 'USDC'} Amount</label>
                 <input 
                   type="number" 
                   className="form-input"
-                  placeholder="e.g. 100" 
-                  value={auryAmount} 
-                  onChange={(e) => setAuryAmount(e.target.value)}
-                  min="1"
+                  placeholder={`e.g. ${isAury ? '100' : '10'}`} 
+                  value={isAury ? auryAmount : usdcAmount} 
+                  onChange={(e) => isAury ? setAuryAmount(e.target.value) : setUsdcAmount(e.target.value)}
+                  min="0.01"
+                  step="0.01"
                   required
                 />
               </div>
@@ -186,16 +196,25 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
               </label>
               {!isFree && (
                 <div className="entry-fee-input-row">
+                  <select 
+                    className="form-input currency-select" 
+                    value={entryFeeCurrency} 
+                    onChange={(e) => setEntryFeeCurrency(e.target.value)}
+                  >
+                    <option value="AURY">AURY</option>
+                    <option value="USDC">USDC</option>
+                    <option value="Valcoins">Valcoins</option>
+                  </select>
                   <input 
                     type="number" 
                     className="form-input"
-                    step="0.01" 
+                    step={entryFeeCurrency === 'Valcoins' ? '1' : '0.01'} 
                     value={entryFee} 
                     onChange={(e) => setEntryFee(e.target.value)} 
-                    placeholder="Entry fee in AURY"
+                    placeholder={`Fee in ${entryFeeCurrency}`}
                     required
                   />
-                  <span className="fee-unit">AURY per ticket</span>
+                  <span className="fee-unit">{entryFeeCurrency === 'Valcoins' ? 'Valcoins' : entryFeeCurrency} per ticket</span>
                 </div>
               )}
             </div>

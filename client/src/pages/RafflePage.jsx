@@ -40,7 +40,7 @@ import './RafflePage.css';
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, isAdminUser, setShowLoginModal } = useAuth(navigate);
-  const { formatAuryAmount } = useWallet(user);
+  const { formatAuryAmount, formatUsdcAmount } = useWallet(user);
 
 
 
@@ -422,13 +422,15 @@ import './RafflePage.css';
   
   const canJoin = !isJoined && !isSpinning && !isCompleted && !isEntriesClosed && !isExpired && raffle.participantsCount < raffle.maxParticipants;
   const isAury = raffle.itemType === 'aury';
+  const itemType = raffle.itemType;
+  const isCurrencyPrize = itemType === 'aury' || itemType === 'usdc';
 
   return (
     <div className="raffle-page">
       {/* Page Header — matches Tournament/Matchup pages */}
       <header className="raffle-page-header">
         <div className="raffle-page-title">
-          <h1>{raffle.itemType} Raffle</h1>
+          <h1>{raffle.itemType?.toUpperCase()} Raffle</h1>
           <span className="raffle-page-subtitle">{raffle.description}</span>
         </div>
         <button className="back-home-btn" onClick={() => navigate('/')}>
@@ -438,10 +440,12 @@ import './RafflePage.css';
 
       <div className="raffle-header">
         <div className="item-info-top">
-          {isAury ? (
-            <div className="aury-prize-badge">
-              <span className="aury-amount">{raffle.auryAmount || 0}</span>
-              <span className="aury-label">AURY</span>
+          {itemType === 'aury' || itemType === 'usdc' ? (
+            <div className={`currency-prize-badge ${itemType}`}>
+              <span className="currency-amount">
+                {itemType === 'aury' ? (raffle.auryAmount || 0) : (raffle.usdcAmount || 0)}
+              </span>
+              <span className="currency-label">{itemType.toUpperCase()}</span>
             </div>
           ) : (
             raffle.itemImage && <img src={raffle.itemImage} alt={raffle.itemType} className="raffle-item-large" />
@@ -459,11 +463,17 @@ import './RafflePage.css';
         <div className="raffle-stats-strip">
           <div className="raffle-stat-box">
             <span className="raffle-stat-label">Total Entry Fees</span>
-            <span className="raffle-stat-value">{formatAuryAmount(raffle.totalFeesCollected || 0)} AURY</span>
+            <span className="raffle-stat-value">
+              {raffle.entryFeeCurrency === 'USDC' ? formatUsdcAmount(raffle.totalFeesCollected || 0) : 
+               raffle.entryFeeCurrency === 'Valcoins' ? (raffle.totalFeesCollected || 0) :
+               formatAuryAmount(raffle.totalFeesCollected || 0)} {raffle.entryFeeCurrency || 'AURY'}
+            </span>
           </div>
           <div className="raffle-stat-box">
             <span className="raffle-stat-label">Entry Fee</span>
-            <span className="raffle-stat-value">{raffle.isFree ? 'FREE' : `${raffle.entryFee} AURY`}</span>
+            <span className="raffle-stat-value">
+              {raffle.isFree ? 'FREE' : `${raffle.entryFee} ${raffle.entryFeeCurrency || 'AURY'}`}
+            </span>
           </div>
           <div className="raffle-stat-box">
             <span className="raffle-stat-label">Participants</span>
@@ -508,9 +518,10 @@ import './RafflePage.css';
           <RaffleWheel 
             participants={raffle.participants}
             onSpinEnd={handleSpinEnd}
-            itemImage={isAury ? null : raffle.itemImage}
-            itemLink={isAury ? null : raffle.itemLink}
+            itemImage={isCurrencyPrize ? null : raffle.itemImage}
+            itemLink={isCurrencyPrize ? null : raffle.itemLink}
             auryAmount={isAury ? raffle.auryAmount : null}
+            usdcAmount={itemType === 'usdc' ? raffle.usdcAmount : null}
             winnerId={raffle.winner?.uid}
             status={raffle.status}
             isStarting={isStarting}

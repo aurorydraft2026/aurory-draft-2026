@@ -1,0 +1,88 @@
+/* CheckInBonus.css */
+
+.bonus-bubble-effect {
+    position: absolute;
+    top: -40px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #fbcd02 0%, #ff9d00 100%);
+    color: #000;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-weight: 800;
+    font-size: 14px;
+    white-space: nowrap;
+    box-shadow: 0 4px 15px rgba(251, 205, 2, 0.4), 0 0 0 2px rgba(255, 255, 255, 0.2);
+    z-index: 100;
+    pointer-events: none;
+    animation: floatUpAndFade 2.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.bonus-bubble-effect::before {
+    content: '✨';
+    font-size: 12px;
+}
+
+@keyframes floatUpAndFade {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, 10px) scale(0.5);
+    }
+    15% {
+        opacity: 1;
+        transform: translate(-50%, -10px) scale(1.1);
+    }
+    30% {
+        transform: translate(-50%, -20px) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -80px) scale(0.9);
+    }
+}
+
+/* Streak Badge Mini */
+.streak-badge-mini {
+    background: rgba(255, 69, 0, 0.2);
+    color: #ff4500;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-left: 8px;
+    border: 1px solid rgba(255, 69, 0, 0.3);
+    animation: pulseStreak 2s infinite ease-in-out;
+}
+
+@keyframes pulseStreak {
+    0% { transform: scale(1); filter: brightness(1); }
+    50% { transform: scale(1.05); filter: brightness(1.3); }
+    100% { transform: scale(1); filter: brightness(1); }
+}
+
+.btn-content-with-streak {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+
+/* User Profile Modal Enhancements */
+.daily-checkin-btn {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: visible !important;
+}
+
+.daily-checkin-btn:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.daily-checkin-btn.checked-in {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: rgba(255, 255, 255, 0.4) !important;
+}

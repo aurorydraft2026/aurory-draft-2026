@@ -107,7 +107,22 @@ export async function joinRaffle(raffleId, user, auroryData) {
       if (isAlreadyJoined) throw new Error('You have already joined this raffle');
 
       const entryFee = raffle.isFree ? 0 : (raffle.entryFee || 0);
-      const entryFeeSmallestUnit = Math.floor(entryFee * 1e9);
+      const currency = raffle.entryFeeCurrency || 'AURY';
+      
+      let multiplier = 1e9;
+      let walletField = 'balance';
+      let isPoints = false;
+
+      if (currency === 'USDC') {
+        multiplier = 1e6;
+        walletField = 'usdcBalance';
+      } else if (currency === 'Valcoins') {
+        multiplier = 1;
+        walletField = 'points';
+        isPoints = true;
+      }
+
+      const entryFeeSmallestUnit = Math.floor(entryFee * multiplier);
 
       // Award Points (Dynamic configurable amount, default 20)
       let pointsAwarded = 20;
@@ -118,30 +133,41 @@ export async function joinRaffle(raffleId, user, auroryData) {
       }
 
       if (entryFeeSmallestUnit > 0) {
-        const walletSnap = await transaction.get(walletRef);
-        if (!walletSnap.exists()) throw new Error('Wallet not found');
+        if (isPoints) {
+          // Verify user has enough points
+          const userDocSnap = await transaction.get(doc(db, 'users', user.uid));
+          if (!userDocSnap.exists()) throw new Error('User not found');
+          const currentPoints = userDocSnap.data().points || 0;
+          if (currentPoints < entryFeeSmallestUnit) throw new Error('Insufficient Valcoins balance');
+          
+          // Deduction will be handled in the net points calculation below
+        } else {
+          // Deduct from wallet
+          const walletDocSnap = await transaction.get(walletRef);
+          if (!walletDocSnap.exists()) throw new Error('Wallet not found');
+          const currentBalance = walletDocSnap.data()[walletField] || 0;
+          if (currentBalance < entryFeeSmallestUnit) throw new Error(`Insufficient ${currency} balance`);
 
-        const balance = walletSnap.data().balance || 0;
-        if (balance < entryFeeSmallestUnit) throw new Error('Insufficient balance');
+          transaction.update(walletRef, {
+            [walletField]: currentBalance - entryFeeSmallestUnit,
+            updatedAt: serverTimestamp()
+          });
 
-        // Deduct balance
-        transaction.update(walletRef, {
-          balance: balance - entryFeeSmallestUnit,
-          updatedAt: serverTimestamp()
-        });
-
-        // Log transaction
-        const txRef = doc(collection(db, 'wallets', user.uid, 'transactions'));
-        transaction.set(txRef, {
-          type: 'raffle_entry',
-          amount: entryFeeSmallestUnit,
-          raffleId: raffleId,
-          itemName: raffle.itemType,
-          status: 'completed',
-          timestamp: serverTimestamp()
-        });
+          // Log wallet transaction
+          const txRef = doc(collection(db, 'wallets', user.uid, 'transactions'));
+          transaction.set(txRef, {
+            type: 'raffle_entry',
+            amount: entryFeeSmallestUnit,
+            currency: currency,
+            raffleId: raffleId,
+            itemName: raffle.itemType,
+            status: 'completed',
+            timestamp: serverTimestamp()
+          });
+        }
       }
 
+      // ─── HANDLERS/WRITES (NON-POINTS) ───
       // Add to participants
       const newParticipant = {
         uid: user.uid,
@@ -161,32 +187,59 @@ export async function joinRaffle(raffleId, user, auroryData) {
         updatedAt: serverTimestamp()
       });
 
-
-      if (pointsAwarded > 0) {
+      // ─── POINTS CALCULATIONS & WRITES (NET CHANGE) ───
+      // Net logic: award minus deduction (if deduction was from points)
+      const netPointsChange = isPoints ? (pointsAwarded - entryFeeSmallestUnit) : pointsAwarded;
+      
+      if (netPointsChange !== 0) {
         const userRef = doc(db, 'users', user.uid);
         transaction.update(userRef, {
-          points: increment(pointsAwarded),
+          points: increment(netPointsChange),
           updatedAt: serverTimestamp()
         });
 
-        // Log points history
-        const historyRef = doc(collection(db, 'users', user.uid, 'pointsHistory'));
-        transaction.set(historyRef, {
-          amount: pointsAwarded,
-          type: 'raffle_join',
-          description: `Joined raffle: ${raffle.itemType}`,
-          timestamp: serverTimestamp()
-        });
+        // Log points history for award
+        if (pointsAwarded > 0) {
+          const historyRef = doc(collection(db, 'users', user.uid, 'pointsHistory'));
+          transaction.set(historyRef, {
+            amount: pointsAwarded,
+            type: 'raffle_join',
+            description: `Awarded for joining: ${raffle.itemType}`,
+            timestamp: serverTimestamp()
+          });
+        }
+
+        // Log points history for deduction if points were used
+        if (isPoints && entryFeeSmallestUnit > 0) {
+          const deductionRef = doc(collection(db, 'users', user.uid, 'pointsHistory'));
+          transaction.set(deductionRef, {
+            amount: -entryFeeSmallestUnit,
+            type: 'raffle_fee',
+            description: `Entry fee for: ${raffle.itemType}`,
+            timestamp: serverTimestamp()
+          });
+        }
       }
 
-      return { success: true, pointsAwarded };
+      return { 
+        success: true, 
+        pointsAwarded, 
+        netPointsChange,
+        itemType: raffle.itemType,
+        isFree: raffle.isFree,
+        entryFee: raffle.entryFee,
+        entryFeeCurrency: raffle.entryFeeCurrency
+      };
     });
 
-    if (result.success && result.pointsAwarded > 0) {
+    if (result.success) {
+      const displayCurrency = result.isFree ? '' : ` ${result.entryFeeCurrency || 'AURY'}`;
+      const entryFeeText = result.isFree ? 'Free' : `${result.entryFee}${displayCurrency}`;
+      
       await createNotification(user.uid, {
-        title: 'Valcoins Awarded!',
-        message: `You earned ${result.pointsAwarded} Valcoins for joining the ${raffleName} raffle!`,
-        type: 'points'
+        title: 'Raffle Joined! 🎫',
+        message: `Successfully joined ${result.itemType?.toUpperCase()} raffle. (Fee: ${entryFeeText}, Reward: +${result.pointsAwarded} Valcoins)`,
+        type: 'raffle'
       });
     }
 
@@ -228,11 +281,39 @@ export async function startRaffle(raffleId, user) {
         updatedAt: serverTimestamp()
       });
 
+      // AUTO-PAYOUT for AURY/USDC
+      if (raffle.itemType === 'aury' || raffle.itemType === 'usdc') {
+        const isAury = raffle.itemType === 'aury';
+        const amount = isAury ? (raffle.auryAmount || 0) : (raffle.usdcAmount || 0);
+        const multiplier = isAury ? 1e9 : 1e6;
+        const field = isAury ? 'balance' : 'usdcBalance';
+        const amountSmallestUnit = Math.floor(amount * multiplier);
+
+        if (amountSmallestUnit > 0) {
+          const winnerWalletRef = doc(db, 'wallets', winner.uid);
+          transaction.set(winnerWalletRef, {
+            [field]: increment(amountSmallestUnit),
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+
+          // Log win transaction
+          const txRef = doc(collection(db, 'wallets', winner.uid, 'transactions'));
+          transaction.set(txRef, {
+            type: 'raffle_win',
+            amount: amountSmallestUnit,
+            currency: isAury ? 'AURY' : 'USDC',
+            raffleId: raffleId,
+            status: 'completed',
+            timestamp: serverTimestamp()
+          });
+        }
+      }
+
       logActivity({
         user,
         type: 'ADMIN',
         action: 'start_raffle',
-        metadata: { raffleId, winnerUid: winner.uid }
+        metadata: { raffleId, winnerUid: winner.uid, autoPaid: (raffle.itemType === 'aury' || raffle.itemType === 'usdc') }
       });
 
       return { success: true, winner };
@@ -275,32 +356,42 @@ export async function deleteRaffle(raffleId, user) {
     
     const raffle = raffleSnap.data();
 
-    if (raffle.status === 'active' && !raffle.isFree && raffle.participantsCount > 0) {
+    if ((raffle.status === 'active' || raffle.status === 'entries_closed') && !raffle.isFree && raffle.participantsCount > 0) {
       // Refund participants
       const participants = raffle.participants || [];
-      
-      // We'll do this in a loop, but ideally should use a batch or cloud function for many participants
-      for (const participant of participants) {
-        const entryFeeSmallestUnit = Math.floor((raffle.entryFee || 0) * 1e9);
-        if (entryFeeSmallestUnit > 0) {
-          const walletRef = doc(db, 'wallets', participant.uid);
+      const currency = raffle.entryFeeCurrency || 'AURY';
+      let multiplier = 1e9;
+      let field = 'balance';
+      let isPoints = false;
+
+      if (currency === 'USDC') { multiplier = 1e6; field = 'usdcBalance'; }
+      else if (currency === 'Valcoins') { multiplier = 1; field = 'points'; isPoints = true; }
+
+      const entryFeeSmallestUnit = Math.floor((raffle.entryFee || 0) * multiplier);
+
+      if (entryFeeSmallestUnit > 0) {
+        for (const participant of participants) {
+          const docRef = isPoints ? doc(db, 'users', participant.uid) : doc(db, 'wallets', participant.uid);
           await runTransaction(db, async (transaction) => {
-            const walletSnap = await transaction.get(walletRef);
-            if (walletSnap.exists()) {
-              const currentBalance = walletSnap.data().balance || 0;
-              transaction.update(walletRef, {
-                balance: currentBalance + entryFeeSmallestUnit,
+            const docSnap = await transaction.get(docRef);
+            if (docSnap.exists()) {
+              const currentBalance = docSnap.data()[field] || 0;
+              transaction.update(docRef, {
+                [field]: currentBalance + entryFeeSmallestUnit,
                 updatedAt: serverTimestamp()
               });
 
-              const txRef = doc(collection(db, 'wallets', participant.uid, 'transactions'));
-              transaction.set(txRef, {
-                type: 'raffle_refund',
-                amount: entryFeeSmallestUnit,
-                raffleId: raffleId,
-                status: 'completed',
-                timestamp: serverTimestamp()
-              });
+              if (!isPoints) {
+                const txRef = doc(collection(db, 'wallets', participant.uid, 'transactions'));
+                transaction.set(txRef, {
+                  type: 'raffle_refund',
+                  amount: entryFeeSmallestUnit,
+                  currency: currency,
+                  raffleId: raffleId,
+                  status: 'completed',
+                  timestamp: serverTimestamp()
+                });
+              }
             }
           });
         }
@@ -427,31 +518,43 @@ export async function removeRaffleParticipant(raffleId, participantUid, adminUse
       if (participantIndex === -1) throw new Error('Participant not found in this raffle');
 
       const entryFee = raffle.isFree ? 0 : (raffle.entryFee || 0);
-      const entryFeeSmallestUnit = Math.floor(entryFee * 1e9);
+      const currency = raffle.entryFeeCurrency || 'AURY';
+      let multiplier = 1e9;
+      let field = 'balance';
+      let isPoints = false;
+
+      if (currency === 'USDC') { multiplier = 1e6; field = 'usdcBalance'; }
+      else if (currency === 'Valcoins') { multiplier = 1; field = 'points'; isPoints = true; }
+
+      const entryFeeSmallestUnit = Math.floor(entryFee * multiplier);
 
       // If there was an entry fee, we need a refund
       let refundSuccessful = false;
       if (entryFeeSmallestUnit > 0) {
-        const walletSnap = await transaction.get(walletRef);
-        if (walletSnap.exists()) {
-          const currentBalance = walletSnap.data().balance || 0;
+        const docRef = isPoints ? doc(db, 'users', participantUid) : walletRef;
+        const balanceSnap = await transaction.get(docRef);
+        if (balanceSnap.exists()) {
+          const currentBalance = balanceSnap.data()[field] || 0;
           
-          // WRITES (Wallet)
-          transaction.update(walletRef, {
-            balance: currentBalance + entryFeeSmallestUnit,
+          // WRITES (Wallet/User)
+          transaction.update(docRef, {
+            [field]: currentBalance + entryFeeSmallestUnit,
             updatedAt: serverTimestamp()
           });
 
-          const txRef = doc(collection(db, 'wallets', participantUid, 'transactions'));
-          transaction.set(txRef, {
-            type: 'raffle_refund',
-            amount: entryFeeSmallestUnit,
-            raffleId: raffleId,
-            itemName: raffle.itemType,
-            status: 'completed',
-            reason: 'Removed by Admin',
-            timestamp: serverTimestamp()
-          });
+          if (!isPoints) {
+            const txRef = doc(collection(db, 'wallets', participantUid, 'transactions'));
+            transaction.set(txRef, {
+              type: 'raffle_refund',
+              amount: entryFeeSmallestUnit,
+              currency: currency,
+              raffleId: raffleId,
+              itemName: raffle.itemType,
+              status: 'completed',
+              reason: 'Removed by Admin',
+              timestamp: serverTimestamp()
+            });
+          }
           
           refundSuccessful = true;
         }

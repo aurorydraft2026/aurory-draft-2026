@@ -1,0 +1,76 @@
+.raffle-prize-display {
+  width: 100%;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 1rem 0;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+.raffle-currency-prize-sm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.3s ease;
+}
+
+.raffle-currency-prize-sm.aury {
+  background: transparent;
+}
+
+.raffle-currency-prize-sm.usdc {
+  background: transparent;
+}
+
+.raffle-currency-icon-sm {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.raffle-currency-prize-sm.aury .raffle-currency-icon-sm {
+  filter: none;
+}
+
+.raffle-currency-prize-sm.usdc .raffle-currency-icon-sm {
+  filter: none;
+}
+
+.raffle-currency-amount-sm {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.aury .raffle-currency-amount-sm {
+  color: #ffca28;
+}
+
+.usdc .raffle-currency-amount-sm {
+  color: #2563eb;
+}
+
+.raffle-prize-image-sm {
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: contain;
+  filter: drop-shadow(0 5px 15px rgba(0, 0, 0, 0.3));
+}
+
+/* Ensure consistent spacing in matchup-details */
+.matchup-details {
+  margin-bottom: 1.5rem;
+}
+
+.detail-item.prize-pool-details .pool-main {
+  color: #ffca28;
+  font-weight: 700;
+}

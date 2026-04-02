@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { auth, db, discordProvider, googleProvider } from '../firebase';
 import { signInWithPopup, signInWithRedirect, getRedirectResult, getAdditionalUserInfo, signOut, onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, getDocs, collection, onSnapshot, runTransaction, increment, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDocs, collection, onSnapshot } from 'firebase/firestore';
 import { isSuperAdmin } from '../config/admins';
 import { logActivity } from '../services/activityService';
+import { dailyCheckIn } from '../services/pointsService';
+import './CheckInBonus.css';
 
 export const useAuth = (navigate) => {
     const [user, setUser] = useState(null);
@@ -14,7 +16,7 @@ export const useAuth = (navigate) => {
     const [showLogoutSuccessModal, setShowLogoutSuccessModal] = useState(false);
     const [isAuthenticating, setIsAuthenticating] = useState(false);
     const [registeredUsers, setRegisteredUsers] = useState([]);
-    const [dailyCheckInAmount, setDailyCheckInAmount] = useState(10);
+    const [bonusEffect, setBonusEffect] = useState(null);
     const profileMenuRef = useRef(null);
 
     // Auth state listener and redirect result handler
@@ -49,6 +51,15 @@ export const useAuth = (navigate) => {
                 unsubProfile = onSnapshot(userRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const userData = docSnap.data();
+
+                        // Permanent Ban Enforcement
+                        if (userData.role === 'blocked') {
+                            console.warn('🚫 User is blocked. Signing out...');
+                            signOut(auth);
+                            alert('❌ YOUR ACCOUNT HAS BEEN PERMANENTLY BLOCKED.\n\nPlease contact an administrator if you believe this is an error.');
+                            return;
+                        }
+
                         setUser(prevUser => {
                             if (!prevUser || prevUser.uid !== firebaseUser.uid) return prevUser;
                             return { ...prevUser, ...userData };
@@ -92,13 +103,6 @@ export const useAuth = (navigate) => {
     useEffect(() => {
         if (user) {
             fetchRegisteredUsers();
-            const configRef = doc(db, 'settings', 'valcoin_rewards');
-            const unsubConfig = onSnapshot(configRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    setDailyCheckInAmount(docSnap.data().dailyCheckIn ?? 10);
-                }
-            });
-            return () => unsubConfig();
         }
     }, [user]);
 
@@ -287,56 +291,40 @@ export const useAuth = (navigate) => {
     const handleDailyCheckIn = async () => {
         if (!user || isAuthenticating) return;
         
+        setIsAuthenticating(true);
         try {
-            const userRef = doc(db, 'users', user.uid);
-            const awardedAmount = await runTransaction(db, async (transaction) => {
-                const userDoc = await transaction.get(userRef);
-                if (!userDoc.exists()) throw new Error('User not found');
-                
-                const data = userDoc.data();
-                const now = new Date();
-                // Use UTC date string for consistency
-                const todayStr = now.toISOString().split('T')[0];
-                
-                if (data.lastDailyCheckIn === todayStr) {
-                    throw new Error('You have already checked in today! Come back tomorrow.');
+            const result = await dailyCheckIn(user.uid);
+            
+            if (result.success) {
+                // If there's a bonus, trigger the animation
+                if (result.bonusAmount > 0) {
+                    setBonusEffect({
+                        amount: result.bonusAmount,
+                        id: Date.now()
+                    });
+                    // Auto-clear after animation
+                    setTimeout(() => setBonusEffect(null), 3000);
                 }
-                
-                let amount = 10;
-                const configRef = doc(db, 'settings', 'valcoin_rewards');
-                const configSnap = await transaction.get(configRef);
-                if (configSnap.exists()) {
-                    amount = configSnap.data().dailyCheckIn ?? 10;
-                }
-                
-                transaction.update(userRef, {
-                    points: increment(amount),
-                    lastDailyCheckIn: todayStr,
-                    updatedAt: serverTimestamp()
-                });
-                
-                const historyRef = doc(collection(db, 'users', user.uid, 'pointsHistory'));
-                transaction.set(historyRef, {
-                    amount: amount,
-                    type: 'daily_checkin',
-                    description: 'Daily check-in reward',
-                    timestamp: serverTimestamp()
-                });
-                
-                return amount;
-            });
 
-            logActivity({
-                user,
-                type: 'POINTS',
-                action: 'daily_checkin',
-                metadata: { amount: awardedAmount }
-            });
-
-            // Note: points update will be reflected automatically via onSnapshot listener
+                logActivity({
+                    user,
+                    type: 'POINTS',
+                    action: 'daily_checkin',
+                    metadata: { 
+                        amount: result.points,
+                        baseAmount: result.baseAmount,
+                        bonusAmount: result.bonusAmount,
+                        streak: result.streak
+                    }
+                });
+            } else {
+                alert(result.message);
+            }
         } catch (error) {
             console.error('Daily check-in error:', error);
-            alert(error.message);
+            alert(error.message || 'Check-in failed');
+        } finally {
+            setIsAuthenticating(false);
         }
     };
 
@@ -385,14 +373,26 @@ export const useAuth = (navigate) => {
                                 {user.points || 0}
                             </span>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', position: 'relative' }}>
+                            {/* Bonus Bubble Animation */}
+                            {bonusEffect && (
+                                <div key={bonusEffect.id} className="bonus-bubble-effect">
+                                    +{bonusEffect.amount} Bonus
+                                </div>
+                            )}
+
                             <button 
                                 className={`daily-checkin-btn ${user.lastDailyCheckIn === new Date().toISOString().split('T')[0] ? 'checked-in' : ''}`}
                                 onClick={handleDailyCheckIn}
-                                disabled={user.lastDailyCheckIn === new Date().toISOString().split('T')[0] || !user.auroryPlayerId}
+                                disabled={user.lastDailyCheckIn === new Date().toISOString().split('T')[0] || !user.auroryPlayerId || isAuthenticating}
                                 style={!user.auroryPlayerId ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                             >
-                                {user.lastDailyCheckIn === new Date().toISOString().split('T')[0] ? '✅ Checked In Today' : `📅 Daily Check-in (+${dailyCheckInAmount})`}
+                                <div className="btn-content-with-streak">
+                                    <span>{user.lastDailyCheckIn === new Date().toISOString().split('T')[0] ? '✅ Checked In' : '📅 Daily Check-in'}</span>
+                                    {user.checkInStreak > 0 && (
+                                        <span className="streak-badge-mini">🔥 {user.checkInStreak}d</span>
+                                    )}
+                                </div>
                             </button>
                             {!user.auroryPlayerId && (
                                 <span style={{ fontSize: '12px', color: '#ff4d4d', textAlign: 'center', marginTop: '-4px' }}>

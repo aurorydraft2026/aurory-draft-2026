@@ -27,6 +27,7 @@ const RaffleWheel = ({
   itemImage, 
   itemLink,
   auryAmount,
+  usdcAmount,
   isSpinning: externalIsSpinning,
   isStarting,
   minParticipants = 10,
@@ -247,14 +248,14 @@ const RaffleWheel = ({
 
         {/* Center Button */}
         <div 
-          className={`wheel-center-button ${isSpinning ? 'disabled' : ''} ${itemLink ? 'has-link' : ''} ${auryAmount ? 'aury-center' : ''}`}
+          className={`wheel-center-button ${isSpinning ? 'disabled' : ''} ${itemLink ? 'has-link' : ''} ${(auryAmount || usdcAmount) ? 'currency-center' : ''}`}
           onClick={handleCenterClick}
           title={itemLink ? 'View Item Details' : ''}
         >
-          {auryAmount ? (
-            <div className="wheel-aury-display">
-              <span className="wheel-aury-num">{auryAmount}</span>
-              <span className="wheel-aury-label">AURY</span>
+          {auryAmount || usdcAmount ? (
+            <div className={`wheel-currency-display ${usdcAmount ? 'usdc' : 'aury'}`}>
+              <span className="wheel-currency-num">{auryAmount || usdcAmount}</span>
+              <span className="wheel-currency-label">{auryAmount ? 'AURY' : 'USDC'}</span>
             </div>
           ) : itemImage ? (
             <img src={itemImage} alt="item" className="wheel-item-icon" style={{width: '50px', height: '50px', objectFit: 'contain'}} />

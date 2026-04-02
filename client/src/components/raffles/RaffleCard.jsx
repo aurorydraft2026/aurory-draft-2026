@@ -29,11 +29,17 @@ const RaffleCard = ({ raffle }) => {
   return (
     <div className="raffle-card" onClick={() => navigate(`/raffle/${id}`)}>
       <div className="raffle-card-image-container">
-        {itemType === 'aury' ? (
-          <div className="raffle-card-aury-prize">
-            <img src="/aury-icon.png" alt="AURY" className="raffle-card-aury-icon" />
-            <span className="raffle-card-aury-amount">{raffle.auryAmount}</span>
-            <span className="raffle-card-aury-label">AURY</span>
+        {itemType === 'aury' || itemType === 'usdc' ? (
+          <div className={`raffle-card-currency-prize ${itemType}`}>
+            <img 
+              src={process.env.PUBLIC_URL + (itemType === 'aury' ? '/aury-icon.png' : '/usdc-icon.png')} 
+              alt={itemType.toUpperCase()} 
+              className="raffle-card-currency-icon" 
+            />
+            <span className="raffle-card-currency-amount">
+              {itemType === 'aury' ? raffle.auryAmount : raffle.usdcAmount}
+            </span>
+            <span className="raffle-card-currency-label">{itemType.toUpperCase()}</span>
           </div>
         ) : (
           <img src={itemImage || '/images/default-item.png'} alt={itemType} className="raffle-card-image" />
@@ -42,13 +48,15 @@ const RaffleCard = ({ raffle }) => {
       </div>
       
       <div className="raffle-card-content">
-        <div className="raffle-card-type">{itemType}</div>
+        <div className="raffle-card-type">{itemType?.toUpperCase()}</div>
         <div className="raffle-card-description">{description}</div>
         
         <div className="raffle-card-info">
           <div className="raffle-card-fee">
             <span className="fee-label">Entry Fee</span>
-            <span className="fee-value">{isFree ? 'FREE' : `${entryFee} AURY`}</span>
+            <span className="fee-value">
+              {isFree ? 'FREE' : `${entryFee} ${raffle.entryFeeCurrency || 'AURY'}`}
+            </span>
           </div>
           
           <div className="raffle-card-participants">

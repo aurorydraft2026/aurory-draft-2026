@@ -28,7 +28,8 @@ export const onRaffleCreated = functions.firestore
 
         try {
             // 1. Format pricing and dates
-            const priceText = raffle.isFree ? '🆓 FREE ENTRY' : `🎟️ ${raffle.entryFee} AURY`;
+            const currency = raffle.entryFeeCurrency || 'AURY';
+            const priceText = raffle.isFree ? '🆓 FREE ENTRY' : `🎟️ ${raffle.entryFee} ${currency}`;
             
             let endDateText = 'TBD';
             if (raffle.endDate) {
@@ -45,8 +46,12 @@ export const onRaffleCreated = functions.firestore
 
             // 2. Build the Discord Embed
             // Using a Gold/Amber color (#F0B232) for premium prize feel
+            const displayItemType = (raffle.itemType === 'aury' || raffle.itemType === 'usdc') 
+                ? `${raffle.itemType === 'aury' ? raffle.auryAmount : raffle.usdcAmount} ${raffle.itemType.toUpperCase()}`
+                : raffle.itemType;
+
             const embed = {
-                title: `🎫 NEW RAFFLE: ${raffle.itemType}`,
+                title: `🎫 NEW RAFFLE: ${displayItemType}`,
                 description: raffle.description || 'No description provided.',
                 url: `https://asgard-duels.web.app/`, // Update with your actual production domain
                 color: 0xF0B232, 
@@ -122,17 +127,19 @@ export const onRaffleWinnerSet = functions.firestore
         const hasWinnerSet = !!after.winner;
 
         if (wasNotCompleted && isNowCompleted && hasWinnerSet) {
-            console.log(`📣 Raffle Winner Selected: ${after.winner.displayName} for ${after.itemType}`);
+            const winnerName = after.winner.playerName || after.winner.displayName || 'Unknown Winner';
+            console.log(`📣 Raffle Winner Selected: ${winnerName} for ${after.itemType}`);
 
             try {
-                const winnerName = after.winner.displayName || 'Unknown Winner';
-                const prizeName = after.itemType || 'Unknown Prize';
+                const displayPrizeName = (after.itemType === 'aury' || after.itemType === 'usdc')
+                    ? `${after.itemType === 'aury' ? after.auryAmount : after.usdcAmount} ${after.itemType.toUpperCase()}`
+                    : (after.itemType || 'Unknown Prize');
                 const participantsCount = after.participantsCount || 0;
 
                 // Build the Discord Success Embed (Success Green: #2ECC71)
                 const embed = {
                     title: `🎊 RAFFLE WINNER ANNOUNCED! 🎊`,
-                    description: `The lucky winner of the **${prizeName}** has been chosen!`,
+                    description: `The lucky winner of the **${displayPrizeName}** has been chosen!`,
                     color: 0x2ECC71, 
                     fields: [
                         {
@@ -142,7 +149,7 @@ export const onRaffleWinnerSet = functions.firestore
                         },
                         {
                             name: '🎁 Prize',
-                            value: prizeName,
+                            value: displayPrizeName,
                             inline: true
                         },
                         {
@@ -179,6 +186,28 @@ export const onRaffleWinnerSet = functions.firestore
                 }
 
                 console.log(`✅ Successfully announced winner of ${raffleId} to Discord`);
+
+                // ─── ADD IN-APP NOTIFICATION ───
+                const admin = require('firebase-admin');
+                const adminDb = admin.firestore();
+                const winnerUid = after.winner.uid;
+                
+                if (winnerUid) {
+                    const notifyId = `win_${raffleId}`;
+                    const notifyRef = adminDb.collection('users').doc(winnerUid).collection('notifications').doc(notifyId);
+                    
+                    // Use set() to ensure idempotency
+                    await notifyRef.set({
+                        title: '🎊 YOU WON A RAFFLE! 🎊',
+                        message: `Congratulations! You won the ${displayPrizeName} raffle. Your prize has been automatically credited!`,
+                        type: 'raffle',
+                        icon: '🏆',
+                        link: `/raffle/${raffleId}`,
+                        read: false,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                    console.log(`✅ Successfully sent in-app notification to winner ${winnerUid}`);
+                }
             } catch (error: any) {
                 console.error(`❌ Error announcing winner of ${raffleId} to Discord:`, error.message);
             }
