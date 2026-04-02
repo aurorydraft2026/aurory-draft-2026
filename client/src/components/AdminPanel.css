@@ -2945,3 +2945,364 @@ input[type=number] {
   }
 }
 
+/* =============================================
+   MINI-GAMES CONFIGURATION
+   ============================================= */
+
+.mini-games-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: fadeIn 0.4s ease-out;
+}
+
+/* Probability Guide Card */
+.probability-guide-card {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.05) 0%, rgba(168, 85, 247, 0.05) 100%);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  padding: 24px;
+}
+
+.guide-header {
+  margin-bottom: 20px;
+}
+
+.guide-header h3 {
+  margin: 0;
+  color: var(--accent-gold);
+  font-size: 18px;
+}
+
+.guide-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.guide-table-container {
+  overflow-x: auto;
+}
+
+.guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+}
+
+.guide-table th {
+  text-align: left;
+  padding: 12px;
+  border-bottom: 2px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.guide-table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.guide-table tr.rarity-common td:first-child { border-left: 3px solid #94a3b8; }
+.guide-table tr.rarity-rare td:first-child { border-left: 3px solid #3b82f6; }
+.guide-table tr.rarity-epic td:first-child { border-left: 3px solid #a855f7; }
+.guide-table tr.rarity-legendary td:first-child { border-left: 3px solid #eab308; }
+
+.guide-footer {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-subtle);
+}
+
+.guide-footer p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.game-type-selector {
+  display: flex;
+  background: var(--bg-elevated);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  gap: 4px;
+}
+
+.selector-btn {
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.selector-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.selector-btn.active {
+  background: var(--accent-purple);
+  color: white;
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);
+}
+
+.mini-game-config-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.config-card {
+  padding: 24px;
+}
+
+.config-card h3 {
+  margin: 0 0 20px 0;
+  font-size: 18px;
+  color: var(--accent-teal);
+}
+
+.form-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.form-group.toggle-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.toggle-label:hover {
+  border-color: var(--accent-purple);
+}
+
+.admin-checkbox {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: var(--accent-purple);
+}
+
+.prizes-management-card h3 {
+  color: var(--accent-gold);
+  margin-bottom: 24px;
+}
+
+.new-prize-form {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.add-prize-btn {
+  background: linear-gradient(135deg, var(--accent-teal) 0%, #0d9488 100%);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  height: 48px;
+  margin-top: 24px;
+  width: 100%;
+}
+
+.add-prize-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3);
+}
+
+.prizes-list h4 {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+}
+
+.prizes-grid-admin {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.prize-item-admin {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  transition: all 0.2s;
+}
+
+.prize-item-admin:hover {
+  border-color: var(--border-medium);
+  transform: translateX(4px);
+}
+
+.prize-icon-admin {
+  font-size: 24px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+}
+
+.prize-info-admin {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.prize-name-admin {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.prize-details-admin {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.delete-prize-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.delete-prize-btn:hover {
+  color: var(--status-danger);
+}
+
+/* Rarity Styles for Admin List */
+.prize-item-admin.rarity-common { border-left: 4px solid #94a3b8; }
+.prize-item-admin.rarity-rare { border-left: 4px solid #3b82f6; }
+.prize-item-admin.rarity-epic { border-left: 4px solid #a855f7; }
+.prize-item-admin.rarity-legendary { border-left: 4px solid #eab308; }
+
+@media (max-width: 600px) {
+  .form-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .game-type-selector {
+    width: 100%;
+  }
+  
+  .selector-btn {
+    flex: 1;
+  }
+}
+
+
+/* Mini-Games Management Refresh Styles */
+.mini-games-section .header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.admin-secondary-btn {
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  color: #a78bfa;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-secondary-btn:hover:not(:disabled) {
+  background: rgba(139, 92, 246, 0.2);
+  border-color: rgba(139, 92, 246, 0.5);
+  transform: translateY(-1px);
+}
+
+.icon-picker-group {
+  position: relative;
+}
+
+.icon-quick-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+}
+
+.icon-emoji-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.icon-emoji-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.1);
+}
+
+.icon-emoji-btn.active {
+  background: rgba(139, 92, 246, 0.2);
+  border-color: #8b5cf6;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.2);
+}
+
+.guide-table tr.rarity-loss td {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.05);
+}

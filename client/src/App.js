@@ -14,6 +14,7 @@ import './App.css';
 import RafflePage from './pages/RafflePage';
 import RafflesListingPage from './pages/RafflesListingPage';
 import AdminPanel from './components/AdminPanel';
+import MiniGamesButton from './components/minigames/MiniGamesButton';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -88,6 +89,7 @@ function App() {
             <Route path="/privacy" element={<PrivacyPage />} />
           </Routes>
           <Footer />
+          <MiniGamesButton />
         </div>
       </Router>
     </ThemeProvider>

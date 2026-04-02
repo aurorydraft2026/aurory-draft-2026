@@ -6,7 +6,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   validateAuroryAccount,
   linkAuroryAccount,
-  getLinkedAuroryAccount
+  getLinkedAuroryAccount,
+  syncAuroryName
 } from '../services/auroryProfileService';
 import InventoryModal from './InventoryModal';
 
@@ -21,6 +22,7 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
   const [error, setError] = useState(null);
   const [searchInput, setSearchInput] = useState('');
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const loadLinkedAccount = useCallback(async () => {
     if (!user) return;
@@ -96,6 +98,32 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
     }
   };
 
+  const handleManualSync = async () => {
+    if (!linkedAccount || isSyncing) return;
+    
+    setIsSyncing(true);
+    setError(null);
+    
+    try {
+      const result = await syncAuroryName(user.uid, linkedAccount.playerId);
+      if (result.success) {
+        setLinkedAccount({
+          ...linkedAccount,
+          playerName: result.playerName,
+          profilePicture: result.profilePicture,
+          isAurorian: result.isAurorian,
+          lastSync: new Date()
+        });
+      } else {
+        setError(result.error || 'Sync failed');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -154,6 +182,14 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
                 onClick={() => setIsInventoryOpen(true)}
               >
                 🎒 View Inventory
+              </button>
+
+              <button
+                className={`sync-btn ${isSyncing ? 'syncing' : ''}`}
+                onClick={handleManualSync}
+                disabled={isSyncing}
+              >
+                {isSyncing ? '⌛ Syncing Profile...' : '🔄 Sync Profile Data'}
               </button>
             </div>
           </div>
@@ -479,6 +515,40 @@ const auroryModalStyles = `
   color: white;
   transform: translateY(-2px);
   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+}
+
+.sync-btn {
+  width: 100%;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.sync-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.sync-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sync-btn.syncing {
+  border-color: #667eea;
+  color: #a5b4fc;
 }
 
 @media (max-width: 480px) {

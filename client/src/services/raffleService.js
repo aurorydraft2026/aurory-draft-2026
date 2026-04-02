@@ -80,7 +80,6 @@ export async function updateRaffle(raffleId, updates, user) {
  * @param {Object} auroryData - User's Aurory account data
  */
 export async function joinRaffle(raffleId, user, auroryData) {
-  let raffleName = 'Raffle';
   try {
     const raffleRef = doc(db, 'raffles', raffleId);
     const walletRef = doc(db, 'wallets', user.uid);
@@ -90,7 +89,6 @@ export async function joinRaffle(raffleId, user, auroryData) {
       if (!raffleSnap.exists()) throw new Error('Raffle not found');
 
       const raffle = raffleSnap.data();
-      raffleName = raffle.itemType || 'Raffle';
       if (raffle.status !== 'active') throw new Error('Raffle is no longer active');
       if (raffle.participantsCount >= raffle.maxParticipants) throw new Error('Raffle is full');
 

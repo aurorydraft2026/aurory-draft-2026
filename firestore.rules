@@ -270,6 +270,16 @@ service cloud.firestore {
         // Points history is immutable
         allow update, delete: if isAdmin();
       }
+
+      // Subcollection: Mini-Game History
+      match /miniGameHistory/{historyId} {
+        // Users can read their own history, admins can read all
+        allow read: if isOwner(userId) || isAdmin();
+        // Users can create their own history entries
+        allow create: if isOwner(userId) || isAdmin();
+        // History is immutable
+        allow update, delete: if isAdmin();
+      }
       
       // Only Super Admins can delete users
       allow delete: if isSuperAdmin();

@@ -27,6 +27,7 @@ import { logActivity } from '../services/activityService';
 import LoadingScreen from './LoadingScreen';
 import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
 import { awardPoints } from '../services/pointsService';
+import { getRecommendedIcons } from '../services/miniGameService';
 import './AdminPanel.css';
 
 // Helper to get user email
@@ -154,6 +155,21 @@ function AdminPanel() {
   const [newsBanner, setNewsBanner] = useState('');
   const [newsVideoUrl, setNewsVideoUrl] = useState(''); // Added for news video support
   const [editingNewsId, setEditingNewsId] = useState(null);
+  
+  // Mini-Games state
+  const [miniGamesConfig, setMiniGamesConfig] = useState(null);
+  const [miniGamesLoading, setMiniGamesLoading] = useState(false);
+  const [activeGameType, setActiveGameType] = useState('slotMachine');
+  const [isAutoAssigning, setIsAutoAssigning] = useState(false);
+  const [newPrize, setNewPrize] = useState({
+    name: '',
+    type: 'valcoins',
+    amount: 10,
+    weight: 10,
+    rarity: 'common',
+    icon: '🪙'
+  });
+  const [editingPrizeId, setEditingPrizeId] = useState(null);
 
   // Major Announcement Campaign state
   const [announcementEnabled, setAnnouncementEnabled] = useState(false);
@@ -407,6 +423,165 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
     return () => unsubscribe();
   }, [isAdmin, user]);
+
+  // Fetch mini-games config
+  useEffect(() => {
+    if (!isAdmin || activeTab !== 'mini_games') return;
+
+    setMiniGamesLoading(true);
+    const unsub = onSnapshot(doc(db, 'settings', 'mini_games'), (snap) => {
+      if (snap.exists()) {
+        setMiniGamesConfig(snap.data());
+      } else {
+        // Initialize with defaults if it doesn't exist
+        setDoc(doc(db, 'settings', 'mini_games'), {
+          slotMachine: { enabled: true, costPerPlay: 50, prizes: [] },
+          treasureChest: { enabled: true, costPerPlay: 30, prizes: [] }
+        });
+      }
+      setMiniGamesLoading(false);
+    });
+    return () => unsub();
+  }, [activeTab, isAdmin]);
+  
+  // Fetch Major Announcement config
+  useEffect(() => {
+    if (!isAdmin || activeTab !== 'news') return;
+
+    const unsub = onSnapshot(doc(db, 'announcements', 'main'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setAnnouncementEnabled(data.enabled || false);
+        setAnnouncementTitle(data.title || '');
+        setAnnouncementContent(data.content || '');
+        setAnnouncementLink(data.link || '');
+      }
+    });
+
+    return () => unsub();
+  }, [activeTab, isAdmin]);
+
+  const handleUpdateMiniGameConfig = async (gameType, updates) => {
+    try {
+      const configRef = doc(db, 'settings', 'mini_games');
+      const updateData = {};
+      
+      // Use Firestore nested field paths (e.g., 'slotMachine.enabled')
+      Object.keys(updates).forEach(key => {
+        updateData[`${gameType}.${key}`] = updates[key];
+      });
+      
+      await updateDoc(configRef, updateData);
+      
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'update_mini_game_config',
+        metadata: { gameType, updates }
+      });
+    } catch (error) {
+      console.error('Error updating mini-game config:', error);
+      alert('Error updating config: ' + error.message);
+    }
+  };
+
+  const handleAutoAssignIcons = async (gameType) => {
+    if (!window.confirm(`This will overwrite all current prize icons for ${gameType} with themed classic symbols based on rarity. Continue?`)) return;
+    
+    setIsAutoAssigning(true);
+    try {
+      const configRef = doc(db, 'settings', 'mini_games');
+      const gameConfig = miniGamesConfig[gameType];
+      if (!gameConfig || !gameConfig.prizes) return;
+
+      const updatedPrizes = gameConfig.prizes.map(prize => {
+        const icons = getRecommendedIcons(prize.rarity);
+        // Map common icons specifically for slot machine if possible
+        let icon = icons[0];
+        if (gameType === 'slotMachine') {
+            if (prize.rarity === 'common' && prize.name.includes('25')) icon = '🍒';
+            else if (prize.rarity === 'common' && prize.name.includes('50')) icon = '🔔';
+            else if (prize.rarity === 'rare') icon = '💎';
+            else if (prize.rarity === 'epic') icon = '👑';
+            else if (prize.rarity === 'legendary') icon = '🎰';
+        }
+        return { ...prize, icon };
+      });
+      
+      const updateData = {};
+      updateData[`${gameType}.prizes`] = updatedPrizes;
+      await updateDoc(configRef, updateData);
+      alert('Icons successfully refreshed for ' + gameType);
+    } catch (error) {
+      console.error('Error auto-assigning icons:', error);
+      alert('Failed to update icons: ' + error.message);
+    } finally {
+      setIsAutoAssigning(false);
+    }
+  };
+
+
+  const handleAddPrize = async (gameType) => {
+    if (!newPrize.name || newPrize.amount < 0) {
+        alert('Please enter a valid prize name and amount');
+        return;
+    }
+    
+    const prizes = [...(miniGamesConfig[gameType]?.prizes || [])];
+    
+    if (editingPrizeId) {
+      // Update Mode
+      const updatedPrizes = prizes.map(p => p.id === editingPrizeId ? { ...newPrize, id: editingPrizeId } : p);
+      await handleUpdateMiniGameConfig(gameType, { prizes: updatedPrizes });
+      setEditingPrizeId(null);
+    } else {
+      // Create Mode
+      const newPrizeObj = { ...newPrize, id: `p${Date.now()}` };
+      prizes.push(newPrizeObj);
+      await handleUpdateMiniGameConfig(gameType, { prizes });
+    }
+    
+    setNewPrize({
+      name: '',
+      type: 'valcoins',
+      amount: 10,
+      weight: 10,
+      rarity: 'common',
+      icon: '🪙'
+    });
+  };
+
+  const handleDeletePrize = async (gameType, prizeId) => {
+    if (!window.confirm('Are you sure you want to delete this prize?')) return;
+    const prizes = (miniGamesConfig[gameType]?.prizes || []).filter(p => p.id !== prizeId);
+    await handleUpdateMiniGameConfig(gameType, { prizes });
+  };
+
+  const handleStartEditPrize = (prize) => {
+    setEditingPrizeId(prize.id);
+    setNewPrize({
+      name: prize.name,
+      type: prize.type,
+      amount: prize.amount,
+      weight: prize.weight,
+      rarity: prize.rarity,
+      icon: prize.icon || '🪙'
+    });
+    // Scroll to top of form for UX
+    document.querySelector('.prizes-management-card')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleCancelEditPrize = () => {
+    setEditingPrizeId(null);
+    setNewPrize({
+      name: '',
+      type: 'valcoins',
+      amount: 10,
+      weight: 10,
+      rarity: 'common',
+      icon: '🪙'
+    });
+  };
 
   // Fetch all users and their balances
   useEffect(() => {
@@ -2014,19 +2189,42 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 🎊 Ticker Announcements
               </button>
               <button
-                className={`admin-tab ${activeTab === 'news' ? 'active' : ''}`}
-                onClick={() => setActiveTab('news')}
-              >
-                📰 News
-              </button>
-              <button
                 className={`admin-tab ${activeTab === 'campaigns' ? 'active' : ''}`}
                 onClick={() => setActiveTab('campaigns')}
               >
                 📣 Major Announcement
               </button>
+              <button
+                className={`admin-tab ${activeTab === 'news' ? 'active' : ''}`}
+                onClick={() => setActiveTab('news')}
+              >
+                📰 News
+              </button>
             </div>
           </div>
+
+          {/* Games Category (Super Admin Only) */}
+          {isSuperAdminUser && (
+            <div className={`admin-category ${expandedCategory === 'games' ? 'expanded' : ''}`}>
+              <div
+                className="category-title"
+                onClick={() => setExpandedCategory(expandedCategory === 'games' ? '' : 'games')}
+                role="button"
+                tabIndex={0}
+              >
+                <h3>Games</h3>
+                <span className="category-arrow">▼</span>
+              </div>
+              <div className="category-tabs">
+                <button
+                  className={`admin-tab ${activeTab === 'mini_games' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('mini_games')}
+                >
+                  🎮 Mini-Games Management
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* User Management Category */}
           <div className={`admin-category ${expandedCategory === 'users' ? 'expanded' : ''}`}>
@@ -4188,6 +4386,269 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'mini_games' && (
+            <div className="mini-games-section">
+              <div className="section-header">
+                <h2>🎮 Mini-Games Management</h2>
+                <div className="header-actions">
+                  <button 
+                    className="admin-secondary-btn" 
+                    onClick={() => handleAutoAssignIcons(activeGameType)}
+                    disabled={isAutoAssigning || miniGamesLoading}
+                    title="Automatically assigns classic slot/chest icons to all prizes"
+                  >
+                    {isAutoAssigning ? 'Updating...' : '✨ Auto-Refresh Icons'}
+                  </button>
+                  <div className="game-type-selector">
+                    <button 
+                      className={`selector-btn ${activeGameType === 'slotMachine' ? 'active' : ''}`}
+                      onClick={() => setActiveGameType('slotMachine')}
+                    >
+                      Slot Machine
+                    </button>
+                    <button 
+                      className={`selector-btn ${activeGameType === 'treasureChest' ? 'active' : ''}`}
+                      onClick={() => setActiveGameType('treasureChest')}
+                    >
+                      Treasure Chest
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Probability Guide Card */}
+              <div className="config-card probability-guide-card">
+                <div className="guide-header">
+                  <h3>⚖️ Probability Balance Guide</h3>
+                  <span className="guide-subtitle">Use these weights to achieve professional game balance</span>
+                </div>
+                <div className="guide-table-container">
+                  <table className="guide-table">
+                    <thead>
+                      <tr>
+                        <th>Rarity Tier</th>
+                        <th>Target Luck</th>
+                        <th>Recommended Weight</th>
+                        <th>Example Prize</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="rarity-loss">
+                        <td><strong>House Edge</strong> ❌</td>
+                        <td>Configurable</td>
+                        <td><strong>50 - 150</strong></td>
+                        <td>"Better Luck Next Time" (Loss)</td>
+                      </tr>
+                      <tr className="rarity-common">
+                        <td><strong>Common</strong> ⚪</td>
+                        <td>~70%</td>
+                        <td><strong>100</strong></td>
+                        <td>25 Valcoins (Safe Hit)</td>
+                      </tr>
+                      <tr className="rarity-rare">
+                        <td><strong>Rare</strong> 🔵</td>
+                        <td>~20%</td>
+                        <td><strong>30</strong></td>
+                        <td>75 Valcoins (Sweet Spot)</td>
+                      </tr>
+                      <tr className="rarity-epic">
+                        <td><strong>Epic</strong> 🟣</td>
+                        <td>~8%</td>
+                        <td><strong>10</strong></td>
+                        <td>250 Valcoins (Big Win)</td>
+                      </tr>
+                      <tr className="rarity-legendary">
+                        <td><strong>Legendary</strong> 🟡</td>
+                        <td>~2%</td>
+                        <td><strong>2</strong></td>
+                        <td>1000 Valcoins (Jackpot)</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div className="guide-footer">
+                    <p>💡 <em>Weights are relative. Probability = (Prize Weight / (Total Prize Weight + No-Win Weight))</em></p>
+                    <p>🛡️ <strong>Recommended:</strong> For a 25% house edge, set the <strong>No-Win Weight</strong> roughly equal to 1/3 of your total prize weights.</p>
+                  </div>
+                </div>
+              </div>
+
+              {miniGamesLoading ? (
+                <LoadingScreen message="Loading configuration..." />
+              ) : !miniGamesConfig ? (
+                <div className="error-message">Configuration not found. Initialization should happen automatically.</div>
+              ) : (
+                <div className="mini-game-config-content">
+                  <div className="config-card card">
+                    <h3>General Settings</h3>
+                    <div className="form-row">
+                      <div className="form-group toggle-group">
+                        <label className="toggle-label">
+                          <span>Enabled</span>
+                          <input
+                            type="checkbox"
+                            checked={miniGamesConfig[activeGameType]?.enabled ?? true}
+                            onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { enabled: e.target.checked })}
+                            className="admin-checkbox"
+                          />
+                        </label>
+                      </div>
+                      <div className="form-group">
+                        <label>Cost Per Play (Valcoins)</label>
+                        <input
+                          type="number"
+                          value={miniGamesConfig[activeGameType]?.costPerPlay ?? 50}
+                          onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { costPerPlay: parseInt(e.target.value) })}
+                          min="0"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>No-Win Weight (Dead Weight)</label>
+                        <input
+                          type="number"
+                          value={miniGamesConfig[activeGameType]?.noWinWeight ?? 0}
+                          onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { noWinWeight: parseInt(e.target.value) })}
+                          min="0"
+                          title="Higher weight = more chance of losing"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="prizes-management-card card">
+                    <h3>Prize Pool</h3>
+                    <div className="new-prize-form">
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label>Prize Name</label>
+                          <input
+                            type="text"
+                            value={newPrize.name}
+                            onChange={(e) => setNewPrize({ ...newPrize, name: e.target.value })}
+                            placeholder="e.g. 100 Valcoins"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Type</label>
+                          <select
+                            value={newPrize.type}
+                            onChange={(e) => setNewPrize({ ...newPrize, type: e.target.value })}
+                          >
+                            <option value="valcoins">Valcoins</option>
+                            <option value="AURY">AURY</option>
+                            <option value="USDC">USDC</option>
+                            <option value="item">Custom Item</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label>Amount</label>
+                          <input
+                            type="number"
+                            value={newPrize.amount}
+                            onChange={(e) => setNewPrize({ ...newPrize, amount: parseFloat(e.target.value) })}
+                          />
+                        </div>
+                      </div>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label>Rarity</label>
+                          <select
+                            value={newPrize.rarity}
+                            onChange={(e) => setNewPrize({ ...newPrize, rarity: e.target.value })}
+                          >
+                            <option value="common">Common</option>
+                            <option value="rare">Rare</option>
+                            <option value="epic">Epic</option>
+                            <option value="legendary">Legendary</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label>Weight (Probability)</label>
+                          <input
+                            type="number"
+                            value={newPrize.weight}
+                            onChange={(e) => setNewPrize({ ...newPrize, weight: parseInt(e.target.value) })}
+                            title="Higher weight = more common"
+                          />
+                        </div>
+                        <div className="form-group icon-picker-group">
+                          <label>Icon</label>
+                          <div className="icon-quick-picker">
+                            {getRecommendedIcons(newPrize.rarity).map(emoji => (
+                              <button 
+                                key={emoji} 
+                                type="button"
+                                className={`icon-emoji-btn ${newPrize.icon === emoji ? 'active' : ''}`}
+                                onClick={() => setNewPrize({ ...newPrize, icon: emoji })}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                          <input
+                            type="text"
+                            value={newPrize.icon}
+                            onChange={(e) => setNewPrize({ ...newPrize, icon: e.target.value })}
+                            placeholder="Emoji or icon reference"
+                          />
+                        </div>
+                        <div className="form-actions-mini">
+                          <button 
+                            className={editingPrizeId ? "update-prize-btn" : "add-prize-btn"} 
+                            onClick={() => handleAddPrize(activeGameType)}
+                          >
+                            {editingPrizeId ? 'Update Prize' : 'Add Prize'}
+                          </button>
+                          {editingPrizeId && (
+                            <button className="cancel-edit-btn" onClick={handleCancelEditPrize}>
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="prizes-list">
+                      <h4>Existing Prizes</h4>
+                      {(!miniGamesConfig[activeGameType]?.prizes || miniGamesConfig[activeGameType].prizes.length === 0) ? (
+                        <p className="empty-mini">No prizes configured for this game.</p>
+                      ) : (
+                        <div className="prizes-grid-admin">
+                          {miniGamesConfig[activeGameType].prizes.map((prize) => (
+                            <div key={prize.id} className={`prize-item-admin rarity-${prize.rarity} ${editingPrizeId === prize.id ? 'being-edited' : ''}`}>
+                              <div className="prize-icon-admin">{prize.icon}</div>
+                              <div className="prize-info-admin">
+                                <span className="prize-name-admin">{prize.name}</span>
+                                <span className="prize-details-admin">
+                                  {prize.type.toUpperCase()}: {prize.amount} | Weight: {prize.weight}
+                                </span>
+                              </div>
+                              <div className="prize-actions-admin">
+                                <button 
+                                  className="edit-prize-btn"
+                                  onClick={() => handleStartEditPrize(prize)}
+                                  title="Edit Prize"
+                                >
+                                  📝
+                                </button>
+                                <button 
+                                  className="delete-prize-btn"
+                                  onClick={() => handleDeletePrize(activeGameType, prize.id)}
+                                  title="Delete Prize"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -73,10 +73,10 @@ const MajorAnnouncementModal = ({ title, content, link, onClose }) => {
             <div className={`major-announcement-content ${isVisible ? 'visible' : ''}`} onClick={e => e.stopPropagation()}>
                 <div className="announcement-glass-effect"></div>
 
-                <button className="close-corner-btn" onClick={handleClose}>×</button>
-
                 <div className="announcement-header">
-                    <div className="announcement-badge">Major Update</div>
+                    <div className="announcement-badge-pulse">
+                        <div className="announcement-badge">Major Update</div>
+                    </div>
                     <h2>{title}</h2>
                     <div className="header-divider"></div>
                 </div>
@@ -86,22 +86,27 @@ const MajorAnnouncementModal = ({ title, content, link, onClose }) => {
                 </div>
 
                 <div className="announcement-footer">
-                    <div className="footer-actions">
+                    <div className="footer-main-actions">
                         {link && (
                             <a
                                 href={link}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="announcement-action-btn"
+                                className="announcement-primary-btn"
                             >
-                                Get Started
+                                <span>Get Started</span>
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                    <polyline points="12 5 19 12 12 19"></polyline>
+                                </svg>
                             </a>
                         )}
-                        <button className="announcement-dismiss-btn" onClick={handleClose}>
+                        <button className="announcement-secondary-btn" onClick={handleClose}>
                             Maybe Later
                         </button>
                     </div>
-                    <button className="dont-show-btn" onClick={handleDonotShowAgain}>
+                    
+                    <button className="announcement-meta-btn" onClick={handleDonotShowAgain}>
                         Don't show this again today
                     </button>
                 </div>

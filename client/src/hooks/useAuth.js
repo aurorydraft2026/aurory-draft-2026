@@ -5,6 +5,7 @@ import { doc, setDoc, getDocs, collection, onSnapshot } from 'firebase/firestore
 import { isSuperAdmin } from '../config/admins';
 import { logActivity } from '../services/activityService';
 import { dailyCheckIn } from '../services/pointsService';
+import { syncAuroryName } from '../services/auroryProfileService';
 import './CheckInBonus.css';
 
 export const useAuth = (navigate) => {
@@ -17,6 +18,7 @@ export const useAuth = (navigate) => {
     const [isAuthenticating, setIsAuthenticating] = useState(false);
     const [registeredUsers, setRegisteredUsers] = useState([]);
     const [bonusEffect, setBonusEffect] = useState(null);
+    const [isSyncing, setIsSyncing] = useState(false);
     const profileMenuRef = useRef(null);
 
     // Auth state listener and redirect result handler
@@ -328,6 +330,28 @@ export const useAuth = (navigate) => {
         }
     };
 
+    // Handle Profile Sync
+    const handleSyncProfile = async () => {
+        if (!user || !user.auroryPlayerId || isSyncing) return;
+
+        setIsSyncing(true);
+        try {
+            const result = await syncAuroryName(user.uid, user.auroryPlayerId);
+            if (result.success) {
+                // The firestore onSnapshot handles updating the user state automatically
+                console.log('✅ Profile sync completed for:', result.playerName);
+            } else {
+                alert('Profile sync failed: ' + result.error);
+            }
+        } catch (error) {
+            console.error('Profile sync error:', error);
+            alert('An error occurred while syncing your profile.');
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
+
     const renderUserProfileContent = ({ setShowAuroryModal }) => {
         if (!user) return null;
         return (
@@ -353,6 +377,19 @@ export const useAuth = (navigate) => {
                             <span className="modal-username">
                                 {user.displayName}
                                 {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}
+                                {user.auroryPlayerId && (
+                                    <button 
+                                        className={`sync-profile-mini-btn ${isSyncing ? 'syncing' : ''}`}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleSyncProfile();
+                                        }}
+                                        title="Sync Profile Data"
+                                        disabled={isSyncing}
+                                    >
+                                        {isSyncing ? '⌛' : '🔄'}
+                                    </button>
+                                )}
                             </span>
                             <span className="modal-email">{user.email}</span>
                             {isSuperAdminUser ? (
@@ -586,6 +623,8 @@ export const useAuth = (navigate) => {
         renderLoginSuccessModal,
         renderLogoutSuccessModal,
         renderLogoutConfirmModal,
+        handleSyncProfile,
+        isSyncing,
         profileMenuRef
     };
 };

@@ -92,7 +92,8 @@ function HomePage() {
 
   const [currentTime, setCurrentTime] = useState(Date.now());
 
-
+  const [majorAnnouncement, setMajorAnnouncement] = useState(null);
+  const [showMajorAnnouncement, setShowMajorAnnouncement] = useState(false);
 
   const [draftsExpanded, setDraftsExpanded] = useState(false);
   const {
@@ -161,9 +162,7 @@ function HomePage() {
     renderNotificationPanelContent
   } = useNotifications(user, navigate, formatTransactionTime);
 
-  // Major Announcement State
-  const [majorAnnouncement, setMajorAnnouncement] = useState(null);
-  const [showMajorAnnouncement, setShowMajorAnnouncement] = useState(false);
+
 
   // Admin high-visibility financial alerts
   const [adminPendingWithdrawals, setAdminPendingWithdrawals] = useState(0);
