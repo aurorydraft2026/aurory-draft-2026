@@ -128,7 +128,9 @@ function HomePage() {
     selectedMonth, setSelectedMonth,
     availableMonths,
     topPlayers,
-    topValcoinsUsers
+    topEarnersFiltered,
+    earnersCurrency, setEarnersCurrency,
+    earnersGameFilter, setEarnersGameFilter
   } = useLeaderboard(registeredUsers);
 
   const {
@@ -1236,18 +1238,54 @@ function HomePage() {
               </div>
             </div>
 
-            {/* Top Valcoins section */}
+            {/* Top Earners section */}
             <div className="top-players-section valcoins-leaderboard">
               <div className="top-players-header">
-                <h3><img src="/valcoin-icon.jpg" alt="" className="valcoin-icon" /> Top Valcoins Earners</h3>
+                <h3>
+                  {earnersCurrency === 'valcoins' && <img src="/valcoin-icon.jpg" alt="" className="valcoin-icon" />}
+                  {earnersCurrency === 'aury' && <img src="/aury-icon.png" alt="" className="valcoin-icon" />}
+                  {earnersCurrency === 'usdc' && <img src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png" alt="" className="valcoin-icon" />}
+                  {' '}Top {earnersCurrency === 'valcoins' ? 'Valcoins' : earnersCurrency.toUpperCase()} Earners
+                </h3>
+                <div className="earners-filters">
+                  <select
+                    className="leaderboard-mode-select"
+                    value={earnersCurrency}
+                    onChange={(e) => setEarnersCurrency(e.target.value)}
+                  >
+                    <option value="valcoins">Valcoins</option>
+                    <option value="aury">AURY</option>
+                    <option value="usdc">USDC</option>
+                  </select>
+                  <select
+                    className="leaderboard-mode-select"
+                    value={earnersGameFilter}
+                    onChange={(e) => setEarnersGameFilter(e.target.value)}
+                  >
+                    <option value="all">All</option>
+                    <option value="slotMachine">🎰 Slot Machine</option>
+                    <option value="treasureChest">🏴‍☠️ Treasure Chest</option>
+                  </select>
+                </div>
               </div>
               <div className="top-players-list">
-                {!topValcoinsUsers || topValcoinsUsers.length === 0 ? (
+                {!topEarnersFiltered || topEarnersFiltered.length === 0 ? (
                   <div className="top-players-empty">
-                    <p>No players with Valcoins yet</p>
+                    <p>No earners found for this filter</p>
                   </div>
                 ) : (
-                  topValcoinsUsers.map((item, idx) => {
+                  topEarnersFiltered.map((item, idx) => {
+                    const currencyIcon = earnersCurrency === 'valcoins'
+                      ? '/valcoin-icon.jpg'
+                      : earnersCurrency === 'aury'
+                        ? '/aury-icon.png'
+                        : 'https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png';
+                    const currencyLabel = earnersCurrency === 'valcoins' ? 'Valcoins' : earnersCurrency.toUpperCase();
+                    const currencyColor = earnersCurrency === 'valcoins' ? '#fbcd02' : earnersCurrency === 'aury' ? '#9945FF' : '#2775CA';
+                    const displayValue = earnersCurrency === 'valcoins'
+                      ? item.earnedValue.toLocaleString()
+                      : item.earnedValue.toFixed(earnersCurrency === 'aury' ? 4 : 2);
+
                     return (
                       <div key={item.uid || item.id} className={`top-player-row ${idx < 3 ? `rank-${idx + 1}` : ''}`}>
                         <span className="top-player-rank">
@@ -1264,9 +1302,9 @@ function HomePage() {
                         <div className="top-player-info">
                           <span className="top-player-name">{resolveDisplayName(item)}</span>
                         </div>
-                        <div className="top-player-winrate valcoin-amount" style={{ color: '#fbcd02', fontWeight: 700, display: 'flex', alignItems: 'center' }}>
-                          <img src="/valcoin-icon.jpg" alt="" className="valcoin-icon small" />
-                          {(item.points || 0).toLocaleString()} <span style={{fontSize:'0.8em', marginLeft: '4px'}}>Valcoins</span>
+                        <div className="top-player-winrate valcoin-amount" style={{ color: currencyColor, fontWeight: 700, display: 'flex', alignItems: 'center' }}>
+                          <img src={currencyIcon} alt="" className="valcoin-icon small" />
+                          {displayValue} <span style={{fontSize:'0.8em', marginLeft: '4px'}}>{currencyLabel}</span>
                         </div>
                       </div>
                     );

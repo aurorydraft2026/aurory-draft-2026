@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 import { fetchVerifiedMatches, scanAndVerifyCompletedDrafts } from '../services/matchVerificationService';
 
 export const useLeaderboard = (registeredUsers) => {
@@ -11,6 +13,11 @@ export const useLeaderboard = (registeredUsers) => {
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     });
+
+    // --- Earners Leaderboard Filters ---
+    const [earnersCurrency, setEarnersCurrency] = useState('valcoins'); // 'valcoins', 'aury', 'usdc'
+    const [earnersGameFilter, setEarnersGameFilter] = useState('all'); // 'all', 'slotMachine', 'treasureChest'
+    const [wallets, setWallets] = useState([]); // [{id, balance, usdcBalance}]
 
     // Fetch match history (verified matches from all tournaments)
     useEffect(() => {
@@ -185,14 +192,65 @@ export const useLeaderboard = (registeredUsers) => {
         return Array.from(months).sort().reverse();
     }, [matchHistory]);
 
-    // Compute top Valcoins users
-    const topValcoinsUsers = useMemo(() => {
+    // Listen to wallets collection for AURY/USDC leaderboard
+    useEffect(() => {
+        const walletsRef = collection(db, 'wallets');
+        const unsubscribe = onSnapshot(walletsRef, (snapshot) => {
+            const walletData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                balance: doc.data().balance || 0,
+                usdcBalance: doc.data().usdcBalance || 0
+            }));
+            setWallets(walletData);
+        }, (err) => {
+            console.error('Error listening to wallets:', err);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    // Compute top earners based on selected currency + game filter
+    const topEarnersFiltered = useMemo(() => {
         if (!registeredUsers) return [];
+
+        const gameKey = earnersGameFilter; // 'all', 'slotMachine', 'treasureChest'
+
         return [...registeredUsers]
-            .filter(u => (u.points || 0) > 0)
-            .sort((a, b) => (b.points || 0) - (a.points || 0))
+            .map(u => {
+                let value = 0;
+                const wallet = wallets.find(w => w.id === u.id);
+
+                if (earnersCurrency === 'valcoins') {
+                    if (gameKey === 'all') {
+                        // Total Valcoin balance (includes all sources)
+                        value = u.points || 0;
+                    } else {
+                        // Game-specific Valcoin winnings from stats
+                        value = u.stats?.miniGames?.[gameKey]?.totalWon?.valcoins || 0;
+                    }
+                } else if (earnersCurrency === 'aury') {
+                    if (gameKey === 'all') {
+                        // Total AURY wallet balance (stored in lamports, convert to display)
+                        value = wallet ? wallet.balance / 1e9 : 0;
+                    } else {
+                        // Game-specific AURY winnings from stats
+                        value = u.stats?.miniGames?.[gameKey]?.totalWon?.aury || 0;
+                    }
+                } else if (earnersCurrency === 'usdc') {
+                    if (gameKey === 'all') {
+                        // Total USDC wallet balance (stored in smallest units)
+                        value = wallet ? wallet.usdcBalance / 1e6 : 0;
+                    } else {
+                        // Game-specific USDC winnings from stats
+                        value = u.stats?.miniGames?.[gameKey]?.totalWon?.usdc || 0;
+                    }
+                }
+
+                return { ...u, earnedValue: value };
+            })
+            .filter(u => u.earnedValue > 0)
+            .sort((a, b) => b.earnedValue - a.earnedValue)
             .slice(0, 10);
-    }, [registeredUsers]);
+    }, [registeredUsers, wallets, earnersCurrency, earnersGameFilter]);
 
     return {
         matchHistory,
@@ -203,6 +261,8 @@ export const useLeaderboard = (registeredUsers) => {
         selectedMonth, setSelectedMonth,
         availableMonths,
         topPlayers,
-        topValcoinsUsers
+        topEarnersFiltered,
+        earnersCurrency, setEarnersCurrency,
+        earnersGameFilter, setEarnersGameFilter
     };
 };

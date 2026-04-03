@@ -2097,6 +2097,14 @@
     border-color: var(--accent-cyan);
   }
 
+  .earners-filters {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
   .top-players-list {
     /* Fixed height for exactly 10 rows: 10 × 42px = 420px */
     height: 420px;

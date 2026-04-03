@@ -1,12 +1,6 @@
 import { db } from '../firebase';
-import {
-  doc,
-  collection,
-  getDoc,
-  serverTimestamp,
-  increment,
-  runTransaction
-} from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { createNotification } from './notifications';
 
 /**
@@ -68,61 +62,14 @@ function getDefaultConfig() {
   };
 }
 
-/**
- * Select a prize using weighted random selection
- * Supports "No Win" results if noWinWeight is > 0
- * @param {Array} prizes - Array of prize objects with `weight` property
- * @param {number} noWinWeight - Weight for "No Win" outcome
- * @param {number} costPerPlay - The cost to play (for guaranteed minimum fallback)
- * @returns {Object|null} The selected prize or null if a loss occurred
- */
-function selectWeightedPrize(prizes, noWinWeight = 0, costPerPlay = 50) {
-  if (!prizes || prizes.length === 0) {
-    // If no prizes configured at ALL, fallback to a consolation
-    return {
-      id: 'fallback',
-      name: `${Math.floor(costPerPlay / 2)} Valcoins`,
-      type: 'valcoins',
-      amount: Math.floor(costPerPlay / 2),
-      rarity: 'common',
-      icon: '🪙'
-    };
-  }
-
-  const prizesWeight = prizes.reduce((sum, p) => sum + (p.weight || 1), 0);
-  const totalWeight = prizesWeight + (noWinWeight || 0);
-  
-  let random = Math.random() * totalWeight;
-
-  // 1. Check if we hit the "No Win" zone (House Edge)
-  if (random < noWinWeight) {
-    return null;
-  }
-
-  // 2. Adjust random to search prizes
-  random -= noWinWeight;
-
-  for (const prize of prizes) {
-    random -= (prize.weight || 1);
-    if (random <= 0) return prize;
-  }
-
-  // Fallback to last prize
-  return prizes[prizes.length - 1];
-}
 
 /**
- * Play a mini-game
+ * Play a mini-game (Backend-revealed)
  * 
- * Uses a Firestore transaction to atomically:
- * 1. Verify the user has enough Valcoins
- * 2. Deduct the play cost
- * 3. Select a prize (weighted random)
- * 4. Credit the prize to the user's balance
- * 5. Log the play in history
+ * Calls a Firebase Cloud Function to securely handle price/payout.
  * 
- * @param {string} gameType - 'slotMachine' or 'treasureChest'
  * @param {Object} user - The authenticated user object
+ * @param {string} gameType - 'slotMachine' or 'treasureChest'
  * @returns {Promise<Object>} Result with prize details
  */
 export async function playMiniGame(user, gameType) {
@@ -131,112 +78,31 @@ export async function playMiniGame(user, gameType) {
   }
 
   try {
-    // 1. Fetch game config
-    const config = await getMiniGameConfig();
-    const gameConfig = config[gameType];
+    const functions = getFunctions();
+    const playMiniGameFn = httpsCallable(functions, 'playMiniGame');
+    
+    const result = await playMiniGameFn({ gameType });
+    const { success, prize, cost, newBalance, error } = result.data;
 
-    if (!gameConfig) {
-      return { success: false, error: 'Game not found' };
+    if (!success) {
+      return { success: false, error: error || 'Failed to play mini-game' };
     }
-    if (!gameConfig.enabled) {
-      return { success: false, error: 'This game is currently disabled' };
-    }
-
-    const costPerPlay = gameConfig.costPerPlay || 50;
-    const noWinWeight = gameConfig.noWinWeight || 0;
-    const prizes = gameConfig.prizes || [];
-
-    // 2. Select prize BEFORE the transaction (pure logic, no Firestore reads)
-    const selectedPrize = selectWeightedPrize(prizes, noWinWeight, costPerPlay);
-
-    // 3. Execute atomic transaction
-    const userRef = doc(db, 'users', user.uid);
-    const walletRef = doc(db, 'wallets', user.uid);
-
-    const result = await runTransaction(db, async (transaction) => {
-      const userSnap = await transaction.get(userRef);
-      if (!userSnap.exists()) throw new Error('User not found');
-
-      const userData = userSnap.data();
-      const currentPoints = userData.points || 0;
-
-      // Verify balance
-      if (currentPoints < costPerPlay) {
-        throw new Error(`Insufficient Valcoins. Need ${costPerPlay}, have ${currentPoints}`);
-      }
-
-      // Deduct cost from points
-      transaction.update(userRef, {
-        points: increment(-costPerPlay),
-        updatedAt: serverTimestamp()
-      });
-
-      // Credit prize (if any)
-      if (selectedPrize) {
-        if (selectedPrize.type.toLowerCase() === 'valcoins' && selectedPrize.amount > 0) {
-          // Net effect: -cost + prize
-          // We already deducted cost above, now add prize
-          transaction.update(userRef, {
-            points: increment(selectedPrize.amount)
-          });
-        } else if (selectedPrize.type.toLowerCase() === 'aury' && selectedPrize.amount > 0) {
-          const amountSmallest = Math.floor(selectedPrize.amount * 1e9);
-          transaction.set(walletRef, {
-            balance: increment(amountSmallest),
-            updatedAt: serverTimestamp()
-          }, { merge: true });
-        } else if (selectedPrize.type.toLowerCase() === 'usdc' && selectedPrize.amount > 0) {
-          const amountSmallest = Math.floor(selectedPrize.amount * 1e6);
-          transaction.set(walletRef, {
-            usdcBalance: increment(amountSmallest),
-            updatedAt: serverTimestamp()
-          }, { merge: true });
-        }
-      }
-
-      // Log play history
-      const historyRef = doc(collection(db, 'users', user.uid, 'miniGameHistory'));
-      transaction.set(historyRef, {
-        gameType,
-        prizeName: selectedPrize ? selectedPrize.name : 'Better Luck Next Time',
-        prizeType: selectedPrize ? selectedPrize.type : 'none',
-        prizeAmount: selectedPrize ? selectedPrize.amount : 0,
-        prizeRarity: selectedPrize ? selectedPrize.rarity : 'common',
-        prizeIcon: selectedPrize ? selectedPrize.icon : '❌',
-        cost: costPerPlay,
-        timestamp: serverTimestamp()
-      });
-
-      // Log points history (deduction)
-      const pointsHistoryRef = doc(collection(db, 'users', user.uid, 'pointsHistory'));
-      transaction.set(pointsHistoryRef, {
-        amount: -costPerPlay,
-        type: 'mini_game',
-        description: `Played ${gameType === 'slotMachine' ? 'Slot Machine' : 'Treasure Chest'}`,
-        timestamp: serverTimestamp()
-      });
-
-      return {
-        success: true,
-        prize: selectedPrize,
-        cost: costPerPlay,
-        newBalance: currentPoints - costPerPlay + (selectedPrize && selectedPrize.type.toLowerCase() === 'valcoins' ? selectedPrize.amount : 0)
-      };
-    });
 
     // Send notification for notable wins (rare+)
-    if (result.success && selectedPrize && selectedPrize.rarity !== 'common') {
+    if (prize && prize.rarity !== 'common') {
       await createNotification(user.uid, {
-        title: `🎉 ${selectedPrize.rarity === 'legendary' ? 'LEGENDARY' : selectedPrize.rarity === 'epic' ? 'EPIC' : 'RARE'} WIN!`,
-        message: `You won ${selectedPrize.name} from the ${gameType === 'slotMachine' ? 'Slot Machine' : 'Treasure Chest'}!`,
+        title: `🎉 ${prize.rarity.toUpperCase()} WIN!`,
+        message: `You won ${prize.name} from the ${gameType === 'slotMachine' ? 'Slot Machine' : 'Treasure Chest'}!`,
         type: 'mini_game'
       });
     }
 
-    return result;
+    return { success: true, prize, cost, newBalance };
   } catch (error) {
     console.error('Error playing mini-game:', error);
-    return { success: false, error: error.message };
+    // Handle specific Firebase HttpsErrors
+    const errorMessage = error.details?.message || error.message || 'An error occurred while playing.';
+    return { success: false, error: errorMessage };
   }
 }
 

@@ -170,6 +170,11 @@ function AdminPanel() {
     icon: '🪙'
   });
   const [editingPrizeId, setEditingPrizeId] = useState(null);
+  const [earnersHistory, setEarnersHistory] = useState([]);
+  const [earnersSearchQuery, setEarnersSearchQuery] = useState('');
+  const [earnersSelectedUser, setEarnersSelectedUser] = useState(null);
+  const [isSelectingEarnersUser, setIsSelectingEarnersUser] = useState(false);
+  const [earnersLoading, setEarnersLoading] = useState(false);
 
   // Major Announcement Campaign state
   const [announcementEnabled, setAnnouncementEnabled] = useState(false);
@@ -443,6 +448,40 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     });
     return () => unsub();
   }, [activeTab, isAdmin]);
+
+  // Fetch Mini-Game Earners (User specific)
+  useEffect(() => {
+    if (!isAdmin || activeTab !== 'mini_game_history' || !db) return;
+
+    // If no user selected, we don't fetch history (as requested: "per user searched")
+    if (!earnersSelectedUser) {
+      setEarnersHistory([]);
+      setEarnersLoading(false);
+      return;
+    }
+
+    setEarnersLoading(true);
+    const q = query(
+      collection(db, 'users', earnersSelectedUser.id, 'miniGameHistory'),
+      orderBy('timestamp', 'desc'),
+      limit(500)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const history = snapshot.docs.map(doc => ({
+        id: doc.id,
+        userId: earnersSelectedUser.id,
+        ...doc.data()
+      }));
+      setEarnersHistory(history);
+      setEarnersLoading(false);
+    }, (error) => {
+      console.error('Error fetching earners history:', error);
+      setEarnersLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [activeTab, isAdmin, earnersSelectedUser]);
   
   // Fetch Major Announcement config
   useEffect(() => {
@@ -2221,6 +2260,12 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   onClick={() => setActiveTab('mini_games')}
                 >
                   🎮 Mini-Games Management
+                </button>
+                <button
+                  className={`admin-tab ${activeTab === 'mini_game_history' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('mini_game_history')}
+                >
+                  🏆 Earners & Plays
                 </button>
               </div>
             </div>
@@ -4392,7 +4437,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           {activeTab === 'mini_games' && (
             <div className="mini-games-section">
               <div className="section-header">
-                <h2>🎮 Mini-Games Management</h2>
+                <h2>🎮 Mini-Games Configuration</h2>
                 <div className="header-actions">
                   <button 
                     className="admin-secondary-btn" 
@@ -4419,7 +4464,6 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 </div>
               </div>
 
-              {/* Probability Guide Card */}
               <div className="config-card probability-guide-card">
                 <div className="guide-header">
                   <h3>⚖️ Probability Balance Guide</h3>
@@ -4634,7 +4678,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                   📝
                                 </button>
                                 <button 
-                                  className="delete-prize-btn"
+                                  className="delete-prize-btn" 
                                   onClick={() => handleDeletePrize(activeGameType, prize.id)}
                                   title="Delete Prize"
                                 >
@@ -4649,6 +4693,163 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'mini_game_history' && (
+            <div className="mini-games-section">
+              <div className="section-header">
+                <h2>🏆 Earners & Plays</h2>
+                {earnersSelectedUser && (
+                  <button 
+                    className="secondary-btn small" 
+                    onClick={() => {
+                      setEarnersSelectedUser(null);
+                      setEarnersSearchQuery('');
+                    }}
+                  >
+                    ⬅️ Back to Search
+                  </button>
+                )}
+              </div>
+
+              <div className="mini-game-earners-content">
+                {!earnersSelectedUser ? (
+                  <div className="user-lookup-container card" style={{ maxWidth: '600px', margin: '0 auto' }}>
+                    <h3>🔍 User History Lookup</h3>
+                    <p style={{ opacity: 0.7, fontSize: '0.9em', marginBottom: '15px' }}>
+                      Search for a player by name or email to view their full mini-game activity.
+                    </p>
+                    <div className="search-bar" style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        placeholder="Type member name or email..."
+                        value={earnersSearchQuery}
+                        onChange={(e) => {
+                          setEarnersSearchQuery(e.target.value);
+                          setIsSelectingEarnersUser(true);
+                        }}
+                        onFocus={() => setIsSelectingEarnersUser(true)}
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px',
+                          fontSize: '14px',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          color: 'white'
+                        }}
+                      />
+                      {isSelectingEarnersUser && earnersSearchQuery.length >= 2 && (
+                        <div className="user-search-dropdown" style={{ 
+                          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, 
+                          background: '#1a1b23', border: '1px solid rgba(255,255,255,0.1)', 
+                          borderRadius: '8px', marginTop: '5px', maxHeight: '300px', overflowY: 'auto' 
+                        }}>
+                          {allUsers
+                            .filter(u => 
+                              u.email?.toLowerCase().includes(earnersSearchQuery.toLowerCase()) || 
+                              resolveDisplayName(u).toLowerCase().includes(earnersSearchQuery.toLowerCase())
+                            )
+                            .slice(0, 10)
+                            .map(u => (
+                              <div 
+                                key={u.id} 
+                                className="user-search-item"
+                                onClick={() => {
+                                  setEarnersSelectedUser(u);
+                                  setIsSelectingEarnersUser(false);
+                                  setEarnersSearchQuery('');
+                                }}
+                                style={{ padding: '10px 15px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '10px' }}
+                              >
+                                <img src={resolveAvatar(u)} alt="" style={{ width: '24px', height: '24px', borderRadius: '50%' }} />
+                                <div>
+                                  <div style={{ fontSize: '0.9em', fontWeight: 'bold' }}>{resolveDisplayName(u)}</div>
+                                  <div style={{ fontSize: '0.75em', opacity: 0.6 }}>{u.email}</div>
+                                </div>
+                              </div>
+                            ))
+                          }
+                          {allUsers.filter(u => 
+                              u.email?.toLowerCase().includes(earnersSearchQuery.toLowerCase()) || 
+                              resolveDisplayName(u).toLowerCase().includes(earnersSearchQuery.toLowerCase())
+                            ).length === 0 && (
+                            <div style={{ padding: '15px', textAlign: 'center', opacity: 0.5 }}>No users found</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="selected-user-history">
+                    <div className="user-info-banner card" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px', padding: '15px' }}>
+                      <img src={resolveAvatar(earnersSelectedUser)} alt="" style={{ width: '48px', height: '48px', borderRadius: '50%' }} />
+                      <div>
+                        <h3>{resolveDisplayName(earnersSelectedUser)}</h3>
+                        <p style={{ opacity: 0.7 }}>{earnersSelectedUser.email}</p>
+                      </div>
+                      <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+                        <span className="balance-tag" style={{ background: 'rgba(74, 222, 128, 0.1)', color: '#4ade80', padding: '4px 12px', borderRadius: '20px', fontSize: '0.9em' }}>
+                          💰 {earnersSelectedUser.points || 0} Valcoins
+                        </span>
+                      </div>
+                    </div>
+
+                    {earnersLoading ? (
+                      <LoadingScreen message="Fetching logs..." />
+                    ) : earnersHistory.length === 0 ? (
+                      <div className="empty-state card">
+                        <p>📭 This user hasn't played any mini-games yet.</p>
+                      </div>
+                    ) : (
+                      <div className="logs-table-container">
+                        <table className="logs-table">
+                          <thead>
+                            <tr>
+                              <th>Time</th>
+                              <th>Game</th>
+                              <th>Prize</th>
+                              <th>Value</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {earnersHistory.map(log => {
+                              const isLoss = log.prizeType === 'none' || log.prizeAmount === 0;
+                              return (
+                                <tr key={log.id} style={{ opacity: isLoss ? 0.7 : 1 }}>
+                                  <td className="log-time">{formatTime(log.timestamp)}</td>
+                                  <td className="log-action">
+                                    <span style={{ textTransform: 'capitalize' }}>
+                                      {log.gameType === 'slotMachine' ? '🎰 Slot Machine' : '🎁 Treasure Chest'}
+                                    </span>
+                                  </td>
+                                  <td className="log-details">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                      <span style={{ color: isLoss ? '#ff4d4d' : '#4ade80', fontWeight: isLoss ? 'normal' : 'bold' }}>
+                                        {isLoss ? '🔴 ' : '🟢 '}
+                                        {log.prizeName || log.prize}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    {!isLoss && (
+                                      <span className="log-amount positive">
+                                        +{log.prizeAmount} {log.prizeType?.toUpperCase()}
+                                      </span>
+                                    )}
+                                    {isLoss && <span style={{ opacity: 0.4 }}>-</span>}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
