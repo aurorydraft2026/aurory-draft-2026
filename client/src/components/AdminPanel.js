@@ -4527,6 +4527,21 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 <div className="mini-game-config-content">
                   <div className="config-card card">
                     <h3>General Settings</h3>
+                    <div className="form-group toggle-group" style={{ marginBottom: "15px", borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: "15px" }}>
+                      <label className="toggle-label" style={{ color: "#ef4444" }}>
+                        <span>🚧 Global Testing Mode (SuperAdmins Only)</span>
+                        <input
+                          type="checkbox"
+                          checked={miniGamesConfig.global?.superAdminOnly ?? false}
+                          onChange={(e) => handleUpdateMiniGameConfig('global', { superAdminOnly: e.target.checked })}
+                          className="admin-checkbox"
+                        />
+                      </label>
+                      <p style={{ fontSize: '0.8em', color: '#94a3b8', marginTop: '5px' }}>
+                        When enabled, the ARCADE button is hidden from all regular users. Only SuperAdmins can see and test the games.
+                      </p>
+                    </div>
+
                     <div className="form-row">
                       <div className="form-group toggle-group">
                         <label className="toggle-label">

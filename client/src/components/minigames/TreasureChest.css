@@ -1,9 +1,30 @@
 /* ───────────── CONTAINER ───────────── */
 .treasure-chest-container {
   display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 32px;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+@media (max-width: 900px) {
+  .treasure-chest-container {
+    flex-direction: column;
+    align-items: center;
+  }
+  .side-panel {
+    width: 100%;
+    max-width: 500px;
+  }
+}
+
+.chest-stage-wrapper {
+  display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
 }
 
 /* ───────────── STAGE ───────────── */
@@ -12,8 +33,9 @@
   width: 280px;
   height: 280px;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
+  padding-bottom: 5px;
 }
 
 .chest-wrapper {
@@ -107,30 +129,35 @@
 /* ───────────── GLOW BEHIND CHEST ───────────── */
 .chest-glow {
   position: absolute;
-  width: 200px;
-  height: 200px;
+  top: 40px; /* Center near the prize icon */
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 180px;
+  height: 180px;
   border-radius: 50%;
   background: radial-gradient(circle, var(--rarity-color) 0%, transparent 70%);
-  opacity: 0.25;
+  opacity: 0.35;
   animation: glowPulse 2s ease-in-out infinite;
-  z-index: 0;
+  z-index: -1;
+  pointer-events: none;
 }
 
 @keyframes glowPulse {
-  0%, 100% { transform: scale(1); opacity: 0.2; }
-  50% { transform: scale(1.15); opacity: 0.35; }
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.3; }
+  50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.5; }
 }
 
 /* ───────────── PRIZE REVEAL ───────────── */
 .chest-prize-reveal {
   position: absolute;
-  top: -80px;
+  top: -110px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
   animation: prizeFloat 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
   z-index: 10;
+  pointer-events: none;
 }
 
 .chest-prize-reveal.none {
@@ -213,7 +240,39 @@
 /* ───────────── CONTROLS ───────────── */
 .chest-controls {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+  position: relative;
+  z-index: 50;
+}
+
+.chest-action-buttons {
+  display: flex;
+  gap: 12px;
   justify-content: center;
+}
+
+.chest-small-action-btn {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(184, 134, 11, 0.3);
+  color: #d4a853;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chest-small-action-btn:hover {
+  background: rgba(184, 134, 11, 0.2);
+  border-color: rgba(184, 134, 11, 0.6);
+  transform: translateY(-1px);
 }
 
 .chest-open-btn {
@@ -275,8 +334,10 @@
 }
 
 .chest-again-btn:hover {
-  background: rgba(184, 134, 11, 0.25);
-  border-color: rgba(184, 134, 11, 0.5);
+  background: rgba(184, 134, 11, 0.35);
+  border-color: rgba(184, 134, 11, 0.7);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(184, 134, 11, 0.2);
 }
 
 /* ───────────── ERROR ───────────── */
@@ -290,19 +351,54 @@
   text-align: center;
 }
 
-/* ───────────── PRIZE LIST ───────────── */
-.chest-prize-list {
-  width: 100%;
-  max-width: 420px;
+/* ───────────── PRIZE/RULES MODAL ───────────── */
+.chest-result-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: mgFadeIn 0.3s ease;
 }
 
-.chest-prize-list h4 {
-  color: #94a3b8;
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin: 0 0 10px 0;
+.chest-result-card {
+  background: linear-gradient(165deg, #1e1b4b, #0f172a);
+  border: 1px solid rgba(184, 134, 11, 0.3);
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  max-width: 380px;
+  width: 90%;
+  position: relative;
+  overflow: hidden;
+  animation: resultPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.chest-result-title {
+  color: #e2e8f0;
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+/* ───────────── LIVE WINNERS FEED (Left Column) ───────────── */
+.chest-winners-feed {
+  background: rgba(15, 23, 42, 0.4);
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  height: 450px;
+  display: flex;
+  flex-direction: column;
+}
+
+.side-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 360px;
+  min-width: 280px;
 }
 
 .chest-prizes-grid {
