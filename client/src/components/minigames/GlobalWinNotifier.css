@@ -68,6 +68,15 @@
   color: #f1f5f9;
   font-weight: 600;
   font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ticker-prize-icon-img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 }
 
 .ticker-link {

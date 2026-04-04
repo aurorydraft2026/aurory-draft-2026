@@ -179,10 +179,19 @@
   to { transform: translateY(0) scale(1); opacity: 1; }
 }
 
+.chest-icon-img {
+  max-width: 120px;
+  max-height: 80px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(0,0,0,0.6));
+}
+
 .chest-prize-icon {
   font-size: 3rem;
   line-height: 1;
   margin-bottom: 4px;
+  display: flex;
+  justify-content: center;
 }
 
 .chest-prize-rarity {
@@ -290,6 +299,25 @@
   font-weight: 700;
   transition: all 0.3s;
   box-shadow: 0 4px 15px rgba(184, 134, 11, 0.3);
+}
+
+.feed-won {
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.feed-prize-icon-img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+.feed-prize {
+  font-weight: 700;
 }
 
 .chest-open-btn:hover:not(:disabled) {
@@ -429,6 +457,14 @@
 
 .chest-pi-icon {
   font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+}
+
+.prize-table-icon-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
 }
 
 .chest-pi-info {

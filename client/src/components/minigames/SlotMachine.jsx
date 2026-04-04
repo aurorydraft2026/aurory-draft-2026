@@ -237,7 +237,11 @@ const SlotMachine = ({
                 <div className="feed-info">
                   <span className="feed-name">{winner.playerName}</span>
                   <span className="feed-won">
-                    won {winner.icon} <span className="feed-prize" style={{ color: getRarityColor(winner.rarity) }}>{winner.prizeName}</span>
+                    won {winner.icon && winner.icon.endsWith('.png') ? (
+                      <img src={`${process.env.PUBLIC_URL}/icons/minigames/${winner.icon}`} alt="" className="feed-prize-icon-img" />
+                    ) : (
+                      winner.icon
+                    )} <span className="feed-prize" style={{ color: getRarityColor(winner.rarity) }}>{winner.prizeName}</span>
                   </span>
                 </div>
                 <span className="feed-time">
@@ -275,7 +279,13 @@ const SlotMachine = ({
                     className={`slot-symbol ${prize.rarity}`}
                     style={{ height: `${symbolHeight}px` }}
                   >
-                    <span className="slot-symbol-icon">{prize.icon || '🎁'}</span>
+                    <span className="slot-symbol-icon">
+                      {prize.icon && prize.icon.endsWith('.png') ? (
+                        <img src={`${process.env.PUBLIC_URL}/icons/minigames/${prize.icon}`} alt="" className="slot-icon-img" />
+                      ) : (
+                        prize.icon || '🎁'
+                      )}
+                    </span>
                     <span className="slot-symbol-name">{prize.name}</span>
                   </div>
                 ))}
@@ -319,7 +329,13 @@ const SlotMachine = ({
         <div className="slot-result-overlay" onClick={handlePlayAgain}>
           <div className="slot-result-card" onClick={e => e.stopPropagation()}>
             <div className={`slot-result-rarity-bar ${result.prize ? result.prize.rarity : 'common'}`} />
-            <div className="slot-result-icon">{result.prize ? result.prize.icon : '❌'}</div>
+            <div className="slot-result-icon">
+              {result.prize && result.prize.icon && result.prize.icon.endsWith('.png') ? (
+                <img src={`${process.env.PUBLIC_URL}/icons/minigames/${result.prize.icon}`} alt="" className="result-icon-img" />
+              ) : (
+                result.prize ? result.prize.icon : '❌'
+              )}
+            </div>
             <h3 className="slot-result-title">
               {!result.prize ? 'Better Luck Next Time!' :
                result.prize.rarity === 'legendary' ? '🔥 LEGENDARY WIN! 🔥' :
@@ -348,7 +364,13 @@ const SlotMachine = ({
             <div className="slot-prizes-grid" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
               {prizes.map(prize => (
                 <div key={prize.id} className={`slot-prize-item ${prize.rarity}`}>
-                  <span className="prize-icon">{prize.icon || '🎁'}</span>
+                  <span className="prize-icon">
+                    {prize.icon && prize.icon.endsWith('.png') ? (
+                      <img src={`${process.env.PUBLIC_URL}/icons/minigames/${prize.icon}`} alt="" className="prize-table-icon-img" />
+                    ) : (
+                      prize.icon || '🎁'
+                    )}
+                  </span>
                   <span className="prize-name">{prize.name}</span>
                   <span className="prize-rarity-dot" style={{ background: getRarityColor(prize.rarity) }} />
                 </div>

@@ -174,7 +174,11 @@ const TreasureChest = ({
                 <div className="feed-info">
                   <span className="feed-name">{winner.playerName}</span>
                   <span className="feed-won">
-                    found {winner.icon} <span className="feed-prize" style={{ color: getRarityColor(winner.rarity) }}>{winner.prizeName}</span>
+                    found {winner.icon && winner.icon.endsWith('.png') ? (
+                      <img src={`${process.env.PUBLIC_URL}/icons/minigames/${winner.icon}`} alt="" className="feed-prize-icon-img" />
+                    ) : (
+                      winner.icon
+                    )} <span className="feed-prize" style={{ color: getRarityColor(winner.rarity) }}>{winner.prizeName}</span>
                   </span>
                 </div>
                 <span className="feed-time">
@@ -220,7 +224,13 @@ const TreasureChest = ({
               )}
               {result.prize ? (
                 <>
-                  <div className="chest-prize-icon">{result.prize.icon || '🎁'}</div>
+                  <div className="chest-prize-icon">
+                    {result.prize.icon && result.prize.icon.endsWith('.png') ? (
+                      <img src={`${process.env.PUBLIC_URL}/icons/minigames/${result.prize.icon}`} alt="" className="chest-icon-img" />
+                    ) : (
+                      result.prize.icon || '🎁'
+                    )}
+                  </div>
                   <span
                     className="chest-prize-rarity"
                     style={{ color: getRarityColor(result.prize.rarity) }}
@@ -301,7 +311,13 @@ const TreasureChest = ({
             <div className="chest-prizes-grid" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
               {prizes.map(prize => (
                 <div key={prize.id} className={`chest-prize-item ${prize.rarity}`}>
-                  <span className="chest-pi-icon">{prize.icon || '🎁'}</span>
+                  <span className="chest-pi-icon">
+                    {prize.icon && prize.icon.endsWith('.png') ? (
+                      <img src={`${process.env.PUBLIC_URL}/icons/minigames/${prize.icon}`} alt="" className="prize-table-icon-img" />
+                    ) : (
+                      prize.icon || '🎁'
+                    )}
+                  </span>
                   <div className="chest-pi-info">
                     <span className="chest-pi-name">{prize.name}</span>
                     <span

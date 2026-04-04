@@ -167,7 +167,7 @@ function AdminPanel() {
     amount: 10,
     weight: 10,
     rarity: 'common',
-    icon: '🪙'
+    icon: 'common_horn.png'
   });
   const [editingPrizeId, setEditingPrizeId] = useState(null);
   const [earnersHistory, setEarnersHistory] = useState([]);
@@ -538,11 +538,11 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         // Map common icons specifically for slot machine if possible
         let icon = icons[0];
         if (gameType === 'slotMachine') {
-            if (prize.rarity === 'common' && prize.name.includes('25')) icon = '🍒';
-            else if (prize.rarity === 'common' && prize.name.includes('50')) icon = '🔔';
-            else if (prize.rarity === 'rare') icon = '💎';
-            else if (prize.rarity === 'epic') icon = '👑';
-            else if (prize.rarity === 'legendary') icon = '🎰';
+            if (prize.rarity === 'common' && prize.name.includes('25')) icon = 'common_horn.png';
+            else if (prize.rarity === 'common' && prize.name.includes('50')) icon = 'common_shield.png';
+            else if (prize.rarity === 'rare') icon = 'rare_axe.png';
+            else if (prize.rarity === 'epic') icon = 'epic_helmet.png';
+            else if (prize.rarity === 'legendary') icon = 'legendary_ship.png';
         }
         return { ...prize, icon };
       });
@@ -586,7 +586,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       amount: 10,
       weight: 10,
       rarity: 'common',
-      icon: '🪙'
+      icon: 'common_horn.png'
     });
   };
 
@@ -604,7 +604,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       amount: prize.amount,
       weight: prize.weight,
       rarity: prize.rarity,
-      icon: prize.icon || '🪙'
+      icon: prize.icon || 'common_horn.png'
     });
     // Scroll to top of form for UX
     document.querySelector('.prizes-management-card')?.scrollIntoView({ behavior: 'smooth' });
@@ -618,7 +618,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       amount: 10,
       weight: 10,
       rarity: 'common',
-      icon: '🪙'
+      icon: 'common_horn.png'
     });
   };
 
@@ -4642,7 +4642,11 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 className={`icon-emoji-btn ${newPrize.icon === emoji ? 'active' : ''}`}
                                 onClick={() => setNewPrize({ ...newPrize, icon: emoji })}
                               >
-                                {emoji}
+                                {emoji && emoji.endsWith('.png') ? (
+                                  <img src={`${process.env.PUBLIC_URL}/icons/minigames/${emoji}`} alt="" className="admin-icon-btn-img" />
+                                ) : (
+                                  emoji
+                                )}
                               </button>
                             ))}
                           </div>
@@ -4677,7 +4681,13 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         <div className="prizes-grid-admin">
                           {miniGamesConfig[activeGameType].prizes.map((prize) => (
                             <div key={prize.id} className={`prize-item-admin rarity-${prize.rarity} ${editingPrizeId === prize.id ? 'being-edited' : ''}`}>
-                              <div className="prize-icon-admin">{prize.icon}</div>
+                              <div className="prize-icon-admin">
+                                {prize.icon && prize.icon.endsWith('.png') ? (
+                                  <img src={`${process.env.PUBLIC_URL}/icons/minigames/${prize.icon}`} alt="" className="admin-prize-img" />
+                                ) : (
+                                  prize.icon || '🎁'
+                                )}
+                              </div>
                               <div className="prize-info-admin">
                                 <span className="prize-name-admin">{prize.name}</span>
                                 <span className="prize-details-admin">

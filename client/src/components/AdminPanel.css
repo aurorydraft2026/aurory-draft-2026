@@ -3306,3 +3306,15 @@ input[type=number] {
   color: #ef4444;
   background: rgba(239, 68, 68, 0.05);
 }
+
+.admin-prize-img {
+  max-width: 30px;
+  max-height: 30px;
+  object-fit: contain;
+}
+
+.admin-icon-btn-img {
+  max-width: 24px;
+  max-height: 24px;
+  object-fit: contain;
+}

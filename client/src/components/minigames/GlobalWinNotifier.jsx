@@ -70,7 +70,13 @@ const GlobalWinNotifier = () => {
             <img src={winner.playerAvatar} alt="" className="ticker-avatar" />
             <span className="ticker-player">{winner.playerName}</span>
             <span className="ticker-text">just won</span>
-            <span className="ticker-prize">{winner.icon} {winner.prizeName}</span>
+            <span className="ticker-prize">
+              {winner.icon && winner.icon.endsWith('.png') ? (
+                <img src={`${process.env.PUBLIC_URL}/icons/minigames/${winner.icon}`} alt="" className="ticker-prize-icon-img" />
+              ) : (
+                winner.icon
+              )} {winner.prizeName}
+            </span>
             <button className="ticker-link" onClick={handleOpenArcade}>
               &bull; <span>Try your luck &rarr;</span>
             </button>
