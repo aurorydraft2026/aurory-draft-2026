@@ -253,6 +253,11 @@ const SlotMachine = ({
 
       {/* CENTER COLUMN: Machine Frame */}
       <div className="slot-machine-frame">
+        {error && (
+          <div className="slot-error">
+            <span>⚠️ {error}</span>
+          </div>
+        )}
         <div className="slot-machine-top-bar">
           <span className="slot-light" />
           <span className="slot-title">FORTUNE SLOTS</span>
@@ -308,13 +313,6 @@ const SlotMachine = ({
           </div>
         </div>
       </div>
-
-      {/* Error */}
-      {error && (
-        <div className="slot-error">
-          <span>⚠️ {error}</span>
-        </div>
-      )}
 
       {/* Result Modal */}
       {showResult && result && (

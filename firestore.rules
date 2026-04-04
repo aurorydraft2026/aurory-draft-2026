@@ -505,5 +505,16 @@ service cloud.firestore {
         allow delete: if isAdmin();
       }
     }
+    // =============================================
+    // COLLECTION GROUP RULES
+    // =============================================
+    // These allow collectionGroup() queries to function across multiple user subcollections
+    match /{path=**}/miniGameHistory/{historyId} {
+      allow read: if isAdmin();
+    }
+    
+    match /{path=**}/pointsHistory/{historyId} {
+      allow read: if isAdmin();
+    }
   }
 }

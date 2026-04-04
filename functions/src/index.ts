@@ -10,8 +10,10 @@ import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onRequest } from 'firebase-functions/v2/https';
 
-// Initialize Firebase Admin
-admin.initializeApp();
+// Initialize Firebase Admin with explicit regional database URL
+admin.initializeApp({
+  databaseURL: "https://asgard-duels-default-rtdb.asia-southeast1.firebasedatabase.app"
+});
 
 // ─── 1. TIMER CHECK (every 5 seconds) ───
 // Scans all active drafts, auto-picks when timer expires, advances phases
@@ -105,8 +107,13 @@ export const tournamentRewards = onMatchupCompleted;
 
 // ─── 7. DISCORD ANNOUNCEMENTS ───
 // Automatic notifications to Discord webhooks
-import { onRaffleCreated, onRaffleWinnerSet, onMatchupCreated, onMatchupWinner } from './discord';
+import { onRaffleCreated, onRaffleWinnerSet, onMatchupCreated, onMatchupWinner, onDraftCreated } from './discord';
 export const onRaffleCreatedAnnouncement = onRaffleCreated;
 export const onRaffleWinnerAnnouncement = onRaffleWinnerSet;
 export const onMatchupCreatedAnnouncement = onMatchupCreated;
 export const onMatchupWinnerAnnouncement = onMatchupWinner;
+export const onDraftCreatedAnnouncement = onDraftCreated;
+// ─── 8. MINI-GAMES ───
+// Secure prize selection and payouts
+import { playMiniGame } from './miniGames';
+export { playMiniGame };

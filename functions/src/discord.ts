@@ -8,6 +8,7 @@ import fetch from 'node-fetch';
  */
 const RAFFLE_WEBHOOK_URL = 'https://discord.com/api/webhooks/1488618433569489159/vFkiaYCtoi_eoFEWxWRc_LKBDjS0k1Z8ga1-7iRIB33JzunuWvCeqjKvE10VewQETsUK';
 const MATCHUP_WEBHOOK_URL = 'https://discord.com/api/webhooks/1488913883010699326/ZpuxD5BhbdpE5N78k0rsSW2oP3DryTKEIIE-oONR48-G0LAvPi-inp0aUJ3A67Bj0Kvv';
+const DRAFT_WEBHOOK_URL = 'https://discord.com/api/webhooks/1489938404849352786/JYPXpsImnGS5Z19ZwO6c8qf66cjNBsKCmVcx4THjRpeoWqs56M5_VMKgkmII8ypA4DLB';
 
 /**
  * Trigger: When a new raffle is created in Firestore
@@ -349,5 +350,79 @@ export const onMatchupWinner = functions.firestore
             } catch (error: any) {
                 console.error(`❌ Error announcing results of ${matchupId} to Discord:`, error.message);
             }
+        }
+    });
+
+/**
+ * Trigger: When a new draft is created in Firestore
+ * Goal: Announce it to the Discord server
+ */
+export const onDraftCreated = functions.firestore
+    .document('drafts/{draftId}')
+    .onCreate(async (snap, context) => {
+        const draft = snap.data();
+        const draftId = context.params.draftId;
+
+        if (!draft) return;
+
+        // Ensure this draft is related to a matchup (not a direct challenge friendly match)
+        if (!draft.matchupId) return;
+
+        console.log(`📣 New Draft Detected: ${draft.title} (${draftId})`);
+
+        try {
+            const teamA = draft.teamNames?.team1 || 'Player 1';
+            const teamB = draft.teamNames?.team2 || 'Player 2';
+            const draftType = draft.draftType || 'Unknown Mode';
+            const tournamentName = draft.title?.split(' — ')[0] || 'Tournament Match';
+
+            // Build the Discord Embed (Purple: 0x9B59B6)
+            const embed = {
+                title: `⚔️ NEW DRAFT READY`,
+                description: `A tournament draft is about to begin!`,
+                url: `https://asgard-duels.web.app/tournament/${draftId}`,
+                color: 0x9B59B6,
+                fields: [
+                    {
+                        name: '🏆 Tournament',
+                        value: tournamentName,
+                        inline: false
+                    },
+                    {
+                        name: '🆚 Matchup',
+                        value: `**${teamA}** vs **${teamB}**`,
+                        inline: true
+                    },
+                    {
+                        name: '⚔️ Mode',
+                        value: draftType,
+                        inline: true
+                    }
+                ],
+                footer: {
+                    text: 'Asgard Duels • Automated Announcement',
+                    icon_url: 'https://asgard-duels.web.app/favicon.ico'
+                },
+                timestamp: new Date().toISOString()
+            };
+
+            // Send to Discord
+            const response = await fetch(DRAFT_WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    content: '🚀 **A new Tournament Draft is ready!**',
+                    embeds: [embed]
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Discord Webhook failed with status ${response.status}: ${errorText}`);
+            }
+
+            console.log(`✅ Successfully announced draft ${draftId} to Discord`);
+        } catch (error: any) {
+            console.error(`❌ Error announcing draft ${draftId} to Discord:`, error.message);
         }
     });

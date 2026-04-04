@@ -24,6 +24,13 @@ const MiniGamesButton = () => {
     return () => unsub();
   }, []);
 
+  // Listen for global open event (from win notifications)
+  useEffect(() => {
+    const handleOpenEvent = () => setIsHubOpen(true);
+    window.addEventListener('openMiniGames', handleOpenEvent);
+    return () => window.removeEventListener('openMiniGames', handleOpenEvent);
+  }, []);
+
   // Listen to user's points in real time
   useEffect(() => {
     if (!user) return;

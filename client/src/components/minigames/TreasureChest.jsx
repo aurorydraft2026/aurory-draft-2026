@@ -190,6 +190,11 @@ const TreasureChest = ({
 
       {/* CENTER COLUMN: Chest Visual */}
       <div className="chest-stage-wrapper">
+        {error && (
+          <div className="chest-error">
+            <span>⚠️ {error}</span>
+          </div>
+        )}
         <div className="chest-stage">
         <div className={`chest-wrapper ${phase}`}>
           {/* The Chest itself */}
@@ -287,13 +292,6 @@ const TreasureChest = ({
         )}
       </div>
       </div>
-
-      {/* Error */}
-      {error && (
-        <div className="chest-error">
-          <span>⚠️ {error}</span>
-        </div>
-      )}
 
       {/* Prizes Modal */}
       {showPrizesModal && (

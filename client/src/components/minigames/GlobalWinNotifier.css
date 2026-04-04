@@ -1,0 +1,109 @@
+.global-win-ticker {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 38px;
+  background: rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(8px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ticker-track {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding-left: 100%; /* Start items off-screen to the right */
+  white-space: nowrap;
+}
+
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 40px;
+  height: 100%;
+  animation: tickerScroll 20s linear forwards;
+  pointer-events: all;
+}
+
+@keyframes tickerScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-250vw); } /* Enough to cross any screen */
+}
+
+.ticker-badge {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: white;
+  letter-spacing: 0.5px;
+}
+
+.ticker-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.ticker-player {
+  color: #f1f5f9;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.ticker-text {
+  color: #94a3b8;
+  font-size: 0.8rem;
+}
+
+.ticker-prize {
+  color: #f1f5f9;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.ticker-link {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.ticker-link span {
+  color: #3b82f6;
+  text-decoration: underline;
+}
+
+.ticker-link:hover span {
+  color: #60a5fa;
+}
+
+/* Rarity specific glow/shadow for the item */
+.ticker-item.epic {
+  background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.1), transparent);
+}
+
+.ticker-item.legendary {
+  background: linear-gradient(90deg, transparent, rgba(234, 179, 8, 0.15), transparent);
+}
+
+@media (max-width: 480px) {
+  .global-win-ticker {
+    height: 34px;
+  }
+}

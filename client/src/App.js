@@ -15,6 +15,7 @@ import RafflePage from './pages/RafflePage';
 import RafflesListingPage from './pages/RafflesListingPage';
 import AdminPanel from './components/AdminPanel';
 import MiniGamesButton from './components/minigames/MiniGamesButton';
+import GlobalWinNotifier from './components/minigames/GlobalWinNotifier';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -90,6 +91,7 @@ function App() {
           </Routes>
           <Footer />
           <MiniGamesButton />
+          <GlobalWinNotifier />
         </div>
       </Router>
     </ThemeProvider>
