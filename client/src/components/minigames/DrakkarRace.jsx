@@ -39,6 +39,17 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const [raceFinished, setRaceFinished] = useState(false);
   const prevRaceIdRef = useRef(null);
 
+  const [localRaceStartTime, setLocalRaceStartTime] = useState(null);
+
+  // ─── 0. Local Clock Sync ───
+  useEffect(() => {
+    if (state?.phase === 'racing' && !localRaceStartTime) {
+      setLocalRaceStartTime(Date.now());
+    } else if (state?.phase !== 'racing') {
+      setLocalRaceStartTime(null);
+    }
+  }, [state?.phase, localRaceStartTime]);
+
   // ─── 1. Subscriptions ───
   useEffect(() => {
     const unsubState = subscribeDrakkarRaceState((newState) => {
@@ -87,9 +98,9 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
   // ─── 3. Race Animation ───
   const animate = useCallback(() => {
-    if (state && state.phase === 'racing' && state.shipIndices && state.weatherIndices && state.raceStartTime && !raceFinished) {
+    if (state && state.phase === 'racing' && state.shipIndices && state.weatherIndices && localRaceStartTime && !raceFinished) {
       const now = Date.now();
-      const elapsed = now - state.raceStartTime;
+      const elapsed = now - localRaceStartTime;
       const winnerFinishTime = state.finishTimes ? state.finishTimes[state.winnerIdx] : 999999;
 
       // 1. If we've passed the winner's finish time, stop EVERYTHING
@@ -129,7 +140,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
     }
     // In result phase or raceFinished, keep final positions
     animFrameRef.current = requestAnimationFrame(animate);
-  }, [state, raceFinished]);
+  }, [state, raceFinished, localRaceStartTime]);
 
   useEffect(() => {
     animFrameRef.current = requestAnimationFrame(animate);
