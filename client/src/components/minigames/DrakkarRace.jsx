@@ -21,6 +21,7 @@ import {
 import './DrakkarRace.css';
 
 const FINISH_LINE = DOCK_WIDTH + 3 * ZONE_WIDTH; // 98%
+const HOUSE_SEED = 500;
 
 const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const [state, setState] = useState(null);
@@ -181,7 +182,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   // ─── Derived Data ───
   const raceShips = state?.ships || [];
   const raceWeathers = state?.weathers || [];
-  const totalPool = raceShips.reduce((sum, s) => sum + (pools[s.id] || 0), 0);
+  const totalPool = raceShips.reduce((sum, s) => sum + (pools[s.id] || 0), 0) + (HOUSE_SEED * 3);
 
   const getPhaseLabel = () => {
     if (!state) return '';
@@ -195,7 +196,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   };
 
   const getEstimatedPayout = (shipId) => {
-    const shipPool = pools[shipId] || 0;
+    const shipPool = (pools[shipId] || 0) + HOUSE_SEED;
     if (shipPool === 0 || totalPool === 0) return '—';
     const multiplier = (totalPool / shipPool) * 0.9;
     return multiplier.toFixed(1) + 'x';
@@ -380,7 +381,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                     <div className="dv2-bet-card-pools">
                       <div className="dv2-pool-row">
                         <span>Global Pool</span>
-                        <span className="dv2-pool-amount">🪙 {pools[ship.id] || 0}</span>
+                        <span className="dv2-pool-amount">🪙 {(pools[ship.id] || 0) + HOUSE_SEED}</span>
                       </div>
                       <div className="dv2-pool-row">
                         <span>Your Bet</span>
@@ -429,10 +430,11 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
               <p>3 random ships and 3 random weather zones are selected each race. Only Weather #1 is visible during betting — Weathers #2 and #3 are hidden until the race starts!</p>
 
               <h3>Parimutuel Payout</h3>
+              <p>To guarantee massive payouts, the House naturally places a virtual bet of <strong>{HOUSE_SEED} Valcoins</strong> on every single ship to build the starting pools.</p>
               <div className="dv2-formula">
                 Payout = (Total Pool ÷ Winning Ship Pool) × 0.90
               </div>
-              <p>The house takes 10%. If everyone bets on the same ship, payout is low (~0.9x). Bet on an underdog for huge potential wins!</p>
+              <p>The house takes 10%. Bet on an underdog to swipe the House's virtual bets for huge potential wins!</p>
 
               <h3>Speed Multiplier Table</h3>
               <p>Each ship has strengths and weaknesses across 7 weather types:</p>

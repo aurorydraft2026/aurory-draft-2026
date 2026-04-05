@@ -43,6 +43,7 @@ const SPEED_MATRIX: number[][] = [
 const BASE_SPEED = 8; // % of track per second at 1.0x
 const ZONE_WIDTH = 30; // % of track per weather zone
 const HOUSE_CUT = 0.10; // 10% house edge
+const HOUSE_SEED = 500; // Phantom seed injected into every ship's pool
 const DOCK_WIDTH = 8;
 const SHIP_START = 0;
 const MAX_BET_PER_USER = 1000;
@@ -513,71 +514,69 @@ async function processDrakkarPayouts(raceState: any) {
     const winnerId = winnerShip.id;
 
     const bets = await stateRef.collection('bets').get();
-    if (bets.empty) return;
+    let totalPool = HOUSE_SEED * 3;
+    let winnerPool = HOUSE_SEED;
 
-    // Calculate total pool and winner pool
-    let totalPool = 0;
-    let winnerPool = 0;
-    const betDocs: any[] = [];
+    if (!bets.empty) {
+        const betDocs: any[] = [];
+        for (const betDoc of bets.docs) {
+            const bet = betDoc.data();
+            betDocs.push(bet);
+            totalPool += bet.total || 0;
+            winnerPool += bet[winnerId] || 0;
+        }
 
-    for (const betDoc of bets.docs) {
-        const bet = betDoc.data();
-        betDocs.push(bet);
-        totalPool += bet.total || 0;
-        winnerPool += bet[winnerId] || 0;
-    }
+        const payoutMultiplier = (totalPool / winnerPool) * (1 - HOUSE_CUT);
 
-    // Parimutuel payout multiplier
-    const payoutMultiplier = winnerPool > 0 ? (totalPool / winnerPool) * (1 - HOUSE_CUT) : 0;
+        for (const bet of betDocs) {
+            const betOnWinner = bet[winnerId] || 0;
+            if (betOnWinner <= 0) continue;
 
-    // Process individual payouts
-    for (const bet of betDocs) {
-        const betOnWinner = bet[winnerId] || 0;
-        if (betOnWinner <= 0) continue;
+            const winAmount = Math.floor(betOnWinner * payoutMultiplier);
+            if (winAmount <= 0) continue;
 
-        const winAmount = Math.floor(betOnWinner * payoutMultiplier);
-        if (winAmount <= 0) continue;
-
-        try {
-            await db.runTransaction(async (t) => {
-                const userRef = db.collection('users').doc(bet.uid);
-                t.update(userRef, {
-                    points: admin.firestore.FieldValue.increment(winAmount)
-                });
-
-                const historyRef = userRef.collection('miniGameHistory').doc();
-                t.set(historyRef, {
-                    gameType: 'drakkarRace',
-                    prizeName: `${winAmount} Valcoins`,
-                    prizeType: 'valcoins',
-                    prizeAmount: winAmount,
-                    prizeRarity: payoutMultiplier >= 5 ? 'legendary' : payoutMultiplier >= 3 ? 'epic' : 'rare',
-                    prizeIcon: 'legendary_ship.png',
-                    cost: bet.total,
-                    timestamp: admin.firestore.FieldValue.serverTimestamp()
-                });
-            });
-
-            // Big Win → GlobalWinNotifier (payout >= 3x and winAmount >= 100)
-            if (payoutMultiplier >= 3 && winAmount >= 100) {
-                try {
-                    await rtdb.ref('recentMiniGameWinners').push({
-                        playerName: bet.playerName || 'Guest',
-                        playerAvatar: bet.playerAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png',
-                        prizeName: `${winAmount} Valcoins (${payoutMultiplier.toFixed(1)}x)`,
-                        rarity: payoutMultiplier >= 5 ? 'legendary' : 'epic',
-                        icon: 'legendary_ship.png',
-                        gameType: 'drakkarRace',
-                        timestamp: admin.database.ServerValue.TIMESTAMP
+            try {
+                await db.runTransaction(async (t) => {
+                    const userRef = db.collection('users').doc(bet.uid);
+                    t.update(userRef, {
+                        points: admin.firestore.FieldValue.increment(winAmount)
                     });
-                } catch (e) {
-                    console.error('Failed to push to GlobalWinNotifier', e);
+
+                    const historyRef = userRef.collection('miniGameHistory').doc();
+                    t.set(historyRef, {
+                        gameType: 'drakkarRace',
+                        prizeName: `${winAmount} Valcoins`,
+                        prizeType: 'valcoins',
+                        prizeAmount: winAmount,
+                        prizeRarity: payoutMultiplier >= 5 ? 'legendary' : payoutMultiplier >= 3 ? 'epic' : 'rare',
+                        prizeIcon: 'legendary_ship.png',
+                        cost: bet.total,
+                        timestamp: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                });
+
+                if (payoutMultiplier >= 3 && winAmount >= 100) {
+                    try {
+                        await rtdb.ref('recentMiniGameWinners').push({
+                            playerName: bet.playerName || 'Guest',
+                            playerAvatar: bet.playerAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png',
+                            prizeName: `${winAmount} Valcoins (${payoutMultiplier.toFixed(1)}x)`,
+                            rarity: payoutMultiplier >= 5 ? 'legendary' : 'epic',
+                            icon: 'legendary_ship.png',
+                            gameType: 'drakkarRace',
+                            timestamp: admin.database.ServerValue.TIMESTAMP
+                        });
+                    } catch (e) {
+                        console.error('Failed to push to GlobalWinNotifier', e);
+                    }
                 }
+            } catch (err) {
+                console.error(`Failed to pay out user ${bet.uid}`, err);
             }
-        } catch (err) {
-            console.error(`Failed to pay out user ${bet.uid}`, err);
         }
     }
+
+    const finalMultiplier = (totalPool / winnerPool) * (1 - HOUSE_CUT);
 
     // Save race history to RTDB (last 10 races)
     try {
@@ -585,7 +584,7 @@ async function processDrakkarPayouts(raceState: any) {
             raceId: raceState.raceId,
             winner: winnerShip,
             totalPool,
-            payoutMultiplier: Math.round(payoutMultiplier * 100) / 100,
+            payoutMultiplier: Math.round(finalMultiplier * 100) / 100,
             ships: raceState.ships,
             weathers: raceState.weathers,
             timestamp: admin.database.ServerValue.TIMESTAMP
