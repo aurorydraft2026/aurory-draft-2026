@@ -95,6 +95,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       // 1. If we've passed the winner's finish time, stop EVERYTHING
       if (elapsed >= winnerFinishTime) {
         const finalPositions = state.shipIndices.map((sIdx, i) => {
+          if (i === state.winnerIdx) return FINISH_LINE;
           const shipTotalTime = state.finishTimes[i];
           const shipSpeeds = state.weatherIndices.map((wIdx) => SPEED_MATRIX[sIdx][wIdx]);
           return computeShipPosition(shipSpeeds, Math.min(winnerFinishTime, shipTotalTime));
@@ -107,10 +108,22 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       // 2. Normal race movement
       const newPositions = state.shipIndices.map((sIdx) => {
         const shipSpeeds = state.weatherIndices.map((wIdx) => SPEED_MATRIX[sIdx][wIdx]);
-        return computeShipPosition(shipSpeeds, elapsed);
+        return computeShipPosition(shipSpeeds, Math.max(0, elapsed));
       });
 
       setShipPositions(newPositions);
+    } else if (state && state.phase === 'result' && state.finishTimes && !raceFinished) {
+      // 3. Fallback: If server jumped to 'result' phase before client finished animation,
+      // instantly snap ships to exact mathematical finish positions.
+      const winnerFinishTime = state.finishTimes[state.winnerIdx] || 999999;
+      const finalPositions = state.shipIndices.map((sIdx, i) => {
+        if (i === state.winnerIdx) return FINISH_LINE;
+        const shipTotalTime = state.finishTimes[i] || 999999;
+        const shipSpeeds = state.weatherIndices.map((wIdx) => SPEED_MATRIX[sIdx][wIdx]);
+        return computeShipPosition(shipSpeeds, Math.min(winnerFinishTime, shipTotalTime));
+      });
+      setShipPositions(finalPositions);
+      setRaceFinished(true);
     } else if (state && (state.phase === 'betting' || state.phase === 'reveal')) {
       setShipPositions([SHIP_START, SHIP_START, SHIP_START]);
     }
@@ -271,7 +284,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                   <div
                     className={`dv2-ship-wrapper ${state.phase === 'result' && state.winnerIdx === i ? 'winner' : ''}`}
                     style={{
-                      left: `calc(${shipPositions[i]}% - (${shipPositions[i]} / ${FINISH_LINE} * 72px))`,
+                      left: `calc(${shipPositions[i]}% - (${shipPositions[i]} / ${FINISH_LINE} * 50px))`,
                       '--ship-glow': ship.color
                     }}
                   >
