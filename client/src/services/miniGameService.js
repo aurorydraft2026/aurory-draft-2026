@@ -1,53 +1,111 @@
 import { db, database } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { ref, onValue, off } from 'firebase/database';
+import { ref, onValue, off, query, orderByChild, limitToLast } from 'firebase/database';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { createNotification } from './notifications';
 
-export const DRAKKAR_SHIPS = [
+// ═══════════════════════════════════════════════════════
+//  DRAKKAR RACE v2 — CONSTANTS
+// ═══════════════════════════════════════════════════════
+
+export const ALL_SHIPS = [
   { id: 'sleipnir', name: "Sleipnir Swift", color: '#fbbf24', gradient: 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)' },
-  { id: 'jormungandr', name: "Jormungandr Sea-Serpent", color: '#10b981', gradient: 'linear-gradient(135deg, #10b981 0%, #065f46 100%)' },
-  { id: 'ironclad', name: "Ironbound Hulk", color: '#94a3b8', gradient: 'linear-gradient(135deg, #94a3b8 0%, #475569 100%)' },
-  { id: 'shadow', name: "Hugin's Shadow", color: '#a855f7', gradient: 'linear-gradient(135deg, #a855f7 0%, #6b21a8 100%)' },
-  { id: 'prime', name: "Drakkar Prime", color: '#3b82f6', gradient: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)' },
-  { id: 'valkyrie', name: "Valkyrie Chariot", color: '#f472b6', gradient: 'linear-gradient(135deg, #f472b6 0%, #be185d 100%)' },
-  { id: 'raider', name: "Norse Raider", color: '#ef4444', gradient: 'linear-gradient(135deg, #ef4444 0%, #991b1b 100%)' }
+  { id: 'jormungandr', name: "Jörmungandr", color: '#10b981', gradient: 'linear-gradient(135deg, #10b981 0%, #065f46 100%)' },
+  { id: 'ironbound', name: "Ironbound Hulk", color: '#e2e8f0', gradient: 'linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%)' },
+  { id: 'hugin', name: "Hugin's Shadow", color: '#a855f7', gradient: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' },
+  { id: 'drakkar', name: "Drakkar Prime", color: '#3b82f6', gradient: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)' },
+  { id: 'freyja', name: "Freyja's Chariot", color: '#ec4899', gradient: 'linear-gradient(135deg, #ec4899 0%, #be185d 100%)' },
+  { id: 'norse', name: "Norse Raider", color: '#ef4444', gradient: 'linear-gradient(135deg, #ef4444 0%, #991b1b 100%)' }
 ];
 
-export const TRACK_ENVIRONMENTS = {
-  calm: { name: 'Calm Waters', icon: '🌊', color: '#60a5fa' },
-  stormy: { name: 'Stormy Sea', icon: '⚡', color: '#1e40af' },
-  foggy: { name: 'Ethereal Fog', icon: '🌫️', color: '#94a3b8' },
-  tailwind: { name: 'Strong Tailwind', icon: '💨', color: '#34d399' },
-  maelstrom: { name: 'The Maelstrom', icon: '🌀', color: '#4c1d95' },
-  ice: { name: 'Ice Floes', icon: '❄️', color: '#bae6fd' },
-  blood: { name: 'Blood Red Tide', icon: '🩸', color: '#991b1b' }
-};
+export const ALL_WEATHERS = [
+  { id: 'calm', name: 'Calm Seas', icon: '☀️', color: '#60a5fa' },
+  { id: 'storm', name: 'Thunderstorm', icon: '⚡', color: '#fbbf24' },
+  { id: 'fog', name: 'Thick Fog', icon: '🌫️', color: '#94a3b8' },
+  { id: 'kraken', name: 'Kraken Attack', icon: '🐙', color: '#10b981' },
+  { id: 'gale', name: 'Northern Gale', icon: '💨', color: '#60a5fa' },
+  { id: 'ice', name: 'Frozen Wastes', icon: '🧊', color: '#67e8f9' },
+  { id: 'aurora', name: 'Mystic Aurora', icon: '✨', color: '#c084fc' }
+];
 
-export const EFFICIENCY_MATRIX = {
-  sleipnir: { calm: 1.2, stormy: 0.85, foggy: 0.95, tailwind: 1.25, maelstrom: 0.8, ice: 0.9, blood: 1.05 },
-  jormungandr: { calm: 0.95, stormy: 1.3, foggy: 1.1, tailwind: 0.95, maelstrom: 1.15, ice: 1.05, blood: 1.1 },
-  ironclad: { calm: 0.9, stormy: 1.1, foggy: 1.0, tailwind: 0.9, maelstrom: 1.2, ice: 1.2, blood: 1.0 },
-  shadow: { calm: 1.0, stormy: 0.9, foggy: 1.35, tailwind: 1.05, maelstrom: 0.9, ice: 0.95, blood: 1.15 },
-  prime: { calm: 1.1, stormy: 1.05, foggy: 1.05, tailwind: 1.15, maelstrom: 1.0, ice: 1.05, blood: 1.0 },
-  valkyrie: { calm: 1.05, stormy: 0.8, foggy: 0.9, tailwind: 1.3, maelstrom: 0.95, ice: 0.85, blood: 1.25 },
-  raider: { calm: 1.05, stormy: 1.1, foggy: 1.05, tailwind: 1.05, maelstrom: 0.95, ice: 1.1, blood: 0.95 }
-};
+// Latin Square speed matrix (x10)
+// Row = ship index (0-6), Column = weather index (0-6)
+export const SPEED_MATRIX = [
+  [13, 5,  7,  8,  9,  10, 11], // Sleipnir Swift
+  [ 9, 10, 11, 13,  5,   7,  8], // Jörmungandr
+  [ 7,  8,  9, 10, 11,  13,  5], // Ironbound Hulk
+  [10, 11, 13,  5,  7,   8,  9], // Hugin's Shadow
+  [11, 13,  5,  7,  8,   9, 10], // Drakkar Prime
+  [ 5,  7,  8,  9, 10,  11, 13], // Freyja's Chariot
+  [ 8,  9, 10, 11, 13,   5,  7], // Norse Raider
+];
+
+export const CHIP_VALUES = [1, 5, 10, 50, 100];
+export const MAX_BET_PER_USER = 1000;
+
+// Animation constants
+export const BASE_SPEED = 8; // % of track per second at 1.0x
+export const ZONE_WIDTH = 30; // % of track per weather zone
+export const DOCK_WIDTH = 8; // % start zone
+export const FINISH_WIDTH = 2; // % finish zone
 
 /**
- * Fetch mini-game configuration from Firestore
- * @returns {Promise<Object>} The mini-game settings
+ * Compute ship position at a given elapsed time (ms)
+ * Returns position as % of track (0-100)
  */
+export function computeShipPosition(speeds, elapsedMs) {
+  let position = DOCK_WIDTH; // start at edge of dock
+  let remainingMs = elapsedMs;
+
+  for (let i = 0; i < speeds.length; i++) {
+    const speed = speeds[i];
+    const zoneSpeed = (speed / 10) * BASE_SPEED; // % per second
+    const zoneTimeMs = (ZONE_WIDTH / zoneSpeed) * 1000;
+
+    if (remainingMs >= zoneTimeMs) {
+      position += ZONE_WIDTH;
+      remainingMs -= zoneTimeMs;
+    } else {
+      position += (remainingMs / 1000) * zoneSpeed;
+      return Math.min(position, DOCK_WIDTH + 3 * ZONE_WIDTH + FINISH_WIDTH);
+    }
+  }
+
+  // Past all zones — at finish line
+  return DOCK_WIDTH + 3 * ZONE_WIDTH;
+}
+
+/**
+ * Get the speed multiplier display value (e.g., 13 → "1.3x")
+ */
+export function formatSpeed(rawSpeed) {
+  return (rawSpeed / 10).toFixed(1) + 'x';
+}
+
+/**
+ * Get global ship index from ship id
+ */
+export function getShipGlobalIndex(shipId) {
+  return ALL_SHIPS.findIndex(s => s.id === shipId);
+}
+
+/**
+ * Get weather global index from weather id
+ */
+export function getWeatherGlobalIndex(weatherId) {
+  return ALL_WEATHERS.findIndex(w => w.id === weatherId);
+}
+
+
+// ═══════════════════════════════════════════════════════
+//  EXISTING MINI-GAME FUNCTIONS
+// ═══════════════════════════════════════════════════════
+
 export async function getMiniGameConfig() {
   try {
     const configRef = doc(db, 'settings', 'mini_games');
     const configSnap = await getDoc(configRef);
-
-    if (!configSnap.exists()) {
-      // Return defaults if no config exists yet
-      return getDefaultConfig();
-    }
-
+    if (!configSnap.exists()) return getDefaultConfig();
     return configSnap.data();
   } catch (error) {
     console.error('Error fetching mini-game config:', error);
@@ -55,9 +113,6 @@ export async function getMiniGameConfig() {
   }
 }
 
-/**
- * Default configuration used when no admin config exists
- */
 function getDefaultConfig() {
   return {
     slotMachine: {
@@ -92,23 +147,19 @@ function getDefaultConfig() {
     },
     drakkarRace: {
       enabled: true,
-      minBet: 10,
-      description: 'Bet on mythical ships in a real-time global race!',
-      multiplier: 3.8
+      minBet: 1,
+      maxBetPerUser: 1000,
+      description: 'Bet on legendary ships in a real-time parimutuel race!',
+      multiplier: 'parimutuel'
     }
   };
 }
 
 
-/**
- * Play a mini-game (Backend-revealed)
- * 
- * Calls a Firebase Cloud Function to securely handle price/payout.
- * 
- * @param {Object} user - The authenticated user object
- * @param {string} gameType - 'slotMachine' or 'treasureChest'
- * @returns {Promise<Object>} Result with prize details
- */
+// ═══════════════════════════════════════════════════════
+//  PLAY MINI GAME (Slot Machine / Treasure Chest)
+// ═══════════════════════════════════════════════════════
+
 export async function playMiniGame(user, gameType) {
   if (!user || !user.uid) {
     return { success: false, error: 'Please log in to play' };
@@ -117,7 +168,6 @@ export async function playMiniGame(user, gameType) {
   try {
     const functions = getFunctions();
     const playMiniGameFn = httpsCallable(functions, 'playMiniGame');
-    
     const result = await playMiniGameFn({ gameType });
     const { success, prize, cost, newBalance, error } = result.data;
 
@@ -125,7 +175,6 @@ export async function playMiniGame(user, gameType) {
       return { success: false, error: error || 'Failed to play mini-game' };
     }
 
-    // Send notification for notable wins (rare+)
     if (prize && prize.rarity !== 'common') {
       await createNotification(user.uid, {
         title: `🎉 ${prize.rarity.toUpperCase()} WIN!`,
@@ -137,79 +186,50 @@ export async function playMiniGame(user, gameType) {
     return { success: true, prize, cost, newBalance };
   } catch (error) {
     console.error('Error playing mini-game:', error);
-    // Handle specific Firebase HttpsErrors
-    const errorMessage = error.details?.message || error.message || 'An error occurred while playing.';
+    const errorMessage = error.details?.message || error.message || 'An error occurred.';
     return { success: false, error: errorMessage };
   }
 }
 
-/**
- * Get rarity color for a prize
- * @param {string} rarity - 'common', 'rare', 'epic', 'legendary'
- * @returns {string} CSS color value
- */
-export function getRarityColor(rarity) {
-  switch (rarity) {
-    case 'legendary': return '#ff9800';
-    case 'epic': return '#9c27b0';
-    case 'rare': return '#2196f3';
-    case 'common':
-    default: return '#78909c';
-  }
-}
 
-/**
- * Get the current state of the Drakkar Race from RTDB
- * @param {Function} callback - Callback for state updates
- * @returns {Function} Unsubscribe function
- */
+// ═══════════════════════════════════════════════════════
+//  DRAKKAR RACE v2 — REALTIME SUBSCRIPTIONS
+// ═══════════════════════════════════════════════════════
+
 export function subscribeDrakkarRaceState(callback) {
   const stateRef = ref(database, 'drakkar_race/state');
   onValue(stateRef, (snapshot) => {
     callback(snapshot.exists() ? snapshot.val() : null);
   });
-
   return () => off(stateRef);
 }
 
-/**
- * Subscribe to the live betting pools for the current race
- * @param {Function} callback 
- */
 export function subscribeDrakkarPools(callback) {
   const poolsRef = ref(database, 'drakkar_race/pools');
   onValue(poolsRef, (snapshot) => {
-    if (snapshot.exists()) {
-      callback(snapshot.val());
-    }
+    callback(snapshot.exists() ? snapshot.val() : {});
   });
-
   return () => off(poolsRef);
 }
 
-/**
- * Subscribe to the last 20 race results
- * @param {Function} callback 
- */
 export function subscribeDrakkarHistory(callback) {
-  const historyRef = ref(database, 'drakkar_race/history');
+  const historyRef = query(
+    ref(database, 'drakkar_race/history'),
+    orderByChild('timestamp'),
+    limitToLast(10)
+  );
   onValue(historyRef, (snapshot) => {
     if (snapshot.exists()) {
       const data = snapshot.val();
-      // Sort by timestamp descending
-      const list = Object.values(data).sort((a, b) => b.timestamp - a.timestamp);
-      callback(list);
+      const entries = Object.values(data).sort((a, b) => b.timestamp - a.timestamp);
+      callback(entries);
     } else {
       callback([]);
     }
   });
-
   return () => off(historyRef);
 }
 
-/**
- * Pulse the server to advance the race phase if needed
- */
 export async function refreshDrakkarRace() {
   try {
     const functions = getFunctions();
@@ -220,9 +240,6 @@ export async function refreshDrakkarRace() {
   }
 }
 
-/**
- * Place a bet on a ship
- */
 export async function placeDrakkarBet(shipId, amount) {
   try {
     const functions = getFunctions();
@@ -236,11 +253,20 @@ export async function placeDrakkarBet(shipId, amount) {
 }
 
 
-/**
- * Get rarity label for display
- * @param {string} rarity
- * @returns {string}
- */
+// ═══════════════════════════════════════════════════════
+//  UTILITY FUNCTIONS
+// ═══════════════════════════════════════════════════════
+
+export function getRarityColor(rarity) {
+  switch (rarity) {
+    case 'legendary': return '#ff9800';
+    case 'epic': return '#9c27b0';
+    case 'rare': return '#2196f3';
+    case 'common':
+    default: return '#78909c';
+  }
+}
+
 export function getRarityLabel(rarity) {
   switch (rarity) {
     case 'legendary': return '★★★★';
@@ -251,11 +277,6 @@ export function getRarityLabel(rarity) {
   }
 }
 
-/**
- * Get thematic recommended icons for a rarity tier
- * @param {string} rarity 
- * @returns {Array} List of emojis
- */
 export function getRecommendedIcons(rarity) {
   switch (rarity) {
     case 'legendary': return ['legendary_ship.png', 'legendary_hammer.png'];

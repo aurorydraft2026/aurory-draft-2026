@@ -1,505 +1,775 @@
-.drakkar-race-container {
+/* ═══════════════════════════════════════════════════════
+   DRAKKAR RACE v2 — Complete Redesign
+   ═══════════════════════════════════════════════════════ */
+
+.drakkar-v2-container {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
   width: 100%;
   max-width: 1100px;
   margin: 0 auto;
   position: relative;
-  min-height: 700px;
-  padding: 20px;
-  background: rgba(15, 23, 42, 0.85);
-  border-radius: 20px;
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: white;
 }
 
-/* ───────────── STICKY HEADER ───────────── */
-.race-header-sticky {
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  background: #0f172a;
-  padding: 15px 20px;
-  border-bottom: 2px solid rgba(255,255,255,0.05);
-  margin: -20px -20px 10px -20px;
-}
-
-.race-status-bar {
+/* ─── STATUS BAR ─── */
+.dv2-status-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 15px;
+  padding: 10px 16px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.05);
 }
 
-.timer-pill {
-  background: rgba(251, 191, 36, 0.15);
-  color: #fbbf24;
-  padding: 8px 20px;
-  border-radius: 30px;
-  font-weight: 900;
-  font-size: 1.2rem;
-  border: 2px solid rgba(251, 191, 36, 0.3);
-  box-shadow: 0 0 15px rgba(251, 191, 36, 0.2);
-}
-
-.race-rules-btn {
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.2);
-  color: #cbd5e1;
-  padding: 6px 14px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.8rem;
-  font-weight: 700;
-  transition: all 0.2s;
+.dv2-status-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 16px;
 }
 
-.race-rules-btn:hover {
-  background: rgba(255,255,255,0.15);
-  border-color: #fbbf24;
-  color: white;
-}
-
-/* ───────────── TRACK AREA ───────────── */
-.race-track-area {
-  position: relative;
-  width: 100%;
-  height: 280px;
-  background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
-  border-radius: 16px;
-  overflow: hidden;
-  border: 2px solid rgba(255, 255, 255, 0.05);
-  box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
-}
-
-.track-harbor {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 10%;
-  background: rgba(0,0,0,0.3);
-  border-right: 2px solid rgba(255,255,255,0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2;
-}
-
-.track-finish {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 10%;
-  background: rgba(255,255,255,0.02);
-  border-left: 3px dashed gold;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2;
-}
-
-.track-harbor span, .track-finish span {
-  font-size: 0.6rem;
-  font-weight: 900;
-  color: rgba(255,255,255,0.2);
-  writing-mode: vertical-rl;
+.dv2-phase-label {
   text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 800;
+  font-size: 0.8rem;
+  color: #f1f5f9;
 }
 
-.ship-v-bet-card {
-  background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.6) 100%);
-  border: 2px solid var(--ship-accent) !important; /* Thick themed border */
-  border-radius: 12px;
-  padding: 15px;
+.dv2-race-id {
+  font-size: 0.7rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.dv2-status-right {
   display: flex;
-  flex-direction: column;
   align-items: center;
   gap: 10px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.5), inset 0 0 10px var(--ship-accent);
 }
 
-.ship-v-info h4 {
-  margin: 0;
-  font-size: 0.7rem !important; /* Dainty ship names */
-  color: #ffffff !important;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-  font-weight: 900;
-}
-
-.ship-v-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  align-items: center;
-}
-
-.ship-v-pool {
-  font-size: 0.7rem !important;
-  font-weight: 800;
-  color: #fbbf24 !important; /* Gold for global */
-}
-
-.ship-v-solo {
-  font-size: 0.65rem !important;
-  font-weight: 900;
-  color: #4ade80 !important; /* Emerald for personal */
-  background: rgba(74, 222, 128, 0.1);
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-
-.ship-v-add-hint {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  font-size: 0.65rem !important;
-  font-weight: 900;
-  color: var(--ship-accent) !important;
-  text-shadow: 0 0 10px var(--ship-accent);
-  opacity: 1;
-}
-
-/* ⚡ CLICK FEEDBACK ⚡ */
-.ship-v-bet-card:active:not(:disabled) {
-  transform: scale(0.96);
-  box-shadow: 0 0 25px var(--ship-accent);
-}
-
-.ship-v-bet-card:disabled {
-  cursor: not-allowed;
-  filter: grayscale(0.5);
-  opacity: 0.7;
-}
-
-.ship-v-bet-card:disabled h4, 
-.ship-v-bet-card:disabled .ship-v-pool {
-  color: rgba(255,255,255,0.6) !important; /* Readable even when betting is closed */
-}
-
-/* ─── RULES MODAL (SMALLER) ─── */
-.rules-modal-box {
-  background: #1a1b26;
+.dv2-rules-btn {
+  background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 16px;
-  width: 90%;
-  max-width: 550px; /* Much smaller */
-  padding: 20px;
-  box-shadow: 0 0 50px rgba(0,0,0,0.8);
-  animation: modalIn 0.3s ease-out;
-}
-
-.rules-modal-header h3 {
-  font-size: 1.1rem;
-}
-
-.rules-section h4 {
-  font-size: 0.85rem;
-  margin-bottom: 5px;
-}
-
-.rules-section p {
+  color: #94a3b8;
+  padding: 4px 12px;
+  border-radius: 6px;
   font-size: 0.75rem;
-  line-height: 1.4;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.efficiency-table {
-  font-size: 0.7rem;
+.dv2-rules-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: #e2e8f0;
 }
 
-.eff-cell {
-  padding: 4px 6px !important;
+.dv2-timer-pill {
+  background: rgba(59,130,246,0.2);
+  color: #60a5fa;
+  padding: 4px 14px;
+  border-radius: 20px;
+  font-weight: 800;
+  font-size: 0.9rem;
+  min-width: 40px;
+  text-align: center;
 }
 
-.ship-name-cell {
-  font-size: 0.7rem;
+.dv2-error {
+  background: rgba(239,68,68,0.15);
+  border: 1px solid rgba(239,68,68,0.3);
+  color: #fca5a5;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
-.track-segments {
+
+/* ─── MAIN LAYOUT ─── */
+.dv2-main-layout {
   display: flex;
-  position: absolute;
-  left: 10%;
-  right: 10%;
-  top: 0;
-  bottom: 0;
-  z-index: 1;
+  gap: 16px;
 }
 
-.track-segment {
-  flex: 1;
+
+/* ─── HISTORY PANEL ─── */
+.dv2-history-panel {
+  width: 200px;
+  min-width: 200px;
+  background: rgba(0,0,0,0.4);
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.05);
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  padding-top: 20px;
-  font-size: 0.75rem;
-  font-weight: 800;
-  color: #94a3b8;
-  border-right: 2px dashed rgba(255,255,255,0.1);
-  background: rgba(0,0,0,0.1);
+  max-height: 600px;
 }
 
-.segment-icon {
-  font-size: 1.4rem;
+.dv2-history-title {
+  margin: 0 0 10px 0;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+}
+
+.dv2-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.dv2-history-empty {
+  color: #475569;
+  font-size: 0.75rem;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.dv2-history-item {
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px;
+  padding: 8px;
+  border: 1px solid rgba(255,255,255,0.03);
+}
+
+.dv2-history-winner-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin-bottom: 4px;
 }
 
-/* ───────────── SHIPS ───────────── */
-.ships-lane-container {
-  padding-top: 70px;
+.dv2-history-ship-icon {
+  width: 18px;
+  height: 14px;
+  object-fit: contain;
+}
+
+.dv2-history-ship-name {
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dv2-history-details {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  color: #64748b;
+}
+
+.dv2-history-multiplier {
+  font-weight: 700;
+  color: #fbbf24;
+}
+
+
+/* ─── RACE SECTION ─── */
+.dv2-race-section {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: space-around;
-  height: 220px;
-  position: relative;
-  z-index: 10;
+  gap: 12px;
+  min-width: 0;
 }
 
-.ship-lane {
-  height: 50px;
-  position: relative;
+
+/* ─── WEATHER BAR ─── */
+.dv2-weather-bar {
+  display: flex;
+  height: 44px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.05);
 }
 
-.racer-ship-wrapper {
+.dv2-weather-dock {
+  width: 8%;
+  background: rgba(30,58,138,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  color: #94a3b8;
+  font-weight: 600;
+  border-right: 2px dashed rgba(255,255,255,0.15);
+}
+
+.dv2-weather-zone {
+  width: 30%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.7);
+  background: rgba(0,0,0,0.3);
+  border-right: 2px dashed rgba(255,255,255,0.15);
+  transition: all 0.5s ease;
+}
+
+.dv2-weather-zone.hidden {
+  background: rgba(0,0,0,0.6);
+  color: rgba(255,255,255,0.3);
+}
+
+.dv2-weather-icon {
+  font-size: 1rem;
+}
+
+.dv2-weather-name {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dv2-weather-finish {
+  width: 2%;
+  background: rgba(234,179,8,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+}
+
+
+/* ─── RACE TRACK ─── */
+.dv2-track-area {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  background: linear-gradient(180deg, #1e3a8a 0%, #172554 60%, #0f172a 100%);
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.05);
+  box-shadow: inset 0 0 40px rgba(0,0,0,0.5);
+}
+
+.dv2-track-water {
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 60px,
+      rgba(255,255,255,0.01) 60px,
+      rgba(255,255,255,0.01) 120px
+    );
+  animation: waterDrift 6s linear infinite;
+}
+
+@keyframes waterDrift {
+  0% { background-position: 0 0; }
+  100% { background-position: 120px 0; }
+}
+
+.dv2-zone-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-left: 2px dashed rgba(255,255,255,0.12);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.dv2-finish-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: repeating-linear-gradient(
+    180deg,
+    #fbbf24 0px,
+    #fbbf24 6px,
+    transparent 6px,
+    transparent 12px
+  );
+  z-index: 5;
+  pointer-events: none;
+  box-shadow: 0 0 10px rgba(251,191,36,0.3);
+}
+
+
+/* ─── SHIP LANES ─── */
+.dv2-lanes {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.dv2-lane {
+  flex: 1;
+  position: relative;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  display: flex;
+  align-items: center;
+}
+
+.dv2-lane:last-child {
+  border-bottom: none;
+}
+
+.dv2-lane-label {
+  position: absolute;
+  left: 4px;
+  top: 2px;
+  font-size: 0.55rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.5;
+  z-index: 15;
+  white-space: nowrap;
+}
+
+.dv2-ship-wrapper {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
-  flex-direction: column;
   align-items: center;
+  gap: 4px;
+  z-index: 10;
+  transition: none; /* No CSS transition — pure JS animation */
 }
 
-.racer-ship-img {
-  width: 58px;
-  height: 46px;
+.dv2-ship-wrapper.winner {
+  animation: winnerPulse 0.6s ease infinite alternate;
+}
+
+@keyframes winnerPulse {
+  0% { filter: brightness(1); }
+  100% { filter: brightness(1.4) drop-shadow(0 0 12px var(--ship-glow)); }
+}
+
+.dv2-ship-img {
+  width: 48px;
+  height: 36px;
   object-fit: contain;
 }
 
-.racer-name-tag {
-  position: absolute;
-  bottom: 115%;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.55rem;
-  font-weight: 900;
-  color: white;
-  padding: 2px 6px;
-  border-radius: 4px;
-  white-space: nowrap;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-  text-transform: uppercase;
+.dv2-winner-badge {
+  font-size: 1rem;
+  animation: crownBounce 0.5s ease infinite alternate;
 }
 
-/* ───────────── HUD LAYOUT ───────────── */
-.drakkar-new-hud-layout {
+@keyframes crownBounce {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-4px); }
+}
+
+
+/* ─── RESULT BANNER ─── */
+.dv2-result-banner {
   display: flex;
-  gap: 20px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 20px;
+  background: rgba(0,0,0,0.6);
+  border-radius: 10px;
+  border: 1px solid rgba(251,191,36,0.2);
+  animation: resultSlide 0.4s ease;
 }
 
-.race-history-section {
-  width: 220px;
-  background: rgba(0,0,0,0.3);
-  border-radius: 16px;
-  border: 1px solid rgba(255,255,255,0.05);
+@keyframes resultSlide {
+  0% { opacity: 0; transform: translateY(-10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.dv2-result-crown {
+  font-size: 1.5rem;
+}
+
+.dv2-result-name {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.dv2-result-payout {
+  font-size: 0.85rem;
+  color: #fbbf24;
+  font-weight: 700;
+  background: rgba(251,191,36,0.1);
+  padding: 2px 10px;
+  border-radius: 12px;
+}
+
+
+/* ─── BETTING SECTION ─── */
+.dv2-betting-section {
   display: flex;
   flex-direction: column;
+  gap: 10px;
+}
+
+.dv2-chip-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dv2-chip-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.dv2-chip {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #e2e8f0;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.dv2-chip:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+.dv2-chip.active {
+  background: rgba(59,130,246,0.3);
+  border-color: #3b82f6;
+  color: #93c5fd;
+  box-shadow: 0 0 8px rgba(59,130,246,0.2);
+}
+
+
+/* ─── BET CARDS ─── */
+.dv2-bet-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.dv2-bet-card {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 14px;
+  transition: all 0.2s;
+  position: relative;
   overflow: hidden;
 }
 
-.history-header-pill {
-  padding: 10px;
-  background: rgba(255,255,255,0.05);
-  font-size: 0.7rem;
-  font-weight: 900;
-  text-align: center;
-  color: #fbbf24;
+.dv2-bet-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--ship-accent);
+  opacity: 0.6;
 }
 
-.history-mini-item {
+.dv2-bet-card:hover:not(.disabled) {
+  border-color: var(--ship-accent);
+  box-shadow: 0 0 20px rgba(0,0,0,0.3);
+  transform: translateY(-2px);
+}
+
+.dv2-bet-card.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.dv2-bet-card-top {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
-  font-size: 0.8rem;
+  margin-bottom: 10px;
 }
 
-.h-dot { width: 10px; height: 10px; border-radius: 50%; }
+.dv2-bet-card-ship {
+  width: 40px;
+  height: 32px;
+  object-fit: contain;
+}
 
-.race-betting-main {
-  flex: 1;
-  background: rgba(0,0,0,0.25);
-  padding: 20px;
-  border-radius: 16px;
+.dv2-bet-card-info h4 {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.dv2-speed-hint {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.dv2-bet-card-pools {
   display: flex;
   flex-direction: column;
-  gap: 15px;
-}
-
-.chip-selector-bar {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  padding-bottom: 10px;
-}
-
-.bet-chip-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   gap: 4px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.1);
-  padding: 8px 16px;
-  border-radius: 12px;
-  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.dv2-pool-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+.dv2-pool-amount {
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.dv2-my-bet {
+  color: #60a5fa;
+}
+
+.dv2-payout {
+  color: #fbbf24;
+}
+
+.dv2-place-bet-btn {
+  width: 100%;
+  border: none;
   color: white;
-}
-
-.bet-chip-btn.active {
-  border-color: #fbbf24;
-  background: rgba(251, 191, 36, 0.1);
-}
-
-.chip-icon {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-}
-
-.ship-betting-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 15px;
-}
-
-.ship-v-bet-card {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 12px;
-  padding: 12px;
+  padding: 8px;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 0.8rem;
   cursor: pointer;
-  text-align: center;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  transition: all 0.15s;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.ship-v-preview {
-  height: 60px;
+.dv2-place-bet-btn:hover:not(:disabled) {
+  filter: brightness(1.15);
+  transform: scale(1.02);
+}
+
+.dv2-place-bet-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dv2-totals-bar {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 600;
+  padding: 6px 10px;
   background: rgba(0,0,0,0.2);
   border-radius: 8px;
 }
 
-.ship-v-preview img {
-  max-width: 50px;
-  max-height: 40px;
-  object-fit: contain;
-}
 
-/* ───────────── OVERLAYS ───────────── */
-.race-result-overlay, .race-rules-overlay {
+/* ─── RULES MODAL ─── */
+.dv2-rules-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.9);
-  backdrop-filter: blur(8px);
+  background: rgba(0,0,0,0.7);
+  z-index: 10000;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  backdrop-filter: blur(4px);
 }
 
-.winner-content-card {
-  background: #0f172a;
-  border: 4px solid var(--winner-accent);
-  border-radius: 40px;
-  padding: 40px;
-  width: 100%;
-  max-width: 450px;
-  text-align: center;
-  box-shadow: 0 0 60px -10px var(--winner-accent);
-  animation: mgWinnerScale 0.5s ease-out;
-}
-
-.winner-ship-display {
-  width: 200px;
-  height: 160px;
-  margin: 0 auto 20px;
-  background: radial-gradient(circle, var(--winner-accent) 0%, transparent 70%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.winner-hero-img {
-  max-width: 180px;
-  max-height: 130px;
-  object-fit: contain;
-  filter: drop-shadow(0 0 15px rgba(255,255,255,0.3));
-}
-
-.winner-announce-text {
-  font-size: 2rem;
-  font-weight: 900;
-  color: white;
-  text-transform: uppercase;
-}
-
-/* 📐 RULES MODAL */
-.rules-modal-box {
+.dv2-rules-modal {
   background: #1e293b;
-  width: 100%;
-  max-width: 750px;
-  border-radius: 24px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+  width: 90%;
+  max-width: 800px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
-  animation: mgSlideUp 0.4s ease-out;
 }
 
-.rules-modal-header {
-  padding: 15px 20px;
-  background: rgba(255,255,255,0.03);
+.dv2-rules-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
-.efficiency-table {
+.dv2-rules-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #f1f5f9;
+}
+
+.dv2-rules-close {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+
+.dv2-rules-close:hover {
+  background: rgba(255,255,255,0.05);
+  color: #e2e8f0;
+}
+
+.dv2-rules-body {
+  padding: 20px;
+  overflow-y: auto;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.dv2-rules-body h3 {
+  color: #f1f5f9;
+  font-size: 0.95rem;
+  margin: 18px 0 8px 0;
+}
+
+.dv2-rules-body h3:first-child {
+  margin-top: 0;
+}
+
+.dv2-rules-body ul {
+  padding-left: 20px;
+}
+
+.dv2-rules-body li {
+  margin-bottom: 4px;
+}
+
+.dv2-formula {
+  background: rgba(59,130,246,0.1);
+  border: 1px solid rgba(59,130,246,0.2);
+  color: #93c5fd;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-align: center;
+  margin: 10px 0;
+  font-family: 'SF Mono', 'Monaco', monospace;
+}
+
+
+/* ─── SPEED TABLE ─── */
+.dv2-rules-table-wrapper {
+  overflow-x: auto;
+  margin: 10px 0;
+}
+
+.dv2-speed-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: 0.7rem;
+}
+
+.dv2-speed-table th,
+.dv2-speed-table td {
+  padding: 6px 8px;
   text-align: center;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
-.efficiency-table th, .efficiency-table td {
-  padding: 10px;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
+.dv2-speed-table th {
+  color: #94a3b8;
+  font-weight: 700;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  background: rgba(0,0,0,0.2);
 }
 
-.eff-cell.high { color: #4ade80; font-weight: 800; }
-.eff-cell.low { color: #f87171; }
-
-@keyframes mgWinnerScale {
-  from { transform: scale(0.8); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+.dv2-speed-table th small {
+  display: block;
+  font-size: 0.55rem;
+  font-weight: 500;
+  opacity: 0.7;
 }
 
-@keyframes mgSlideUp {
-  from { transform: translateY(30px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+.dv2-speed-table td {
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+.dv2-speed-table td:first-child {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.dv2-speed-table td.speed-best {
+  color: #4ade80;
+  font-weight: 800;
+  background: rgba(74,222,128,0.08);
+}
+
+.dv2-speed-table td.speed-worst {
+  color: #f87171;
+  font-weight: 800;
+  background: rgba(248,113,113,0.08);
+}
+
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 900px) {
+  .dv2-main-layout {
+    flex-direction: column;
+  }
+
+  .dv2-history-panel {
+    width: 100%;
+    min-width: unset;
+    max-height: 120px;
+    flex-direction: column;
+  }
+
+  .dv2-history-list {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 8px;
+  }
+
+  .dv2-history-item {
+    min-width: 140px;
+  }
+}
+
+@media (max-width: 700px) {
+  .dv2-bet-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .dv2-track-area {
+    height: 160px;
+  }
+
+  .dv2-ship-img {
+    width: 36px;
+    height: 28px;
+  }
 }

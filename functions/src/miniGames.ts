@@ -1,44 +1,128 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 
-const DRAKKAR_SHIPS = [
+// ═══════════════════════════════════════════════════════
+//  DRAKKAR RACE v2 — 7 Ships, 7 Weathers, Latin Square
+// ═══════════════════════════════════════════════════════
+
+const ALL_SHIPS = [
     { id: 'sleipnir', name: "Sleipnir Swift", color: '#fbbf24' },
-    { id: 'jormungandr', name: "Jormungandr Sea-Serpent", color: '#10b981' },
-    { id: 'ironclad', name: "Ironbound Hulk", color: '#94a3b8' },
-    { id: 'shadow', name: "Hugin's Shadow", color: '#a855f7' },
-    { id: 'prime', name: "Drakkar Prime", color: '#3b82f6' },
-    { id: 'valkyrie', name: "Valkyrie Chariot", color: '#f472b6' },
-    { id: 'raider', name: "Norse Raider", color: '#ef4444' }
+    { id: 'jormungandr', name: "Jörmungandr", color: '#10b981' },
+    { id: 'ironbound', name: "Ironbound Hulk", color: '#e2e8f0' },
+    { id: 'hugin', name: "Hugin's Shadow", color: '#a855f7' },
+    { id: 'drakkar', name: "Drakkar Prime", color: '#3b82f6' },
+    { id: 'freyja', name: "Freyja's Chariot", color: '#ec4899' },
+    { id: 'norse', name: "Norse Raider", color: '#ef4444' }
 ];
 
-const TRACK_TYPES = ['calm', 'stormy', 'foggy', 'tailwind', 'maelstrom', 'ice', 'blood'];
+const ALL_WEATHERS = [
+    { id: 'calm', name: 'Calm Seas', icon: '☀️' },
+    { id: 'storm', name: 'Thunderstorm', icon: '⚡' },
+    { id: 'fog', name: 'Thick Fog', icon: '🌫️' },
+    { id: 'kraken', name: 'Kraken Attack', icon: '🐙' },
+    { id: 'gale', name: 'Northern Gale', icon: '💨' },
+    { id: 'ice', name: 'Frozen Wastes', icon: '🧊' },
+    { id: 'aurora', name: 'Mystic Aurora', icon: '✨' }
+];
 
-// Speed Efficiency Matrix (Modifier based on Weather)
-const EFFICIENCY_MATRIX: any = {
-  sleipnir: { calm: 1.2, stormy: 0.85, foggy: 0.95, tailwind: 1.25, maelstrom: 0.8, ice: 0.9, blood: 1.05 },
-  jormungandr: { calm: 0.95, stormy: 1.3, foggy: 1.1, tailwind: 0.95, maelstrom: 1.15, ice: 1.05, blood: 1.1 },
-  ironclad: { calm: 0.9, stormy: 1.1, foggy: 1.0, tailwind: 0.9, maelstrom: 1.2, ice: 1.2, blood: 1.0 },
-  shadow: { calm: 1.0, stormy: 0.9, foggy: 1.35, tailwind: 1.05, maelstrom: 0.9, ice: 0.95, blood: 1.15 },
-  prime: { calm: 1.1, stormy: 1.05, foggy: 1.05, tailwind: 1.15, maelstrom: 1.0, ice: 1.05, blood: 1.0 },
-  valkyrie: { calm: 1.05, stormy: 0.8, foggy: 0.9, tailwind: 1.3, maelstrom: 0.95, ice: 0.85, blood: 1.25 },
-  raider: { calm: 1.05, stormy: 1.1, foggy: 1.05, tailwind: 1.05, maelstrom: 0.95, ice: 1.1, blood: 0.95 }
-};
+// Latin Square speed matrix (x10 integers to avoid floating point)
+// Row = ship index, Column = weather index
+// Values: 5=0.5x, 7=0.7x, 8=0.8x, 9=0.9x, 10=1.0x, 11=1.1x, 13=1.3x
+// Each row and column contains each value exactly once
+const SPEED_MATRIX: number[][] = [
+    // Calm  Storm  Fog  Kraken  Gale  Ice  Aurora
+    [  13,    5,     7,    8,     9,   10,   11  ], // Sleipnir Swift
+    [   9,   10,    11,   13,     5,    7,    8  ], // Jörmungandr
+    [   7,    8,     9,   10,    11,   13,    5  ], // Ironbound Hulk
+    [  10,   11,    13,    5,     7,    8,    9  ], // Hugin's Shadow
+    [  11,   13,     5,    7,     8,    9,   10  ], // Drakkar Prime
+    [   5,    7,     8,    9,    10,   11,   13  ], // Freyja's Chariot
+    [   8,    9,    10,   11,    13,    5,    7  ], // Norse Raider
+];
 
-const HOUSE_RAKE = 0.1; // 10%
-const MIN_PAYOUT = 1.1; // Ensure 10% profit even on favorites
+const BASE_SPEED = 8; // % of track per second at 1.0x
+const ZONE_WIDTH = 30; // % of track per weather zone
+const HOUSE_CUT = 0.10; // 10% house edge
+const MAX_BET_PER_USER = 1000;
 
 // Phase Durations (ms)
 const DURATIONS = {
     betting: 20000,
-    pause: 2000,
-    race: 7000, // Slightly longer for more dramatic comebacks
+    reveal: 2000,
+    racing: 0, // dynamic — set to winner's finish time + buffer
     result: 3000
 };
 
+
+// ═══════════════════════════════════════════════════════
+//  RACE LOGIC
+// ═══════════════════════════════════════════════════════
+
+function shuffleArray<T>(arr: T[]): T[] {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+/** Pick 3 unique random indices from 0..6 */
+function pick3(): number[] {
+    const indices = [0, 1, 2, 3, 4, 5, 6];
+    const shuffled = shuffleArray(indices);
+    return shuffled.slice(0, 3);
+}
+
 /**
- * Play a mini-game (Backend version)
- * Handle prize selection, point deduction, and payouts securely.
+ * Compute race finish time (ms) for a ship given 3 weather zone speeds.
+ * time = sum( ZONE_WIDTH / (speed * BASE_SPEED / 10) ) in seconds, converted to ms
+ * Using integer arithmetic: time_ms = sum( ZONE_WIDTH * 10 * 1000 / (speed * BASE_SPEED) )
  */
+function computeFinishTimeMs(speeds: number[]): number {
+    let totalMs = 0;
+    for (const speed of speeds) {
+        // time for this zone in ms = (ZONE_WIDTH / (speed/10 * BASE_SPEED)) * 1000
+        // = (ZONE_WIDTH * 10000) / (speed * BASE_SPEED)
+        totalMs += (ZONE_WIDTH * 10000) / (speed * BASE_SPEED);
+    }
+    return totalMs;
+}
+
+/**
+ * Determine race winner from 3 ships and 3 weathers.
+ * Returns { winnerIdx, finishTimes } where winnerIdx is 0, 1, or 2.
+ */
+function determineRaceResult(shipIndices: number[], weatherIndices: number[]) {
+    const finishTimes: number[] = [];
+
+    for (const shipIdx of shipIndices) {
+        const speeds = weatherIndices.map(wIdx => SPEED_MATRIX[shipIdx][wIdx]);
+        finishTimes.push(computeFinishTimeMs(speeds));
+    }
+
+    // Find winner (lowest time). Tiebreaker: ship with higher speed in last zone
+    let winnerIdx = 0;
+    for (let i = 1; i < 3; i++) {
+        if (finishTimes[i] < finishTimes[winnerIdx]) {
+            winnerIdx = i;
+        } else if (finishTimes[i] === finishTimes[winnerIdx]) {
+            // Tiebreaker: higher speed in last weather zone
+            const lastWeather = weatherIndices[2];
+            const speedA = SPEED_MATRIX[shipIndices[winnerIdx]][lastWeather];
+            const speedB = SPEED_MATRIX[shipIndices[i]][lastWeather];
+            if (speedB > speedA) winnerIdx = i;
+        }
+    }
+
+    return { winnerIdx, finishTimes };
+}
+
+
+// ═══════════════════════════════════════════════════════
+//  EXISTING MINI-GAMES (Slot Machine / Treasure Chest)
+// ═══════════════════════════════════════════════════════
+
 export const playMiniGame = onCall(
     {
         cors: true,
@@ -47,7 +131,6 @@ export const playMiniGame = onCall(
         memory: '256MiB',
     },
     async (request) => {
-        // 1. Verify authentication
         if (!request.auth) {
             throw new HttpsError('unauthenticated', 'You must be logged in to play mini-games.');
         }
@@ -65,43 +148,34 @@ export const playMiniGame = onCall(
 
         try {
             return await db.runTransaction(async (transaction) => {
-                // 2. Fetch game config
                 const configRef = db.collection('settings').doc('mini_games');
                 const configSnap = await transaction.get(configRef);
-                
+
                 let gameConfig;
                 if (!configSnap.exists) {
-                    // Fallback to defaults if no custom config exists
                     gameConfig = getDefaultConfig()[gameType];
                 } else {
                     gameConfig = configSnap.data()?.[gameType];
                 }
 
-                if (!gameConfig) {
-                    throw new Error('Game configuration not found.');
-                }
-                if (!gameConfig.enabled) {
-                    throw new Error('This game is currently disabled.');
-                }
+                if (!gameConfig) throw new Error('Game configuration not found.');
+                if (!gameConfig.enabled) throw new Error('This game is currently disabled.');
 
                 const costPerPlay = gameConfig.costPerPlay || 50;
                 const noWinWeight = gameConfig.noWinWeight || 0;
                 const prizes = gameConfig.prizes || [];
 
-                // 3. Verify user balance
                 const userSnap = await transaction.get(userRef);
                 if (!userSnap.exists) throw new Error('User record not found.');
 
                 const userData = userSnap.data() || {};
                 const currentPoints = userData.points || 0;
 
-                // 3b. Anti-concurrency check (4-second cooldown)
                 const lastPlay = userData.lastMiniGamePlay;
                 if (lastPlay) {
                     const lastPlayMs = lastPlay.toMillis?.() || 0;
-                    const nowMs = Date.now();
-                    if (nowMs - lastPlayMs < 4000) {
-                        throw new Error('Action already in progress. Please wait for the current action to finish.');
+                    if (Date.now() - lastPlayMs < 4000) {
+                        throw new Error('Action already in progress. Please wait.');
                     }
                 }
 
@@ -109,17 +183,14 @@ export const playMiniGame = onCall(
                     throw new Error(`Insufficient Valcoins. Need ${costPerPlay}, have ${currentPoints}`);
                 }
 
-                // 4. Select prize (Weighted Random)
                 const selectedPrize = selectWeightedPrize(prizes, noWinWeight, costPerPlay);
 
-                // 5. Deduct cost from points and set play lock
                 transaction.update(userRef, {
                     points: admin.firestore.FieldValue.increment(-costPerPlay),
                     lastMiniGamePlay: admin.firestore.FieldValue.serverTimestamp(),
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 });
 
-                // 6. Credit prize (if any)
                 if (selectedPrize) {
                     if (selectedPrize.type.toLowerCase() === 'valcoins' && selectedPrize.amount > 0) {
                         transaction.update(userRef, {
@@ -140,13 +211,12 @@ export const playMiniGame = onCall(
                     }
                 }
 
-                // 6b. Track cumulative stats for leaderboard (per game & currency)
                 const statsUpdate: Record<string, any> = {
                     [`stats.miniGames.${gameType}.totalPlays`]: admin.firestore.FieldValue.increment(1),
                     [`stats.miniGames.${gameType}.totalSpent`]: admin.firestore.FieldValue.increment(costPerPlay),
                 };
                 if (selectedPrize && selectedPrize.amount > 0) {
-                    const currencyKey = selectedPrize.type.toLowerCase(); // 'valcoins', 'aury', 'usdc'
+                    const currencyKey = selectedPrize.type.toLowerCase();
                     statsUpdate[`stats.miniGames.${gameType}.totalWon.${currencyKey}`] = admin.firestore.FieldValue.increment(selectedPrize.amount);
                     statsUpdate[`stats.miniGames.all.totalWon.${currencyKey}`] = admin.firestore.FieldValue.increment(selectedPrize.amount);
                 }
@@ -154,7 +224,6 @@ export const playMiniGame = onCall(
                 statsUpdate[`stats.miniGames.all.totalSpent`] = admin.firestore.FieldValue.increment(costPerPlay);
                 transaction.update(userRef, statsUpdate);
 
-                // 7. Log play history to user record
                 const historyRef = userRef.collection('miniGameHistory').doc();
                 transaction.set(historyRef, {
                     gameType,
@@ -167,7 +236,6 @@ export const playMiniGame = onCall(
                     timestamp: admin.firestore.FieldValue.serverTimestamp()
                 });
 
-                // 7b. Push to Global Realtime Database feed (only positive wins)
                 if (selectedPrize && selectedPrize.amount > 0) {
                     try {
                         const rtdb = admin.database();
@@ -182,11 +250,10 @@ export const playMiniGame = onCall(
                             timestamp: admin.database.ServerValue.TIMESTAMP
                         });
                     } catch (e) {
-                         console.error('Failed to log win to RTDB', e);
+                        console.error('Failed to log win to RTDB', e);
                     }
                 }
 
-                // 8. Log points history (deduction)
                 const pointsHistoryRef = userRef.collection('pointsHistory').doc();
                 transaction.set(pointsHistoryRef, {
                     amount: -costPerPlay,
@@ -204,62 +271,64 @@ export const playMiniGame = onCall(
             });
         } catch (error: any) {
             console.error('PlayMiniGame Error:', error);
-            throw new HttpsError('internal', error.message || 'An unexpected error occurred while playing the mini-game.');
+            throw new HttpsError('internal', error.message || 'An unexpected error occurred.');
         }
     }
 );
 
-/**
- * Place a bet on a Drakkar Race
- */
+
+// ═══════════════════════════════════════════════════════
+//  DRAKKAR RACE v2 — PLACE BET
+// ═══════════════════════════════════════════════════════
+
 export const placeDrakkarBet = onCall(
-    { cors: true, maxInstances: 20 },
+    { cors: true, maxInstances: 10 },
     async (request) => {
         if (!request.auth) throw new HttpsError('unauthenticated', 'Login required');
         const { uid } = request.auth;
         const { shipId, amount } = request.data;
 
-        if (!shipId || amount <= 0) throw new HttpsError('invalid-argument', 'Invalid bet');
+        if (!shipId || !amount || amount <= 0) throw new HttpsError('invalid-argument', 'Invalid bet');
+        if (!Number.isInteger(amount)) throw new HttpsError('invalid-argument', 'Bet must be a whole number');
 
         const db = admin.firestore();
         const userRef = db.collection('users').doc(uid);
         const stateRef = db.collection('settings').doc('mini_games').collection('drakkar_race').doc('current');
 
         try {
-            // 1. FAST CHECK (READS OUTSIDE TRANSACTION)
-            const stateSnap = await stateRef.get();
-            const state = stateSnap.data();
-            
-            if (!state) throw new Error('Race state not found.');
-
-            // ─── INFINITE GRACE ARCHITECTURE ───
-            const now = Date.now();
-            const isBetting = state.phase === 'betting';
-            // Allow a 1.5s grace period during the 'pause' (preparation) phase for late network packets
-            const isGracePeriod = state.phase === 'pause' && (now - state.startTime < 1500);
-            
-            if (!isBetting && !isGracePeriod) throw new Error('Betting is currently closed.');
-            // ───────────────────────────────
-            if (!state.selectedShips?.includes(shipId)) {
-                throw new Error('Invalid ship for this race.');
-            }
-
-            // 2. USER-CENTRIC TRANSACTION (NO GLOBAL LOCK)
-            // This allows 100 players to bet at once without colliding on the state document.
             const result = await db.runTransaction(async (transaction) => {
-                // ALL READS FIRST
-                const userSnap = await transaction.get(userRef);
                 const betRef = stateRef.collection('bets').doc(uid);
-                const betSnap = await transaction.get(betRef); // Move Read to top
+
+                // ALL READS FIRST
+                const stateSnap = await transaction.get(stateRef);
+                const userSnap = await transaction.get(userRef);
+                const betSnap = await transaction.get(betRef);
+
+                const state = stateSnap.data();
+                if (!state || state.phase !== 'betting') {
+                    throw new Error('Betting is currently closed.');
+                }
+
+                // Validate ship is in the current race
+                const raceShipIds: string[] = (state.ships || []).map((s: any) => s.id);
+                if (!raceShipIds.includes(shipId)) {
+                    throw new Error('This ship is not in the current race.');
+                }
 
                 const userData = userSnap.data() || {};
                 const currentPoints = userData.points || 0;
-
                 if (currentPoints < amount) {
                     throw new Error('Insufficient Valcoins');
                 }
 
-                // ALL WRITES SECOND
+                // Check max bet per user (1000 total across all ships)
+                const existingBet = betSnap.exists ? betSnap.data() || {} : {};
+                const currentTotal = existingBet.total || 0;
+                if (currentTotal + amount > MAX_BET_PER_USER) {
+                    throw new Error(`Max bet is ${MAX_BET_PER_USER} Valcoins per race. You have ${currentTotal} already placed.`);
+                }
+
+                // ALL WRITES LAST
                 transaction.update(userRef, {
                     points: admin.firestore.FieldValue.increment(-amount),
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -276,8 +345,7 @@ export const placeDrakkarBet = onCall(
                         [shipId]: amount,
                         total: amount,
                         playerName: userData.auroryPlayerName || userData.displayName || 'Guest',
-                        playerAvatar: userData.photoURL || '',
-                        raceId: state.raceId,
+                        playerAvatar: userData.auroryProfilePicture || userData.photoURL || '',
                         timestamp: admin.firestore.FieldValue.serverTimestamp()
                     });
                 }
@@ -285,7 +353,7 @@ export const placeDrakkarBet = onCall(
                 return { success: true, newBalance: currentPoints - amount };
             });
 
-            // 5. ATOMIC RTDB INCREMENT (VERY FAST FOR SPAMMING)
+            // Side effect: Update public pool in RTDB
             const rtdb = admin.database();
             await rtdb.ref(`drakkar_race/pools/${shipId}`).transaction((current) => (current || 0) + amount);
 
@@ -297,10 +365,11 @@ export const placeDrakkarBet = onCall(
     }
 );
 
-/**
- * State Machine Heartbeat for Drakkar Race
- * Advances phases and handles payouts.
- */
+
+// ═══════════════════════════════════════════════════════
+//  DRAKKAR RACE v2 — STATE MACHINE HEARTBEAT
+// ═══════════════════════════════════════════════════════
+
 export const refreshDrakkarRace = onCall(
     { cors: true, maxInstances: 5 },
     async (request) => {
@@ -309,7 +378,6 @@ export const refreshDrakkarRace = onCall(
         const rtdb = admin.database();
 
         try {
-            // 1. Determine next state inside a Lean Transaction
             const result = await db.runTransaction(async (transaction) => {
                 const stateSnap = await transaction.get(stateRef);
                 let state = stateSnap.data();
@@ -326,58 +394,56 @@ export const refreshDrakkarRace = onCall(
                 let updates: any = {};
 
                 if (state.phase === 'betting') {
-                    nextPhase = 'pause';
-                    duration = DURATIONS.pause;
-                    updates = { startTime: now };
-                } else if (state.phase === 'pause') {
-                    nextPhase = 'race';
-                    duration = DURATIONS.race;
-                    
-                    // 1. CALCULATE WINNER BASED ON STRATEGIC SIMULATION
-                    const ships = state.selectedShips || [];
-                    const track = state.track || [];
-                    
-                    // Simulate each ship's final time
-                    const finalTimes = ships.map((shipId: string) => {
-                        let totalSpeed = 0;
-                        track.forEach((weather: string) => {
-                            totalSpeed += (EFFICIENCY_MATRIX[shipId]?.[weather] || 1.0);
-                        });
-                        // Add a small random seed to avoid ties
-                        return totalSpeed + (Math.random() * 0.05);
-                    });
-                    
-                    // Highest total speed wins
-                    const winnerIdxInSelected = finalTimes.indexOf(Math.max(...finalTimes));
-                    
+                    // Betting → Reveal (show hidden weathers)
+                    nextPhase = 'reveal';
+                    duration = DURATIONS.reveal;
+
+                } else if (state.phase === 'reveal') {
+                    // Reveal → Racing (compute winner, start animation)
+                    nextPhase = 'racing';
+                    const shipIndices: number[] = state.shipIndices || [0, 1, 2];
+                    const weatherIndices: number[] = state.weatherIndices || [0, 1, 2];
+                    const { winnerIdx, finishTimes } = determineRaceResult(shipIndices, weatherIndices);
+
+                    // Race duration = slowest ship time + 500ms buffer
+                    const maxTime = Math.max(...finishTimes);
+                    duration = Math.ceil(maxTime) + 500;
+
+
                     updates = {
-                        stateWinnerIdx: winnerIdxInSelected // Index within the 3 selected ships
+                        winnerIdx,
+                        finishTimes,
+                        raceDuration: duration,
+                        raceStartTime: now
                     };
-                } else if (state.phase === 'race') {
+
+                } else if (state.phase === 'racing') {
+                    // Racing → Result (payouts)
                     nextPhase = 'result';
                     duration = DURATIONS.result;
+
                 } else {
-                    // Start of New Cycle: Select 3 Ships and 3 Weathers
+                    // Result/Init → New Betting Phase
                     nextPhase = 'betting';
                     duration = DURATIONS.betting;
-                    
-                    const selectedShips = [...DRAKKAR_SHIPS]
-                        .sort(() => Math.random() - 0.5)
-                        .slice(0, 3)
-                        .map(s => s.id);
-                        
-                    const track = [
-                        TRACK_TYPES[Math.floor(Math.random() * 7)],
-                        TRACK_TYPES[Math.floor(Math.random() * 7)],
-                        TRACK_TYPES[Math.floor(Math.random() * 7)]
-                    ];
+
+                    const shipIndices = pick3();
+                    const weatherIndices = pick3();
+
+                    const ships = shipIndices.map(i => ALL_SHIPS[i]);
+                    const weathers = weatherIndices.map(i => ALL_WEATHERS[i]);
 
                     updates = {
                         raceId: (state.raceId || 0) + 1,
-                        startTime: now,
-                        selectedShips: selectedShips,
-                        track: track,
-                        stateWinnerIdx: null
+                        ships,
+                        weathers,
+                        shipIndices,
+                        weatherIndices,
+                        winnerIdx: null,
+                        finishTimes: null,
+
+                        raceDuration: null,
+                        raceStartTime: null
                     };
                 }
 
@@ -393,24 +459,20 @@ export const refreshDrakkarRace = onCall(
                 return { state: newState, changed: true };
             });
 
-            // 2. Side effects outside the transaction (RTDB Sync & Payouts)
+            // Side effects outside transaction
             if (result.changed) {
                 const newState = result.state;
                 await rtdb.ref('drakkar_race/state').set(newState);
 
                 if (newState.phase === 'betting') {
-                    // Initialize pools for the 3 selected ships only
-                    const initialPools: any = {};
-                    (newState.selectedShips || []).forEach((id: string) => initialPools[id] = 0);
-                    await rtdb.ref('drakkar_race/pools').set(initialPools);
-                    await clearBets(stateRef);
-                } else if (newState.phase === 'race') {
-                    // ─── FINALIZATION (POST-GRACE) ───
-                    // Only finalize pools once we transition To the race phase
-                    // This allows the entire 'pause' phase to act as a latent grace window
-                    await finalizePools(stateRef);
+                    // Reset pools for new race
+                    const shipIds = (newState.ships || []).map((s: any) => s.id);
+                    const poolReset: Record<string, number> = {};
+                    shipIds.forEach((id: string) => { poolReset[id] = 0; });
+                    await rtdb.ref('drakkar_race/pools').set(poolReset);
+                    await clearBets(db.collection('settings').doc('mini_games').collection('drakkar_race').doc('current'));
                 } else if (newState.phase === 'result') {
-                    await processDrakkarPayouts(newState.stateWinnerIdx, newState.raceId);
+                    await processDrakkarPayouts(newState);
                 }
             }
 
@@ -422,130 +484,132 @@ export const refreshDrakkarRace = onCall(
     }
 );
 
-async function finalizePools(stateRef: admin.firestore.DocumentReference) {
-    const rtdb = admin.database();
-    const poolsSnap = await rtdb.ref('drakkar_race/pools').get();
-    const finalPools = poolsSnap.val() || {};
-    
-    // Save the finalized pools back to Firestore state for historical consistency
-    // This happens during the 5s preparation phase
-    await stateRef.update({
-        finalPools,
-        finalizationTime: Date.now()
-    });
-}
+
+// ═══════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════
 
 async function clearBets(stateRef: admin.firestore.DocumentReference) {
     const bets = await stateRef.collection('bets').get();
+    if (bets.empty) return;
     const batch = admin.firestore().batch();
     bets.docs.forEach(doc => batch.delete(doc.ref));
     await batch.commit();
 }
 
-async function processDrakkarPayouts(winnerIdxInSelected: number, raceId: number) {
+async function processDrakkarPayouts(raceState: any) {
     const db = admin.firestore();
-    const stateRef = db.collection('settings').doc('mini_games').collection('drakkar_race').doc('current');
-    
-    // 1. Fetch current pools from RTDB to calculate total
     const rtdb = admin.database();
-    const poolsSnap = await rtdb.ref('drakkar_race/pools').get();
-    const pools = poolsSnap.val() || {};
-    
-    const stateSnap = await stateRef.get();
-    const state = stateSnap.data();
-    if (!state || !state.selectedShips) return;
-    
-    const winningShipId = state.selectedShips[winnerIdxInSelected];
-    const totalPool = Object.values(pools).reduce((a: any, b: any) => a + b, 0) as number;
-    const winningPool = pools[winningShipId] || 0;
-    
-    if (totalPool === 0 || winningPool === 0) return;
+    const stateRef = db.collection('settings').doc('mini_games').collection('drakkar_race').doc('current');
 
-    // Calculate Dynamic Multiplier with House Rake
-    let multiplier = (totalPool * (1 - HOUSE_RAKE)) / winningPool;
-    if (multiplier < MIN_PAYOUT) multiplier = MIN_PAYOUT;
+    const winnerIdx = raceState.winnerIdx;
+    if (winnerIdx === null || winnerIdx === undefined) return;
 
-    // Push to History (RTDB - keep last 20)
-    const historyRef = rtdb.ref('drakkar_race/history').push();
-    await historyRef.set({
-        raceId,
-        winnerId: winningShipId,
-        totalPool,
-        multiplier: parseFloat(multiplier.toFixed(2)),
-        timestamp: admin.database.ServerValue.TIMESTAMP
-    });
-
-    // Cleanup history > 20
-    const historySnap = await rtdb.ref('drakkar_race/history').orderByChild('timestamp').limitToLast(21).get();
-    if (historySnap.numChildren() > 20) {
-        const firstKey = Object.keys(historySnap.val())[0];
-        await rtdb.ref(`drakkar_race/history/${firstKey}`).remove();
-    }
+    const winnerShip = raceState.ships[winnerIdx];
+    const winnerId = winnerShip.id;
 
     const bets = await stateRef.collection('bets').get();
     if (bets.empty) return;
 
+    // Calculate total pool and winner pool
+    let totalPool = 0;
+    let winnerPool = 0;
+    const betDocs: any[] = [];
+
     for (const betDoc of bets.docs) {
         const bet = betDoc.data();
-        const personalWinningBet = bet[winningShipId] || 0;
-        const winAmount = Math.floor(personalWinningBet * multiplier);
-        
-        if (winAmount > 0) {
-            try {
-                // Use a separate transaction for each user
-                await db.runTransaction(async (t) => {
-                    const userRef = db.collection('users').doc(bet.uid);
-                    t.update(userRef, {
-                        points: admin.firestore.FieldValue.increment(winAmount)
-                    });
+        betDocs.push(bet);
+        totalPool += bet.total || 0;
+        winnerPool += bet[winnerId] || 0;
+    }
 
-                    // Log history
-                    const historyRef = userRef.collection('miniGameHistory').doc();
-                    t.set(historyRef, {
-                        gameType: 'drakkarRace',
-                        prizeName: `${winAmount} Valcoins`,
-                        prizeType: 'valcoins',
-                        prizeAmount: winAmount,
-                        prizeRarity: winAmount > 100 ? 'epic' : 'rare',
-                        prizeIcon: 'legendary_hammer.png',
-                        cost: bet.total,
-                        timestamp: admin.firestore.FieldValue.serverTimestamp()
-                    });
+    // Parimutuel payout multiplier
+    const payoutMultiplier = winnerPool > 0 ? (totalPool / winnerPool) * (1 - HOUSE_CUT) : 0;
 
-                    // Site Notification
-                    const notificationRef = userRef.collection('notifications').doc();
-                    t.set(notificationRef, {
-                        title: 'Drakkar Race Win!',
-                        message: `Congratulations! You won ${winAmount} Valcoins in the Drakkar Race.`,
-                        type: 'win',
-                        read: false,
-                        createdAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
+    // Process individual payouts
+    for (const bet of betDocs) {
+        const betOnWinner = bet[winnerId] || 0;
+        if (betOnWinner <= 0) continue;
+
+        const winAmount = Math.floor(betOnWinner * payoutMultiplier);
+        if (winAmount <= 0) continue;
+
+        try {
+            await db.runTransaction(async (t) => {
+                const userRef = db.collection('users').doc(bet.uid);
+                t.update(userRef, {
+                    points: admin.firestore.FieldValue.increment(winAmount)
                 });
 
-                // Post to Global Feed
-                if (winAmount >= 50) {
+                const historyRef = userRef.collection('miniGameHistory').doc();
+                t.set(historyRef, {
+                    gameType: 'drakkarRace',
+                    prizeName: `${winAmount} Valcoins`,
+                    prizeType: 'valcoins',
+                    prizeAmount: winAmount,
+                    prizeRarity: payoutMultiplier >= 5 ? 'legendary' : payoutMultiplier >= 3 ? 'epic' : 'rare',
+                    prizeIcon: 'legendary_ship.png',
+                    cost: bet.total,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp()
+                });
+            });
+
+            // Big Win → GlobalWinNotifier (payout >= 3x and winAmount >= 100)
+            if (payoutMultiplier >= 3 && winAmount >= 100) {
+                try {
                     await rtdb.ref('recentMiniGameWinners').push({
-                        playerName: bet.playerName,
-                        playerAvatar: bet.playerAvatar || '',
-                        prizeName: `${winAmount} Valcoins`,
-                        rarity: winAmount > 200 ? 'legendary' : 'epic',
-                        icon: 'legendary_hammer.png',
+                        playerName: bet.playerName || 'Guest',
+                        playerAvatar: bet.playerAvatar || 'https://cdn.discordapp.com/embed/avatars/0.png',
+                        prizeName: `${winAmount} Valcoins (${payoutMultiplier.toFixed(1)}x)`,
+                        rarity: payoutMultiplier >= 5 ? 'legendary' : 'epic',
+                        icon: 'legendary_ship.png',
                         gameType: 'drakkarRace',
                         timestamp: admin.database.ServerValue.TIMESTAMP
                     });
+                } catch (e) {
+                    console.error('Failed to push to GlobalWinNotifier', e);
                 }
-            } catch (err) {
-                console.error(`Failed to pay out user ${bet.uid} for race ${raceId}`, err);
+            }
+        } catch (err) {
+            console.error(`Failed to pay out user ${bet.uid}`, err);
+        }
+    }
+
+    // Save race history to RTDB (last 10 races)
+    try {
+        const historyEntry = {
+            raceId: raceState.raceId,
+            winner: winnerShip,
+            totalPool,
+            payoutMultiplier: Math.round(payoutMultiplier * 100) / 100,
+            ships: raceState.ships,
+            weathers: raceState.weathers,
+            timestamp: admin.database.ServerValue.TIMESTAMP
+        };
+        const historyRef = rtdb.ref('drakkar_race/history').push();
+        await historyRef.set(historyEntry);
+
+        // Trim to last 10
+        const allHistory = await rtdb.ref('drakkar_race/history').orderByChild('timestamp').get();
+        if (allHistory.exists()) {
+            const allKeys = Object.keys(allHistory.val());
+            if (allKeys.length > 10) {
+                const toDelete = allKeys.slice(0, allKeys.length - 10);
+                const updates: Record<string, null> = {};
+                toDelete.forEach(k => { updates[k] = null; });
+                await rtdb.ref('drakkar_race/history').update(updates);
             }
         }
+    } catch (e) {
+        console.error('Failed to save race history', e);
     }
 }
 
 
-/**
- * Weighted Random Prize Selection
- */
+// ═══════════════════════════════════════════════════════
+//  WEIGHTED RANDOM (for Slot Machine / Treasure Chest)
+// ═══════════════════════════════════════════════════════
+
 function selectWeightedPrize(prizes: any[], noWinWeight = 0, costPerPlay = 50) {
     if (!prizes || prizes.length === 0) {
         return {
@@ -558,36 +622,25 @@ function selectWeightedPrize(prizes: any[], noWinWeight = 0, costPerPlay = 50) {
         };
     }
 
-    // Use ?? to allow 0 weight to actually be 0
     const prizesWeight = prizes.reduce((sum, p) => sum + (p.weight ?? 1), 0);
     const totalWeight = prizesWeight + (noWinWeight || 0);
-    
-    // If everything is weighted at 0, return null (loss) or first item as safety
     if (totalWeight <= 0) return null;
 
     let random = Math.random() * totalWeight;
-
-    // 1. Check if we hit the "No Win" zone
     if (random < noWinWeight) return null;
     random -= noWinWeight;
 
-    // 2. Filter out 0-weight prizes from selection
     for (const prize of prizes) {
         const weight = prize.weight ?? 1;
-        if (weight <= 0) continue; // Skip 0-weight prizes
-        
+        if (weight <= 0) continue;
         random -= weight;
         if (random <= 0) return prize;
     }
 
-    // Fallback to last non-zero prize
     const activePrizes = prizes.filter(p => (p.weight ?? 1) > 0);
     return activePrizes.length > 0 ? activePrizes[activePrizes.length - 1] : null;
 }
 
-/**
- * Default configuration fallback
- */
 function getDefaultConfig(): any {
     return {
         slotMachine: {
@@ -622,9 +675,10 @@ function getDefaultConfig(): any {
         },
         drakkarRace: {
             enabled: true,
-            minBet: 10,
-            description: 'Bet on the legendary ships in a real-time global race!',
-            multiplier: 3.8
+            minBet: 1,
+            maxBetPerUser: 1000,
+            description: 'Bet on legendary ships in a real-time parimutuel race!',
+            multiplier: 'parimutuel'
         }
     };
 }

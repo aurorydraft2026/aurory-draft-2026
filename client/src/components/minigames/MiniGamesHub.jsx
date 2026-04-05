@@ -174,10 +174,10 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
                     <p>{game.description}</p>
                     <div className="minigame-card-cost">
                       <img src={process.env.PUBLIC_URL + '/valcoin-icon.jpg'} alt="V" className="valcoin-icon-xs" />
-                      <span>{gameCfg.costPerPlay} per play</span>
+                      <span>{gameKey === 'drakkarRace' ? 'Bet to play' : `${gameCfg.costPerPlay} per play`}</span>
                     </div>
                     <div className="minigame-card-prizes">
-                      {gameCfg.prizes?.length || 0} prizes available
+                      {gameKey === 'drakkarRace' ? 'Parimutuel payouts' : `${gameCfg.prizes?.length || 0} prizes available`}
                     </div>
                   </div>
                 );

@@ -1,9 +1,17 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { 
-  DRAKKAR_SHIPS, 
-  TRACK_ENVIRONMENTS, 
-  EFFICIENCY_MATRIX,
-  subscribeDrakkarRaceState, 
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  ALL_SHIPS,
+  ALL_WEATHERS,
+  SPEED_MATRIX,
+  CHIP_VALUES,
+  MAX_BET_PER_USER,
+  ZONE_WIDTH,
+  DOCK_WIDTH,
+  computeShipPosition,
+  formatSpeed,
+  getShipGlobalIndex,
+  getWeatherGlobalIndex,
+  subscribeDrakkarRaceState,
   subscribeDrakkarPools,
   subscribeDrakkarHistory,
   refreshDrakkarRace,
@@ -11,33 +19,32 @@ import {
 } from '../../services/miniGameService';
 import './DrakkarRace.css';
 
-const DURATIONS = { betting: 20000, pause: 2000, race: 7000, result: 3000 };
-
 const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const [state, setState] = useState(null);
   const [pools, setPools] = useState({});
-  const [userBets, setUserBets] = useState({}); // Track personal stakes
   const [history, setHistory] = useState([]);
-  const [selectedChip, setSelectedChip] = useState(10);
+  const [selectedChip, setSelectedChip] = useState(5);
+  const [myBets, setMyBets] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
   const [showRules, setShowRules] = useState(false);
-  
-  // Animation refs
-  const requestRef = useRef();
-  const [shipPositions, setShipPositions] = useState([5, 5, 5]); // Percentage left
 
-  // 1. Subscriptions
+  // Animation
+  const animFrameRef = useRef();
+  const [shipPositions, setShipPositions] = useState([DOCK_WIDTH, DOCK_WIDTH, DOCK_WIDTH]);
+  const prevRaceIdRef = useRef(null);
+
+  // ─── 1. Subscriptions ───
   useEffect(() => {
     const unsubState = subscribeDrakkarRaceState((newState) => {
       setState(newState);
     });
     const unsubPools = subscribeDrakkarPools((newPools) => {
-      // Merge optimistic updates with server state
-      setPools(prev => ({ ...newPools, ...prev, ...newPools }));
+      setPools(newPools);
     });
-    const unsubHistory = subscribeDrakkarHistory((newHistory) => {
-      setHistory(newHistory);
+    const unsubHistory = subscribeDrakkarHistory((entries) => {
+      setHistory(entries);
     });
 
     return () => {
@@ -47,11 +54,20 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
     };
   }, []);
 
-  // 2. Heartbeat & Timer
+  // Reset bets when a new race starts
+  useEffect(() => {
+    if (state && state.raceId !== prevRaceIdRef.current) {
+      prevRaceIdRef.current = state.raceId;
+      setMyBets({});
+      setLocalError(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.raceId]);
+
+  // ─── 2. Heartbeat & Timer ───
   useEffect(() => {
     const interval = setInterval(() => {
       if (!state) return;
-
       const now = Date.now();
       const diff = state.endTime - now;
       setTimeLeft(Math.max(0, diff));
@@ -64,428 +80,360 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
     return () => clearInterval(interval);
   }, [state]);
 
-  // Derived: Get the 3 selected ships for this race
-  const currentShips = useMemo(() => {
-    if (!state?.selectedShips) return [];
-    return state.selectedShips.map(id => DRAKKAR_SHIPS.find(s => s.id === id)).filter(Boolean);
-  }, [state?.selectedShips]);
-
-  // 3. Race Animation Logic
+  // ─── 3. Race Animation ───
   const animate = useCallback(() => {
-    if (state && state.phase === 'race' && currentShips.length > 0) {
-      const now = Date.now();
-      // Anchor race start to server-synced time to eliminate lag jumps
-      const raceStartTime = state.startTime + DURATIONS.betting + DURATIONS.pause;
-      const progress = Math.max(0, Math.min(1, (now - raceStartTime) / DURATIONS.race));
-      
-      const newPositions = currentShips.map((ship, idx) => {
-        const isWinner = idx === state.stateWinnerIdx;
-        
-        // ─── GEOMETRY UPDATE ───
-        // Harbor: 0-10% | Race Zone: 10-90% | Finish: 90-100%
-        // Base linear progress across the 80% race zone
-        const base = 10 + (progress * 80);
-        
-        // Strategic modifier calculation (Exactly synced to the 3 visual segments)
-        // Since the 3 segments occupy the 10-90% zone, progress (0-1) maps directly to them
-        const segmentIdx = Math.floor(progress * 2.99); // 2.99 to avoid out of bounds at exactly 1.0
-        const segmentType = state.track?.[segmentIdx] || 'calm';
-        const targetEfficiency = EFFICIENCY_MATRIX[ship.id]?.[segmentType] || 1.0;
-
-        // Smoothly interpolate the efficiency/boost when switching segments
-        const segmentProgress = (progress * 3) % 1;
-        let efficiency = targetEfficiency;
-        
-        if (segmentProgress < 0.2 && segmentIdx > 0) {
-            const prevSegmentType = state.track?.[segmentIdx - 1] || 'calm';
-            const prevEfficiency = EFFICIENCY_MATRIX[ship.id]?.[prevSegmentType] || 1.0;
-            const blend = segmentProgress / 0.2;
-            efficiency = prevEfficiency + (targetEfficiency - prevEfficiency) * blend;
-        }
-        
-        // Speed variation based on weather efficiency (accumulated offset)
-        const boost = (efficiency - 1.0) * 12;
-        
-        // Final winner push to ensure they hit the line first
-        const winnerBoost = isWinner && progress > 0.85 ? (progress - 0.85) * 60 : 0;
-        
-        return Math.min(92, base + boost + winnerBoost);
+    if (state && state.phase === 'racing' && state.shipIndices && state.weatherIndices && state.raceStartTime) {
+      const elapsed = Date.now() - state.raceStartTime;
+      // Compute speeds locally from the matrix (avoids RTDB nested-array limitation)
+      const newPositions = state.shipIndices.map((sIdx) => {
+        const shipSpeeds = state.weatherIndices.map((wIdx) => SPEED_MATRIX[sIdx][wIdx]);
+        return computeShipPosition(shipSpeeds, elapsed);
       });
-
       setShipPositions(newPositions);
-    } else if (state && (state.phase === 'betting' || state.phase === 'pause')) {
-       // PARKED IN HARBOR (5% position)
-       setShipPositions([5, 5, 5]);
-    } else if (state && state.phase === 'result') {
-       if (state.phase === 'result') {
-         setShipPositions(prev => prev.map((p, i) => i === state.stateWinnerIdx ? 92 : Math.min(p, 88)));
-       }
+    } else if (state && state.phase === 'betting') {
+      setShipPositions([DOCK_WIDTH, DOCK_WIDTH, DOCK_WIDTH]);
+    } else if (state && state.phase === 'reveal') {
+      setShipPositions([DOCK_WIDTH, DOCK_WIDTH, DOCK_WIDTH]);
     }
-    requestRef.current = requestAnimationFrame(animate);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, currentShips]);
+    // In result phase, keep final positions
+    animFrameRef.current = requestAnimationFrame(animate);
+  }, [state]);
 
   useEffect(() => {
-    requestRef.current = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(requestRef.current);
+    animFrameRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animFrameRef.current);
   }, [animate]);
 
-  // 4. Betting Logic
-  const pendingBets = useRef({});
-  const debounceTimers = useRef({});
-  const inFlightCount = useRef(0); // Track active server requests
+  // ─── 4. Betting Logic ───
+  const handlePlaceBet = async (shipId) => {
+    if (isSubmitting || state?.phase !== 'betting') return;
+    setLocalError(null);
 
-  // HELPER: Sync the frozen state with the parent HUB
-  const updateFrozenState = useCallback(() => {
-    const hasActiveTimers = Object.keys(debounceTimers.current).length > 0;
-    const hasInFlightRequests = inFlightCount.current > 0;
-    setFrozen(hasActiveTimers || hasInFlightRequests);
-  }, [setFrozen]);
-
-  // BUG FIX: BUZZER-SYNC (Flush pending bets when phase ends)
-  const flushPendingBets = useCallback(async () => {
-    Object.keys(pendingBets.current).forEach(async (shipId) => {
-      const totalToBet = pendingBets.current[shipId];
-      if (totalToBet > 0) {
-        // Clear timer to prevent double-push
-        if (debounceTimers.current[shipId]) {
-          clearTimeout(debounceTimers.current[shipId]);
-          delete debounceTimers.current[shipId];
-        }
-        
-        pendingBets.current[shipId] = 0;
-        inFlightCount.current++;
-        updateFrozenState();
-        
-        try {
-          const result = await placeDrakkarBet(shipId, totalToBet);
-          if (!result.success) {
-            // Rollback everything (Global, Personal, and Balance)
-            setPools(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - totalToBet) }));
-            setUserBets(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - totalToBet) }));
-            setDisplayedPoints(prev => prev + totalToBet);
-            setLocalError(`Buzzer beater rejected: ${result.error}`);
-          }
-        } catch (err) {
-          setPools(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - totalToBet) }));
-          setUserBets(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - totalToBet) }));
-          setDisplayedPoints(prev => prev + totalToBet);
-        } finally {
-          inFlightCount.current--;
-          updateFrozenState();
-        }
-      }
-    });
-  }, [setDisplayedPoints, updateFrozenState]);
-
-  useEffect(() => {
-    if (state?.phase !== 'betting' && state?.phase !== undefined) {
-      flushPendingBets();
-    }
-  }, [state?.phase, flushPendingBets]);
-
-  useEffect(() => {
-    if (state?.raceId) {
-      setUserBets({});
-      setLocalError(null); // Clear any buzzer-beater warnings for the new race
-      // CLEAN MEMORY FOR NEW RACE
-      pendingBets.current = {};
-      Object.values(debounceTimers.current).forEach(t => clearTimeout(t));
-      debounceTimers.current = {};
-      inFlightCount.current = 0;
-      updateFrozenState();
-    }
-  }, [state?.raceId, updateFrozenState]);
-
-  const handlePlaceBet = (shipId) => {
-    // ─── INFINITE GRACE CLIENT-SIDE (Allow 300ms overlap) ───
-    const isBetting = state?.phase === 'betting';
-    const isGracePeriod = state?.phase === 'pause' && (Date.now() - state?.startTime < 300);
-    
-    if (!isBetting && !isGracePeriod) return;
-    // ───────────────────────────────────────────────────────
-
-    if (userPoints < selectedChip) {
-      setLocalError(`Insufficient Valcoins!`);
-      setTimeout(() => setLocalError(null), 3000);
+    const amount = selectedChip;
+    const currentTotal = Object.values(myBets).reduce((a, b) => a + b, 0);
+    if (currentTotal + amount > MAX_BET_PER_USER) {
+      setLocalError(`Max bet is ${MAX_BET_PER_USER} per race. You have ${currentTotal} placed.`);
       return;
     }
 
-    // ─── OPTIMISTIC UI (INSTANT) ───
-    setPools(prev => ({ ...prev, [shipId]: (prev[shipId] || 0) + selectedChip }));
-    setUserBets(prev => ({ ...prev, [shipId]: (prev[shipId] || 0) + selectedChip }));
-    setDisplayedPoints(prev => prev - selectedChip);
-    
-    // Freeze Hub balance updates while betting
-    updateFrozenState();
-
-    setLocalError(null);
-    
-    // ─── BUFFERING / DEBOUNCE LOGIC ───
-    pendingBets.current[shipId] = (pendingBets.current[shipId] || 0) + selectedChip;
-
-    if (debounceTimers.current[shipId]) {
-      clearTimeout(debounceTimers.current[shipId]);
-    }
-
-    debounceTimers.current[shipId] = setTimeout(async () => {
-      const totalToBet = pendingBets.current[shipId];
-      if (totalToBet <= 0) return;
-      
-      // RESET BEFORE CALL to prevent race conditions during async
-      pendingBets.current[shipId] = 0;
-      delete debounceTimers.current[shipId];
-      
-      inFlightCount.current++;
-      updateFrozenState();
-
-      try {
-        const result = await placeDrakkarBet(shipId, totalToBet);
-        if (!result.success) {
-          setPools(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - totalToBet) }));
-          setUserBets(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - totalToBet) }));
-          setDisplayedPoints(prev => prev + totalToBet);
-          setLocalError(result.error);
-        }
-      } catch (err) {
-        setPools(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - totalToBet) }));
-        setUserBets(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - totalToBet) }));
-        setDisplayedPoints(prev => prev + totalToBet);
-        setLocalError(err.message);
-      } finally {
-        inFlightCount.current--;
-        updateFrozenState();
+    setIsSubmitting(true);
+    try {
+      const result = await placeDrakkarBet(shipId, amount);
+      if (result.success) {
+        setDisplayedPoints(result.newBalance);
+        setMyBets(prev => ({
+          ...prev,
+          [shipId]: (prev[shipId] || 0) + amount
+        }));
+      } else {
+        setLocalError(result.error);
       }
-    }, 300);
-    
-    // Trigger the frozen check immediately so the parent knows a timer started
-    updateFrozenState();
+    } catch (err) {
+      setLocalError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
+  // ─── Derived Data ───
+  const raceShips = state?.ships || [];
+  const raceWeathers = state?.weathers || [];
+  const totalPool = raceShips.reduce((sum, s) => sum + (pools[s.id] || 0), 0);
+
+  const getPhaseLabel = () => {
+    if (!state) return '';
+    switch (state.phase) {
+      case 'betting': return '⚓ PLACE YOUR BETS';
+      case 'reveal': return '🌊 WEATHERS REVEALED';
+      case 'racing': return '⛵ RACE IN PROGRESS';
+      case 'result': return '🏅 WINNER REVEALED';
+      default: return '';
+    }
+  };
+
+  const getEstimatedPayout = (shipId) => {
+    const shipPool = pools[shipId] || 0;
+    if (shipPool === 0 || totalPool === 0) return '—';
+    const multiplier = (totalPool / shipPool) * 0.9;
+    return multiplier.toFixed(1) + 'x';
+  };
+
+  // ─── Loading ───
   if (!state) return <div className="minigames-loading"><div className="minigames-spinner" /></div>;
 
   return (
-    <div className="drakkar-race-container">
-      {/* STICKY HEADER / STATUS */}
-      <div className="race-header-sticky">
-        <div className="race-status-bar">
-          <div className="status-info">
-            <span className="status-text">
-              {state.phase === 'betting' ? '⚓ Place Your Bets' : 
-               state.phase === 'race' ? '⛵ The Race is On!' : 
-               state.phase === 'pause' ? '🏁 Reveal Obstacles...' : '🏅 Winner Revealed'}
-            </span>
-          </div>
-          <button className="race-rules-btn" onClick={() => setShowRules(true)}>
-            <span>📖</span> Rules & Stats
-          </button>
-          <div className="timer-pill">
-            {Math.ceil(timeLeft / 1000)}s
-          </div>
+    <div className="drakkar-v2-container">
+      {/* ═══ STATUS BAR ═══ */}
+      <div className="dv2-status-bar">
+        <div className="dv2-status-left">
+          <span className="dv2-phase-label">{getPhaseLabel()}</span>
+          <span className="dv2-race-id">Race #{state.raceId || 0}</span>
         </div>
-        {localError && <div className="race-error-toast">{localError}</div>}
-      </div>
-
-      {/* TRACK AREA - FULL WIDTH */}
-      <div className="race-track-area">
-        <div className="track-water-texture" />
-        
-        {/* Harbor & Finish Visuals */}
-        <div className="track-harbor"><span>START</span></div>
-        <div className="track-finish"><span>FINISH</span></div>
-
-        {/* Track Segments Display (10% to 90%) */}
-        <div className="track-segments">
-          {[0, 1, 2].map((i) => {
-            const isRevealed = state.phase === 'race' || state.phase === 'result' || state.phase === 'pause' || i === 0;
-            const env = state.track?.[i];
-            
-            return (
-              <div key={i} className={`track-segment ${!isRevealed ? 'mystery' : ''}`}>
-                 {isRevealed && env ? (
-                    <>
-                      <span className="segment-icon">{TRACK_ENVIRONMENTS[env].icon}</span> 
-                      <span className="segment-name">{TRACK_ENVIRONMENTS[env].name}</span>
-                    </>
-                 ) : (
-                    <span className="segment-placeholder">???</span>
-                 )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* SHIP LANES - EXPLICITLY LIMIT TO 3 */}
-        <div className="ships-lane-container">
-          {currentShips.slice(0, 3).map((ship, i) => (
-            <div key={`${ship.id}-${i}`} className="ship-lane">
-              <div 
-                className="racer-ship-wrapper"
-                style={{ 
-                  left: `${shipPositions[i]}%`,
-                  '--ship-glow': ship.color,
-                  filter: `drop-shadow(0 0 10px ${ship.color})`
-                }}
-              >
-                {/* FLOATING NAME TAG ABOVE */}
-                <span className="racer-name-tag" style={{ backgroundColor: ship.color }}>
-                  {ship.name}
-                </span>
-                <img 
-                  src={process.env.PUBLIC_URL + '/icons/minigames/legendary_ship.png'} 
-                  alt={ship.name} 
-                  className="racer-ship-img"
-                />
-              </div>
-            </div>
-          ))}
+        <div className="dv2-status-right">
+          <button className="dv2-rules-btn" onClick={() => setShowRules(true)}>📜 Rules</button>
+          <div className="dv2-timer-pill">
+            {state.phase === 'racing' ? '🏁' : `${Math.ceil(timeLeft / 1000)}s`}
+          </div>
         </div>
       </div>
 
-      {/* NEW HUD: HISTORY + BETTING */}
-      <div className="drakkar-new-hud-layout">
-        {/* History Sidebar Repositioned */}
-        <div className="race-history-section">
-          <div className="history-header-pill">LATEST RESULTS</div>
-          <div className="history-list-mini">
-            {history.map((h, i) => {
-               const ship = DRAKKAR_SHIPS.find(s => s.id === h.winnerId);
-               return (
-                 <div key={i} className="history-mini-item">
-                   <div className="h-dot" style={{ backgroundColor: ship?.color }} title={ship?.name} />
-                   <div className="h-pool">💰{h.totalPool}</div>
-                   <div className="h-mult">x{h.multiplier}</div>
-                 </div>
-               );
-            })}
-            {history.length === 0 && <div className="history-empty">Waiting...</div>}
-          </div>
-        </div>
+      {localError && <div className="dv2-error">{localError}</div>}
 
-        {/* BETTING SECTION */}
-        <div className="race-betting-main">
-          {/* Chips Selection */}
-          <div className="chip-selector-bar">
-            {[1, 5, 10, 50, 100].map(val => (
-              <button 
-                key={val} 
-                className={`bet-chip-btn ${selectedChip === val ? 'active' : ''}`}
-                onClick={() => setSelectedChip(val)}
-              >
-                <img src={process.env.PUBLIC_URL + '/valcoin-icon.jpg'} alt="" className="chip-icon" />
-                <span>x{val}</span>
-              </button>
-            ))}
-          </div>
+      {/* ═══ MAIN LAYOUT: History | Track+Betting ═══ */}
+      <div className="dv2-main-layout">
 
-          {/* SHIP SELECTION CARDS */}
-          <div className="ship-betting-row">
-            {currentShips.map((ship) => {
-              const personalBet = userBets[ship.id] || 0;
-              const globalPool = pools?.[ship.id] || 0;
-              // SYNC BUG FIX: Global should always be >= Personal in the UI
-              const displayPool = Math.max(globalPool, personalBet);
-
-              return (
-                <button 
-                  key={ship.id} 
-                  className={`ship-v-bet-card ${state.phase !== 'betting' ? 'disabled' : ''}`}
-                  onClick={() => handlePlaceBet(ship.id)}
-                  disabled={state.phase !== 'betting'}
-                  style={{ '--ship-accent': ship.color }}
-                >
-                  <div className="ship-v-preview">
-                    <img src={process.env.PUBLIC_URL + '/icons/minigames/legendary_ship.png'} alt="" />
+        {/* ── LEFT: Race History ── */}
+        <div className="dv2-history-panel">
+          <h3 className="dv2-history-title">📜 Recent Races</h3>
+          <div className="dv2-history-list">
+            {history.length === 0 ? (
+              <div className="dv2-history-empty">No races yet</div>
+            ) : (
+              history.map((entry, idx) => (
+                <div key={idx} className="dv2-history-item">
+                  <div className="dv2-history-winner-row">
+                    <img
+                      src={process.env.PUBLIC_URL + '/icons/minigames/legendary_ship.png'}
+                      alt=""
+                      className="dv2-history-ship-icon"
+                      style={{ filter: `drop-shadow(0 0 4px ${entry.winner?.color || '#fff'})` }}
+                    />
+                    <span className="dv2-history-ship-name" style={{ color: entry.winner?.color }}>
+                      {entry.winner?.name || '???'}
+                    </span>
                   </div>
-                  <div className="ship-v-info">
-                    <h4>{ship.name}</h4>
-                    <div className="ship-v-stats">
-                      <span className="ship-v-pool" title="Global Pool">GLOBAL: 💰{displayPool}</span>
-                      {personalBet > 0 && (
-                        <span className="ship-v-solo" title="Your Personal Bet">YOU: 💰{personalBet}</span>
-                      )}
-                    </div>
+                  <div className="dv2-history-details">
+                    <span>🪙 {entry.totalPool || 0}</span>
+                    <span className="dv2-history-multiplier">{entry.payoutMultiplier?.toFixed(1) || '—'}x</span>
                   </div>
-                  <div className="ship-v-add-hint">+{selectedChip}</div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* RULES MODAL */}
-      {showRules && (
-        <div className="race-rules-overlay" onClick={() => setShowRules(false)}>
-          <div className="rules-modal-box" onClick={e => e.stopPropagation()}>
-            <div className="rules-modal-header">
-              <h3>⚔️ Drakkar Strategy Guide</h3>
-              <button className="rules-close-btn" onClick={() => setShowRules(false)}>×</button>
-            </div>
-
-            <div className="rules-modal-body">
-              <section className="rules-section">
-                <h4>⚓ Pool Sharing Payout (Option B)</h4>
-                <p>The total betting pool (minus 10% rake) is shared proportionally among all winners of the finishing ship. 
-                Payouts are <strong>dynamic</strong>—the less popular a ship is, the higher its multiplier if it wins!</p>
-              </section>
-
-              <section className="rules-section">
-                <h4>🌊 Efficiency Matrix (Speed %)</h4>
-                <div className="efficiency-table-wrapper">
-                  <table className="efficiency-table">
-                    <thead>
-                      <tr>
-                        <th>Ship</th>
-                        {Object.values(TRACK_ENVIRONMENTS).map((env, i) => (
-                          <th key={i} title={env.name}>{env.icon}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {DRAKKAR_SHIPS.map((ship) => (
-                        <tr key={ship.id}>
-                          <td className="ship-name-cell" style={{ color: ship.color }}>{ship.name}</td>
-                          {Object.keys(TRACK_ENVIRONMENTS).map((envKey) => {
-                             const val = EFFICIENCY_MATRIX[ship.id][envKey];
-                             return (
-                               <td key={envKey} className={`eff-cell ${val > 1.0 ? 'high' : val < 1.0 ? 'low' : ''}`}>
-                                 {Math.round(val * 100)}%
-                               </td>
-                             );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
                 </div>
-              </section>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* ── RIGHT: Track + Betting ── */}
+        <div className="dv2-race-section">
+
+          {/* ═══ WEATHER BAR ═══ */}
+          <div className="dv2-weather-bar">
+            <div className="dv2-weather-dock">🏰 Dock</div>
+            {raceWeathers.map((w, i) => (
+              <div
+                key={i}
+                className={`dv2-weather-zone ${(state.phase === 'betting' && i > 0) ? 'hidden' : ''}`}
+              >
+                <span className="dv2-weather-icon">
+                  {(state.phase === 'betting' && i > 0) ? '❓' : w.icon}
+                </span>
+                <span className="dv2-weather-name">
+                  {(state.phase === 'betting' && i > 0) ? 'Hidden' : w.name}
+                </span>
+              </div>
+            ))}
+            <div className="dv2-weather-finish">🏁</div>
+          </div>
+
+          {/* ═══ RACE TRACK ═══ */}
+          <div className="dv2-track-area">
+            <div className="dv2-track-water" />
+
+            {/* Dashed zone dividers */}
+            <div className="dv2-zone-divider" style={{ left: `${DOCK_WIDTH}%` }} />
+            <div className="dv2-zone-divider" style={{ left: `${DOCK_WIDTH + ZONE_WIDTH}%` }} />
+            <div className="dv2-zone-divider" style={{ left: `${DOCK_WIDTH + 2 * ZONE_WIDTH}%` }} />
+            <div className="dv2-finish-line" style={{ left: `${DOCK_WIDTH + 3 * ZONE_WIDTH}%` }} />
+
+            {/* Ship Lanes */}
+            <div className="dv2-lanes">
+              {raceShips.map((ship, i) => (
+                <div key={ship.id} className="dv2-lane">
+                  <div className="dv2-lane-label" style={{ color: ship.color }}>{ship.name}</div>
+                  <div
+                    className={`dv2-ship-wrapper ${state.phase === 'result' && state.winnerIdx === i ? 'winner' : ''}`}
+                    style={{
+                      left: `${shipPositions[i]}%`,
+                      '--ship-glow': ship.color
+                    }}
+                  >
+                    <img
+                      src={process.env.PUBLIC_URL + '/icons/minigames/legendary_ship.png'}
+                      alt={ship.name}
+                      className="dv2-ship-img"
+                      style={{ filter: `drop-shadow(0 0 6px ${ship.color})` }}
+                    />
+                    {state.phase === 'result' && state.winnerIdx === i && (
+                      <span className="dv2-winner-badge">👑</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ═══ RESULT OVERLAY ═══ */}
+          {state.phase === 'result' && state.winnerIdx !== null && raceShips[state.winnerIdx] && (
+            <div className="dv2-result-banner">
+              <span className="dv2-result-crown">👑</span>
+              <span className="dv2-result-name" style={{ color: raceShips[state.winnerIdx].color }}>
+                {raceShips[state.winnerIdx].name} Wins!
+              </span>
+              {totalPool > 0 && (
+                <span className="dv2-result-payout">
+                  Payout: {getEstimatedPayout(raceShips[state.winnerIdx].id)}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* ═══ BETTING SECTION ═══ */}
+          <div className="dv2-betting-section">
+            {/* Chip Selector */}
+            <div className="dv2-chip-selector">
+              <span className="dv2-chip-label">Bet Amount:</span>
+              {CHIP_VALUES.map(chip => (
+                <button
+                  key={chip}
+                  className={`dv2-chip ${selectedChip === chip ? 'active' : ''}`}
+                  onClick={() => setSelectedChip(chip)}
+                >
+                  ×{chip}
+                </button>
+              ))}
             </div>
 
-            <div className="rules-modal-footer">
-              <p>Tip: Check the first weather segment and predict the ship that will gain the most distance!</p>
+            {/* Ship Betting Cards */}
+            <div className="dv2-bet-cards">
+              {raceShips.map((ship) => {
+                const shipGlobalIdx = getShipGlobalIndex(ship.id);
+                const firstWeatherIdx = raceWeathers.length > 0 ? getWeatherGlobalIndex(raceWeathers[0].id) : -1;
+                const firstWeatherSpeed = firstWeatherIdx >= 0 && shipGlobalIdx >= 0
+                  ? SPEED_MATRIX[shipGlobalIdx][firstWeatherIdx]
+                  : null;
+
+                return (
+                  <div
+                    key={ship.id}
+                    className={`dv2-bet-card ${state.phase !== 'betting' ? 'disabled' : ''}`}
+                    style={{ '--ship-accent': ship.color }}
+                  >
+                    <div className="dv2-bet-card-top">
+                      <img
+                        src={process.env.PUBLIC_URL + '/icons/minigames/legendary_ship.png'}
+                        alt={ship.name}
+                        className="dv2-bet-card-ship"
+                        style={{ filter: `drop-shadow(0 0 6px ${ship.color})` }}
+                      />
+                      <div className="dv2-bet-card-info">
+                        <h4 style={{ color: ship.color }}>{ship.name}</h4>
+                        {firstWeatherSpeed !== null && (
+                          <span className="dv2-speed-hint">
+                            {raceWeathers[0]?.icon} {formatSpeed(firstWeatherSpeed)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="dv2-bet-card-pools">
+                      <div className="dv2-pool-row">
+                        <span>Global Pool</span>
+                        <span className="dv2-pool-amount">🪙 {pools[ship.id] || 0}</span>
+                      </div>
+                      <div className="dv2-pool-row">
+                        <span>Your Bet</span>
+                        <span className="dv2-pool-amount dv2-my-bet">🪙 {myBets[ship.id] || 0}</span>
+                      </div>
+                      <div className="dv2-pool-row">
+                        <span>Est. Payout</span>
+                        <span className="dv2-pool-amount dv2-payout">{getEstimatedPayout(ship.id)}</span>
+                      </div>
+                    </div>
+
+                    {state.phase === 'betting' && (
+                      <button
+                        className="dv2-place-bet-btn"
+                        disabled={isSubmitting}
+                        onClick={() => handlePlaceBet(ship.id)}
+                        style={{ background: ship.color }}
+                      >
+                        {isSubmitting ? '...' : `Bet ×${selectedChip}`}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Totals */}
+            <div className="dv2-totals-bar">
+              <span>Total Pool: 🪙 {totalPool}</span>
+              <span>Your Total: 🪙 {Object.values(myBets).reduce((a, b) => a + b, 0)} / {MAX_BET_PER_USER}</span>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* WINNER MODAL */}
-      {state.phase === 'result' && (
-        <div className="race-result-overlay">
-          <div className="winner-content-card" style={{ '--winner-accent': currentShips[state.stateWinnerIdx]?.color }}>
-            <div className="victory-crown">👑</div>
-            <div className="winner-ship-display">
-               <img 
-                 src={process.env.PUBLIC_URL + '/icons/minigames/legendary_ship.png'} 
-                 alt="" 
-                 className="winner-hero-img"
-               />
+      {/* ═══ RULES MODAL ═══ */}
+      {showRules && (
+        <div className="dv2-rules-overlay" onClick={() => setShowRules(false)}>
+          <div className="dv2-rules-modal" onClick={e => e.stopPropagation()}>
+            <div className="dv2-rules-header">
+              <h2>📜 Drakkar Race Rules</h2>
+              <button className="dv2-rules-close" onClick={() => setShowRules(false)}>✕</button>
             </div>
-            <h2 className="winner-announce-text">
-              {currentShips[state.stateWinnerIdx]?.name} Wins!
-            </h2>
-            <p className="winner-sub-text">Dynamic Payout Distributed</p>
-            <div className="winner-payout-confetti" />
+            <div className="dv2-rules-body">
+              <h3>How It Works</h3>
+              <p>3 random ships and 3 random weather zones are selected each race. Only Weather #1 is visible during betting — Weathers #2 and #3 are hidden until the race starts!</p>
+
+              <h3>Parimutuel Payout</h3>
+              <div className="dv2-formula">
+                Payout = (Total Pool ÷ Winning Ship Pool) × 0.90
+              </div>
+              <p>The house takes 10%. If everyone bets on the same ship, payout is low (~0.9x). Bet on an underdog for huge potential wins!</p>
+
+              <h3>Speed Multiplier Table</h3>
+              <p>Each ship has strengths and weaknesses across 7 weather types:</p>
+              <div className="dv2-rules-table-wrapper">
+                <table className="dv2-speed-table">
+                  <thead>
+                    <tr>
+                      <th>Ship</th>
+                      {ALL_WEATHERS.map(w => (
+                        <th key={w.id}>{w.icon}<br /><small>{w.name}</small></th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ALL_SHIPS.map((ship, sIdx) => (
+                      <tr key={ship.id}>
+                        <td style={{ color: ship.color, fontWeight: 700 }}>{ship.name}</td>
+                        {ALL_WEATHERS.map((_, wIdx) => {
+                          const val = SPEED_MATRIX[sIdx][wIdx];
+                          const isBest = val === 13;
+                          const isWorst = val === 5;
+                          return (
+                            <td
+                              key={wIdx}
+                              className={isBest ? 'speed-best' : isWorst ? 'speed-worst' : ''}
+                            >
+                              {formatSpeed(val)}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <h3>Betting Rules</h3>
+              <ul>
+                <li>Max bet per user per race: <strong>{MAX_BET_PER_USER} Valcoins</strong></li>
+                <li>You can bet on multiple ships</li>
+                <li>Select a chip value (×1, ×5, ×10, ×50, ×100) and click a ship to bet</li>
+                <li>Bets are deducted from your balance immediately</li>
+              </ul>
+            </div>
           </div>
         </div>
       )}
@@ -494,5 +442,3 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 };
 
 export default DrakkarRace;
-
-
