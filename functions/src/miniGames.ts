@@ -2,20 +2,36 @@ import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 
 const DRAKKAR_SHIPS = [
-    { id: 'gold', name: "Odin's Sleipnir", color: '#fbbf24' },
-    { id: 'red', name: "Surtur's Fury", color: '#ef4444' },
-    { id: 'blue', name: "Aegir's Tide", color: '#3b82f6' },
-    { id: 'green', name: "Yggdrasil's Root", color: '#10b981' }
+    { id: 'sleipnir', name: "Sleipnir Swift", color: '#fbbf24' },
+    { id: 'jormungandr', name: "Jormungandr Sea-Serpent", color: '#10b981' },
+    { id: 'ironclad', name: "Ironbound Hulk", color: '#94a3b8' },
+    { id: 'shadow', name: "Hugin's Shadow", color: '#a855f7' },
+    { id: 'prime', name: "Drakkar Prime", color: '#3b82f6' },
+    { id: 'valkyrie', name: "Valkyrie Chariot", color: '#f472b6' },
+    { id: 'raider', name: "Norse Raider", color: '#ef4444' }
 ];
 
-const TRACK_TYPES = ['calm', 'rough', 'stormy', 'foggy'];
-const PAYOUT_MULTIPLIER = 3.8;
+const TRACK_TYPES = ['calm', 'stormy', 'foggy', 'tailwind', 'maelstrom', 'ice', 'blood'];
+
+// Speed Efficiency Matrix (Modifier based on Weather)
+const EFFICIENCY_MATRIX: any = {
+  sleipnir: { calm: 1.2, stormy: 0.85, foggy: 0.95, tailwind: 1.25, maelstrom: 0.8, ice: 0.9, blood: 1.05 },
+  jormungandr: { calm: 0.95, stormy: 1.3, foggy: 1.1, tailwind: 0.95, maelstrom: 1.15, ice: 1.05, blood: 1.1 },
+  ironclad: { calm: 0.9, stormy: 1.1, foggy: 1.0, tailwind: 0.9, maelstrom: 1.2, ice: 1.2, blood: 1.0 },
+  shadow: { calm: 1.0, stormy: 0.9, foggy: 1.35, tailwind: 1.05, maelstrom: 0.9, ice: 0.95, blood: 1.15 },
+  prime: { calm: 1.1, stormy: 1.05, foggy: 1.05, tailwind: 1.15, maelstrom: 1.0, ice: 1.05, blood: 1.0 },
+  valkyrie: { calm: 1.05, stormy: 0.8, foggy: 0.9, tailwind: 1.3, maelstrom: 0.95, ice: 0.85, blood: 1.25 },
+  raider: { calm: 1.05, stormy: 1.1, foggy: 1.05, tailwind: 1.05, maelstrom: 0.95, ice: 1.1, blood: 0.95 }
+};
+
+const HOUSE_RAKE = 0.1; // 10%
+const MIN_PAYOUT = 1.1; // Ensure 10% profit even on favorites
 
 // Phase Durations (ms)
 const DURATIONS = {
     betting: 20000,
     pause: 2000,
-    race: 5000,
+    race: 7000, // Slightly longer for more dramatic comebacks
     result: 3000
 };
 
@@ -299,22 +315,52 @@ export const refreshDrakkarRace = onCall(
                 } else if (state.phase === 'pause') {
                     nextPhase = 'race';
                     duration = DURATIONS.race;
+                    
+                    // 1. CALCULATE WINNER BASED ON STRATEGIC SIMULATION
+                    const ships = state.selectedShips || [];
+                    const track = state.track || [];
+                    
+                    // Simulate each ship's final time
+                    const finalTimes = ships.map((shipId: string) => {
+                        let totalSpeed = 0;
+                        track.forEach((weather: string) => {
+                            totalSpeed += (EFFICIENCY_MATRIX[shipId]?.[weather] || 1.0);
+                        });
+                        // Add a small random seed to avoid ties
+                        return totalSpeed + (Math.random() * 0.05);
+                    });
+                    
+                    // Highest total speed wins
+                    const winnerIdxInSelected = finalTimes.indexOf(Math.max(...finalTimes));
+                    
+                    updates = {
+                        stateWinnerIdx: winnerIdxInSelected // Index within the 3 selected ships
+                    };
                 } else if (state.phase === 'race') {
                     nextPhase = 'result';
                     duration = DURATIONS.result;
                 } else {
+                    // Start of New Cycle: Select 3 Ships and 3 Weathers
                     nextPhase = 'betting';
                     duration = DURATIONS.betting;
-                    const winnerIdx = Math.floor(Math.random() * 4);
+                    
+                    const selectedShips = [...DRAKKAR_SHIPS]
+                        .sort(() => Math.random() - 0.5)
+                        .slice(0, 3)
+                        .map(s => s.id);
+                        
+                    const track = [
+                        TRACK_TYPES[Math.floor(Math.random() * 7)],
+                        TRACK_TYPES[Math.floor(Math.random() * 7)],
+                        TRACK_TYPES[Math.floor(Math.random() * 7)]
+                    ];
+
                     updates = {
-                        track: [
-                            TRACK_TYPES[Math.floor(Math.random() * 4)],
-                            TRACK_TYPES[Math.floor(Math.random() * 4)],
-                            TRACK_TYPES[Math.floor(Math.random() * 4)]
-                        ],
-                        winnerIdx: winnerIdx,
                         raceId: (state.raceId || 0) + 1,
-                        startTime: now
+                        startTime: now,
+                        selectedShips: selectedShips,
+                        track: track,
+                        stateWinnerIdx: null
                     };
                 }
 
@@ -336,10 +382,13 @@ export const refreshDrakkarRace = onCall(
                 await rtdb.ref('drakkar_race/state').set(newState);
 
                 if (newState.phase === 'betting') {
-                    await rtdb.ref('drakkar_race/pools').set({ gold: 0, red: 0, blue: 0, green: 0 });
+                    // Initialize pools for the 3 selected ships only
+                    const initialPools: any = {};
+                    (newState.selectedShips || []).forEach((id: string) => initialPools[id] = 0);
+                    await rtdb.ref('drakkar_race/pools').set(initialPools);
                     await clearBets(stateRef);
                 } else if (newState.phase === 'result') {
-                    await processDrakkarPayouts(newState.winnerIdx, newState.raceId);
+                    await processDrakkarPayouts(newState.stateWinnerIdx, newState.raceId);
                 }
             }
 
@@ -358,51 +407,69 @@ async function clearBets(stateRef: admin.firestore.DocumentReference) {
     await batch.commit();
 }
 
-async function processDrakkarPayouts(winnerIdx: number, raceId: number) {
+async function processDrakkarPayouts(winnerIdxInSelected: number, raceId: number) {
     const db = admin.firestore();
     const stateRef = db.collection('settings').doc('mini_games').collection('drakkar_race').doc('current');
     
-    // 1. Verify if this race has already been processed to prevent double-payouts
-    const winnerId = DRAKKAR_SHIPS[winnerIdx].id;
-    const bets = await stateRef.collection('bets').get();
+    // 1. Fetch current pools from RTDB to calculate total
+    const rtdb = admin.database();
+    const poolsSnap = await rtdb.ref('drakkar_race/pools').get();
+    const pools = poolsSnap.val() || {};
     
+    const stateSnap = await stateRef.get();
+    const state = stateSnap.data();
+    if (!state || !state.selectedShips) return;
+    
+    const winningShipId = state.selectedShips[winnerIdxInSelected];
+    const totalPool = Object.values(pools).reduce((a: any, b: any) => a + b, 0) as number;
+    const winningPool = pools[winningShipId] || 0;
+    
+    if (totalPool === 0 || winningPool === 0) return;
+
+    // Calculate Dynamic Multiplier with House Rake
+    // Factor: (Total * 0.9) / WinnerPool
+    let multiplier = (totalPool * (1 - HOUSE_RAKE)) / winningPool;
+    if (multiplier < MIN_PAYOUT) multiplier = MIN_PAYOUT;
+
+    const bets = await stateRef.collection('bets').get();
     if (bets.empty) return;
 
     for (const betDoc of bets.docs) {
         const bet = betDoc.data();
-        const winAmount = (bet[winnerId] || 0) * PAYOUT_MULTIPLIER;
+        const personalWinningBet = bet[winningShipId] || 0;
+        const winAmount = Math.floor(personalWinningBet * multiplier);
         
         if (winAmount > 0) {
             try {
-                // Use a separate transaction for each user to ensure stability
+                // Use a separate transaction for each user
                 await db.runTransaction(async (t) => {
                     const userRef = db.collection('users').doc(bet.uid);
                     t.update(userRef, {
-                        points: admin.firestore.FieldValue.increment(Math.floor(winAmount))
+                        points: admin.firestore.FieldValue.increment(winAmount)
                     });
 
                     // Log history
                     const historyRef = userRef.collection('miniGameHistory').doc();
                     t.set(historyRef, {
                         gameType: 'drakkarRace',
-                        prizeName: `${Math.floor(winAmount)} Valcoins`,
+                        prizeName: `${winAmount} Valcoins`,
                         prizeType: 'valcoins',
-                        prizeAmount: Math.floor(winAmount),
+                        prizeAmount: winAmount,
                         prizeRarity: winAmount > 100 ? 'epic' : 'rare',
-                        prizeIcon: 'legendary_ship.png',
+                        prizeIcon: 'legendary_hammer.png',
                         cost: bet.total,
                         timestamp: admin.firestore.FieldValue.serverTimestamp()
                     });
                 });
 
-                // Post to Global Feed (can be outside user transaction)
+                // Post to Global Feed
                 if (winAmount >= 50) {
-                    const rtdb = admin.database();
                     await rtdb.ref('recentMiniGameWinners').push({
                         playerName: bet.playerName,
-                        prizeName: `${Math.floor(winAmount)} Valcoins`,
+                        playerAvatar: bet.playerAvatar || '',
+                        prizeName: `${winAmount} Valcoins`,
                         rarity: winAmount > 200 ? 'legendary' : 'epic',
-                        icon: 'legendary_ship.png',
+                        icon: 'legendary_hammer.png',
                         gameType: 'drakkarRace',
                         timestamp: admin.database.ServerValue.TIMESTAMP
                     });

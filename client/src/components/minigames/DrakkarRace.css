@@ -6,15 +6,21 @@
   max-width: 1000px;
   margin: 0 auto;
   position: relative;
-  min-height: 500px;
+  min-height: 600px;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.8);
+  border-radius: 20px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
 }
 
 /* ───────────── TRACK ───────────── */
 .race-track-area {
   position: relative;
   width: 100%;
-  height: 240px;
-  background: linear-gradient(180deg, #1e3a8a 0%, #172554 100%);
+  height: 200px;
+  background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
   border-radius: 16px;
   overflow: hidden;
   border: 2px solid rgba(255, 255, 255, 0.05);
@@ -24,45 +30,52 @@
 .track-water-texture {
   position: absolute;
   inset: 0;
-  background-image: 
-    radial-gradient(circle at 20% 30%, rgba(255,255,255,0.03) 0%, transparent 20%),
-    radial-gradient(circle at 80% 70%, rgba(255,255,255,0.03) 0%, transparent 20%);
-  opacity: 0.5;
-  animation: waterMovement 10s linear infinite;
+  background: 
+    radial-gradient(circle at 10% 20%, rgba(255,255,255,0.02) 0%, transparent 15%),
+    radial-gradient(circle at 90% 80%, rgba(255,255,255,0.02) 0%, transparent 15%);
+  background-size: 200% 200%;
+  animation: waterGlow 15s ease infinite alternate;
 }
 
-@keyframes waterMovement {
-  0% { background-position: 0 0; }
-  100% { background-position: 100px 0; }
+@keyframes waterGlow {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
 }
 
 .track-segments {
   display: flex;
-  height: 40px;
+  height: 44px;
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   z-index: 5;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
 .track-segment {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.5);
+  color: rgba(255,255,255,0.6);
   border-right: 1px dashed rgba(255,255,255,0.1);
   background: rgba(0,0,0,0.2);
+  transition: all 0.5s ease;
 }
 
-.track-segment.hidden {
-  filter: blur(4px);
-  opacity: 0.5;
+.track-segment.mystery {
+  background: rgba(0,0,0,0.4);
+  color: rgba(255,255,255,0.2);
+}
+
+.segment-icon {
+  font-size: 1.2rem;
+  margin-bottom: 2px;
 }
 
 /* ───────────── SHIPS ───────────── */
@@ -70,21 +83,21 @@
   padding-top: 50px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  justify-content: space-around;
+  height: 150px;
 }
 
 .ship-lane {
-  height: 40px;
+  height: 48px;
   position: relative;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
 }
 
 .racer-ship-wrapper {
   position: absolute;
-  left: 5%;
   top: 50%;
   transform: translateY(-50%);
-  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: left 0.1s linear;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -92,164 +105,314 @@
 }
 
 .racer-ship-img {
-  width: 50px;
-  height: 40px;
+  width: 54px;
+  height: 44px;
   object-fit: contain;
-  filter: drop-shadow(0 0 8px var(--ship-glow));
 }
 
 .racer-name-tag {
-  font-size: 0.7rem;
-  font-weight: 600;
+  font-size: 0.65rem;
+  font-weight: 700;
   color: white;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.7);
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: 4px;
   white-space: nowrap;
-  opacity: 0.7;
+  border-left: 3px solid #ccc;
 }
 
-/* ───────────── BETTING UI ───────────── */
-.drakkar-betting-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
+/* ───────────── NEW HUD ───────────── */
+.drakkar-new-hud {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background: rgba(0,0,0,0.2);
+  padding: 20px;
+  border-radius: 16px;
 }
 
-.ship-bet-card {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
+/* Chips Selection bar */
+.chip-selector-bar {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.bet-chip-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  padding: 8px 16px;
   border-radius: 12px;
-  padding: 16px;
-  transition: all 0.2s;
+  min-width: 70px;
   cursor: pointer;
+  transition: all 0.2s;
+  color: white;
+}
+
+.bet-chip-btn:hover {
+  background: rgba(255,255,255,0.1);
+  transform: scale(1.05);
+}
+
+.bet-chip-btn.active {
+  background: rgba(251, 191, 36, 0.2);
+  border-color: #fbbf24;
+  box-shadow: 0 0 15px rgba(251, 191, 36, 0.3);
+}
+
+.chip-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.bet-chip-btn span {
+  font-weight: 800;
+  font-size: 0.8rem;
+}
+
+/* Ship Selection Row */
+.ship-betting-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.ship-v-bet-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
   position: relative;
   overflow: hidden;
 }
 
-.ship-bet-card:hover:not(.disabled) {
-  transform: translateY(-2px);
-  border-color: var(--ship-color);
-  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+.ship-v-bet-card:not(.disabled):hover {
+  background: rgba(255,255,255,0.07);
+  box-shadow: 0 0 20px var(--ship-accent);
+  border-color: var(--ship-accent);
+  transform: translateY(-3px);
 }
 
-.ship-bet-card.selected {
-  border-color: var(--ship-color);
-  background: rgba(255,255,255,0.03);
-}
-
-.bet-card-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.bet-card-icon {
-  width: 32px;
-  height: 32px;
+.ship-v-preview {
+  width: 60px;
+  height: 50px;
+  background: rgba(0,0,0,0.3);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--ship-gradient);
+  border-bottom: 2px solid var(--ship-accent);
 }
 
-.bet-card-info h4 {
+.ship-v-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 0 5px var(--ship-accent));
+}
+
+.ship-v-info h4 {
   margin: 0;
   font-size: 0.9rem;
   color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.bet-card-pool {
-  font-size: 0.7rem;
-  color: var(--text-muted);
+.ship-v-pool {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-top: 4px;
 }
 
-.bet-input-wrapper {
+.ship-v-add-hint {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--ship-accent);
+  opacity: 0.5;
+}
+
+/* ───────────── RULES MODAL ───────────── */
+.rules-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 1000;
   display: flex;
-  gap: 8px;
-  margin-top: 10px;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  animation: mgFadeIn 0.3s ease;
 }
 
-.bet-input {
-  flex: 1;
-  background: rgba(0,0,0,0.3);
+.rules-card {
+  background: #1e293b;
+  width: 100%;
+  max-width: 800px;
+  max-height: 90vh;
+  border-radius: 20px;
   border: 1px solid rgba(255,255,255,0.1);
-  color: white;
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.btn-place-bet {
-  background: var(--ship-gradient);
+.rules-header {
+  padding: 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.rules-header h3 { margin: 0; color: #fbbf24; }
+
+.rules-close {
+  background: none;
   border: none;
-  color: white;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-weight: 700;
-  font-size: 0.8rem;
+  color: #94a3b8;
+  font-size: 1.5rem;
   cursor: pointer;
 }
+
+.rules-payout-info {
+  padding: 15px 20px;
+  background: rgba(0,0,0,0.2);
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+
+.rules-table-wrapper {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+
+.efficiency-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.efficiency-table th, .efficiency-table td {
+  padding: 10px;
+  text-align: center;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.efficiency-table th {
+  background: rgba(0,0,0,0.3);
+  color: #94a3b8;
+}
+
+.ship-cell {
+  text-align: left !important;
+  font-weight: 700;
+}
+
+.eff-good { color: #4ade80; font-weight: 800; }
+.eff-bad { color: #f87171; }
+.eff-neutral { color: #94a3b8; }
 
 /* ───────────── OVERLAYS ───────────── */
 .race-status-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 16px;
-  background: rgba(0,0,0,0.4);
-  border-radius: 10px;
-  margin-bottom: 10px;
+  gap: 15px;
 }
 
 .timer-pill {
-  background: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
-  padding: 4px 12px;
+  background: rgba(251, 191, 36, 0.1);
+  color: #fbbf24;
+  padding: 6px 16px;
   border-radius: 20px;
-  font-weight: 800;
-  font-family: inherit;
-  font-size: 0.9rem;
+  font-weight: 900;
+  font-size: 1.1rem;
+  border: 1px solid rgba(251, 191, 36, 0.2);
 }
 
-.status-text {
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  font-weight: 800;
+.race-rules-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #94a3b8;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
   font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.race-error-toast {
+  background: #f87171;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 700;
+  animation: mgShake 0.4s ease;
 }
 
 .race-result-overlay {
   position: absolute;
   inset: 0;
-  z-index: 100;
-  background: rgba(0,0,0,0.7);
+  background: rgba(15, 23, 42, 0.9);
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
+  z-index: 2000;
   animation: mgFadeIn 0.5s ease;
 }
 
-.winner-crown {
-  font-size: 3rem;
-  margin-bottom: 10px;
-}
-
-.winner-announce-card {
+.winner-celebration {
   text-align: center;
 }
 
-.winner-announce-card h2 {
-  color: gold;
-  margin: 0;
+.winner-celebration h2 {
+  font-size: 2.5rem;
+  margin: 10px 0;
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.payout-note {
+  color: #94a3b8;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+/* Animations from slot machine etc. */
+@keyframes mgFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mgShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
 }
 
 /* Responsive */
 @media (max-width: 768px) {
-  .drakkar-betting-grid {
-    grid-template-columns: 1fr;
-  }
+  .ship-betting-row { grid-template-columns: 1fr; }
+  .rules-card { width: 95vw; }
 }

@@ -5,17 +5,33 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { createNotification } from './notifications';
 
 export const DRAKKAR_SHIPS = [
-  { id: 'gold', name: "Odin's Sleipnir", color: '#fbbf24', gradient: 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)' },
-  { id: 'red', name: "Surtur's Fury", color: '#ef4444', gradient: 'linear-gradient(135deg, #ef4444 0%, #991b1b 100%)' },
-  { id: 'blue', name: "Aegir's Tide", color: '#3b82f6', gradient: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)' },
-  { id: 'green', name: "Yggdrasil's Root", color: '#10b981', gradient: 'linear-gradient(135deg, #10b981 0%, #065f46 100%)' }
+  { id: 'sleipnir', name: "Sleipnir Swift", color: '#fbbf24', gradient: 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)' },
+  { id: 'jormungandr', name: "Jormungandr Sea-Serpent", color: '#10b981', gradient: 'linear-gradient(135deg, #10b981 0%, #065f46 100%)' },
+  { id: 'ironclad', name: "Ironbound Hulk", color: '#94a3b8', gradient: 'linear-gradient(135deg, #94a3b8 0%, #475569 100%)' },
+  { id: 'shadow', name: "Hugin's Shadow", color: '#a855f7', gradient: 'linear-gradient(135deg, #a855f7 0%, #6b21a8 100%)' },
+  { id: 'prime', name: "Drakkar Prime", color: '#3b82f6', gradient: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)' },
+  { id: 'valkyrie', name: "Valkyrie Chariot", color: '#f472b6', gradient: 'linear-gradient(135deg, #f472b6 0%, #be185d 100%)' },
+  { id: 'raider', name: "Norse Raider", color: '#ef4444', gradient: 'linear-gradient(135deg, #ef4444 0%, #991b1b 100%)' }
 ];
 
 export const TRACK_ENVIRONMENTS = {
   calm: { name: 'Calm Waters', icon: '🌊', color: '#60a5fa' },
-  rough: { name: 'Rough Waves', icon: '🌊💨', color: '#3b82f6' },
   stormy: { name: 'Stormy Sea', icon: '⚡', color: '#1e40af' },
-  foggy: { name: 'Ethereal Fog', icon: '🌫️', color: '#94a3b8' }
+  foggy: { name: 'Ethereal Fog', icon: '🌫️', color: '#94a3b8' },
+  tailwind: { name: 'Strong Tailwind', icon: '💨', color: '#34d399' },
+  maelstrom: { name: 'The Maelstrom', icon: '🌀', color: '#4c1d95' },
+  ice: { name: 'Ice Floes', icon: '❄️', color: '#bae6fd' },
+  blood: { name: 'Blood Red Tide', icon: '🩸', color: '#991b1b' }
+};
+
+export const EFFICIENCY_MATRIX = {
+  sleipnir: { calm: 1.2, stormy: 0.85, foggy: 0.95, tailwind: 1.25, maelstrom: 0.8, ice: 0.9, blood: 1.05 },
+  jormungandr: { calm: 0.95, stormy: 1.3, foggy: 1.1, tailwind: 0.95, maelstrom: 1.15, ice: 1.05, blood: 1.1 },
+  ironclad: { calm: 0.9, stormy: 1.1, foggy: 1.0, tailwind: 0.9, maelstrom: 1.2, ice: 1.2, blood: 1.0 },
+  shadow: { calm: 1.0, stormy: 0.9, foggy: 1.35, tailwind: 1.05, maelstrom: 0.9, ice: 0.95, blood: 1.15 },
+  prime: { calm: 1.1, stormy: 1.05, foggy: 1.05, tailwind: 1.15, maelstrom: 1.0, ice: 1.05, blood: 1.0 },
+  valkyrie: { calm: 1.05, stormy: 0.8, foggy: 0.9, tailwind: 1.3, maelstrom: 0.95, ice: 0.85, blood: 1.25 },
+  raider: { calm: 1.05, stormy: 1.1, foggy: 1.05, tailwind: 1.05, maelstrom: 0.95, ice: 1.1, blood: 0.95 }
 };
 
 /**

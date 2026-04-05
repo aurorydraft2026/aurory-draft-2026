@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   DRAKKAR_SHIPS, 
   TRACK_ENVIRONMENTS, 
+  EFFICIENCY_MATRIX,
   subscribeDrakkarRaceState, 
   subscribeDrakkarPools,
   refreshDrakkarRace,
@@ -9,19 +10,20 @@ import {
 } from '../../services/miniGameService';
 import './DrakkarRace.css';
 
-const DURATIONS = { betting: 20000, pause: 2000, race: 5000, result: 3000 };
+const DURATIONS = { betting: 20000, pause: 2000, race: 7000, result: 3000 };
 
 const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const [state, setState] = useState(null);
-  const [pools, setPools] = useState({ gold: 0, red: 0, blue: 0, green: 0 });
-  const [betAmount, setBetAmount] = useState(10);
+  const [pools, setPools] = useState({});
+  const [selectedChip, setSelectedChip] = useState(10);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [showRules, setShowRules] = useState(false);
   
   // Animation refs
   const requestRef = useRef();
-  const [shipPositions, setShipPositions] = useState([5, 5, 5, 5]); // Percentage left
+  const [shipPositions, setShipPositions] = useState([5, 5, 5]); // Percentage left
 
   // 1. Subscriptions
   useEffect(() => {
@@ -29,7 +31,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       setState(newState);
     });
     const unsubPools = subscribeDrakkarPools((newPools) => {
-      setPools(newPools);
+      setPools(newPools || {});
     });
 
     return () => {
@@ -47,7 +49,6 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       const diff = state.endTime - now;
       setTimeLeft(Math.max(0, diff));
 
-      // If phase expired, pulse the server
       if (diff <= 0) {
         refreshDrakkarRace();
       }
@@ -56,48 +57,52 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
     return () => clearInterval(interval);
   }, [state]);
 
-  // 3. Race Animation
+  // Derived: Get the 3 selected ships for this race
+  const currentShips = useMemo(() => {
+    if (!state?.selectedShips) return [];
+    return state.selectedShips.map(id => DRAKKAR_SHIPS.find(s => s.id === id)).filter(Boolean);
+  }, [state?.selectedShips]);
+
+  // 3. Race Animation Logic
   const animate = useCallback(() => {
-    if (state && state.phase === 'race') {
+    if (state && state.phase === 'race' && currentShips.length > 0) {
       const now = Date.now();
       const raceStartTime = state.endTime - DURATIONS.race;
       const progress = Math.max(0, Math.min(1, (now - raceStartTime) / DURATIONS.race));
       
-      const newPositions = [0, 1, 2, 3].map(idx => {
-        const isWinner = idx === state.winnerIdx;
+      const newPositions = currentShips.map((ship, idx) => {
+        const isWinner = idx === state.stateWinnerIdx;
         
         // Base linear progress
         const base = 5 + (progress * 80);
         
-        // Use segmentType for a more 'calculated' surge
+        // Strategic modifier calculation
         const segmentIdx = Math.floor(progress * 3);
         const segmentType = state.track?.[segmentIdx] || 'calm';
+        const efficiency = EFFICIENCY_MATRIX[ship.id]?.[segmentType] || 1.0;
         
-        // Ships perform differently based on the environment
-        let environmentalSurge = 0;
-        if (segmentType === 'stormy' && idx === state.winnerIdx) environmentalSurge = 2;
-        if (segmentType === 'rough' && idx === state.winnerIdx) environmentalSurge = 1;
+        // Speed variation based on weather efficiency
+        const boost = (efficiency - 1.0) * 15;
         
-        // Fake speed variations
-        const speedMod = Math.sin(now / 200 + idx) * 2;
+        // Jitter / Shake for visual excitement
+        const jitter = Math.sin(now / 150 + idx) * 1.5;
         
-        // If winner, they must cross the line first
-        const winnerBoost = isWinner && progress > 0.8 ? (progress - 0.8) * 50 : 0;
+        // Final winner push to ensure they hit the line first
+        const winnerBoost = isWinner && progress > 0.85 ? (progress - 0.85) * 60 : 0;
         
-        return Math.min(90, base + speedMod + environmentalSurge + winnerBoost);
+        return Math.min(88, base + boost + jitter + winnerBoost);
       });
 
       setShipPositions(newPositions);
     } else if (state && state.phase === 'betting') {
-       setShipPositions([5, 5, 5, 5]);
+       setShipPositions([5, 5, 5]);
     } else if (state && (state.phase === 'result' || state.phase === 'pause')) {
-       // Keep positions at the end if it's result/pause phase
        if (state.phase === 'result') {
-         setShipPositions(prev => prev.map((p, i) => i === state.winnerIdx ? 85 : Math.min(p, 80)));
+         setShipPositions(prev => prev.map((p, i) => i === state.stateWinnerIdx ? 88 : Math.min(p, 82)));
        }
     }
     requestRef.current = requestAnimationFrame(animate);
-  }, [state]);
+  }, [state, currentShips]);
 
   useEffect(() => {
     requestRef.current = requestAnimationFrame(animate);
@@ -107,11 +112,17 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   // 4. Betting Logic
   const handlePlaceBet = async (shipId) => {
     if (isSubmitting || state?.phase !== 'betting') return;
+    if (userPoints < selectedChip) {
+      setLocalError(`Insufficient Valcoins!`);
+      setTimeout(() => setLocalError(null), 3000);
+      return;
+    }
+
     setLocalError(null);
     setIsSubmitting(true);
     
     try {
-      const result = await placeDrakkarBet(shipId, parseInt(betAmount));
+      const result = await placeDrakkarBet(shipId, selectedChip);
       if (result.success) {
         setDisplayedPoints(result.newBalance);
       } else {
@@ -134,15 +145,16 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
           <span className="status-text">
             {state.phase === 'betting' ? '⚓ Place Your Bets' : 
              state.phase === 'race' ? '⛵ The Race is On!' : 
-             state.phase === 'pause' ? '🏁 Prepare for Start' : '🏅 Winner Revealed'}
+             state.phase === 'pause' ? '🏁 Reveal Obstacles...' : '🏅 Winner Revealed'}
           </span>
         </div>
+        <button className="race-rules-btn" onClick={() => setShowRules(true)}>📖 Rules & Stats</button>
         <div className="timer-pill">
           {Math.ceil(timeLeft / 1000)}s
         </div>
       </div>
 
-      {localError && <div className="chest-error">{localError}</div>}
+      {localError && <div className="race-error-toast">{localError}</div>}
 
       {/* TRACK AREA */}
       <div className="race-track-area">
@@ -150,24 +162,35 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
         
         {/* Track Segments Display */}
         <div className="track-segments">
-          {state.track?.map((env, i) => (
-            <div key={i} className={`track-segment ${state.phase === 'betting' && i > 0 ? 'hidden' : ''}`}>
-               {state.phase === 'betting' && i > 0 ? '???' : (
-                 <><span>{TRACK_ENVIRONMENTS[env].icon}</span> {TRACK_ENVIRONMENTS[env].name}</>
-               )}
-            </div>
-          ))}
+          {[0, 1, 2].map((i) => {
+            const isRevealed = state.phase === 'race' || state.phase === 'result' || state.phase === 'pause' || i === 0;
+            const env = state.track?.[i];
+            
+            return (
+              <div key={i} className={`track-segment ${!isRevealed ? 'mystery' : ''}`}>
+                 {isRevealed && env ? (
+                   <>
+                     <span className="segment-icon">{TRACK_ENVIRONMENTS[env].icon}</span> 
+                     <span className="segment-name">{TRACK_ENVIRONMENTS[env].name}</span>
+                   </>
+                 ) : (
+                   <span className="segment-placeholder">???</span>
+                 )}
+              </div>
+            );
+          })}
         </div>
 
         {/* SHIP LANES */}
         <div className="ships-lane-container">
-          {DRAKKAR_SHIPS.map((ship, i) => (
+          {currentShips.map((ship, i) => (
             <div key={ship.id} className="ship-lane">
               <div 
                 className="racer-ship-wrapper"
                 style={{ 
                   left: `${shipPositions[i]}%`,
-                  '--ship-glow': ship.color 
+                  '--ship-glow': ship.color,
+                  filter: `drop-shadow(0 0 10px ${ship.color})`
                 }}
               >
                 <img 
@@ -175,61 +198,98 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                   alt={ship.name} 
                   className="racer-ship-img"
                 />
-                <span className="racer-name-tag">{ship.name}</span>
+                <span className="racer-name-tag" style={{ borderLeftColor: ship.color }}>{ship.name}</span>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* BETTING CONTROLS */}
-      <div className="drakkar-betting-grid">
-        {DRAKKAR_SHIPS.map((ship) => (
-          <div 
-            key={ship.id} 
-            className={`ship-bet-card ${state.phase !== 'betting' ? 'disabled' : ''}`}
-            style={{ '--ship-color': ship.color, '--ship-gradient': ship.gradient }}
-          >
-            <div className="bet-card-header">
-              <div className="bet-card-icon">
-                <img src={process.env.PUBLIC_URL + '/icons/minigames/legendary_ship.png'} width="20" alt="" />
-              </div>
-              <div className="bet-card-info">
-                <h4>{ship.name}</h4>
-                <div className="bet-card-pool">Pool: 🪙{pools?.[ship.id] || 0}</div>
-              </div>
-            </div>
+      {/* NEW BETTING HUD */}
+      <div className="drakkar-new-hud">
+        {/* Chips Selection */}
+        <div className="chip-selector-bar">
+          {[1, 5, 10, 50, 100].map(val => (
+            <button 
+              key={val} 
+              className={`bet-chip-btn ${selectedChip === val ? 'active' : ''}`}
+              onClick={() => setSelectedChip(val)}
+            >
+              <img src={process.env.PUBLIC_URL + '/valcoin-icon.jpg'} alt="" className="chip-icon" />
+              <span>x{val}</span>
+            </button>
+          ))}
+        </div>
 
-            {state.phase === 'betting' && (
-              <div className="bet-input-wrapper">
-                <input 
-                  type="number" 
-                  min="10" 
-                  className="bet-input" 
-                  value={betAmount} 
-                  onChange={(e) => setBetAmount(e.target.value)}
-                  onClick={e => e.stopPropagation()}
-                />
-                <button 
-                  className="btn-place-bet"
-                  disabled={isSubmitting}
-                  onClick={() => handlePlaceBet(ship.id)}
-                >
-                  Bet
-                </button>
+        {/* SHIP SELECTION CARDS */}
+        <div className="ship-betting-row">
+          {currentShips.map((ship) => (
+            <button 
+              key={ship.id} 
+              className={`ship-v-bet-card ${state.phase !== 'betting' ? 'disabled' : ''}`}
+              onClick={() => handlePlaceBet(ship.id)}
+              disabled={isSubmitting || state.phase !== 'betting'}
+              style={{ '--ship-accent': ship.color }}
+            >
+              <div className="ship-v-preview">
+                <img src={process.env.PUBLIC_URL + '/icons/minigames/legendary_ship.png'} alt="" />
               </div>
-            )}
-          </div>
-        ))}
+              <div className="ship-v-info">
+                <h4>{ship.name}</h4>
+                <div className="ship-v-pool">Pool: 💰{pools?.[ship.id] || 0}</div>
+              </div>
+              <div className="ship-v-add-hint">+{selectedChip}</div>
+            </button>
+          ))}
+        </div>
       </div>
 
+      {/* RULES MODAL */}
+      {showRules && (
+        <div className="rules-overlay" onClick={() => setShowRules(false)}>
+          <div className="rules-card" onClick={e => e.stopPropagation()}>
+            <div className="rules-header">
+              <h3>Drakkar Strategy Guide</h3>
+              <button className="rules-close" onClick={() => setShowRules(false)}>×</button>
+            </div>
+            <div className="rules-payout-info">
+              <p>⚓ <strong>Pool Sharing Payout (Option B)</strong>: The total betting pool (minus 10% rake) is shared among the winners. Payouts are dynamic based on popularity!</p>
+            </div>
+            <div className="rules-table-wrapper">
+              <table className="efficiency-table">
+                <thead>
+                  <tr>
+                    <th>Ship</th>
+                    {Object.keys(TRACK_ENVIRONMENTS).map(k => (
+                      <th key={k}>{TRACK_ENVIRONMENTS[k].icon}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {DRAKKAR_SHIPS.map(ship => (
+                    <tr key={ship.id}>
+                      <td className="ship-cell" style={{ color: ship.color }}>{ship.name}</td>
+                      {Object.keys(TRACK_ENVIRONMENTS).map(w => {
+                        const eff = EFFICIENCY_MATRIX[ship.id][w];
+                        const className = eff > 1 ? 'eff-good' : eff < 1 ? 'eff-bad' : 'eff-neutral';
+                        return <td key={w} className={className}>{Math.round(eff * 100)}%</td>
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* RESULT OVERLAY */}
-      {state.phase === 'result' && (
+      {state.phase === 'result' && state.stateWinnerIdx !== null && currentShips[state.stateWinnerIdx] && (
         <div className="race-result-overlay">
-          <div className="winner-crown">👑</div>
-          <div className="winner-announce-card">
-             <h2>{DRAKKAR_SHIPS[state.winnerIdx].name} Wins!</h2>
-             <p>All bets on this ship paid out 3.8x</p>
+          <div className="winner-celebration">
+            <div className="winner-crown">👑</div>
+            <h2>{currentShips[state.stateWinnerIdx].name} Wins!</h2>
+            <div className="payout-note">Dynamic Payout Distributed</div>
           </div>
         </div>
       )}
@@ -238,3 +298,4 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 };
 
 export default DrakkarRace;
+
