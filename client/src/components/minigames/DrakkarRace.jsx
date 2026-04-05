@@ -7,6 +7,7 @@ import {
   MAX_BET_PER_USER,
   ZONE_WIDTH,
   DOCK_WIDTH,
+  SHIP_START,
   computeShipPosition,
   formatSpeed,
   getShipGlobalIndex,
@@ -18,6 +19,8 @@ import {
   placeDrakkarBet
 } from '../../services/miniGameService';
 import './DrakkarRace.css';
+
+const FINISH_LINE = DOCK_WIDTH + 3 * ZONE_WIDTH; // 98%
 
 const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const [state, setState] = useState(null);
@@ -32,7 +35,8 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
   // Animation
   const animFrameRef = useRef();
-  const [shipPositions, setShipPositions] = useState([DOCK_WIDTH, DOCK_WIDTH, DOCK_WIDTH]);
+  const [shipPositions, setShipPositions] = useState([SHIP_START, SHIP_START, SHIP_START]);
+  const [raceFinished, setRaceFinished] = useState(false);
   const prevRaceIdRef = useRef(null);
 
   // ─── 1. Subscriptions ───
@@ -60,6 +64,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       prevRaceIdRef.current = state.raceId;
       setMyBets({});
       setLocalError(null);
+      setRaceFinished(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.raceId]);
@@ -82,22 +87,31 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
   // ─── 3. Race Animation ───
   const animate = useCallback(() => {
-    if (state && state.phase === 'racing' && state.shipIndices && state.weatherIndices && state.raceStartTime) {
+    if (state && state.phase === 'racing' && state.shipIndices && state.weatherIndices && state.raceStartTime && !raceFinished) {
       const elapsed = Date.now() - state.raceStartTime;
-      // Compute speeds locally from the matrix (avoids RTDB nested-array limitation)
+      // Compute speeds locally from the matrix
       const newPositions = state.shipIndices.map((sIdx) => {
         const shipSpeeds = state.weatherIndices.map((wIdx) => SPEED_MATRIX[sIdx][wIdx]);
         return computeShipPosition(shipSpeeds, elapsed);
       });
+
+      // Check if winner crossed the finish line — freeze immediately
+      if (state.winnerIdx !== null && state.winnerIdx !== undefined && newPositions[state.winnerIdx] >= FINISH_LINE) {
+        newPositions[state.winnerIdx] = FINISH_LINE;
+        setShipPositions(newPositions);
+        setRaceFinished(true);
+        return; // Stop animating
+      }
+
       setShipPositions(newPositions);
     } else if (state && state.phase === 'betting') {
-      setShipPositions([DOCK_WIDTH, DOCK_WIDTH, DOCK_WIDTH]);
+      setShipPositions([SHIP_START, SHIP_START, SHIP_START]);
     } else if (state && state.phase === 'reveal') {
-      setShipPositions([DOCK_WIDTH, DOCK_WIDTH, DOCK_WIDTH]);
+      setShipPositions([SHIP_START, SHIP_START, SHIP_START]);
     }
-    // In result phase, keep final positions
+    // In result phase or raceFinished, keep final positions
     animFrameRef.current = requestAnimationFrame(animate);
-  }, [state]);
+  }, [state, raceFinished]);
 
   useEffect(() => {
     animFrameRef.current = requestAnimationFrame(animate);

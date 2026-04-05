@@ -49,17 +49,33 @@ export const ZONE_WIDTH = 30; // % of track per weather zone
 export const DOCK_WIDTH = 8; // % start zone
 export const FINISH_WIDTH = 2; // % finish zone
 
+export const SHIP_START = 2; // Ships park inside the dock (%)
+
 /**
  * Compute ship position at a given elapsed time (ms)
+ * Ships start inside the dock and accelerate through the dock into weather zones.
  * Returns position as % of track (0-100)
  */
 export function computeShipPosition(speeds, elapsedMs) {
-  let position = DOCK_WIDTH; // start at edge of dock
+  let position = SHIP_START;
   let remainingMs = elapsedMs;
 
+  // Phase 1: Traverse dock area (SHIP_START → DOCK_WIDTH) at first zone speed
+  const dockDistance = DOCK_WIDTH - SHIP_START; // 6%
+  const firstZoneSpeed = (speeds[0] / 10) * BASE_SPEED; // % per second
+  const dockTimeMs = (dockDistance / firstZoneSpeed) * 1000;
+
+  if (remainingMs < dockTimeMs) {
+    position += (remainingMs / 1000) * firstZoneSpeed;
+    return position;
+  }
+  position = DOCK_WIDTH;
+  remainingMs -= dockTimeMs;
+
+  // Phase 2: Traverse 3 weather zones
   for (let i = 0; i < speeds.length; i++) {
     const speed = speeds[i];
-    const zoneSpeed = (speed / 10) * BASE_SPEED; // % per second
+    const zoneSpeed = (speed / 10) * BASE_SPEED;
     const zoneTimeMs = (ZONE_WIDTH / zoneSpeed) * 1000;
 
     if (remainingMs >= zoneTimeMs) {
@@ -67,7 +83,7 @@ export function computeShipPosition(speeds, elapsedMs) {
       remainingMs -= zoneTimeMs;
     } else {
       position += (remainingMs / 1000) * zoneSpeed;
-      return Math.min(position, DOCK_WIDTH + 3 * ZONE_WIDTH + FINISH_WIDTH);
+      return Math.min(position, DOCK_WIDTH + 3 * ZONE_WIDTH);
     }
   }
 
