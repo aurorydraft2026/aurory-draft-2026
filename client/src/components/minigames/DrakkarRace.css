@@ -3,407 +3,29 @@
   flex-direction: column;
   gap: 20px;
   width: 100%;
-  max-width: 1000px;
+  max-width: 1100px;
   margin: 0 auto;
   position: relative;
-  min-height: 600px;
+  min-height: 700px;
   padding: 20px;
-  background: rgba(15, 23, 42, 0.8);
+  background: rgba(15, 23, 42, 0.85);
   border-radius: 20px;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: white;
 }
 
-/* ───────────── LAYOUT: HISTORY + TRACK ───────────── */
-.race-main-layout {
-  display: flex;
-  gap: 15px;
-  width: 100%;
-}
-
-.race-history-sidebar {
-  width: 160px;
-  background: rgba(0,0,0,0.3);
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.05);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  height: 200px;
-}
-
-.history-header {
-  padding: 6px;
-  background: rgba(255,255,255,0.05);
-  font-size: 0.65rem;
-  font-weight: 800;
-  text-align: center;
-  color: #94a3b8;
-  letter-spacing: 1px;
-}
-
-.history-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 4px;
-}
-
-.history-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
-  font-size: 0.75rem;
-  animation: mgFadeIn 0.3s ease;
-}
-
-.history-ship-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  box-shadow: 0 0 5px currentColor;
-}
-
-.history-pool {
-  flex: 1;
-  font-weight: 600;
-  color: #e2e8f0;
-}
-
-.history-mult {
-  color: #fbbf24;
-  font-weight: 800;
-  font-size: 0.7rem;
-}
-
-.history-empty {
-  padding: 20px;
-  text-align: center;
-  font-size: 0.7rem;
-  color: #475569;
-}
-
-.race-track-area {
-  flex: 1; /* Take remaining space */
-  position: relative;
-  height: 200px;
-  background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
-  border-radius: 16px;
-  overflow: hidden;
-  border: 2px solid rgba(255, 255, 255, 0.05);
-  box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
-}
-
-.track-water-texture {
-  position: absolute;
-  inset: 0;
-  background: 
-    radial-gradient(circle at 10% 20%, rgba(255,255,255,0.02) 0%, transparent 15%),
-    radial-gradient(circle at 90% 80%, rgba(255,255,255,0.02) 0%, transparent 15%);
-  background-size: 200% 200%;
-  animation: waterGlow 15s ease infinite alternate;
-}
-
-@keyframes waterGlow {
-  0% { background-position: 0% 0%; }
-  100% { background-position: 100% 100%; }
-}
-
-.track-segments {
-  display: flex;
-  position: absolute;
-  inset: 0; /* Full height and width */
-  z-index: 1; /* Behind ships */
-}
-
-.track-segment {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start; /* Icons at the top */
-  padding-top: 10px;
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.6);
-  border-right: 1px dashed rgba(255,255,255,0.15); /* THE DASHED LINE */
-  background: rgba(0,0,0,0.1);
-  transition: all 0.5s ease;
-}
-
-.track-segment:last-child {
-  border-right: none;
-}
-
-.track-segment.mystery {
-  background: rgba(0,0,0,0.4);
-  color: rgba(255,255,255,0.2);
-}
-
-.segment-icon {
-  font-size: 1.2rem;
-  margin-bottom: 2px;
-}
-
-/* ───────────── SHIPS ───────────── */
-.ships-lane-container {
-  padding-top: 50px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-around;
-  height: 150px;
-}
-
-.ship-lane {
-  height: 48px;
-  position: relative;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
-}
-
-.racer-ship-wrapper {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  transition: none; /* MUST BE NONE FOR SMOOTH JS ANIMATION */
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  z-index: 10;
-}
-
-.racer-ship-img {
-  width: 54px;
-  height: 44px;
-  object-fit: contain;
-}
-
-.racer-name-tag {
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: white;
-  background: rgba(0,0,0,0.7);
-  padding: 2px 8px;
-  border-radius: 4px;
-  white-space: nowrap;
-  border-left: 3px solid #ccc;
-}
-
-/* ───────────── NEW HUD ───────────── */
-.drakkar-new-hud {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  background: rgba(0,0,0,0.2);
-  padding: 20px;
-  border-radius: 16px;
-}
-
-/* Chips Selection bar */
-.chip-selector-bar {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-}
-
-.bet-chip-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  padding: 8px 16px;
-  border-radius: 12px;
-  min-width: 70px;
-  cursor: pointer;
-  transition: all 0.2s;
-  color: white;
-}
-
-.bet-chip-btn:hover {
-  background: rgba(255,255,255,0.1);
-  transform: scale(1.05);
-}
-
-.bet-chip-btn.active {
-  background: rgba(251, 191, 36, 0.2);
-  border-color: #fbbf24;
-  box-shadow: 0 0 15px rgba(251, 191, 36, 0.3);
-}
-
-.chip-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.bet-chip-btn span {
-  font-weight: 800;
-  font-size: 0.8rem;
-}
-
-/* Ship Selection Row */
-.ship-betting-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-}
-
-.ship-v-bet-card {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.05);
-  border-radius: 12px;
-  padding: 12px;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: left;
-  position: relative;
-  overflow: hidden;
-}
-
-.ship-v-bet-card:not(.disabled):hover {
-  background: rgba(255,255,255,0.07);
-  box-shadow: 0 0 20px var(--ship-accent);
-  border-color: var(--ship-accent);
-  transform: translateY(-3px);
-}
-
-.ship-v-preview {
-  width: 60px;
-  height: 50px;
-  background: rgba(0,0,0,0.3);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-bottom: 2px solid var(--ship-accent);
-}
-
-.ship-v-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  filter: drop-shadow(0 0 5px var(--ship-accent));
-}
-
-.ship-v-info h4 {
-  margin: 0;
-  font-size: 0.9rem;
-  color: white;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.ship-v-pool {
-  font-size: 0.75rem;
-  color: #94a3b8;
-  margin-top: 4px;
-}
-
-.ship-v-add-hint {
-  position: absolute;
-  top: 8px;
-  right: 12px;
-  font-size: 0.65rem;
-  font-weight: 800;
-  color: var(--ship-accent);
-  opacity: 0.5;
-}
-
-/* ───────────── RULES MODAL ───────────── */
-.rules-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.85);
+/* ───────────── STICKY HEADER ───────────── */
+.race-header-sticky {
+  position: sticky;
+  top: 0;
   z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-  animation: mgFadeIn 0.3s ease;
-}
-
-.rules-card {
-  background: #1e293b;
-  width: 100%;
-  max-width: 800px;
-  max-height: 90vh;
-  border-radius: 20px;
-  border: 1px solid rgba(255,255,255,0.1);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.rules-header {
-  padding: 20px;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.rules-header h3 { margin: 0; color: #fbbf24; }
-
-.rules-close {
-  background: none;
-  border: none;
-  color: #94a3b8;
-  font-size: 1.5rem;
-  cursor: pointer;
-}
-
-.rules-payout-info {
+  background: #0f172a;
   padding: 15px 20px;
-  background: rgba(0,0,0,0.2);
-  font-size: 0.85rem;
-  color: #cbd5e1;
-  line-height: 1.5;
+  border-bottom: 2px solid rgba(255,255,255,0.05);
+  margin: -20px -20px 10px -20px;
 }
 
-.rules-table-wrapper {
-  flex: 1;
-  overflow: auto;
-  padding: 20px;
-}
-
-.efficiency-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.8rem;
-}
-
-.efficiency-table th, .efficiency-table td {
-  padding: 10px;
-  text-align: center;
-  border: 1px solid rgba(255,255,255,0.05);
-}
-
-.efficiency-table th {
-  background: rgba(0,0,0,0.3);
-  color: #94a3b8;
-}
-
-.ship-cell {
-  text-align: left !important;
-  font-weight: 700;
-}
-
-.eff-good { color: #4ade80; font-weight: 800; }
-.eff-bad { color: #f87171; }
-.eff-neutral { color: #94a3b8; }
-
-/* ───────────── OVERLAYS ───────────── */
 .race-status-bar {
   display: flex;
   justify-content: space-between;
@@ -412,78 +34,472 @@
 }
 
 .timer-pill {
-  background: rgba(251, 191, 36, 0.1);
+  background: rgba(251, 191, 36, 0.15);
   color: #fbbf24;
-  padding: 6px 16px;
-  border-radius: 20px;
+  padding: 8px 20px;
+  border-radius: 30px;
   font-weight: 900;
-  font-size: 1.1rem;
-  border: 1px solid rgba(251, 191, 36, 0.2);
+  font-size: 1.2rem;
+  border: 2px solid rgba(251, 191, 36, 0.3);
+  box-shadow: 0 0 15px rgba(251, 191, 36, 0.2);
 }
 
 .race-rules-btn {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  color: #94a3b8;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #cbd5e1;
   padding: 6px 14px;
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.race-error-toast {
-  background: #f87171;
-  color: white;
-  padding: 8px 16px;
-  border-radius: 8px;
-  text-align: center;
   font-weight: 700;
-  animation: mgShake 0.4s ease;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.race-result-overlay {
+.race-rules-btn:hover {
+  background: rgba(255,255,255,0.15);
+  border-color: #fbbf24;
+  color: white;
+}
+
+/* ───────────── TRACK AREA ───────────── */
+.race-track-area {
+  position: relative;
+  width: 100%;
+  height: 280px;
+  background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+  border-radius: 16px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
+}
+
+.track-harbor {
   position: absolute;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.9);
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 10%;
+  background: rgba(0,0,0,0.3);
+  border-right: 2px solid rgba(255,255,255,0.1);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
-  animation: mgFadeIn 0.5s ease;
+  z-index: 2;
 }
 
-.winner-celebration {
+.track-finish {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 10%;
+  background: rgba(255,255,255,0.02);
+  border-left: 3px dashed gold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.track-harbor span, .track-finish span {
+  font-size: 0.6rem;
+  font-weight: 900;
+  color: rgba(255,255,255,0.2);
+  writing-mode: vertical-rl;
+  text-transform: uppercase;
+}
+
+.ship-v-bet-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.6) 100%);
+  border: 2px solid var(--ship-accent) !important; /* Thick themed border */
+  border-radius: 12px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.5), inset 0 0 10px var(--ship-accent);
+}
+
+.ship-v-info h4 {
+  margin: 0;
+  font-size: 0.7rem !important; /* Dainty ship names */
+  color: #ffffff !important;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  font-weight: 900;
+}
+
+.ship-v-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+}
+
+.ship-v-pool {
+  font-size: 0.7rem !important;
+  font-weight: 800;
+  color: #fbbf24 !important; /* Gold for global */
+}
+
+.ship-v-solo {
+  font-size: 0.65rem !important;
+  font-weight: 900;
+  color: #4ade80 !important; /* Emerald for personal */
+  background: rgba(74, 222, 128, 0.1);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.ship-v-add-hint {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 0.65rem !important;
+  font-weight: 900;
+  color: var(--ship-accent) !important;
+  text-shadow: 0 0 10px var(--ship-accent);
+  opacity: 1;
+}
+
+/* ⚡ CLICK FEEDBACK ⚡ */
+.ship-v-bet-card:active:not(:disabled) {
+  transform: scale(0.96);
+  box-shadow: 0 0 25px var(--ship-accent);
+}
+
+.ship-v-bet-card:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+  opacity: 0.7;
+}
+
+.ship-v-bet-card:disabled h4, 
+.ship-v-bet-card:disabled .ship-v-pool {
+  color: rgba(255,255,255,0.6) !important; /* Readable even when betting is closed */
+}
+
+/* ─── RULES MODAL (SMALLER) ─── */
+.rules-modal-box {
+  background: #1a1b26;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 550px; /* Much smaller */
+  padding: 20px;
+  box-shadow: 0 0 50px rgba(0,0,0,0.8);
+  animation: modalIn 0.3s ease-out;
+}
+
+.rules-modal-header h3 {
+  font-size: 1.1rem;
+}
+
+.rules-section h4 {
+  font-size: 0.85rem;
+  margin-bottom: 5px;
+}
+
+.rules-section p {
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.efficiency-table {
+  font-size: 0.7rem;
+}
+
+.eff-cell {
+  padding: 4px 6px !important;
+}
+
+.ship-name-cell {
+  font-size: 0.7rem;
+}
+
+.track-segments {
+  display: flex;
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+}
+
+.track-segment {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 20px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #94a3b8;
+  border-right: 2px dashed rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.1);
+}
+
+.segment-icon {
+  font-size: 1.4rem;
+  margin-bottom: 4px;
+}
+
+/* ───────────── SHIPS ───────────── */
+.ships-lane-container {
+  padding-top: 70px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  height: 220px;
+  position: relative;
+  z-index: 10;
+}
+
+.ship-lane {
+  height: 50px;
+  position: relative;
+}
+
+.racer-ship-wrapper {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.racer-ship-img {
+  width: 58px;
+  height: 46px;
+  object-fit: contain;
+}
+
+.racer-name-tag {
+  position: absolute;
+  bottom: 115%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.55rem;
+  font-weight: 900;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+  text-transform: uppercase;
+}
+
+/* ───────────── HUD LAYOUT ───────────── */
+.drakkar-new-hud-layout {
+  display: flex;
+  gap: 20px;
+}
+
+.race-history-section {
+  width: 220px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.history-header-pill {
+  padding: 10px;
+  background: rgba(255,255,255,0.05);
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-align: center;
+  color: #fbbf24;
+}
+
+.history-mini-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  font-size: 0.8rem;
+}
+
+.h-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+.race-betting-main {
+  flex: 1;
+  background: rgba(0,0,0,0.25);
+  padding: 20px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.chip-selector-bar {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding-bottom: 10px;
+}
+
+.bet-chip-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  padding: 8px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  color: white;
+}
+
+.bet-chip-btn.active {
+  border-color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.chip-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+
+.ship-betting-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+}
+
+.ship-v-bet-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 12px;
+  cursor: pointer;
+  text-align: center;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ship-v-preview {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.2);
+  border-radius: 8px;
+}
+
+.ship-v-preview img {
+  max-width: 50px;
+  max-height: 40px;
+  object-fit: contain;
+}
+
+/* ───────────── OVERLAYS ───────────── */
+.race-result-overlay, .race-rules-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.winner-content-card {
+  background: #0f172a;
+  border: 4px solid var(--winner-accent);
+  border-radius: 40px;
+  padding: 40px;
+  width: 100%;
+  max-width: 450px;
+  text-align: center;
+  box-shadow: 0 0 60px -10px var(--winner-accent);
+  animation: mgWinnerScale 0.5s ease-out;
+}
+
+.winner-ship-display {
+  width: 200px;
+  height: 160px;
+  margin: 0 auto 20px;
+  background: radial-gradient(circle, var(--winner-accent) 0%, transparent 70%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.winner-hero-img {
+  max-width: 180px;
+  max-height: 130px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 15px rgba(255,255,255,0.3));
+}
+
+.winner-announce-text {
+  font-size: 2rem;
+  font-weight: 900;
+  color: white;
+  text-transform: uppercase;
+}
+
+/* 📐 RULES MODAL */
+.rules-modal-box {
+  background: #1e293b;
+  width: 100%;
+  max-width: 750px;
+  border-radius: 24px;
+  overflow: hidden;
+  animation: mgSlideUp 0.4s ease-out;
+}
+
+.rules-modal-header {
+  padding: 15px 20px;
+  background: rgba(255,255,255,0.03);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.efficiency-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
   text-align: center;
 }
 
-.winner-celebration h2 {
-  font-size: 2.5rem;
-  margin: 10px 0;
-  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+.efficiency-table th, .efficiency-table td {
+  padding: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
 }
 
-.payout-note {
-  color: #94a3b8;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  font-weight: 700;
-  font-size: 0.85rem;
+.eff-cell.high { color: #4ade80; font-weight: 800; }
+.eff-cell.low { color: #f87171; }
+
+@keyframes mgWinnerScale {
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 
-/* Animations from slot machine etc. */
-@keyframes mgFadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes mgShake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  75% { transform: translateX(5px); }
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .ship-betting-row { grid-template-columns: 1fr; }
-  .rules-card { width: 95vw; }
+@keyframes mgSlideUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }

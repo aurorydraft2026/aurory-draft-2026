@@ -213,7 +213,7 @@ export const playMiniGame = onCall(
  * Place a bet on a Drakkar Race
  */
 export const placeDrakkarBet = onCall(
-    { cors: true, maxInstances: 10 },
+    { cors: true, maxInstances: 20 },
     async (request) => {
         if (!request.auth) throw new HttpsError('unauthenticated', 'Login required');
         const { uid } = request.auth;
@@ -226,26 +226,40 @@ export const placeDrakkarBet = onCall(
         const stateRef = db.collection('settings').doc('mini_games').collection('drakkar_race').doc('current');
 
         try {
-            const result = await db.runTransaction(async (transaction) => {
-                const betRef = stateRef.collection('bets').doc(uid);
-                
-                // 1. ALL READS FIRST
-                const stateSnap = await transaction.get(stateRef);
-                const userSnap = await transaction.get(userRef);
-                const betSnap = await transaction.get(betRef);
+            // 1. FAST CHECK (READS OUTSIDE TRANSACTION)
+            const stateSnap = await stateRef.get();
+            const state = stateSnap.data();
+            
+            if (!state) throw new Error('Race state not found.');
 
-                const state = stateSnap.data();
-                if (!state || state.phase !== 'betting') {
-                    throw new Error('Betting is currently closed.');
-                }
+            // ─── INFINITE GRACE ARCHITECTURE ───
+            const now = Date.now();
+            const isBetting = state.phase === 'betting';
+            // Allow a 1.5s grace period during the 'pause' (preparation) phase for late network packets
+            const isGracePeriod = state.phase === 'pause' && (now - state.startTime < 1500);
+            
+            if (!isBetting && !isGracePeriod) throw new Error('Betting is currently closed.');
+            // ───────────────────────────────
+            if (!state.selectedShips?.includes(shipId)) {
+                throw new Error('Invalid ship for this race.');
+            }
+
+            // 2. USER-CENTRIC TRANSACTION (NO GLOBAL LOCK)
+            // This allows 100 players to bet at once without colliding on the state document.
+            const result = await db.runTransaction(async (transaction) => {
+                // ALL READS FIRST
+                const userSnap = await transaction.get(userRef);
+                const betRef = stateRef.collection('bets').doc(uid);
+                const betSnap = await transaction.get(betRef); // Move Read to top
 
                 const userData = userSnap.data() || {};
                 const currentPoints = userData.points || 0;
+
                 if (currentPoints < amount) {
                     throw new Error('Insufficient Valcoins');
                 }
 
-                // 2. ALL WRITES LAST
+                // ALL WRITES SECOND
                 transaction.update(userRef, {
                     points: admin.firestore.FieldValue.increment(-amount),
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -262,6 +276,8 @@ export const placeDrakkarBet = onCall(
                         [shipId]: amount,
                         total: amount,
                         playerName: userData.auroryPlayerName || userData.displayName || 'Guest',
+                        playerAvatar: userData.photoURL || '',
+                        raceId: state.raceId,
                         timestamp: admin.firestore.FieldValue.serverTimestamp()
                     });
                 }
@@ -269,7 +285,7 @@ export const placeDrakkarBet = onCall(
                 return { success: true, newBalance: currentPoints - amount };
             });
 
-            // 2. Side effect: Update public pool in RTDB (only if transaction succeeded)
+            // 5. ATOMIC RTDB INCREMENT (VERY FAST FOR SPAMMING)
             const rtdb = admin.database();
             await rtdb.ref(`drakkar_race/pools/${shipId}`).transaction((current) => (current || 0) + amount);
 
@@ -312,6 +328,7 @@ export const refreshDrakkarRace = onCall(
                 if (state.phase === 'betting') {
                     nextPhase = 'pause';
                     duration = DURATIONS.pause;
+                    updates = { startTime: now };
                 } else if (state.phase === 'pause') {
                     nextPhase = 'race';
                     duration = DURATIONS.race;
@@ -387,6 +404,11 @@ export const refreshDrakkarRace = onCall(
                     (newState.selectedShips || []).forEach((id: string) => initialPools[id] = 0);
                     await rtdb.ref('drakkar_race/pools').set(initialPools);
                     await clearBets(stateRef);
+                } else if (newState.phase === 'race') {
+                    // ─── FINALIZATION (POST-GRACE) ───
+                    // Only finalize pools once we transition To the race phase
+                    // This allows the entire 'pause' phase to act as a latent grace window
+                    await finalizePools(stateRef);
                 } else if (newState.phase === 'result') {
                     await processDrakkarPayouts(newState.stateWinnerIdx, newState.raceId);
                 }
@@ -399,6 +421,19 @@ export const refreshDrakkarRace = onCall(
         }
     }
 );
+
+async function finalizePools(stateRef: admin.firestore.DocumentReference) {
+    const rtdb = admin.database();
+    const poolsSnap = await rtdb.ref('drakkar_race/pools').get();
+    const finalPools = poolsSnap.val() || {};
+    
+    // Save the finalized pools back to Firestore state for historical consistency
+    // This happens during the 5s preparation phase
+    await stateRef.update({
+        finalPools,
+        finalizationTime: Date.now()
+    });
+}
 
 async function clearBets(stateRef: admin.firestore.DocumentReference) {
     const bets = await stateRef.collection('bets').get();
@@ -427,9 +462,25 @@ async function processDrakkarPayouts(winnerIdxInSelected: number, raceId: number
     if (totalPool === 0 || winningPool === 0) return;
 
     // Calculate Dynamic Multiplier with House Rake
-    // Factor: (Total * 0.9) / WinnerPool
     let multiplier = (totalPool * (1 - HOUSE_RAKE)) / winningPool;
     if (multiplier < MIN_PAYOUT) multiplier = MIN_PAYOUT;
+
+    // Push to History (RTDB - keep last 20)
+    const historyRef = rtdb.ref('drakkar_race/history').push();
+    await historyRef.set({
+        raceId,
+        winnerId: winningShipId,
+        totalPool,
+        multiplier: parseFloat(multiplier.toFixed(2)),
+        timestamp: admin.database.ServerValue.TIMESTAMP
+    });
+
+    // Cleanup history > 20
+    const historySnap = await rtdb.ref('drakkar_race/history').orderByChild('timestamp').limitToLast(21).get();
+    if (historySnap.numChildren() > 20) {
+        const firstKey = Object.keys(historySnap.val())[0];
+        await rtdb.ref(`drakkar_race/history/${firstKey}`).remove();
+    }
 
     const bets = await stateRef.collection('bets').get();
     if (bets.empty) return;
@@ -459,6 +510,16 @@ async function processDrakkarPayouts(winnerIdxInSelected: number, raceId: number
                         prizeIcon: 'legendary_hammer.png',
                         cost: bet.total,
                         timestamp: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    // Site Notification
+                    const notificationRef = userRef.collection('notifications').doc();
+                    t.set(notificationRef, {
+                        title: 'Drakkar Race Win!',
+                        message: `Congratulations! You won ${winAmount} Valcoins in the Drakkar Race.`,
+                        type: 'win',
+                        read: false,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp()
                     });
                 });
 
