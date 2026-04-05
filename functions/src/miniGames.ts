@@ -43,6 +43,8 @@ const SPEED_MATRIX: number[][] = [
 const BASE_SPEED = 8; // % of track per second at 1.0x
 const ZONE_WIDTH = 30; // % of track per weather zone
 const HOUSE_CUT = 0.10; // 10% house edge
+const DOCK_WIDTH = 8;
+const SHIP_START = 0;
 const MAX_BET_PER_USER = 1000;
 
 // Phase Durations (ms)
@@ -79,13 +81,20 @@ function pick3(): number[] {
  * time = sum( ZONE_WIDTH / (speed * BASE_SPEED / 10) ) in seconds, converted to ms
  * Using integer arithmetic: time_ms = sum( ZONE_WIDTH * 10 * 1000 / (speed * BASE_SPEED) )
  */
-function computeFinishTimeMs(speeds: number[]): number {
+function computeFinishTimeMs(shipIdx: number, weatherIndices: number[]): number {
     let totalMs = 0;
-    for (const speed of speeds) {
-        // time for this zone in ms = (ZONE_WIDTH / (speed/10 * BASE_SPEED)) * 1000
-        // = (ZONE_WIDTH * 10000) / (speed * BASE_SPEED)
+    
+    // 1. Dock traversal (SHIP_START to DOCK_WIDTH) at Weather 1 speed
+    const dockDist = DOCK_WIDTH - SHIP_START;
+    const firstSpeed = SPEED_MATRIX[shipIdx][weatherIndices[0]];
+    totalMs += (dockDist * 10000) / (firstSpeed * BASE_SPEED);
+
+    // 2. Weather traversal (3 zones x 30% each)
+    for (const wIdx of weatherIndices) {
+        const speed = SPEED_MATRIX[shipIdx][wIdx];
         totalMs += (ZONE_WIDTH * 10000) / (speed * BASE_SPEED);
     }
+    
     return totalMs;
 }
 
@@ -94,12 +103,7 @@ function computeFinishTimeMs(speeds: number[]): number {
  * Returns { winnerIdx, finishTimes } where winnerIdx is 0, 1, or 2.
  */
 function determineRaceResult(shipIndices: number[], weatherIndices: number[]) {
-    const finishTimes: number[] = [];
-
-    for (const shipIdx of shipIndices) {
-        const speeds = weatherIndices.map(wIdx => SPEED_MATRIX[shipIdx][wIdx]);
-        finishTimes.push(computeFinishTimeMs(speeds));
-    }
+    const finishTimes = shipIndices.map(sIdx => computeFinishTimeMs(sIdx, weatherIndices));
 
     // Find winner (lowest time). Tiebreaker: ship with higher speed in last zone
     let winnerIdx = 0;

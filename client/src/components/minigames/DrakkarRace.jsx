@@ -88,25 +88,30 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   // ─── 3. Race Animation ───
   const animate = useCallback(() => {
     if (state && state.phase === 'racing' && state.shipIndices && state.weatherIndices && state.raceStartTime && !raceFinished) {
-      const elapsed = Date.now() - state.raceStartTime;
-      // Compute speeds locally from the matrix
+      const now = Date.now();
+      const elapsed = now - state.raceStartTime;
+      const winnerFinishTime = state.finishTimes ? state.finishTimes[state.winnerIdx] : 999999;
+
+      // 1. If we've passed the winner's finish time, stop EVERYTHING
+      if (elapsed >= winnerFinishTime) {
+        const finalPositions = state.shipIndices.map((sIdx, i) => {
+          const shipTotalTime = state.finishTimes[i];
+          const shipSpeeds = state.weatherIndices.map((wIdx) => SPEED_MATRIX[sIdx][wIdx]);
+          return computeShipPosition(shipSpeeds, Math.min(winnerFinishTime, shipTotalTime));
+        });
+        setShipPositions(finalPositions);
+        setRaceFinished(true);
+        return;
+      }
+
+      // 2. Normal race movement
       const newPositions = state.shipIndices.map((sIdx) => {
         const shipSpeeds = state.weatherIndices.map((wIdx) => SPEED_MATRIX[sIdx][wIdx]);
         return computeShipPosition(shipSpeeds, elapsed);
       });
 
-      // Check if winner crossed the finish line — freeze immediately
-      if (state.winnerIdx !== null && state.winnerIdx !== undefined && newPositions[state.winnerIdx] >= FINISH_LINE) {
-        newPositions[state.winnerIdx] = FINISH_LINE;
-        setShipPositions(newPositions);
-        setRaceFinished(true);
-        return; // Stop animating
-      }
-
       setShipPositions(newPositions);
-    } else if (state && state.phase === 'betting') {
-      setShipPositions([SHIP_START, SHIP_START, SHIP_START]);
-    } else if (state && state.phase === 'reveal') {
+    } else if (state && (state.phase === 'betting' || state.phase === 'reveal')) {
       setShipPositions([SHIP_START, SHIP_START, SHIP_START]);
     }
     // In result phase or raceFinished, keep final positions
@@ -256,7 +261,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
             <div className="dv2-zone-divider" style={{ left: `${DOCK_WIDTH}%` }} />
             <div className="dv2-zone-divider" style={{ left: `${DOCK_WIDTH + ZONE_WIDTH}%` }} />
             <div className="dv2-zone-divider" style={{ left: `${DOCK_WIDTH + 2 * ZONE_WIDTH}%` }} />
-            <div className="dv2-finish-line" style={{ left: `${DOCK_WIDTH + 3 * ZONE_WIDTH}%` }} />
+            <div className="dv2-finish-line" style={{ left: `${FINISH_LINE}%` }} />
 
             {/* Ship Lanes */}
             <div className="dv2-lanes">
@@ -266,7 +271,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                   <div
                     className={`dv2-ship-wrapper ${state.phase === 'result' && state.winnerIdx === i ? 'winner' : ''}`}
                     style={{
-                      left: `${shipPositions[i]}%`,
+                      left: `calc(${shipPositions[i]}% - (${shipPositions[i]} / ${FINISH_LINE} * 72px))`,
                       '--ship-glow': ship.color
                     }}
                   >

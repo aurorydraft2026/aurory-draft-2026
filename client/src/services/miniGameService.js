@@ -49,7 +49,7 @@ export const ZONE_WIDTH = 30; // % of track per weather zone
 export const DOCK_WIDTH = 8; // % start zone
 export const FINISH_WIDTH = 2; // % finish zone
 
-export const SHIP_START = 2; // Ships park inside the dock (%)
+export const SHIP_START = 0; // Ships start at 0% (on the ocean)
 
 /**
  * Compute ship position at a given elapsed time (ms)
