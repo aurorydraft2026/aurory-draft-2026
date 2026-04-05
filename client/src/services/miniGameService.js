@@ -188,6 +188,26 @@ export function subscribeDrakkarPools(callback) {
 }
 
 /**
+ * Subscribe to the last 20 race results
+ * @param {Function} callback 
+ */
+export function subscribeDrakkarHistory(callback) {
+  const historyRef = ref(database, 'drakkar_race/history');
+  onValue(historyRef, (snapshot) => {
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      // Sort by timestamp descending
+      const list = Object.values(data).sort((a, b) => b.timestamp - a.timestamp);
+      callback(list);
+    } else {
+      callback([]);
+    }
+  });
+
+  return () => off(historyRef);
+}
+
+/**
  * Pulse the server to advance the race phase if needed
  */
 export async function refreshDrakkarRace() {

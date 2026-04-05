@@ -5,6 +5,7 @@ import {
   EFFICIENCY_MATRIX,
   subscribeDrakkarRaceState, 
   subscribeDrakkarPools,
+  subscribeDrakkarHistory,
   refreshDrakkarRace,
   placeDrakkarBet
 } from '../../services/miniGameService';
@@ -15,6 +16,7 @@ const DURATIONS = { betting: 20000, pause: 2000, race: 7000, result: 3000 };
 const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const [state, setState] = useState(null);
   const [pools, setPools] = useState({});
+  const [history, setHistory] = useState([]);
   const [selectedChip, setSelectedChip] = useState(10);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState(null);
@@ -31,12 +33,17 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       setState(newState);
     });
     const unsubPools = subscribeDrakkarPools((newPools) => {
-      setPools(newPools || {});
+      // Merge optimistic updates with server state
+      setPools(prev => ({ ...newPools, ...prev, ...newPools }));
+    });
+    const unsubHistory = subscribeDrakkarHistory((newHistory) => {
+      setHistory(newHistory);
     });
 
     return () => {
       unsubState();
       unsubPools();
+      unsubHistory();
     };
   }, []);
 
@@ -67,7 +74,8 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const animate = useCallback(() => {
     if (state && state.phase === 'race' && currentShips.length > 0) {
       const now = Date.now();
-      const raceStartTime = state.endTime - DURATIONS.race;
+      // Anchor race start to server-synced time to eliminate lag jumps
+      const raceStartTime = state.startTime + DURATIONS.betting + DURATIONS.pause;
       const progress = Math.max(0, Math.min(1, (now - raceStartTime) / DURATIONS.race));
       
       const newPositions = currentShips.map((ship, idx) => {
@@ -79,18 +87,28 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
         // Strategic modifier calculation
         const segmentIdx = Math.floor(progress * 3);
         const segmentType = state.track?.[segmentIdx] || 'calm';
-        const efficiency = EFFICIENCY_MATRIX[ship.id]?.[segmentType] || 1.0;
+        const targetEfficiency = EFFICIENCY_MATRIX[ship.id]?.[segmentType] || 1.0;
+
+        // Smoothly interpolate the efficiency/boost when switching segments
+        // This prevents the ship from "jumping" suddenly at the border
+        const segmentProgress = (progress * 3) % 1;
+        let efficiency = targetEfficiency;
         
-        // Speed variation based on weather efficiency
-        const boost = (efficiency - 1.0) * 15;
+        // If we are at the very start of a segment, blend from the previous segment's efficiency
+        if (segmentProgress < 0.2 && segmentIdx > 0) {
+            const prevSegmentType = state.track?.[segmentIdx - 1] || 'calm';
+            const prevEfficiency = EFFICIENCY_MATRIX[ship.id]?.[prevSegmentType] || 1.0;
+            const blend = segmentProgress / 0.2;
+            efficiency = prevEfficiency + (targetEfficiency - prevEfficiency) * blend;
+        }
         
-        // Jitter / Shake for visual excitement
-        const jitter = Math.sin(now / 150 + idx) * 1.5;
+        // Speed variation based on weather efficiency (accumulated offset)
+        const boost = (efficiency - 1.0) * 12;
         
         // Final winner push to ensure they hit the line first
         const winnerBoost = isWinner && progress > 0.85 ? (progress - 0.85) * 60 : 0;
         
-        return Math.min(88, base + boost + jitter + winnerBoost);
+        return Math.min(88, base + boost + winnerBoost);
       });
 
       setShipPositions(newPositions);
@@ -118,17 +136,31 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       return;
     }
 
+    // ─── OPTIMISTIC UI ───
+    const prevPools = { ...pools };
+    const prevPoints = userPoints;
+    
+    setPools(prev => ({
+      ...prev,
+      [shipId]: (prev[shipId] || 0) + selectedChip
+    }));
+    setDisplayedPoints(prevPoints - selectedChip);
+    // ─────────────────────
+
     setLocalError(null);
     setIsSubmitting(true);
     
     try {
       const result = await placeDrakkarBet(shipId, selectedChip);
-      if (result.success) {
-        setDisplayedPoints(result.newBalance);
-      } else {
+      if (!result.success) {
+        // Rollback on failure
+        setPools(prevPools);
+        setDisplayedPoints(prevPoints);
         setLocalError(result.error);
       }
     } catch (err) {
+      setPools(prevPools);
+      setDisplayedPoints(prevPoints);
       setLocalError(err.message);
     } finally {
       setIsSubmitting(false);
@@ -156,52 +188,73 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
       {localError && <div className="race-error-toast">{localError}</div>}
 
-      {/* TRACK AREA */}
-      <div className="race-track-area">
-        <div className="track-water-texture" />
-        
-        {/* Track Segments Display */}
-        <div className="track-segments">
-          {[0, 1, 2].map((i) => {
-            const isRevealed = state.phase === 'race' || state.phase === 'result' || state.phase === 'pause' || i === 0;
-            const env = state.track?.[i];
-            
-            return (
-              <div key={i} className={`track-segment ${!isRevealed ? 'mystery' : ''}`}>
-                 {isRevealed && env ? (
-                   <>
-                     <span className="segment-icon">{TRACK_ENVIRONMENTS[env].icon}</span> 
-                     <span className="segment-name">{TRACK_ENVIRONMENTS[env].name}</span>
-                   </>
-                 ) : (
-                   <span className="segment-placeholder">???</span>
-                 )}
-              </div>
-            );
-          })}
+      {/* RACE LAYOUT: HISTORY + TRACK */}
+      <div className="race-main-layout">
+        {/* Left Sidebar: History */}
+        <div className="race-history-sidebar">
+          <div className="history-header">LAST 20</div>
+          <div className="history-list">
+            {history.map((h, i) => {
+               const ship = DRAKKAR_SHIPS.find(s => s.id === h.winnerId);
+               return (
+                 <div key={i} className="history-item">
+                   <div className="history-ship-dot" style={{ backgroundColor: ship?.color }} title={ship?.name} />
+                   <div className="history-pool">🪙{h.totalPool}</div>
+                   <div className="history-mult">x{h.multiplier}</div>
+                 </div>
+               );
+            })}
+            {history.length === 0 && <div className="history-empty">No races yet</div>}
+          </div>
         </div>
 
-        {/* SHIP LANES */}
-        <div className="ships-lane-container">
-          {currentShips.map((ship, i) => (
-            <div key={ship.id} className="ship-lane">
-              <div 
-                className="racer-ship-wrapper"
-                style={{ 
-                  left: `${shipPositions[i]}%`,
-                  '--ship-glow': ship.color,
-                  filter: `drop-shadow(0 0 10px ${ship.color})`
-                }}
-              >
-                <img 
-                  src={process.env.PUBLIC_URL + '/icons/minigames/legendary_ship.png'} 
-                  alt={ship.name} 
-                  className="racer-ship-img"
-                />
-                <span className="racer-name-tag" style={{ borderLeftColor: ship.color }}>{ship.name}</span>
+        {/* TRACK AREA */}
+        <div className="race-track-area">
+          <div className="track-water-texture" />
+          
+          {/* Track Segments Display */}
+          <div className="track-segments">
+            {[0, 1, 2].map((i) => {
+              const isRevealed = state.phase === 'race' || state.phase === 'result' || state.phase === 'pause' || i === 0;
+              const env = state.track?.[i];
+              
+              return (
+                <div key={i} className={`track-segment ${!isRevealed ? 'mystery' : ''}`}>
+                   {isRevealed && env ? (
+                     <>
+                       <span className="segment-icon">{TRACK_ENVIRONMENTS[env].icon}</span> 
+                       <span className="segment-name">{TRACK_ENVIRONMENTS[env].name}</span>
+                     </>
+                   ) : (
+                     <span className="segment-placeholder">???</span>
+                   )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* SHIP LANES */}
+          <div className="ships-lane-container">
+            {currentShips.map((ship, i) => (
+              <div key={ship.id} className="ship-lane">
+                <div 
+                  className="racer-ship-wrapper"
+                  style={{ 
+                    left: `${shipPositions[i]}%`,
+                    '--ship-glow': ship.color,
+                    filter: `drop-shadow(0 0 10px ${ship.color})`
+                  }}
+                >
+                  <img 
+                    src={process.env.PUBLIC_URL + '/icons/minigames/legendary_ship.png'} 
+                    alt={ship.name} 
+                    className="racer-ship-img"
+                  />
+                  <span className="racer-name-tag" style={{ borderLeftColor: ship.color }}>{ship.name}</span>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
 
