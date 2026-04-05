@@ -1,7 +1,22 @@
-import { db } from '../firebase';
+import { db, database } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { ref, onValue, off } from 'firebase/database';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { createNotification } from './notifications';
+
+export const DRAKKAR_SHIPS = [
+  { id: 'gold', name: "Odin's Sleipnir", color: '#fbbf24', gradient: 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)' },
+  { id: 'red', name: "Surtur's Fury", color: '#ef4444', gradient: 'linear-gradient(135deg, #ef4444 0%, #991b1b 100%)' },
+  { id: 'blue', name: "Aegir's Tide", color: '#3b82f6', gradient: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)' },
+  { id: 'green', name: "Yggdrasil's Root", color: '#10b981', gradient: 'linear-gradient(135deg, #10b981 0%, #065f46 100%)' }
+];
+
+export const TRACK_ENVIRONMENTS = {
+  calm: { name: 'Calm Waters', icon: '🌊', color: '#60a5fa' },
+  rough: { name: 'Rough Waves', icon: '🌊💨', color: '#3b82f6' },
+  stormy: { name: 'Stormy Sea', icon: '⚡', color: '#1e40af' },
+  foggy: { name: 'Ethereal Fog', icon: '🌫️', color: '#94a3b8' }
+};
 
 /**
  * Fetch mini-game configuration from Firestore
@@ -37,10 +52,10 @@ function getDefaultConfig() {
         { id: 'sm1', name: '25 Valcoins', type: 'valcoins', amount: 25, weight: 35, rarity: 'common', icon: 'common_horn.png' },
         { id: 'sm2', name: '50 Valcoins', type: 'valcoins', amount: 50, weight: 25, rarity: 'common', icon: 'common_shield.png' },
         { id: 'sm3', name: '100 Valcoins', type: 'valcoins', amount: 100, weight: 15, rarity: 'rare', icon: 'rare_axe.png' },
-        { id: 'sm4', name: '250 Valcoins', type: 'valcoins', amount: 250, weight: 10, rarity: 'epic', icon: 'epic_helmet.png' },
-        { id: 'sm5', name: '500 Valcoins', type: 'valcoins', amount: 500, weight: 5, rarity: 'legendary', icon: 'legendary_ship.png' },
+        { id: 'sm4', name: '250 Valcoins', type: 'valcoins', amount: 250, weight: 10, rarity: 'epic', icon: 'epic_amber.png' },
+        { id: 'sm5', name: '500 Valcoins', type: 'valcoins', amount: 500, weight: 5, rarity: 'legendary', icon: 'legendary_hammer.png' },
         { id: 'sm6', name: '0.5 AURY', type: 'aury', amount: 0.5, weight: 5, rarity: 'epic', icon: 'epic_helmet.png' },
-        { id: 'sm7', name: '1 AURY', type: 'aury', amount: 1, weight: 3, rarity: 'legendary', icon: 'legendary_ship.png' },
+        { id: 'sm7', name: '1 AURY', type: 'aury', amount: 1, weight: 3, rarity: 'legendary', icon: 'legendary_hammer.png' },
         { id: 'sm8', name: '1 USDC', type: 'usdc', amount: 1, weight: 2, rarity: 'legendary', icon: 'legendary_ship.png' },
       ]
     },
@@ -54,15 +69,16 @@ function getDefaultConfig() {
         { id: 'tc3', name: '75 Valcoins', type: 'valcoins', amount: 75, weight: 15, rarity: 'rare', icon: 'rare_axe.png' },
         { id: 'tc4', name: '150 Valcoins', type: 'valcoins', amount: 150, weight: 10, rarity: 'epic', icon: 'epic_helmet.png' },
         { id: 'tc5', name: '300 Valcoins', type: 'valcoins', amount: 300, weight: 5, rarity: 'legendary', icon: 'legendary_ship.png' },
-        { id: 'tc6', name: '0.25 AURY', type: 'aury', amount: 0.25, weight: 5, rarity: 'epic', icon: 'epic_helmet.png' },
-        { id: 'tc7', name: '0.5 AURY', type: 'aury', amount: 0.5, weight: 3, rarity: 'legendary', icon: 'legendary_ship.png' },
+        { id: 'tc6', name: '0.25 AURY', type: 'aury', amount: 0.25, weight: 5, rarity: 'epic', icon: 'epic_amber.png' },
+        { id: 'tc7', name: '0.5 AURY', type: 'aury', amount: 0.5, weight: 3, rarity: 'legendary', icon: 'legendary_hammer.png' },
         { id: 'tc8', name: '0.5 USDC', type: 'usdc', amount: 0.5, weight: 2, rarity: 'legendary', icon: 'legendary_ship.png' },
       ]
     },
     drakkarRace: {
       enabled: true,
       minBet: 10,
-      description: 'Bet on the legendary ships in a real-time global race!'
+      description: 'Bet on mythical ships in a real-time global race!',
+      multiplier: 3.8
     }
   };
 }
@@ -127,6 +143,64 @@ export function getRarityColor(rarity) {
 }
 
 /**
+ * Get the current state of the Drakkar Race from RTDB
+ * @param {Function} callback - Callback for state updates
+ * @returns {Function} Unsubscribe function
+ */
+export function subscribeDrakkarRaceState(callback) {
+  const stateRef = ref(database, 'drakkar_race/state');
+  onValue(stateRef, (snapshot) => {
+    callback(snapshot.exists() ? snapshot.val() : null);
+  });
+
+  return () => off(stateRef);
+}
+
+/**
+ * Subscribe to the live betting pools for the current race
+ * @param {Function} callback 
+ */
+export function subscribeDrakkarPools(callback) {
+  const poolsRef = ref(database, 'drakkar_race/pools');
+  onValue(poolsRef, (snapshot) => {
+    if (snapshot.exists()) {
+      callback(snapshot.val());
+    }
+  });
+
+  return () => off(poolsRef);
+}
+
+/**
+ * Pulse the server to advance the race phase if needed
+ */
+export async function refreshDrakkarRace() {
+  try {
+    const functions = getFunctions();
+    const refreshFn = httpsCallable(functions, 'refreshDrakkarRace');
+    await refreshFn();
+  } catch (err) {
+    console.error('Error refreshing Drakkar Race:', err);
+  }
+}
+
+/**
+ * Place a bet on a ship
+ */
+export async function placeDrakkarBet(shipId, amount) {
+  try {
+    const functions = getFunctions();
+    const betFn = httpsCallable(functions, 'placeDrakkarBet');
+    const result = await betFn({ shipId, amount });
+    return result.data;
+  } catch (err) {
+    console.error('Error placing Drakkar bet:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+
+/**
  * Get rarity label for display
  * @param {string} rarity
  * @returns {string}
@@ -148,8 +222,8 @@ export function getRarityLabel(rarity) {
  */
 export function getRecommendedIcons(rarity) {
   switch (rarity) {
-    case 'legendary': return ['legendary_ship.png'];
-    case 'epic': return ['epic_helmet.png'];
+    case 'legendary': return ['legendary_ship.png', 'legendary_hammer.png'];
+    case 'epic': return ['epic_helmet.png', 'epic_amber.png'];
     case 'rare': return ['rare_axe.png'];
     case 'common':
     default: return ['common_horn.png', 'common_shield.png'];

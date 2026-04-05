@@ -4460,6 +4460,12 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     >
                       Treasure Chest
                     </button>
+                    <button 
+                      className={`selector-btn ${activeGameType === 'drakkarRace' ? 'active' : ''}`}
+                      onClick={() => setActiveGameType('drakkarRace')}
+                    >
+                      Drakkar Race
+                    </button>
                   </div>
                 </div>
               </div>
@@ -4473,7 +4479,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   <table className="guide-table">
                     <thead>
                       <tr>
-                        <th>Rarity Tier</th>
+                        <th>Rarity Tier/Type</th>
                         <th>Target Luck</th>
                         <th>Recommended Weight</th>
                         <th>Example Prize</th>

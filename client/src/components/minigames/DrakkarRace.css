@@ -1,0 +1,255 @@
+.drakkar-race-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  position: relative;
+  min-height: 500px;
+}
+
+/* ───────────── TRACK ───────────── */
+.race-track-area {
+  position: relative;
+  width: 100%;
+  height: 240px;
+  background: linear-gradient(180deg, #1e3a8a 0%, #172554 100%);
+  border-radius: 16px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
+}
+
+.track-water-texture {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    radial-gradient(circle at 20% 30%, rgba(255,255,255,0.03) 0%, transparent 20%),
+    radial-gradient(circle at 80% 70%, rgba(255,255,255,0.03) 0%, transparent 20%);
+  opacity: 0.5;
+  animation: waterMovement 10s linear infinite;
+}
+
+@keyframes waterMovement {
+  0% { background-position: 0 0; }
+  100% { background-position: 100px 0; }
+}
+
+.track-segments {
+  display: flex;
+  height: 40px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+}
+
+.track-segment {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.5);
+  border-right: 1px dashed rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.2);
+}
+
+.track-segment.hidden {
+  filter: blur(4px);
+  opacity: 0.5;
+}
+
+/* ───────────── SHIPS ───────────── */
+.ships-lane-container {
+  padding-top: 50px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ship-lane {
+  height: 40px;
+  position: relative;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.racer-ship-wrapper {
+  position: absolute;
+  left: 5%;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 10;
+}
+
+.racer-ship-img {
+  width: 50px;
+  height: 40px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px var(--ship-glow));
+}
+
+.racer-name-tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: white;
+  background: rgba(0,0,0,0.5);
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  opacity: 0.7;
+}
+
+/* ───────────── BETTING UI ───────────── */
+.drakkar-betting-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.ship-bet-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 16px;
+  transition: all 0.2s;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.ship-bet-card:hover:not(.disabled) {
+  transform: translateY(-2px);
+  border-color: var(--ship-color);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+.ship-bet-card.selected {
+  border-color: var(--ship-color);
+  background: rgba(255,255,255,0.03);
+}
+
+.bet-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.bet-card-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ship-gradient);
+}
+
+.bet-card-info h4 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: white;
+}
+
+.bet-card-pool {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.bet-input-wrapper {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.bet-input {
+  flex: 1;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: white;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.btn-place-bet {
+  background: var(--ship-gradient);
+  border: none;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+/* ───────────── OVERLAYS ───────────── */
+.race-status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: rgba(0,0,0,0.4);
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+
+.timer-pill {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-weight: 800;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.status-text {
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 800;
+  font-size: 0.8rem;
+}
+
+.race-result-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  animation: mgFadeIn 0.5s ease;
+}
+
+.winner-crown {
+  font-size: 3rem;
+  margin-bottom: 10px;
+}
+
+.winner-announce-card {
+  text-align: center;
+}
+
+.winner-announce-card h2 {
+  color: gold;
+  margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .drakkar-betting-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -115,5 +115,5 @@ export const onMatchupWinnerAnnouncement = onMatchupWinner;
 export const onDraftCreatedAnnouncement = onDraftCreated;
 // ─── 8. MINI-GAMES ───
 // Secure prize selection and payouts
-import { playMiniGame } from './miniGames';
-export { playMiniGame };
+import { playMiniGame, refreshDrakkarRace, placeDrakkarBet } from './miniGames';
+export { playMiniGame, refreshDrakkarRace, placeDrakkarBet };

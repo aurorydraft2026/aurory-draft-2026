@@ -1,6 +1,24 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 
+const DRAKKAR_SHIPS = [
+    { id: 'gold', name: "Odin's Sleipnir", color: '#fbbf24' },
+    { id: 'red', name: "Surtur's Fury", color: '#ef4444' },
+    { id: 'blue', name: "Aegir's Tide", color: '#3b82f6' },
+    { id: 'green', name: "Yggdrasil's Root", color: '#10b981' }
+];
+
+const TRACK_TYPES = ['calm', 'rough', 'stormy', 'foggy'];
+const PAYOUT_MULTIPLIER = 3.8;
+
+// Phase Durations (ms)
+const DURATIONS = {
+    betting: 20000,
+    pause: 2000,
+    race: 5000,
+    result: 3000
+};
+
 /**
  * Play a mini-game (Backend version)
  * Handle prize selection, point deduction, and payouts securely.
@@ -176,6 +194,228 @@ export const playMiniGame = onCall(
 );
 
 /**
+ * Place a bet on a Drakkar Race
+ */
+export const placeDrakkarBet = onCall(
+    { cors: true, maxInstances: 10 },
+    async (request) => {
+        if (!request.auth) throw new HttpsError('unauthenticated', 'Login required');
+        const { uid } = request.auth;
+        const { shipId, amount } = request.data;
+
+        if (!shipId || amount <= 0) throw new HttpsError('invalid-argument', 'Invalid bet');
+
+        const db = admin.firestore();
+        const userRef = db.collection('users').doc(uid);
+        const stateRef = db.collection('settings').doc('mini_games').collection('drakkar_race').doc('current');
+
+        try {
+            const result = await db.runTransaction(async (transaction) => {
+                const betRef = stateRef.collection('bets').doc(uid);
+                
+                // 1. ALL READS FIRST
+                const stateSnap = await transaction.get(stateRef);
+                const userSnap = await transaction.get(userRef);
+                const betSnap = await transaction.get(betRef);
+
+                const state = stateSnap.data();
+                if (!state || state.phase !== 'betting') {
+                    throw new Error('Betting is currently closed.');
+                }
+
+                const userData = userSnap.data() || {};
+                const currentPoints = userData.points || 0;
+                if (currentPoints < amount) {
+                    throw new Error('Insufficient Valcoins');
+                }
+
+                // 2. ALL WRITES LAST
+                transaction.update(userRef, {
+                    points: admin.firestore.FieldValue.increment(-amount),
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+
+                if (betSnap.exists) {
+                    transaction.update(betRef, {
+                        [shipId]: admin.firestore.FieldValue.increment(amount),
+                        total: admin.firestore.FieldValue.increment(amount)
+                    });
+                } else {
+                    transaction.set(betRef, {
+                        uid,
+                        [shipId]: amount,
+                        total: amount,
+                        playerName: userData.auroryPlayerName || userData.displayName || 'Guest',
+                        timestamp: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+
+                return { success: true, newBalance: currentPoints - amount };
+            });
+
+            // 2. Side effect: Update public pool in RTDB (only if transaction succeeded)
+            const rtdb = admin.database();
+            await rtdb.ref(`drakkar_race/pools/${shipId}`).transaction((current) => (current || 0) + amount);
+
+            return result;
+        } catch (error: any) {
+            console.error('Place Bet Error:', error);
+            throw new HttpsError('internal', error.message);
+        }
+    }
+);
+
+/**
+ * State Machine Heartbeat for Drakkar Race
+ * Advances phases and handles payouts.
+ */
+export const refreshDrakkarRace = onCall(
+    { cors: true, maxInstances: 5 },
+    async (request) => {
+        const db = admin.firestore();
+        const stateRef = db.collection('settings').doc('mini_games').collection('drakkar_race').doc('current');
+        const rtdb = admin.database();
+
+        try {
+            // 1. Determine next state inside a Lean Transaction
+            const result = await db.runTransaction(async (transaction) => {
+                const stateSnap = await transaction.get(stateRef);
+                let state = stateSnap.data();
+                const now = Date.now();
+
+                if (!state) {
+                    state = { phase: 'result', endTime: now - 1, raceId: 0 };
+                }
+
+                if (now < state.endTime) return { state, changed: false };
+
+                let nextPhase: string;
+                let duration: number;
+                let updates: any = {};
+
+                if (state.phase === 'betting') {
+                    nextPhase = 'pause';
+                    duration = DURATIONS.pause;
+                } else if (state.phase === 'pause') {
+                    nextPhase = 'race';
+                    duration = DURATIONS.race;
+                } else if (state.phase === 'race') {
+                    nextPhase = 'result';
+                    duration = DURATIONS.result;
+                } else {
+                    nextPhase = 'betting';
+                    duration = DURATIONS.betting;
+                    const winnerIdx = Math.floor(Math.random() * 4);
+                    updates = {
+                        track: [
+                            TRACK_TYPES[Math.floor(Math.random() * 4)],
+                            TRACK_TYPES[Math.floor(Math.random() * 4)],
+                            TRACK_TYPES[Math.floor(Math.random() * 4)]
+                        ],
+                        winnerIdx: winnerIdx,
+                        raceId: (state.raceId || 0) + 1,
+                        startTime: now
+                    };
+                }
+
+                const newState = {
+                    ...state,
+                    ...updates,
+                    phase: nextPhase,
+                    endTime: now + duration,
+                    lastUpdate: now
+                };
+
+                transaction.set(stateRef, newState);
+                return { state: newState, changed: true };
+            });
+
+            // 2. Side effects outside the transaction (RTDB Sync & Payouts)
+            if (result.changed) {
+                const newState = result.state;
+                await rtdb.ref('drakkar_race/state').set(newState);
+
+                if (newState.phase === 'betting') {
+                    await rtdb.ref('drakkar_race/pools').set({ gold: 0, red: 0, blue: 0, green: 0 });
+                    await clearBets(stateRef);
+                } else if (newState.phase === 'result') {
+                    await processDrakkarPayouts(newState.winnerIdx, newState.raceId);
+                }
+            }
+
+            return { success: true, state: result.state };
+        } catch (error: any) {
+            console.error('Drakkar Refresh Error:', error);
+            throw new HttpsError('internal', error.message);
+        }
+    }
+);
+
+async function clearBets(stateRef: admin.firestore.DocumentReference) {
+    const bets = await stateRef.collection('bets').get();
+    const batch = admin.firestore().batch();
+    bets.docs.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+}
+
+async function processDrakkarPayouts(winnerIdx: number, raceId: number) {
+    const db = admin.firestore();
+    const stateRef = db.collection('settings').doc('mini_games').collection('drakkar_race').doc('current');
+    
+    // 1. Verify if this race has already been processed to prevent double-payouts
+    const winnerId = DRAKKAR_SHIPS[winnerIdx].id;
+    const bets = await stateRef.collection('bets').get();
+    
+    if (bets.empty) return;
+
+    for (const betDoc of bets.docs) {
+        const bet = betDoc.data();
+        const winAmount = (bet[winnerId] || 0) * PAYOUT_MULTIPLIER;
+        
+        if (winAmount > 0) {
+            try {
+                // Use a separate transaction for each user to ensure stability
+                await db.runTransaction(async (t) => {
+                    const userRef = db.collection('users').doc(bet.uid);
+                    t.update(userRef, {
+                        points: admin.firestore.FieldValue.increment(Math.floor(winAmount))
+                    });
+
+                    // Log history
+                    const historyRef = userRef.collection('miniGameHistory').doc();
+                    t.set(historyRef, {
+                        gameType: 'drakkarRace',
+                        prizeName: `${Math.floor(winAmount)} Valcoins`,
+                        prizeType: 'valcoins',
+                        prizeAmount: Math.floor(winAmount),
+                        prizeRarity: winAmount > 100 ? 'epic' : 'rare',
+                        prizeIcon: 'legendary_ship.png',
+                        cost: bet.total,
+                        timestamp: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                });
+
+                // Post to Global Feed (can be outside user transaction)
+                if (winAmount >= 50) {
+                    const rtdb = admin.database();
+                    await rtdb.ref('recentMiniGameWinners').push({
+                        playerName: bet.playerName,
+                        prizeName: `${Math.floor(winAmount)} Valcoins`,
+                        rarity: winAmount > 200 ? 'legendary' : 'epic',
+                        icon: 'legendary_ship.png',
+                        gameType: 'drakkarRace',
+                        timestamp: admin.database.ServerValue.TIMESTAMP
+                    });
+                }
+            } catch (err) {
+                console.error(`Failed to pay out user ${bet.uid} for race ${raceId}`, err);
+            }
+        }
+    }
+}
+
+
+/**
  * Weighted Random Prize Selection
  */
 function selectWeightedPrize(prizes: any[], noWinWeight = 0, costPerPlay = 50) {
@@ -230,10 +470,10 @@ function getDefaultConfig(): any {
                 { id: 'sm1', name: '25 Valcoins', type: 'valcoins', amount: 25, weight: 35, rarity: 'common', icon: 'common_horn.png' },
                 { id: 'sm2', name: '50 Valcoins', type: 'valcoins', amount: 50, weight: 25, rarity: 'common', icon: 'common_shield.png' },
                 { id: 'sm3', name: '100 Valcoins', type: 'valcoins', amount: 100, weight: 15, rarity: 'rare', icon: 'rare_axe.png' },
-                { id: 'sm4', name: '250 Valcoins', type: 'valcoins', amount: 250, weight: 10, rarity: 'epic', icon: 'epic_helmet.png' },
-                { id: 'sm5', name: '500 Valcoins', type: 'valcoins', amount: 500, weight: 5, rarity: 'legendary', icon: 'legendary_ship.png' },
+                { id: 'sm4', name: '250 Valcoins', type: 'valcoins', amount: 250, weight: 10, rarity: 'epic', icon: 'epic_amber.png' },
+                { id: 'sm5', name: '500 Valcoins', type: 'valcoins', amount: 500, weight: 5, rarity: 'legendary', icon: 'legendary_hammer.png' },
                 { id: 'sm6', name: '0.5 AURY', type: 'aury', amount: 0.5, weight: 5, rarity: 'epic', icon: 'epic_helmet.png' },
-                { id: 'sm7', name: '1 AURY', type: 'aury', amount: 1, weight: 3, rarity: 'legendary', icon: 'legendary_ship.png' },
+                { id: 'sm7', name: '1 AURY', type: 'aury', amount: 1, weight: 3, rarity: 'legendary', icon: 'legendary_hammer.png' },
                 { id: 'sm8', name: '1 USDC', type: 'usdc', amount: 1, weight: 2, rarity: 'legendary', icon: 'legendary_ship.png' },
             ]
         },
@@ -247,10 +487,16 @@ function getDefaultConfig(): any {
                 { id: 'tc3', name: '75 Valcoins', type: 'valcoins', amount: 75, weight: 15, rarity: 'rare', icon: 'rare_axe.png' },
                 { id: 'tc4', name: '150 Valcoins', type: 'valcoins', amount: 150, weight: 10, rarity: 'epic', icon: 'epic_helmet.png' },
                 { id: 'tc5', name: '300 Valcoins', type: 'valcoins', amount: 300, weight: 5, rarity: 'legendary', icon: 'legendary_ship.png' },
-                { id: 'tc6', name: '0.25 AURY', type: 'aury', amount: 0.25, weight: 5, rarity: 'epic', icon: 'epic_helmet.png' },
-                { id: 'tc7', name: '0.5 AURY', type: 'aury', amount: 0.5, weight: 3, rarity: 'legendary', icon: 'legendary_ship.png' },
+                { id: 'tc6', name: '0.25 AURY', type: 'aury', amount: 0.25, weight: 5, rarity: 'epic', icon: 'epic_amber.png' },
+                { id: 'tc7', name: '0.5 AURY', type: 'aury', amount: 0.5, weight: 3, rarity: 'legendary', icon: 'legendary_hammer.png' },
                 { id: 'tc8', name: '0.5 USDC', type: 'usdc', amount: 0.5, weight: 2, rarity: 'legendary', icon: 'legendary_ship.png' },
             ]
+        },
+        drakkarRace: {
+            enabled: true,
+            minBet: 10,
+            description: 'Bet on the legendary ships in a real-time global race!',
+            multiplier: 3.8
         }
     };
 }

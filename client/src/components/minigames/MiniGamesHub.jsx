@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getMiniGameConfig } from '../../services/miniGameService';
 import SlotMachine from './SlotMachine';
 import TreasureChest from './TreasureChest';
+import DrakkarRace from './DrakkarRace';
 import { useWallet } from '../../hooks/useWallet';
 import './MiniGamesHub.css';
 
@@ -19,6 +20,13 @@ const GAME_REGISTRY = {
     icon: '🎁',
     description: 'Unlock a treasure chest to reveal your prize!',
     component: TreasureChest
+  },
+  drakkarRace: {
+    id: 'drakkarRace',
+    name: 'Drakkar Race',
+    icon: '🛶',
+    description: 'Bet on mythical ships in a real-time global race!',
+    component: DrakkarRace
   }
 };
 

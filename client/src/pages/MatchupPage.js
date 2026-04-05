@@ -841,6 +841,128 @@ const MatchupPage = () => {
         }
     };
 
+    const handleResetWinner = async (roundIndex, matchIndex, realmKey = null) => {
+        if (!isAdmin) return;
+        if (!window.confirm('Are you sure you want to reset this match result? This will clear the winner and any progression to the next round.')) return;
+
+        try {
+            const matchupRef = doc(db, 'matchups', matchupId);
+
+            if (matchup.tournamentType === 'realm_round_robin') {
+                await handleRealmResetWinner(roundIndex, matchIndex, realmKey);
+                return;
+            }
+
+            const newStructure = JSON.parse(JSON.stringify(matchup.matchupStructure));
+            const currentMatch = newStructure[roundIndex].matches[matchIndex];
+            const oldWinnerId = currentMatch.winner;
+            
+            currentMatch.winner = null;
+
+            if (matchup.tournamentType === 'single_elimination') {
+                // Clear Winner from Parent
+                if (currentMatch.parentMatchId) {
+                    const nextRound = newStructure[roundIndex + 1];
+                    if (nextRound) {
+                        const parentMatch = nextRound.matches.find(m => m.id === currentMatch.parentMatchId);
+                        if (parentMatch) {
+                            parentMatch[currentMatch.parentSide] = null;
+                        }
+                    }
+                }
+
+                // Clear Loser from 3rd Place Match
+                if (currentMatch.thirdPlaceParentId) {
+                    const finalRound = newStructure[newStructure.length - 1];
+                    if (finalRound) {
+                        const thirdPlaceMatch = finalRound.matches.find(m => m.id === currentMatch.thirdPlaceParentId);
+                        if (thirdPlaceMatch) {
+                            thirdPlaceMatch[currentMatch.thirdPlaceParentSide] = null;
+                        }
+                    }
+                }
+            }
+
+            const updateData = { matchupStructure: newStructure };
+            
+            // Subtract points if they were added (assuming 3 points per win)
+            if (oldWinnerId && matchup.playerScores?.[oldWinnerId] >= 3) {
+                updateData[`playerScores.${oldWinnerId}`] = matchup.playerScores[oldWinnerId] - 3;
+            }
+
+            await updateDoc(matchupRef, updateData);
+        } catch (err) {
+            console.error('Error resetting winner:', err);
+        }
+    };
+
+    const handleRealmResetWinner = async (roundIndex, matchIndex, realmKey = null) => {
+        const matchupRef = doc(db, 'matchups', matchupId);
+        const phase = matchup.phase === 'completed' ? 'finals' : matchup.phase;
+
+        if (phase === 'groups') {
+            const realm = realmKey;
+            if (!realm) return;
+
+            let newGroupStructure = JSON.parse(JSON.stringify(matchup.groupStructure));
+            const match = newGroupStructure[realm][roundIndex]?.matches?.[matchIndex];
+            const oldWinnerId = match?.winner;
+
+            if (match) {
+                match.winner = null;
+            }
+
+            const updateData = { groupStructure: newGroupStructure };
+            
+            if (matchup.phase === 'finals' || matchup.phase === 'completed') {
+                updateData.phase = 'groups';
+            }
+
+            if (oldWinnerId && matchup.playerScores?.[oldWinnerId] >= 3) {
+                updateData[`playerScores.${oldWinnerId}`] = matchup.playerScores[oldWinnerId] - 3;
+            }
+
+            await updateDoc(matchupRef, updateData);
+        } else if (phase === 'finals') {
+            const newFinalsStructure = JSON.parse(JSON.stringify(matchup.finalsStructure));
+            const round = newFinalsStructure[roundIndex];
+            const match = round?.matches?.[matchIndex];
+            const oldWinnerId = match?.winner;
+            
+            if (match) {
+                match.winner = null;
+            }
+
+            // Propagate clear to next round
+            if (roundIndex === 0) {
+                const nextRound = newFinalsStructure[1];
+                if (nextRound) {
+                    const grandFinal = nextRound.matches[0];
+                    const thirdPlace = nextRound.matches[1];
+
+                    if (matchIndex === 0) { // SF1
+                        grandFinal.player1 = null;
+                        thirdPlace.player1 = null;
+                    } else { // SF2
+                        grandFinal.player2 = null;
+                        thirdPlace.player2 = null;
+                    }
+                }
+            }
+
+            const updateData = { finalsStructure: newFinalsStructure };
+            if (matchup.phase === 'completed') {
+                updateData.phase = 'finals';
+            }
+
+            if (oldWinnerId && matchup.playerScores?.[oldWinnerId] >= 3) {
+                updateData[`playerScores.${oldWinnerId}`] = matchup.playerScores[oldWinnerId] - 3;
+            }
+
+            await updateDoc(matchupRef, updateData);
+        }
+    };
+
     const handleScoreUpdate = async (uid, score) => {
         if (!isAdmin) return;
         try {
@@ -1410,12 +1532,14 @@ const MatchupPage = () => {
                     >
                         ⚔️ Matches
                     </button>
-                    <button
-                        className={`matchup-tab ${activeTab === 'standings' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('standings')}
-                    >
-                        📊 Standings
-                    </button>
+                    {matchup.tournamentType !== 'single_elimination' && (
+                        <button
+                            className={`matchup-tab ${activeTab === 'standings' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('standings')}
+                        >
+                            📊 Standings
+                        </button>
+                    )}
                     <button
                         className={`matchup-tab ${activeTab === 'info' ? 'active' : ''}`}
                         onClick={() => setActiveTab('info')}
@@ -1709,15 +1833,20 @@ const MatchupPage = () => {
 
                                                                     <div className="match-card-footer">
                                                                         <span className="match-id-visual">MATCH #{match.id.split('-m')[1]}</span>
-                                                                        {match.draftId ? (
-                                                                            <button className="btn-draft-visual view" onClick={() => handleEnterDraftSafe(match.draftId, rIndex, mIndex)}>
-                                                                                {winnerId ? 'VIEW RESULTS' : 'ENTER DRAFT'}
-                                                                            </button>
-                                                                        ) : (isAdmin && p1 && p2 && !winnerId && !match.isBye && (
-                                                                            <button className="btn-draft-visual create" onClick={() => handleCreateDraftFromMatch(rIndex, mIndex)}>
-                                                                                CREATE ⚔️
-                                                                            </button>
-                                                                        ))}
+                                                                        <div className="match-footer-actions">
+                                                                            {match.draftId ? (
+                                                                                <button className="btn-draft-visual view" onClick={() => handleEnterDraftSafe(match.draftId, rIndex, mIndex)}>
+                                                                                    {winnerId ? 'VIEW RESULTS' : 'ENTER DRAFT'}
+                                                                                </button>
+                                                                            ) : (isAdmin && p1 && p2 && !winnerId && !match.isBye && (
+                                                                                <button className="btn-draft-visual create" onClick={() => handleCreateDraftFromMatch(rIndex, mIndex)}>
+                                                                                    CREATE ⚔️
+                                                                                </button>
+                                                                            ))}
+                                                                            {isAdmin && winnerId && (
+                                                                                <button className="reset-win-btn-visual" onClick={() => handleResetWinner(rIndex, mIndex)} title="Reset Match Result">↺</button>
+                                                                            )}
+                                                                        </div>
                                                                     </div>
 
                                                                     {/* Accurate Tree Connectors */}
@@ -1821,6 +1950,9 @@ const MatchupPage = () => {
                                                                         <button className="rr-row-draft-btn view" onClick={() => navigate(`/tournament/${match.draftId}`)} title={winner ? 'View Draft' : 'Open Draft'}>
                                                                             {winner ? '📋' : '🎮'}
                                                                         </button>
+                                                                    )}
+                                                                    {isAdmin && winner && (
+                                                                        <button className="rr-row-reset-btn" onClick={() => handleResetWinner(rIndex, mIndex)} title="Reset Match Result">↺</button>
                                                                     )}
                                                                 </div>
                                                             </div>
@@ -1995,6 +2127,9 @@ const MatchupPage = () => {
                                                                                             {winner ? '📋' : '🎮'}
                                                                                         </button>
                                                                                     )}
+                                                                                    {isAdmin && winner && (
+                                                                                        <button className="rr-row-reset-btn" onClick={() => handleResetWinner(rIndex, mIndex, realmKey)} title="Reset Match Result">↺</button>
+                                                                                    )}
                                                                                 </div>
                                                                             </div>
                                                                         );
@@ -2126,15 +2261,20 @@ const MatchupPage = () => {
 
                                                                         <div className="match-card-footer">
                                                                             <span className="match-id-visual">MATCH #{match.id.split('-m')[1]}</span>
-                                                                            {match.draftId ? (
-                                                                                <button className="btn-draft-visual view" onClick={() => handleEnterDraftSafe(match.draftId, rIndex, mIndex)}>
-                                                                                    {winnerId ? 'VIEW RESULTS' : 'ENTER DRAFT'}
-                                                                                </button>
-                                                                            ) : (isAdmin && p1 && p2 && !winnerId && (
-                                                                                <button className="btn-draft-visual create" onClick={() => handleCreateDraftFromMatch(rIndex, mIndex)}>
-                                                                                    CREATE ⚔️
-                                                                                </button>
-                                                                            ))}
+                                                                            <div className="match-footer-actions">
+                                                                                {match.draftId ? (
+                                                                                    <button className="btn-draft-visual view" onClick={() => handleEnterDraftSafe(match.draftId, rIndex, mIndex)}>
+                                                                                        {winnerId ? 'VIEW RESULTS' : 'ENTER DRAFT'}
+                                                                                    </button>
+                                                                                ) : (isAdmin && p1 && p2 && !winnerId && (
+                                                                                    <button className="btn-draft-visual create" onClick={() => handleCreateDraftFromMatch(rIndex, mIndex)}>
+                                                                                        CREATE ⚔️
+                                                                                    </button>
+                                                                                ))}
+                                                                                {isAdmin && winnerId && (
+                                                                                    <button className="reset-win-btn-visual" onClick={() => handleResetWinner(rIndex, mIndex)} title="Reset Match Result">↺</button>
+                                                                                )}
+                                                                            </div>
                                                                         </div>
 
                                                                         {/* Accurate Tree Connectors */}

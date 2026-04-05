@@ -166,7 +166,12 @@ export async function scanAndVerifyDrafts(): Promise<number> {
                         team1Uids.forEach(uid => scoreUpdates[`${scoreField}.${uid}`] = admin.firestore.FieldValue.increment(1));
                         team2Uids.forEach(uid => scoreUpdates[`${scoreField}.${uid}`] = admin.firestore.FieldValue.increment(1));
                       } else if (!isDraw && winnerTeam) {
-                        const winnerParticipant = winnerTeam === 'A' ? bracketMatch.player1 : bracketMatch.player2;
+                        // Fix: Use mapping to determine which bracket player is Team A
+                        const teamAIsOriginalTeam1 = freshData.assignmentLeaders?.teamAIsOriginalTeam1 !== false;
+                        const winnerParticipant = (winnerTeam === 'A' ? teamAIsOriginalTeam1 : !teamAIsOriginalTeam1)
+                          ? bracketMatch.player1
+                          : bracketMatch.player2;
+
                         const winnerId = (matchupData.format === 'teams')
                           ? winnerParticipant?.leader
                           : (typeof winnerParticipant === 'object' ? winnerParticipant.uid : winnerParticipant);

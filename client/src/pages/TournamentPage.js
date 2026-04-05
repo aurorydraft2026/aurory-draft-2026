@@ -700,7 +700,12 @@ function TournamentPage() {
         // Football-style: draw → mark as 'draw' and award +1 each
         bracketMatch.winner = 'draw';
       } else if (!isDraw) {
-        const winnerParticipant = overallWinner === 'A' ? bracketMatch.player1 : bracketMatch.player2;
+        // Fix: Use mapping to determine which bracket player is Team A
+        const teamAIsOriginalTeam1 = draftState.assignmentLeaders?.teamAIsOriginalTeam1 !== false;
+        const winnerParticipant = (overallWinner === 'A' ? teamAIsOriginalTeam1 : !teamAIsOriginalTeam1)
+          ? bracketMatch.player1
+          : bracketMatch.player2;
+
         const winnerId = matchupData.format === 'teams'
           ? (winnerParticipant?.leader || null)
           : (typeof winnerParticipant === 'object' ? (winnerParticipant?.uid || null) : (winnerParticipant || null));
