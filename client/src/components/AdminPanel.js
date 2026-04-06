@@ -1294,6 +1294,62 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     }
   };
 
+   // Mini-game reset stats
+  const [resetStatsConfirmText, setResetStatsConfirmText] = useState('');
+  const [isResettingStats, setIsResettingStats] = useState(false);
+
+  // Reset Mini-Game Leaderboard Stats Handler
+  const handleResetLeaderboardStats = async () => {
+    if (!isSuperAdminUser) return;
+    if (resetStatsConfirmText !== 'RESET ALL STATS') {
+      return alert('Please type "RESET ALL STATS" to confirm the reset.');
+    }
+
+    if (!window.confirm('🚨 FINAL WARNING: This will permanently delete ALL mini-game statistics (wins, plays, spent) for ALL users. This cannot be undone. Proceed?')) {
+      return;
+    }
+
+    setIsResettingStats(true);
+    setProcessingId('reset_game_stats');
+
+    try {
+      const token = await auth.currentUser.getIdToken();
+      const projectId = auth.app.options.projectId;
+
+      const response = await fetch(`https://us-central1-${projectId}.cloudfunctions.net/resetMiniGameStats`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const responseData = await response.json();
+      const result = responseData.result;
+
+      if (!response.ok || (responseData && responseData.error)) {
+        throw new Error(responseData?.error?.message || responseData?.error || 'Failed to reset stats');
+      }
+
+      alert(`✅ ${result.message}`);
+      setResetStatsConfirmText('');
+      
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'reset_minigame_leaderboards',
+        metadata: { userCount: result.count }
+      });
+
+    } catch (error) {
+      console.error('Reset stats error:', error);
+      alert('Error resetting stats: ' + error.message);
+    } finally {
+      setIsResettingStats(false);
+      setProcessingId(null);
+    }
+  };
+
   // Manual Payout Handler
   const handleManualPayout = async () => {
     if (!payoutDraftId) return alert('Please enter a Draft ID');
@@ -4926,20 +4982,51 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             <div className="mini-games-section">
               <div className="section-header">
                 <h2>🏆 Earners & Plays</h2>
-                {earnersSelectedUser && (
-                  <button 
-                    className="secondary-btn small" 
-                    onClick={() => {
-                      setEarnersSelectedUser(null);
-                      setEarnersSearchQuery('');
-                    }}
-                  >
-                    ⬅️ Back to Search
-                  </button>
-                )}
+                <div className="header-actions">
+                  {isSuperAdminUser && (
+                    <div className="global-reset-control">
+                      <input 
+                        type="text" 
+                        placeholder="Type RESET ALL STATS to confirm" 
+                        value={resetStatsConfirmText}
+                        onChange={(e) => setResetStatsConfirmText(e.target.value)}
+                        className="admin-compact-input"
+                        style={{ marginRight: '8px', fontSize: '0.8em' }}
+                      />
+                      <button 
+                        className="clear-btn-admin risky" 
+                        onClick={handleResetLeaderboardStats}
+                        disabled={isResettingStats || resetStatsConfirmText !== 'RESET ALL STATS'}
+                      >
+                        {isResettingStats ? 'Resetting...' : '🚨 Reset All Leaderboard Stats'}
+                      </button>
+                    </div>
+                  )}
+                  {earnersSelectedUser && (
+                    <button 
+                      className="secondary-btn small" 
+                      onClick={() => {
+                        setEarnersSelectedUser(null);
+                        setEarnersSearchQuery('');
+                      }}
+                    >
+                      ⬅️ Back to Search
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="mini-game-earners-content">
+                {!earnersSelectedUser && isSuperAdminUser && (
+                  <div className="admin-status-alert urgent" style={{ marginBottom: '20px' }}>
+                    <div className="alert-content">
+                      <span className="alert-icon">⚠️</span>
+                      <div className="alert-text text-sm">
+                        <strong>Global Reset:</strong> Resetting stats will zero out all mini-game cumulative points for all users. Use this to start a new season of the leaderboard. This action is irreversible.
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {!earnersSelectedUser ? (
                   <div className="user-lookup-container card" style={{ maxWidth: '600px', margin: '0 auto' }}>
                     <h3>🔍 User History Lookup</h3>

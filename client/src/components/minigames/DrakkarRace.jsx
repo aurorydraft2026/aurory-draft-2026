@@ -43,6 +43,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const prevRaceIdRef = useRef(null);
 
   const [localRaceStartTime, setLocalRaceStartTime] = useState(null);
+  const pendingRequestsRef = useRef(0);
 
   // ─── 0. Local Clock Sync ───
   useEffect(() => {
@@ -162,26 +163,45 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       return;
     }
 
+    // ── Pre-flight Balance Check ──
+    if (amount > userPoints) {
+      setLocalError(`Insufficient Valcoins. You have ${userPoints} available.`);
+      return;
+    }
+
     // ── OPTIMISTIC UI UPDATE ──
+    setFrozen(true); // Disable global sync while we are betting
     setMyBets(prev => ({
       ...prev,
       [shipId]: (prev[shipId] || 0) + amount
     }));
     setPendingBetsTotal(prev => prev + amount);
+    setDisplayedPoints(prev => prev - amount); // Optimistic deduction
+    pendingRequestsRef.current += 1;
 
     try {
       const result = await placeDrakkarBet(shipId, amount);
       if (result.success) {
-        setDisplayedPoints(result.newBalance);
-        // Note: myBets is already updated optimistically!
+        pendingRequestsRef.current -= 1;
+        // ONLY sync with server if this is the LAST pending request
+        if (pendingRequestsRef.current === 0) {
+          setDisplayedPoints(result.newBalance);
+          setFrozen(false); // Re-enable global sync
+        }
       } else {
         // ROLLBACK 
+        pendingRequestsRef.current -= 1;
         setMyBets(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - amount) }));
+        setDisplayedPoints(prev => prev + amount); // Rollback optimistic deduction
+        if (pendingRequestsRef.current === 0) setFrozen(false);
         setLocalError(result.error);
       }
     } catch (err) {
       // ROLLBACK
+      pendingRequestsRef.current -= 1;
       setMyBets(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - amount) }));
+      setDisplayedPoints(prev => prev + amount); // Rollback optimistic deduction
+      if (pendingRequestsRef.current === 0) setFrozen(false);
       setLocalError(err.message);
     } finally {
       setPendingBetsTotal(prev => prev - amount);

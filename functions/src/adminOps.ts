@@ -135,3 +135,72 @@ export const cleanupInactiveGuests = onCall(
         }
     }
 );
+
+/**
+ * Reset all mini-game leaderboard statistics.
+ * Clears the 'stats.miniGames' field for all users.
+ */
+export const resetMiniGameStats = onCall(
+    {
+        region: 'us-central1',
+        timeoutSeconds: 540, // 9 minutes max for large user bases
+        memory: '512MiB'
+    },
+    async (request) => {
+        // 1. Auth Check
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User must be logged in.');
+        }
+
+        const callerUid = request.auth.uid;
+        if (callerUid !== SUPER_ADMIN_UID) {
+            throw new HttpsError('permission-denied', 'Only Super Admin can reset stats.');
+        }
+
+        console.log(`🏆 Global Mini-Game Stats Reset Triggered by ${callerUid}`);
+
+        try {
+            const db = admin.firestore();
+            const usersRef = db.collection('users');
+            
+            // Note: For very large collections (>10k users), we might need 
+            // a multi-invocation approach, but for now a loop with batches is fine.
+            let snapshot = await usersRef.get();
+            let totalProcessed = 0;
+            let currentBatch = db.batch();
+            let countInBatch = 0;
+
+            for (const doc of snapshot.docs) {
+                currentBatch.update(doc.ref, {
+                    'stats.miniGames': {}
+                });
+                
+                countInBatch++;
+                totalProcessed++;
+
+                // Commit batch every 450 docs
+                if (countInBatch >= 450) {
+                    await currentBatch.commit();
+                    currentBatch = db.batch();
+                    countInBatch = 0;
+                    console.log(`Processed ${totalProcessed} users...`);
+                }
+            }
+
+            // Commit final batch
+            if (countInBatch > 0) {
+                await currentBatch.commit();
+            }
+
+            return {
+                success: true,
+                count: totalProcessed,
+                message: `Successfully reset mini-game stats for ${totalProcessed} users.`
+            };
+
+        } catch (error: any) {
+            console.error('Reset stats failed:', error);
+            throw new HttpsError('internal', error.message || 'Unknown error during stats reset.');
+        }
+    }
+);
