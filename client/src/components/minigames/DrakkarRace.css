@@ -39,6 +39,7 @@
   font-weight: 800;
   font-size: 0.8rem;
   color: #f1f5f9;
+  cursor: default;
 }
 
 .dv2-race-id {
@@ -269,17 +270,39 @@
   position: relative;
   width: 100%;
   height: 250px;
-  background: #1e3a8a; /* Brighter, vibrant blue for the ocean */
+  background: #1e3a8a; /* Classic Navy Blue */
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid rgba(255,255,255,0.1);
-  box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
+  box-shadow: inset 0 0 50px rgba(0,0,0,0.3);
 }
 
 .dv2-track-water {
   position: absolute;
   inset: 0;
-  /* Removed grid gradient for cleaner flat look */
+  opacity: 1;
+  pointer-events: none;
+}
+
+/* Vertical Weather Zone Tints */
+.dv2-zone-tint {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  transition: all 0.5s ease;
+}
+
+.dv2-zone-watermark {
+  font-size: 10rem; /* Larger for better visibility */
+  opacity: 0.15;
+  filter: grayscale(0.8) brightness(0.8);
+  user-select: none;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 @keyframes gridDrift {
@@ -292,7 +315,7 @@
   top: 0;
   bottom: 0;
   width: 2px;
-  border-left: 2px dashed rgba(255,255,255,0.12);
+  border-left: 2px dashed rgba(255,255,255,0.1);
   z-index: 5;
   pointer-events: none;
 }
@@ -347,15 +370,14 @@
   position: absolute;
   left: 6px;
   top: 4px;
-  font-size: 0.6rem;
+  font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: #94a3b8;
-  opacity: 0.7;
   z-index: 15;
   white-space: nowrap;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  color: #fff;
+  opacity: 0.9;
 }
 
 .dv2-ship-wrapper {
@@ -380,9 +402,10 @@
 }
 
 .dv2-ship-img {
-  width: 86px; /* High visibility scaling */
+  width: 86px;
   height: 64px;
   object-fit: contain;
+  filter: brightness(1.25) drop-shadow(0 4px 10px rgba(0,0,0,0.7));
 }
 
 .dv2-winner-badge {

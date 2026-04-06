@@ -21,7 +21,8 @@ import {
 import './DrakkarRace.css';
 
 const FINISH_LINE = DOCK_WIDTH + 5 * ZONE_WIDTH; // 98%
-const HOUSE_SEED = 500;
+const DEFAULT_HOUSE_SEED = 500;
+const DEFAULT_MULTIPLIER = 0.9;
 
 const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const [state, setState] = useState(null);
@@ -33,6 +34,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const [localError, setLocalError] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
   const [showRules, setShowRules] = useState(false);
+  const [isPeeking, setIsPeeking] = useState(false);
 
   // Animation
   const animFrameRef = useRef();
@@ -189,7 +191,11 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   // ─── Derived Data ───
   const raceShips = state?.ships || [];
   const raceWeathers = state?.weathers || [];
-  const totalPool = raceShips.reduce((sum, s) => sum + (pools[s.id] || 0), 0) + (HOUSE_SEED * 3);
+  
+  const currentHouseSeed = state?.houseSeed ?? DEFAULT_HOUSE_SEED;
+  const currentMultiplier = state?.multiplierFactor ?? DEFAULT_MULTIPLIER;
+
+  const totalPool = raceShips.reduce((sum, s) => sum + (pools[s.id] || 0), 0) + (currentHouseSeed * 3);
 
   const getPhaseLabel = () => {
     if (!state) return '';
@@ -203,9 +209,9 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   };
 
   const getEstimatedPayout = (shipId) => {
-    const shipPool = (pools[shipId] || 0) + HOUSE_SEED;
+    const shipPool = (pools[shipId] || 0) + currentHouseSeed;
     if (shipPool === 0 || totalPool === 0) return '—';
-    const multiplier = (totalPool / shipPool) * 0.9;
+    const multiplier = (totalPool / shipPool) * currentMultiplier;
     return multiplier.toFixed(1) + 'x';
   };
 
@@ -217,7 +223,16 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       {/* ═══ STATUS BAR ═══ */}
       <div className="dv2-status-bar">
         <div className="dv2-status-left">
-          <span className="dv2-phase-label">{getPhaseLabel()}</span>
+          <span 
+            className="dv2-phase-label"
+            onMouseDown={() => setIsPeeking(true)}
+            onMouseUp={() => setIsPeeking(false)}
+            onMouseLeave={() => setIsPeeking(false)}
+            onTouchStart={() => setIsPeeking(true)}
+            onTouchEnd={() => setIsPeeking(false)}
+          >
+            {getPhaseLabel()}
+          </span>
           <span className="dv2-race-id">Race #{state.raceId || 0}</span>
         </div>
         <div className="dv2-status-right">
@@ -264,6 +279,22 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
           <div className="dv2-track-area">
             <div className="dv2-track-water" />
 
+            {/* Weather Zone Tints */}
+            {raceWeathers.map((w, i) => {
+              const isHidden = state.phase === 'betting' && i !== state.revealedIndex;
+              return (
+                <div
+                  key={i}
+                  className="dv2-zone-tint"
+                  style={{
+                    left: `${DOCK_WIDTH + i * ZONE_WIDTH}%`,
+                    width: `${ZONE_WIDTH}%`,
+                    background: isHidden ? 'transparent' : `${w.color}CC` // CC = approx 0.8 opacity solid
+                  }}
+                />
+              );
+            })}
+
             {/* Dashed zone dividers */}
             <div className="dv2-zone-divider" style={{ left: `${DOCK_WIDTH}%` }} />
             <div className="dv2-zone-divider" style={{ left: `${DOCK_WIDTH + ZONE_WIDTH}%` }} />
@@ -278,7 +309,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                 <div key={ship.id} className="dv2-lane">
                   <div className="dv2-lane-label" style={{ color: ship.color }}>{ship.name}</div>
                   <div
-                    className={`dv2-ship-wrapper ${state.phase === 'result' && state.winnerIdx === i ? 'winner' : ''}`}
+                    className={`dv2-ship-wrapper ${state.phase === 'racing' ? 'racing' : ''} ${state.phase === 'result' && state.winnerIdx === i ? 'winner' : ''}`}
                     style={{
                       left: `calc(${shipPositions[i]}% - (${shipPositions[i]} / ${FINISH_LINE} * 63px))`,
                       '--ship-glow': ship.color
@@ -361,7 +392,11 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                         <h4 style={{ color: ship.color }}>{ship.name}</h4>
                         {revealedWeatherSpeed !== null && (
                           <span className="dv2-speed-hint">
-                            {raceWeathers[state.revealedIndex]?.icon} {formatSpeed(revealedWeatherSpeed)}
+                            {isPeeking ? (
+                              <>{raceWeathers[state.revealedIndex]?.icon} {formatSpeed(revealedWeatherSpeed)}</>
+                            ) : (
+                              ''
+                            )}
                           </span>
                         )}
                       </div>
@@ -370,7 +405,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                     <div className="dv2-bet-card-pools">
                       <div className="dv2-pool-row">
                         <span>Global Pool</span>
-                        <span className="dv2-pool-amount">🪙 {(pools[ship.id] || 0) + HOUSE_SEED}</span>
+                        <span className="dv2-pool-amount">🪙 {(pools[ship.id] || 0) + currentHouseSeed}</span>
                       </div>
                       <div className="dv2-pool-row">
                         <span>Your Bet</span>
@@ -436,18 +471,23 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
             </div>
             <div className="dv2-rules-body">
               <h3>How It Works</h3>
-              <p>3 random ships and 3 random weather zones are selected each race. Only Weather #1 is visible during betting — Weathers #2 and #3 are hidden until the race starts!</p>
+              <p>3 random ships and <strong>5 random weather zones</strong> are selected for each race. Only 1 weather zone is revealed during betting — the other 4 zones remain hidden until the race begins! Each zone affects a ship's speed based on its unique stats.</p>
 
               <h3>Parimutuel Payout</h3>
-              <p>Wins are calculated based on the total pool shared among winners. To ensure high multipliers even when you are playing solo:</p>
+              <p>Drakkar Race uses a <strong>Parimutuel Payout</strong> system where total bets are shared among winners. To ensure high payouts even for solo players:</p>
               <ul>
-                <li>The House seeds each ship with <strong>{HOUSE_SEED} Valcoins</strong> every race.</li>
-                <li>Wins with a multiplier of <strong>2.0x or higher</strong> trigger a Global Win Announcement!</li>
+                <li>The House seeds <strong>{currentHouseSeed} Valcoins</strong> on each ship (Total {currentHouseSeed * 3} seed per race).</li>
+                <li><strong>Total Pool</strong> = All player bets + {currentHouseSeed * 3} House Seed.</li>
+                <li><strong>Multiplier</strong> = (Total Pool ÷ Winning Ship's Total Pool) × {currentMultiplier.toFixed(2)}</li>
+                <li>Wins that <strong>double your total investment (2x+)</strong> trigger a Global Win Announcement!</li>
               </ul>
-              <div className="dv2-formula">
-                Payout = (Total Pool ÷ Winning Ship Pool) × 0.90
+              
+              <div className="dv2-formula" style={{ margin: '15px 0', background: 'rgba(0,0,0,0.4)', padding: '15px', borderRadius: '8px', textAlign: 'center', fontWeight: 'bold' }}>
+                Your Winning = (Your Bet ÷ Winning Ship Pool) × Total Pool × {currentMultiplier.toFixed(2)}
               </div>
-              <p>The house takes 10%. Bet on underdogs to swipe the House's virtual seed for massive potential returns!</p>
+              <p style={{ marginTop: '10px', fontSize: '0.9em', opacity: 0.8 }}>
+                The house takes a {Math.round((1 - currentMultiplier) * 100)}% fee. You swipe the House's seed if you are the only one who correctly predicts the winner!
+              </p>
 
               <h3>Speed Multiplier Table</h3>
               <p>Each ship has strengths and weaknesses across 7 weather types:</p>

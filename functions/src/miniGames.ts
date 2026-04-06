@@ -42,8 +42,8 @@ const SPEED_MATRIX: number[][] = [
 
 const BASE_SPEED = 8; // Reverted to 8 for original race duration and excitement
 const ZONE_WIDTH = 18; // 90% / 5 zones = 18% each
-const HOUSE_CUT = 0.10; // 10% house edge
-const HOUSE_SEED = 500; // Phantom seed injected into every ship's pool
+const DEFAULT_HOUSE_CUT = 0.10; // 10% house edge
+const DEFAULT_HOUSE_SEED = 500; // Phantom seed injected into every ship's pool
 const DOCK_WIDTH = 8;
 const SHIP_START = 0;
 const MAX_BET_PER_USER = 1000;
@@ -461,12 +461,23 @@ export const refreshDrakkarRace = onCall(
                     };
                 }
 
+                // Fetch dynamic configuration
+                const configRef = db.collection('settings').doc('mini_games');
+                const configSnap = await transaction.get(configRef);
+                const config = configSnap.exists ? configSnap.data()?.drakkarRace || {} : {};
+                
+                const houseSeed = config.houseSeed ?? DEFAULT_HOUSE_SEED;
+                const multiplierFactor = config.multiplierFactor ?? (1 - DEFAULT_HOUSE_CUT);
+
                 const newState = {
                     ...state,
                     ...updates,
                     phase: nextPhase,
                     endTime: now + duration,
-                    lastUpdate: now
+                    lastUpdate: now,
+                    // Persist config for the duration of this race
+                    houseSeed,
+                    multiplierFactor
                 };
 
                 transaction.set(stateRef, newState);
@@ -522,9 +533,12 @@ async function processDrakkarPayouts(raceState: any) {
     const winnerShip = raceState.ships[winnerIdx];
     const winnerId = winnerShip.id;
 
+    const houseSeed = raceState.houseSeed ?? DEFAULT_HOUSE_SEED;
+    const multiplierFactor = raceState.multiplierFactor ?? (1 - DEFAULT_HOUSE_CUT);
+
     const bets = await stateRef.collection('bets').get();
-    let totalPool = HOUSE_SEED * 3;
-    let winnerPool = HOUSE_SEED;
+    let totalPool = houseSeed * 3;
+    let winnerPool = houseSeed;
 
     if (!bets.empty) {
         const betDocs: any[] = [];
@@ -535,7 +549,7 @@ async function processDrakkarPayouts(raceState: any) {
             winnerPool += bet[winnerId] || 0;
         }
 
-        const payoutMultiplier = (totalPool / winnerPool) * (1 - HOUSE_CUT);
+        const payoutMultiplier = (totalPool / winnerPool) * multiplierFactor;
 
         for (const bet of betDocs) {
             const betOnWinner = bet[winnerId] || 0;
@@ -557,14 +571,14 @@ async function processDrakkarPayouts(raceState: any) {
                         prizeName: `${winAmount} Valcoins`,
                         prizeType: 'valcoins',
                         prizeAmount: winAmount,
-                        prizeRarity: payoutMultiplier >= 5 ? 'legendary' : payoutMultiplier >= 2 ? 'epic' : 'rare',
+                        prizeRarity: winAmount >= (bet.total * 5) ? 'legendary' : winAmount >= (bet.total * 2) ? 'epic' : 'rare',
                         prizeIcon: 'legendary_ship.png',
                         cost: bet.total,
                         timestamp: admin.firestore.FieldValue.serverTimestamp()
                     });
                 });
 
-                if (payoutMultiplier >= 2) {
+                if (winAmount >= (bet.total * 2)) {
                     try {
                         await rtdb.ref('recentMiniGameWinners').push({
                             playerName: bet.playerName || 'Guest',
@@ -585,7 +599,7 @@ async function processDrakkarPayouts(raceState: any) {
         }
     }
 
-    const finalMultiplier = (totalPool / winnerPool) * (1 - HOUSE_CUT);
+    const finalMultiplier = (totalPool / winnerPool) * multiplierFactor;
 
     // Save race history to RTDB (last 10 races)
     try {

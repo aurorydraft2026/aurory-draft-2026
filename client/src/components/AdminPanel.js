@@ -4629,60 +4629,63 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 </div>
               </div>
 
-              <div className="config-card probability-guide-card">
-                <div className="guide-header">
-                  <h3>⚖️ Probability Balance Guide</h3>
-                  <span className="guide-subtitle">Use these weights to achieve professional game balance</span>
-                </div>
-                <div className="guide-table-container">
-                  <table className="guide-table">
-                    <thead>
-                      <tr>
-                        <th>Rarity Tier/Type</th>
-                        <th>Target Luck</th>
-                        <th>Recommended Weight</th>
-                        <th>Example Prize</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="rarity-loss">
-                        <td><strong>House Edge</strong> ❌</td>
-                        <td>Configurable</td>
-                        <td><strong>50 - 150</strong></td>
-                        <td>"Better Luck Next Time" (Loss)</td>
-                      </tr>
-                      <tr className="rarity-common">
-                        <td><strong>Common</strong> ⚪</td>
-                        <td>~70%</td>
-                        <td><strong>100</strong></td>
-                        <td>25 Valcoins (Safe Hit)</td>
-                      </tr>
-                      <tr className="rarity-rare">
-                        <td><strong>Rare</strong> 🔵</td>
-                        <td>~20%</td>
-                        <td><strong>30</strong></td>
-                        <td>75 Valcoins (Sweet Spot)</td>
-                      </tr>
-                      <tr className="rarity-epic">
-                        <td><strong>Epic</strong> 🟣</td>
-                        <td>~8%</td>
-                        <td><strong>10</strong></td>
-                        <td>250 Valcoins (Big Win)</td>
-                      </tr>
-                      <tr className="rarity-legendary">
-                        <td><strong>Legendary</strong> 🟡</td>
-                        <td>~2%</td>
-                        <td><strong>2</strong></td>
-                        <td>1000 Valcoins (Jackpot)</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <div className="guide-footer">
-                    <p>💡 <em>Weights are relative. Probability = (Prize Weight / (Total Prize Weight + No-Win Weight))</em></p>
-                    <p>🛡️ <strong>Recommended:</strong> For a 25% house edge, set the <strong>No-Win Weight</strong> roughly equal to 1/3 of your total prize weights.</p>
+
+              {activeGameType !== 'drakkarRace' && (
+                <div className="config-card probability-guide-card">
+                  <div className="guide-header">
+                    <h3>⚖️ Probability Balance Guide</h3>
+                    <span className="guide-subtitle">Use these weights to achieve professional game balance</span>
+                  </div>
+                  <div className="guide-table-container">
+                    <table className="guide-table">
+                      <thead>
+                        <tr>
+                          <th>Rarity Tier/Type</th>
+                          <th>Target Luck</th>
+                          <th>Recommended Weight</th>
+                          <th>Example Prize</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="rarity-loss">
+                          <td><strong>House Edge</strong> ❌</td>
+                          <td>Configurable</td>
+                          <td><strong>50 - 150</strong></td>
+                          <td>"Better Luck Next Time" (Loss)</td>
+                        </tr>
+                        <tr className="rarity-common">
+                          <td><strong>Common</strong> ⚪</td>
+                          <td>~70%</td>
+                          <td><strong>100</strong></td>
+                          <td>25 Valcoins (Safe Hit)</td>
+                        </tr>
+                        <tr className="rarity-rare">
+                          <td><strong>Rare</strong> 🔵</td>
+                          <td>~20%</td>
+                          <td><strong>30</strong></td>
+                          <td>75 Valcoins (Sweet Spot)</td>
+                        </tr>
+                        <tr className="rarity-epic">
+                          <td><strong>Epic</strong> 🟣</td>
+                          <td>~8%</td>
+                          <td><strong>10</strong></td>
+                          <td>250 Valcoins (Big Win)</td>
+                        </tr>
+                        <tr className="rarity-legendary">
+                          <td><strong>Legendary</strong> 🟡</td>
+                          <td>~2%</td>
+                          <td><strong>2</strong></td>
+                          <td>1000 Valcoins (Jackpot)</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <div className="guide-footer">
+                      <p>💡 <em>Weights are relative. Probability = (Prize Weight / (Total Prize Weight + No-Win Weight))</em></p>
+                      <p>🛡️ <strong>Recommended:</strong> For a 25% house edge, set the <strong>No-Win Weight</strong> roughly equal to 1/3 of your total prize weights.</p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {miniGamesLoading ? (
                 <LoadingScreen message="Loading configuration..." />
@@ -4719,85 +4722,117 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           />
                         </label>
                       </div>
-                      <div className="form-group">
-                        <label>Cost Per Play (Valcoins)</label>
-                        <input
-                          type="number"
-                          value={miniGamesConfig[activeGameType]?.costPerPlay ?? 50}
-                          onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { costPerPlay: parseInt(e.target.value) })}
-                          min="0"
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label>No-Win Weight (Dead Weight)</label>
-                        <input
-                          type="number"
-                          value={miniGamesConfig[activeGameType]?.noWinWeight ?? 0}
-                          onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { noWinWeight: parseInt(e.target.value) })}
-                          min="0"
-                          title="Higher weight = more chance of losing"
-                        />
-                      </div>
+
+                      {activeGameType === 'drakkarRace' ? (
+                        <>
+                          <div className="form-group">
+                            <label>House Multiplier Factor (Default 0.9)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={miniGamesConfig[activeGameType]?.multiplierFactor ?? 0.9}
+                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { multiplierFactor: parseFloat(e.target.value) })}
+                              min="0"
+                              max="2"
+                              title="The final pool multiplier. 0.9 = 10% House Cut"
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>House Seed Amount (Default 500)</label>
+                            <input
+                              type="number"
+                              value={miniGamesConfig[activeGameType]?.houseSeed ?? 500}
+                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { houseSeed: parseInt(e.target.value) })}
+                              min="0"
+                              title="Starting valcoins injected into each ship's pool"
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="form-group">
+                            <label>Cost Per Play (Valcoins)</label>
+                            <input
+                              type="number"
+                              value={miniGamesConfig[activeGameType]?.costPerPlay ?? 50}
+                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { costPerPlay: parseInt(e.target.value) })}
+                              min="0"
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>No-Win Weight (Dead Weight)</label>
+                            <input
+                              type="number"
+                              value={miniGamesConfig[activeGameType]?.noWinWeight ?? 0}
+                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { noWinWeight: parseInt(e.target.value) })}
+                              min="0"
+                              title="Higher weight = more chance of losing"
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
 
-                  <div className="prizes-management-card card">
-                    <h3>Prize Pool</h3>
-                    <div className="new-prize-form">
-                      <div className="form-row">
-                        <div className="form-group">
-                          <label>Prize Name</label>
-                          <input
-                            type="text"
-                            value={newPrize.name}
-                            onChange={(e) => setNewPrize({ ...newPrize, name: e.target.value })}
-                            placeholder="e.g. 100 Valcoins"
-                          />
+
+                  {activeGameType !== 'drakkarRace' && (
+                    <div className="prizes-management-card card">
+                      <h3>Prize Pool</h3>
+                      <div className="new-prize-form">
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label>Prize Name</label>
+                            <input
+                              type="text"
+                              value={newPrize.name}
+                              onChange={(e) => setNewPrize({ ...newPrize, name: e.target.value })}
+                              placeholder="e.g. 100 Valcoins"
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Type</label>
+                            <select
+                              value={newPrize.type}
+                              onChange={(e) => setNewPrize({ ...newPrize, type: e.target.value })}
+                            >
+                              <option value="valcoins">Valcoins</option>
+                              <option value="AURY">AURY</option>
+                              <option value="USDC">USDC</option>
+                              <option value="item">Custom Item</option>
+                            </select>
+                          </div>
+                          <div className="form-group">
+                            <label>Amount</label>
+                            <input
+                              type="number"
+                              value={newPrize.amount}
+                              onChange={(e) => setNewPrize({ ...newPrize, amount: parseFloat(e.target.value) })}
+                            />
+                          </div>
                         </div>
-                        <div className="form-group">
-                          <label>Type</label>
-                          <select
-                            value={newPrize.type}
-                            onChange={(e) => setNewPrize({ ...newPrize, type: e.target.value })}
-                          >
-                            <option value="valcoins">Valcoins</option>
-                            <option value="AURY">AURY</option>
-                            <option value="USDC">USDC</option>
-                            <option value="item">Custom Item</option>
-                          </select>
-                        </div>
-                        <div className="form-group">
-                          <label>Amount</label>
-                          <input
-                            type="number"
-                            value={newPrize.amount}
-                            onChange={(e) => setNewPrize({ ...newPrize, amount: parseFloat(e.target.value) })}
-                          />
-                        </div>
-                      </div>
-                      <div className="form-row">
-                        <div className="form-group">
-                          <label>Rarity</label>
-                          <select
-                            value={newPrize.rarity}
-                            onChange={(e) => setNewPrize({ ...newPrize, rarity: e.target.value })}
-                          >
-                            <option value="common">Common</option>
-                            <option value="rare">Rare</option>
-                            <option value="epic">Epic</option>
-                            <option value="legendary">Legendary</option>
-                          </select>
-                        </div>
-                        <div className="form-group">
-                          <label>Weight (Probability)</label>
-                          <input
-                            type="number"
-                            value={newPrize.weight}
-                            onChange={(e) => setNewPrize({ ...newPrize, weight: parseInt(e.target.value) })}
-                            title="Higher weight = more common"
-                          />
-                        </div>
-                        <div className="form-group icon-picker-group">
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label>Rarity</label>
+                            <select
+                              value={newPrize.rarity}
+                              onChange={(e) => setNewPrize({ ...newPrize, rarity: e.target.value })}
+                            >
+                              <option value="common">Common</option>
+                              <option value="rare">Rare</option>
+                              <option value="epic">Epic</option>
+                              <option value="legendary">Legendary</option>
+                            </select>
+                          </div>
+                          <div className="form-group">
+                            <label>Weight (Probability)</label>
+                            <input
+                              type="number"
+                              value={newPrize.weight}
+                              onChange={(e) => setNewPrize({ ...newPrize, weight: parseInt(e.target.value) })}
+                              title="Higher weight = more common"
+                            />
+                          </div>
+                          <div className="form-group icon-picker-group">
                           <label>Icon</label>
                           <div className="icon-quick-picker">
                             {getRecommendedIcons(newPrize.rarity).map(emoji => (
@@ -4881,8 +4916,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       )}
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+            )}
             </div>
           )}
 
