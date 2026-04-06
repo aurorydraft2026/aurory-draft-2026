@@ -224,8 +224,8 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
           <button className="dv2-rules-btn" onClick={() => setShowRules(true)}>📜 Rules</button>
           <div className="dv2-timer-pill">
             {state.phase === 'racing' ? '🏁' :
-             state.phase === 'betting' ? `${Math.ceil(timeLeft / 1000)}s` :
-             <div className="dv2-spinner" />}
+              state.phase === 'betting' ? `${Math.ceil(timeLeft / 1000)}s` :
+                <div className="dv2-spinner" />}
           </div>
         </div>
       </div>
@@ -275,7 +275,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                   <div
                     className={`dv2-ship-wrapper ${state.phase === 'result' && state.winnerIdx === i ? 'winner' : ''}`}
                     style={{
-                      left: `calc(${shipPositions[i]}% - (${shipPositions[i]} / ${FINISH_LINE} * 50px))`,
+                      left: `calc(${shipPositions[i]}% - (${shipPositions[i]} / ${FINISH_LINE} * 63px))`,
                       '--ship-glow': ship.color
                     }}
                   >
@@ -283,7 +283,6 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                       src={`${process.env.PUBLIC_URL}/icons/minigames/ships/${ship.id}.png`}
                       alt={ship.name}
                       className="dv2-ship-img"
-                      style={{ filter: `drop-shadow(0 0 6px ${ship.color})` }}
                     />
                     {state.phase === 'result' && state.winnerIdx === i && (
                       <span className="dv2-winner-badge">👑</span>
@@ -340,9 +339,9 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                     className={`dv2-bet-card ${state.phase !== 'betting' ? 'disabled' : ''}`}
                     style={{ '--ship-accent': ship.color }}
                     onClick={() => {
-                        if (state.phase === 'betting') {
-                            handlePlaceBet(ship.id);
-                        }
+                      if (state.phase === 'betting') {
+                        handlePlaceBet(ship.id);
+                      }
                     }}
                   >
                     <div className="dv2-bet-card-top">
@@ -350,7 +349,6 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                         src={`${process.env.PUBLIC_URL}/icons/minigames/ships/${ship.id}.png`}
                         alt={ship.name}
                         className="dv2-bet-card-ship"
-                        style={{ filter: `drop-shadow(0 0 6px ${ship.color})` }}
                       />
                       <div className="dv2-bet-card-info">
                         <h4 style={{ color: ship.color }}>{ship.name}</h4>
@@ -403,7 +401,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                       src={`${process.env.PUBLIC_URL}/icons/minigames/ships/${entry.winner?.id}.png`}
                       alt=""
                       className="dv2-history-ship-icon"
-                      style={{ filter: `drop-shadow(0 0 4px ${entry.winner?.color || '#fff'})` }}
+                      style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}
                     />
                     <span className="dv2-history-ship-name" style={{ color: entry.winner?.color }}>
                       {entry.winner?.name || '???'}

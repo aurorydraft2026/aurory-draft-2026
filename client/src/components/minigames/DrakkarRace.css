@@ -269,30 +269,22 @@
   position: relative;
   width: 100%;
   height: 250px;
-  background: linear-gradient(180deg, #1e3a8a 0%, #172554 60%, #0f172a 100%);
+  background: #1e3a8a; /* Brighter, vibrant blue for the ocean */
   border-radius: 12px;
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.05);
-  box-shadow: inset 0 0 40px rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
 }
 
 .dv2-track-water {
   position: absolute;
   inset: 0;
-  background:
-    repeating-linear-gradient(
-      90deg,
-      transparent,
-      transparent 60px,
-      rgba(255,255,255,0.01) 60px,
-      rgba(255,255,255,0.01) 120px
-    );
-  animation: waterDrift 6s linear infinite;
+  /* Removed grid gradient for cleaner flat look */
 }
 
-@keyframes waterDrift {
+@keyframes gridDrift {
   0% { background-position: 0 0; }
-  100% { background-position: 120px 0; }
+  100% { background-position: 50px 0; }
 }
 
 .dv2-zone-divider {
@@ -337,9 +329,14 @@
 .dv2-lane {
   flex: 1;
   position: relative;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
   display: flex;
   align-items: center;
+  transition: background 0.3s ease;
+}
+
+.dv2-lane:nth-child(even) {
+  background: rgba(255,255,255,0.015); /* Zebra striping for better tracking */
 }
 
 .dv2-lane:last-child {
@@ -348,15 +345,17 @@
 
 .dv2-lane-label {
   position: absolute;
-  left: 4px;
-  top: 2px;
-  font-size: 0.55rem;
+  left: 6px;
+  top: 4px;
+  font-size: 0.6rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  opacity: 0.5;
+  letter-spacing: 1px;
+  color: #94a3b8;
+  opacity: 0.7;
   z-index: 15;
   white-space: nowrap;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
 
 .dv2-ship-wrapper {
@@ -367,7 +366,8 @@
   align-items: center;
   gap: 4px;
   z-index: 10;
-  transition: none; /* No CSS transition — pure JS animation */
+  transition: transform 0.05s linear; /* Smooth micro-movement */
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.6)); /* Standard shadow for depth */
 }
 
 .dv2-ship-wrapper.winner {
@@ -376,12 +376,12 @@
 
 @keyframes winnerPulse {
   0% { filter: brightness(1); }
-  100% { filter: brightness(1.4) drop-shadow(0 0 12px var(--ship-glow)); }
+  100% { filter: brightness(1.7); }
 }
 
 .dv2-ship-img {
-  width: 72px;
-  height: 54px;
+  width: 86px; /* High visibility scaling */
+  height: 64px;
   object-fit: contain;
 }
 
