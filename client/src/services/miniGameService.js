@@ -45,7 +45,7 @@ export const MAX_BET_PER_USER = 1000;
 
 // Animation constants
 export const BASE_SPEED = 8; // Reverted to 8 for original race duration and excitement
-export const ZONE_WIDTH = 30; // % of track per weather zone
+export const ZONE_WIDTH = 18; // 90% / 5 zones = 18% each
 export const DOCK_WIDTH = 8; // % start zone
 export const FINISH_WIDTH = 2; // % finish zone
 
@@ -83,12 +83,12 @@ export function computeShipPosition(speeds, elapsedMs) {
       remainingMs -= zoneTimeMs;
     } else {
       position += (remainingMs / 1000) * zoneSpeed;
-      return Math.min(position, DOCK_WIDTH + 3 * ZONE_WIDTH);
+      return Math.min(position, DOCK_WIDTH + 5 * ZONE_WIDTH);
     }
   }
 
   // Past all zones — at finish line
-  return DOCK_WIDTH + 3 * ZONE_WIDTH;
+  return DOCK_WIDTH + 5 * ZONE_WIDTH;
 }
 
 /**

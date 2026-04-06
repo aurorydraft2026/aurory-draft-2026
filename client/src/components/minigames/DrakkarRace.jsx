@@ -20,7 +20,7 @@ import {
 } from '../../services/miniGameService';
 import './DrakkarRace.css';
 
-const FINISH_LINE = DOCK_WIDTH + 3 * ZONE_WIDTH; // 98%
+const FINISH_LINE = DOCK_WIDTH + 5 * ZONE_WIDTH; // 98%
 const HOUSE_SEED = 500;
 
 const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
@@ -241,19 +241,22 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
           {/* ═══ WEATHER BAR ═══ */}
           <div className="dv2-weather-bar">
             <div className="dv2-weather-dock">🏰 Dock</div>
-            {raceWeathers.map((w, i) => (
-              <div
-                key={i}
-                className={`dv2-weather-zone ${(state.phase === 'betting' && i > 0) ? 'hidden' : ''}`}
-              >
-                <span className="dv2-weather-icon">
-                  {(state.phase === 'betting' && i > 0) ? '❓' : w.icon}
-                </span>
-                <span className="dv2-weather-name">
-                  {(state.phase === 'betting' && i > 0) ? 'Hidden' : w.name}
-                </span>
-              </div>
-            ))}
+            {raceWeathers.map((w, i) => {
+              const isHidden = state.phase === 'betting' && i !== state.revealedIndex;
+              return (
+                <div
+                  key={i}
+                  className={`dv2-weather-zone ${isHidden ? 'hidden' : ''}`}
+                >
+                  <span className="dv2-weather-icon">
+                    {isHidden ? '❓' : w.icon}
+                  </span>
+                  <span className="dv2-weather-name">
+                    {isHidden ? 'Hidden' : w.name}
+                  </span>
+                </div>
+              );
+            })}
             <div className="dv2-weather-finish">🏁</div>
           </div>
 
@@ -265,6 +268,8 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
             <div className="dv2-zone-divider" style={{ left: `${DOCK_WIDTH}%` }} />
             <div className="dv2-zone-divider" style={{ left: `${DOCK_WIDTH + ZONE_WIDTH}%` }} />
             <div className="dv2-zone-divider" style={{ left: `${DOCK_WIDTH + 2 * ZONE_WIDTH}%` }} />
+            <div className="dv2-zone-divider" style={{ left: `${DOCK_WIDTH + 3 * ZONE_WIDTH}%` }} />
+            <div className="dv2-zone-divider" style={{ left: `${DOCK_WIDTH + 4 * ZONE_WIDTH}%` }} />
             <div className="dv2-finish-line" style={{ left: `${FINISH_LINE}%` }} />
 
             {/* Ship Lanes */}
@@ -328,9 +333,11 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
             <div className="dv2-bet-cards">
               {raceShips.map((ship) => {
                 const shipGlobalIdx = getShipGlobalIndex(ship.id);
-                const firstWeatherIdx = raceWeathers.length > 0 ? getWeatherGlobalIndex(raceWeathers[0].id) : -1;
-                const firstWeatherSpeed = firstWeatherIdx >= 0 && shipGlobalIdx >= 0
-                  ? SPEED_MATRIX[shipGlobalIdx][firstWeatherIdx]
+                const revealedIdx = (state.revealedIndex !== undefined && raceWeathers[state.revealedIndex]) 
+                  ? getWeatherGlobalIndex(raceWeathers[state.revealedIndex].id) 
+                  : -1;
+                const revealedWeatherSpeed = revealedIdx >= 0 && shipGlobalIdx >= 0
+                  ? SPEED_MATRIX[shipGlobalIdx][revealedIdx]
                   : null;
 
                 return (
@@ -352,9 +359,9 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                       />
                       <div className="dv2-bet-card-info">
                         <h4 style={{ color: ship.color }}>{ship.name}</h4>
-                        {firstWeatherSpeed !== null && (
+                        {revealedWeatherSpeed !== null && (
                           <span className="dv2-speed-hint">
-                            {raceWeathers[0]?.icon} {formatSpeed(firstWeatherSpeed)}
+                            {raceWeathers[state.revealedIndex]?.icon} {formatSpeed(revealedWeatherSpeed)}
                           </span>
                         )}
                       </div>

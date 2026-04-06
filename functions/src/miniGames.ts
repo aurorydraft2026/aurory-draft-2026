@@ -41,7 +41,7 @@ const SPEED_MATRIX: number[][] = [
 ];
 
 const BASE_SPEED = 8; // Reverted to 8 for original race duration and excitement
-const ZONE_WIDTH = 30; // % of track per weather zone
+const ZONE_WIDTH = 18; // 90% / 5 zones = 18% each
 const HOUSE_CUT = 0.10; // 10% house edge
 const HOUSE_SEED = 500; // Phantom seed injected into every ship's pool
 const DOCK_WIDTH = 8;
@@ -70,17 +70,25 @@ function shuffleArray<T>(arr: T[]): T[] {
     return a;
 }
 
-/** Pick 3 unique random indices from 0..6 */
-function pick3(): number[] {
+/** Pick N unique random indices from 0..6 */
+function pickUnique(count: number): number[] {
     const indices = [0, 1, 2, 3, 4, 5, 6];
     const shuffled = shuffleArray(indices);
-    return shuffled.slice(0, 3);
+    return shuffled.slice(0, count);
+}
+
+/** Pick 5 random indices from 0..6, allowing duplicates */
+function pick5Weathers(): number[] {
+    const indices: number[] = [];
+    for (let i = 0; i < 5; i++) {
+        indices.push(Math.floor(Math.random() * 7));
+    }
+    return indices;
 }
 
 /**
- * Compute race finish time (ms) for a ship given 3 weather zone speeds.
+ * Compute race finish time (ms) for a ship given 5 weather zone speeds.
  * time = sum( ZONE_WIDTH / (speed * BASE_SPEED / 10) ) in seconds, converted to ms
- * Using integer arithmetic: time_ms = sum( ZONE_WIDTH * 10 * 1000 / (speed * BASE_SPEED) )
  */
 function computeFinishTimeMs(shipIdx: number, weatherIndices: number[]): number {
     let totalMs = 0;
@@ -90,7 +98,7 @@ function computeFinishTimeMs(shipIdx: number, weatherIndices: number[]): number 
     const firstSpeed = SPEED_MATRIX[shipIdx][weatherIndices[0]];
     totalMs += (dockDist * 10000) / (firstSpeed * BASE_SPEED);
 
-    // 2. Weather traversal (3 zones x 30% each)
+    // 2. Weather traversal (5 zones x 18% each)
     for (const wIdx of weatherIndices) {
         const speed = SPEED_MATRIX[shipIdx][wIdx];
         totalMs += (ZONE_WIDTH * 10000) / (speed * BASE_SPEED);
@@ -432,11 +440,12 @@ export const refreshDrakkarRace = onCall(
                     nextPhase = 'betting';
                     duration = DURATIONS.betting;
 
-                    const shipIndices = pick3();
-                    const weatherIndices = pick3();
+                    const shipIndices = pickUnique(3);
+                    const weatherIndices = pick5Weathers();
+                    const revealedIndex = Math.floor(Math.random() * 5); // Pick one of 5 to reveal
 
-                    const ships = shipIndices.map(i => ALL_SHIPS[i]);
-                    const weathers = weatherIndices.map(i => ALL_WEATHERS[i]);
+                    const ships = shipIndices.map((i: number) => ALL_SHIPS[i]);
+                    const weathers = weatherIndices.map((i: number) => ALL_WEATHERS[i]);
 
                     updates = {
                         raceId: (state.raceId || 0) + 1,
@@ -444,9 +453,9 @@ export const refreshDrakkarRace = onCall(
                         weathers,
                         shipIndices,
                         weatherIndices,
+                        revealedIndex,
                         winnerIdx: null,
                         finishTimes: null,
-
                         raceDuration: null,
                         raceStartTime: null
                     };
