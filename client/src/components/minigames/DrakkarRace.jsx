@@ -216,7 +216,9 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
         <div className="dv2-status-right">
           <button className="dv2-rules-btn" onClick={() => setShowRules(true)}>📜 Rules</button>
           <div className="dv2-timer-pill">
-            {state.phase === 'racing' ? '🏁' : `${Math.ceil(timeLeft / 1000)}s`}
+            {state.phase === 'racing' ? '🏁' :
+             state.phase === 'betting' ? `${Math.ceil(timeLeft / 1000)}s` :
+             <div className="dv2-spinner" />}
           </div>
         </div>
       </div>
