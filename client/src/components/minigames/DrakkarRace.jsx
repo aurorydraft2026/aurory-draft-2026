@@ -29,7 +29,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const [history, setHistory] = useState([]);
   const [selectedChip, setSelectedChip] = useState(5);
   const [myBets, setMyBets] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingBetsTotal, setPendingBetsTotal] = useState(0);
   const [localError, setLocalError] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
   const [showRules, setShowRules] = useState(false);
@@ -150,17 +150,18 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
   // ─── 4. Betting Logic ───
   const handlePlaceBet = async (shipId) => {
-    if (isSubmitting || state?.phase !== 'betting') return;
+    if (state?.phase !== 'betting') return;
     setLocalError(null);
 
     const amount = selectedChip;
     const currentTotal = Object.values(myBets).reduce((a, b) => a + b, 0);
-    if (currentTotal + amount > MAX_BET_PER_USER) {
-      setLocalError(`Max bet is ${MAX_BET_PER_USER} per race. You have ${currentTotal} placed.`);
+    if (currentTotal + pendingBetsTotal + amount > MAX_BET_PER_USER) {
+      setLocalError(`Max bet is ${MAX_BET_PER_USER} per race. You have ${currentTotal + pendingBetsTotal} placed/pending.`);
       return;
     }
 
-    setIsSubmitting(true);
+    setPendingBetsTotal(prev => prev + amount);
+
     try {
       const result = await placeDrakkarBet(shipId, amount);
       if (result.success) {
@@ -175,7 +176,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
     } catch (err) {
       setLocalError(err.message);
     } finally {
-      setIsSubmitting(false);
+      setPendingBetsTotal(prev => prev - amount);
     }
   };
 
@@ -330,10 +331,10 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                 return (
                   <div
                     key={ship.id}
-                    className={`dv2-bet-card ${state.phase !== 'betting' ? 'disabled' : ''} ${isSubmitting ? 'submitting' : ''}`}
+                    className={`dv2-bet-card ${state.phase !== 'betting' ? 'disabled' : ''}`}
                     style={{ '--ship-accent': ship.color }}
                     onClick={() => {
-                        if (!isSubmitting && state.phase === 'betting') {
+                        if (state.phase === 'betting') {
                             handlePlaceBet(ship.id);
                         }
                     }}

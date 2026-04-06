@@ -124,6 +124,29 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
     );
   }
 
+  const renderGameCard = (gameKey) => {
+    const game = GAME_REGISTRY[gameKey];
+    const gameCfg = config[gameKey];
+    return (
+      <div
+        key={gameKey}
+        className="minigame-card"
+        onClick={() => setSelectedGame(gameKey)}
+      >
+        <div className="minigame-card-icon">{game.icon}</div>
+        <h3>{game.name}</h3>
+        <p>{game.description}</p>
+        <div className="minigame-card-cost">
+          <img src={process.env.PUBLIC_URL + '/valcoin-icon.jpg'} alt="V" className="valcoin-icon-xs" />
+          <span>{gameKey === 'drakkarRace' ? 'Bet to play' : `${gameCfg.costPerPlay} per play`}</span>
+        </div>
+        <div className="minigame-card-prizes">
+          {gameKey === 'drakkarRace' ? 'Parimutuel payouts' : `${gameCfg.prizes?.length || 0} prizes available`}
+        </div>
+      </div>
+    );
+  };
+
   // Hub view — game selector
   return (
     <div className="minigames-overlay" onClick={onClose}>
@@ -159,29 +182,30 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
               <p>No games available right now. Check back later!</p>
             </div>
           ) : (
-            <div className="minigames-grid">
-              {availableGames.map(gameKey => {
-                const game = GAME_REGISTRY[gameKey];
-                const gameCfg = config[gameKey];
-                return (
-                  <div
-                    key={gameKey}
-                    className="minigame-card"
-                    onClick={() => setSelectedGame(gameKey)}
-                  >
-                    <div className="minigame-card-icon">{game.icon}</div>
-                    <h3>{game.name}</h3>
-                    <p>{game.description}</p>
-                    <div className="minigame-card-cost">
-                      <img src={process.env.PUBLIC_URL + '/valcoin-icon.jpg'} alt="V" className="valcoin-icon-xs" />
-                      <span>{gameKey === 'drakkarRace' ? 'Bet to play' : `${gameCfg.costPerPlay} per play`}</span>
-                    </div>
-                    <div className="minigame-card-prizes">
-                      {gameKey === 'drakkarRace' ? 'Parimutuel payouts' : `${gameCfg.prizes?.length || 0} prizes available`}
-                    </div>
+            <div className="minigames-hub-sections">
+              {/* SOLO PLAY */}
+              {availableGames.filter(k => k === 'slotMachine' || k === 'treasureChest').length > 0 && (
+                <div className="minigames-section">
+                  <h3 className="minigames-section-title">👤 Solo Play</h3>
+                  <div className="minigames-grid">
+                    {availableGames
+                      .filter(k => k === 'slotMachine' || k === 'treasureChest')
+                      .map(gameKey => renderGameCard(gameKey))}
                   </div>
-                );
-              })}
+                </div>
+              )}
+
+              {/* SOCIAL PLAY */}
+              {availableGames.filter(k => k === 'drakkarRace').length > 0 && (
+                <div className="minigames-section">
+                  <h3 className="minigames-section-title">🌍 Social Play</h3>
+                  <div className="minigames-grid">
+                    {availableGames
+                      .filter(k => k === 'drakkarRace')
+                      .map(gameKey => renderGameCard(gameKey))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

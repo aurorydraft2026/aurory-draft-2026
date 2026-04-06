@@ -494,6 +494,8 @@
   position: relative;
   overflow: hidden;
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .dv2-bet-card::before {

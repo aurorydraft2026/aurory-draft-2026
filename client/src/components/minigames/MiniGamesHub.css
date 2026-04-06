@@ -186,6 +186,29 @@
   opacity: 0.5;
 }
 
+.minigames-hub-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.minigames-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.minigames-section-title {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #94a3b8;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding-bottom: 8px;
+}
+
 /* ───────────── GAME CARDS GRID ───────────── */
 .minigames-grid {
   display: grid;
