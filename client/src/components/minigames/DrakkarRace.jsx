@@ -434,11 +434,15 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
               <p>3 random ships and 3 random weather zones are selected each race. Only Weather #1 is visible during betting — Weathers #2 and #3 are hidden until the race starts!</p>
 
               <h3>Parimutuel Payout</h3>
-              <p>To guarantee massive payouts, the House naturally places a virtual bet of <strong>{HOUSE_SEED} Valcoins</strong> on every single ship to build the starting pools.</p>
+              <p>Wins are calculated based on the total pool shared among winners. To ensure high multipliers even when you are playing solo:</p>
+              <ul>
+                <li>The House seeds each ship with <strong>{HOUSE_SEED} Valcoins</strong> every race.</li>
+                <li>Wins with a multiplier of <strong>2.0x or higher</strong> trigger a Global Win Announcement!</li>
+              </ul>
               <div className="dv2-formula">
                 Payout = (Total Pool ÷ Winning Ship Pool) × 0.90
               </div>
-              <p>The house takes 10%. Bet on an underdog to swipe the House's virtual bets for huge potential wins!</p>
+              <p>The house takes 10%. Bet on underdogs to swipe the House's virtual seed for massive potential returns!</p>
 
               <h3>Speed Multiplier Table</h3>
               <p>Each ship has strengths and weaknesses across 7 weather types:</p>

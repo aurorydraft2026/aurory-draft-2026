@@ -548,14 +548,14 @@ async function processDrakkarPayouts(raceState: any) {
                         prizeName: `${winAmount} Valcoins`,
                         prizeType: 'valcoins',
                         prizeAmount: winAmount,
-                        prizeRarity: payoutMultiplier >= 5 ? 'legendary' : payoutMultiplier >= 3 ? 'epic' : 'rare',
+                        prizeRarity: payoutMultiplier >= 5 ? 'legendary' : payoutMultiplier >= 2 ? 'epic' : 'rare',
                         prizeIcon: 'legendary_ship.png',
                         cost: bet.total,
                         timestamp: admin.firestore.FieldValue.serverTimestamp()
                     });
                 });
 
-                if (payoutMultiplier >= 3 && winAmount >= 100) {
+                if (payoutMultiplier >= 2) {
                     try {
                         await rtdb.ref('recentMiniGameWinners').push({
                             playerName: bet.playerName || 'Guest',
