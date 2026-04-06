@@ -31,16 +31,16 @@ const ALL_WEATHERS = [
 // Each row and column contains each value exactly once
 const SPEED_MATRIX: number[][] = [
     // Calm  Storm  Fog  Kraken  Gale  Ice  Aurora
-    [13, 5, 7, 8, 9, 10, 11], // Sleipnir Swift
-    [9, 10, 11, 13, 5, 7, 8], // Jörmungandr
-    [7, 8, 9, 10, 11, 13, 5], // Ironbound Hulk
-    [10, 11, 13, 5, 7, 8, 9], // Hugin's Shadow
-    [11, 13, 5, 7, 8, 9, 10], // Drakkar Prime
-    [5, 7, 8, 9, 10, 11, 13], // Freyja's Chariot
-    [8, 9, 10, 11, 13, 5, 7], // Norse Raider
+    [16,  8,   9,  10, 11, 12, 14], // Sleipnir Swift
+    [11, 12, 14, 16,  8,   9, 10], // Jörmungandr
+    [ 9, 10, 11, 12, 14, 16,  8], // Ironbound Hulk
+    [12, 14, 16,  8,  9,  10, 11], // Hugin's Shadow
+    [14, 16,  8,  9, 10,  11, 12], // Drakkar Prime
+    [ 8,  9, 10, 11, 12,  14, 16], // Freyja's Chariot
+    [10, 11, 12, 14, 16,   8,  9], // Norse Raider
 ];
 
-const BASE_SPEED = 8; // % of track per second at 1.0x
+const BASE_SPEED = 8; // Reverted to 8 for original race duration and excitement
 const ZONE_WIDTH = 30; // % of track per weather zone
 const HOUSE_CUT = 0.10; // 10% house edge
 const HOUSE_SEED = 500; // Phantom seed injected into every ship's pool

@@ -31,20 +31,20 @@ export const ALL_WEATHERS = [
 // Latin Square speed matrix (x10)
 // Row = ship index (0-6), Column = weather index (0-6)
 export const SPEED_MATRIX = [
-  [13, 5,  7,  8,  9,  10, 11], // Sleipnir Swift
-  [ 9, 10, 11, 13,  5,   7,  8], // Jörmungandr
-  [ 7,  8,  9, 10, 11,  13,  5], // Ironbound Hulk
-  [10, 11, 13,  5,  7,   8,  9], // Hugin's Shadow
-  [11, 13,  5,  7,  8,   9, 10], // Drakkar Prime
-  [ 5,  7,  8,  9, 10,  11, 13], // Freyja's Chariot
-  [ 8,  9, 10, 11, 13,   5,  7], // Norse Raider
+  [16,  8,   9,  10, 11, 12, 14], // Sleipnir Swift
+  [11, 12, 14, 16,  8,   9, 10], // Jörmungandr
+  [ 9, 10, 11, 12, 14, 16,  8], // Ironbound Hulk
+  [12, 14, 16,  8,  9,  10, 11], // Hugin's Shadow
+  [14, 16,  8,  9, 10,  11, 12], // Drakkar Prime
+  [ 8,  9, 10, 11, 12,  14, 16], // Freyja's Chariot
+  [10, 11, 12, 14, 16,   8,  9], // Norse Raider
 ];
 
 export const CHIP_VALUES = [1, 5, 10, 50, 100];
 export const MAX_BET_PER_USER = 1000;
 
 // Animation constants
-export const BASE_SPEED = 8; // % of track per second at 1.0x
+export const BASE_SPEED = 8; // Reverted to 8 for original race duration and excitement
 export const ZONE_WIDTH = 30; // % of track per weather zone
 export const DOCK_WIDTH = 8; // % start zone
 export const FINISH_WIDTH = 2; // % finish zone
