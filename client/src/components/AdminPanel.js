@@ -254,12 +254,19 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
   // Valcoins Global Configuration state
   const [valcoinConfig, setValcoinConfig] = useState({
-    dailyCheckIn: 10,
-    linkAurory: 50,
     joinRaffle: 20,
     joinTournament: 30
   });
   const [valcoinConfigLoading, setValcoinConfigLoading] = useState(false);
+
+  // Website Maintenance state
+  const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
+  const [maintenanceDate, setMaintenanceDate] = useState('TBD');
+  const [maintenanceAnnouncement, setMaintenanceAnnouncement] = useState('We are currently performing scheduled maintenance to improve your experience. Please check back soon!');
+  
+  // Maintenance Warning state
+  const [maintenanceWarningEnabled, setMaintenanceWarningEnabled] = useState(false);
+  const [maintenanceWarningText, setMaintenanceWarningText] = useState('⚠️ Website Maintenance is scheduled for today. Please save your work!');
 
   // Handle image upload to Base64
   const handleImageUpload = (e) => {
@@ -482,18 +489,27 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
     return () => unsubscribe();
   }, [activeTab, isAdmin, earnersSelectedUser]);
-  
-  // Fetch Major Announcement config
-  useEffect(() => {
-    if (!isAdmin || activeTab !== 'news') return;
 
-    const unsub = onSnapshot(doc(db, 'announcements', 'main'), (snap) => {
+  // Fetch Website Maintenance config
+  useEffect(() => {
+    if (!isAdmin || activeTab !== 'website_mgmt') return;
+
+    const unsub = onSnapshot(doc(db, 'settings', 'maintenance'), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        setAnnouncementEnabled(data.enabled || false);
-        setAnnouncementTitle(data.title || '');
-        setAnnouncementContent(data.content || '');
-        setAnnouncementLink(data.link || '');
+        setMaintenanceEnabled(data.enabled || false);
+        setMaintenanceDate(data.scheduledDate || 'TBD');
+        setMaintenanceAnnouncement(data.announcement || '');
+        setMaintenanceWarningEnabled(data.warningEnabled || false);
+        setMaintenanceWarningText(data.warningText || '⚠️ Website Maintenance is scheduled for today. Please save your work!');
+      } else {
+        // Initialize if doesn't exist
+        setDoc(doc(db, 'settings', 'maintenance'), {
+          enabled: false,
+          scheduledDate: 'TBD',
+          announcement: 'We are currently performing scheduled maintenance to improve your experience. Please check back soon!',
+          createdAt: serverTimestamp()
+        });
       }
     });
 
@@ -942,6 +958,35 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     } catch (error) {
       console.error('Error saving valcoin config:', error);
       alert('Error saving valcoin config: ' + error.message);
+    }
+  };
+
+  const handleSaveMaintenance = async () => {
+    setProcessingId('save_maintenance');
+    try {
+      await setDoc(doc(db, 'settings', 'maintenance'), {
+        enabled: maintenanceEnabled,
+        scheduledDate: maintenanceDate,
+        announcement: maintenanceAnnouncement,
+        warningEnabled: maintenanceWarningEnabled,
+        warningText: maintenanceWarningText,
+        warningUpdatedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        updatedBy: user.uid,
+        updatedByName: resolveDisplayName(user)
+      }, { merge: true });
+
+      alert('Maintenance settings saved successfully!');
+
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'update_maintenance_settings',
+        metadata: { enabled: maintenanceEnabled, scheduledDate: maintenanceDate }
+      });
+    } catch (error) {
+      console.error('Error saving maintenance settings:', error);
+      alert('Error saving maintenance settings: ' + error.message);
     } finally {
       setProcessingId(null);
     }
@@ -2271,6 +2316,27 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             </div>
           )}
 
+          {/* Website Management Category */}
+          <div className={`admin-category ${expandedCategory === 'website' ? 'expanded' : ''}`}>
+            <div
+              className="category-title"
+              onClick={() => setExpandedCategory(expandedCategory === 'website' ? '' : 'website')}
+              role="button"
+              tabIndex={0}
+            >
+              <h3>Website</h3>
+              <span className="category-arrow">▼</span>
+            </div>
+            <div className="category-tabs">
+              <button
+                className={`admin-tab ${activeTab === 'website_mgmt' ? 'active' : ''}`}
+                onClick={() => setActiveTab('website_mgmt')}
+              >
+                🌐 Website Management
+              </button>
+            </div>
+          </div>
+
           {/* User Management Category */}
           <div className={`admin-category ${expandedCategory === 'users' ? 'expanded' : ''}`}>
             <div
@@ -3059,6 +3125,99 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'website_mgmt' && (
+            <div className="credit-section website-mgmt-section">
+              <div className="section-info">
+                <p>🌐 Manage global website settings, including maintenance mode and scheduled downtime.</p>
+              </div>
+
+              <div className="credit-form">
+                <div className="form-group">
+                  <label>Maintenance Mode</label>
+                  <div className="currency-toggle-group">
+                    <button 
+                      className={`toggle-btn ${maintenanceEnabled ? 'active' : ''}`}
+                      onClick={() => setMaintenanceEnabled(true)}
+                    >ON</button>
+                    <button 
+                      className={`toggle-btn ${!maintenanceEnabled ? 'active' : ''}`}
+                      onClick={() => setMaintenanceEnabled(false)}
+                    >OFF</button>
+                  </div>
+                  <p className="helper-text" style={{ marginTop: '8px', fontSize: '13px', color: maintenanceEnabled ? '#ef4444' : '#10b981' }}>
+                    {maintenanceEnabled 
+                      ? "⚠️ Maintenance mode is ACTIVE. Non-admin users are being redirected to the maintenance page." 
+                      : "✅ Website is live for all users."}
+                  </p>
+                </div>
+
+                <div className="form-group">
+                  <label>Scheduled Completion (UTC)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Oct 24, 2026 - 14:00 UTC"
+                    value={maintenanceDate}
+                    onChange={(e) => setMaintenanceDate(e.target.value)}
+                    className="credit-input"
+                    style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
+                  />
+                  <p className="helper-text" style={{ marginTop: '4px', fontSize: '12px', color: '#94a3b8' }}>Enter the estimated time when maintenance will conclude. This will be shown to users.</p>
+                </div>
+
+                <div className="form-group">
+                  <label>Announcement Message</label>
+                  <textarea
+                    placeholder="Enter the message to display on the maintenance page..."
+                    value={maintenanceAnnouncement}
+                    onChange={(e) => setMaintenanceAnnouncement(e.target.value)}
+                    style={{ minHeight: '120px', resize: 'vertical', width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
+                  />
+                  <p className="helper-text" style={{ marginTop: '4px', fontSize: '12px', color: '#94a3b8' }}>This message will be shown on the maintenance screen. Use it to provide details about the update.</p>
+                </div>
+
+                <div className="form-group" style={{ marginTop: '30px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px' }}>
+                  <label>Maintenance Warning Banner</label>
+                  <p className="helper-text" style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '15px' }}>
+                    Show a pulsing red indicator at the top of all screens to warn players of upcoming maintenance.
+                  </p>
+                  
+                  <div className="currency-toggle-group">
+                    <button 
+                      className={`toggle-btn ${maintenanceWarningEnabled ? 'active' : ''}`}
+                      onClick={() => setMaintenanceWarningEnabled(true)}
+                    >SHOW WARNING</button>
+                    <button 
+                      className={`toggle-btn ${!maintenanceWarningEnabled ? 'active' : ''}`}
+                      onClick={() => setMaintenanceWarningEnabled(false)}
+                    >HIDE WARNING</button>
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ display: maintenanceWarningEnabled ? 'block' : 'none' }}>
+                  <label>Warning Message</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., ⚠️ Scheduled maintenance in 15 minutes. Save your games!"
+                    value={maintenanceWarningText}
+                    onChange={(e) => setMaintenanceWarningText(e.target.value)}
+                    className="credit-input"
+                    style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
+                  />
+                  <p className="helper-text" style={{ marginTop: '4px', fontSize: '12px', color: '#94a3b8' }}>This banner will pulse red at the top of every screen when enabled.</p>
+                </div>
+
+                <button
+                  className="approve-btn"
+                  onClick={handleSaveMaintenance}
+                  disabled={processingId === 'save_maintenance'}
+                  style={{ marginTop: '30px', width: '100%' }}
+                >
+                  {processingId === 'save_maintenance' ? 'Saving...' : '💾 Save Website Settings'}
+                </button>
+              </div>
             </div>
           )}
 

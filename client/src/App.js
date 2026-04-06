@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
-import { doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { ThemeProvider } from './context/ThemeContext';
 import HomePage from './pages/HomePage';
 import TournamentPage from './pages/TournamentPage';
@@ -14,11 +13,37 @@ import './App.css';
 import RafflePage from './pages/RafflePage';
 import RafflesListingPage from './pages/RafflesListingPage';
 import AdminPanel from './components/AdminPanel';
+import MaintenancePage from './pages/MaintenancePage';
 import MiniGamesButton from './components/minigames/MiniGamesButton';
 import GlobalWinNotifier from './components/minigames/GlobalWinNotifier';
+import { isStaff } from './config/admins';
+import { doc, onSnapshot, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+
+function MaintenanceWarningBanner({ message, onDismiss }) {
+  return (
+    <div className="maintenance-warning-banner">
+      <div className="maintenance-warning-content">
+        <span>{message}</span>
+      </div>
+      <button className="maintenance-warning-close" onClick={onDismiss} title="Dismiss warning">
+        ✕
+      </button>
+    </div>
+  );
+}
 
 function App() {
   const [user, setUser] = useState(null);
+  const [maintenance, setMaintenance] = useState({ enabled: false });
+  const [loadingMaintenance, setLoadingMaintenance] = useState(true);
+  const [isWarningDismissed, setIsWarningDismissed] = useState(
+    sessionStorage.getItem('maintenance-warning-dismissed') === 'true'
+  );
+
+  const handleDismissWarning = () => {
+    setIsWarningDismissed(true);
+    sessionStorage.setItem('maintenance-warning-dismissed', 'true');
+  };
 
   // Listen for authentication state changes
   useEffect(() => {
@@ -34,6 +59,21 @@ function App() {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  // Listen for maintenance mode
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'maintenance'), (docSnap) => {
+      if (docSnap.exists()) {
+        setMaintenance(docSnap.data());
+      }
+      setLoadingMaintenance(false);
+    }, (error) => {
+      console.error("Error fetching maintenance settings:", error);
+      setLoadingMaintenance(false);
+    });
+
+    return () => unsub();
   }, []);
 
   // Track user's last seen timestamp for online visitor tracking
@@ -75,10 +115,20 @@ function App() {
     return () => clearInterval(interval);
   }, [user]);
 
+  if (!loadingMaintenance && maintenance.enabled && !isStaff(user)) {
+    return <MaintenancePage />;
+  }
+
   return (
     <ThemeProvider>
       <Router>
         <div className="App">
+          {maintenance.warningEnabled && !maintenance.enabled && !isWarningDismissed && (
+            <MaintenanceWarningBanner 
+              message={maintenance.warningText} 
+              onDismiss={handleDismissWarning} 
+            />
+          )}
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/tournament/:tournamentId" element={<TournamentPage />} />
@@ -88,6 +138,8 @@ function App() {
             <Route path="/raffle/:id" element={<RafflePage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
+            {/* Fallback for maintenance page if someone tries to access directly */}
+            <Route path="/maintenance" element={<MaintenancePage />} />
           </Routes>
           <Footer />
           <MiniGamesButton />

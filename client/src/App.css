@@ -158,6 +158,78 @@
   box-sizing: border-box;
 }
 
+/* ── Maintenance Warning Banner ── */
+.maintenance-warning-banner {
+  background: rgba(220, 38, 38, 0.95);
+  backdrop-filter: blur(12px);
+  color: #ffffff;
+  padding: 12px 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 99999;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.03em;
+  box-shadow: 0 4px 20px rgba(220, 38, 38, 0.5);
+  animation: pulseMaintenanceWarning 2.5s infinite ease-in-out;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  text-transform: uppercase;
+  font-family: 'Rajdhani', sans-serif;
+}
+
+.maintenance-warning-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  justify-content: center;
+}
+
+.maintenance-warning-icon {
+  font-size: 1.2rem;
+}
+
+.maintenance-warning-close {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+  margin-left: 15px;
+}
+
+.maintenance-warning-close:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.1);
+}
+
+@keyframes pulseMaintenanceWarning {
+  0% { 
+    background-color: rgba(220, 38, 38, 0.95); 
+    box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
+  }
+  50% { 
+    background-color: rgba(239, 68, 68, 1); 
+    box-shadow: 0 4px 30px rgba(239, 68, 68, 0.7);
+  }
+  100% { 
+    background-color: rgba(220, 38, 38, 0.95); 
+    box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
+  }
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',

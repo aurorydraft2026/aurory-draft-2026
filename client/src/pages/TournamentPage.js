@@ -589,6 +589,7 @@ function TournamentPage() {
           teamNames: currentData.teamNames || { team1: 'Team 1', team2: 'Team 2' },
           //teamBanners: currentData.teamBanners || { team1: null, team2: null },
           teamColors: teamColors,
+          teamAIsOriginalTeam1: leaders.teamAIsOriginalTeam1 !== false, // PERSIST MAPPING
           matchPlayers: assignments.map(a => ({
             team: a.team,
             uid: a.participant.uid || a.participant.id,
@@ -700,8 +701,12 @@ function TournamentPage() {
         // Football-style: draw → mark as 'draw' and award +1 each
         bracketMatch.winner = 'draw';
       } else if (!isDraw) {
-        // Fix: Use mapping to determine which bracket player is Team A
-        const teamAIsOriginalTeam1 = draftState.assignmentLeaders?.teamAIsOriginalTeam1 !== false;
+        // Use mapping to determine which bracket player is Team A
+        // Check top-level persist field first, then fallback to assignmentLeaders
+        const teamAIsOriginalTeam1 = (draftState.teamAIsOriginalTeam1 !== undefined)
+          ? draftState.teamAIsOriginalTeam1
+          : (draftState.assignmentLeaders?.teamAIsOriginalTeam1 !== false);
+
         const winnerParticipant = (overallWinner === 'A' ? teamAIsOriginalTeam1 : !teamAIsOriginalTeam1)
           ? bracketMatch.player1
           : bracketMatch.player2;
@@ -713,16 +718,13 @@ function TournamentPage() {
         if (!winnerId) return;
         bracketMatch.winner = winnerId;
 
-        // For single elimination, propagate winner to next round
-        if (matchupData.tournamentType === 'single_elimination' && roundIdx < structure.length - 1) {
+        // For single elimination, propagate winner to next round using parentMatchId
+        if (matchupData.tournamentType === 'single_elimination' && bracketMatch.parentMatchId) {
           const nextRound = structure[roundIdx + 1];
-          const nextMatchIndex = Math.floor(matchIdx / 2);
-          const isFirstInPair = matchIdx % 2 === 0;
-          if (nextRound?.matches?.[nextMatchIndex] && winnerParticipant) {
-            if (isFirstInPair) {
-              nextRound.matches[nextMatchIndex].player1 = winnerParticipant;
-            } else {
-              nextRound.matches[nextMatchIndex].player2 = winnerParticipant;
+          if (nextRound) {
+            const parentMatch = nextRound.matches.find(m => m.id === bracketMatch.parentMatchId);
+            if (parentMatch) {
+              parentMatch[bracketMatch.parentSide] = winnerParticipant || null;
             }
           }
         }
@@ -1899,7 +1901,8 @@ function TournamentPage() {
           entryFee: data.entryFee || 0,
           entryPaid: data.entryPaid || {},
           createdBy: data.createdBy || null,
-          payoutComplete: data.payoutComplete || false
+          payoutComplete: data.payoutComplete || false,
+          teamAIsOriginalTeam1: data.teamAIsOriginalTeam1 !== undefined ? data.teamAIsOriginalTeam1 : true
         };
 
         setDraftState(normalizedData);

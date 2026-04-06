@@ -280,7 +280,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                     }}
                   >
                     <img
-                      src={process.env.PUBLIC_URL + '/icons/minigames/legendary_ship.png'}
+                      src={`${process.env.PUBLIC_URL}/icons/minigames/ships/${ship.id}.png`}
                       alt={ship.name}
                       className="dv2-ship-img"
                       style={{ filter: `drop-shadow(0 0 6px ${ship.color})` }}
@@ -347,7 +347,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                   >
                     <div className="dv2-bet-card-top">
                       <img
-                        src={process.env.PUBLIC_URL + '/icons/minigames/legendary_ship.png'}
+                        src={`${process.env.PUBLIC_URL}/icons/minigames/ships/${ship.id}.png`}
                         alt={ship.name}
                         className="dv2-bet-card-ship"
                         style={{ filter: `drop-shadow(0 0 6px ${ship.color})` }}
@@ -400,7 +400,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                 <div key={idx} className="dv2-history-item">
                   <div className="dv2-history-winner-row">
                     <img
-                      src={process.env.PUBLIC_URL + '/icons/minigames/legendary_ship.png'}
+                      src={`${process.env.PUBLIC_URL}/icons/minigames/ships/${entry.winner?.id}.png`}
                       alt=""
                       className="dv2-history-ship-icon"
                       style={{ filter: `drop-shadow(0 0 4px ${entry.winner?.color || '#fff'})` }}
