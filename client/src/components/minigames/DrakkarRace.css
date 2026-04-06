@@ -496,6 +496,7 @@
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
+  touch-action: manipulation;
 }
 
 .dv2-bet-card::before {

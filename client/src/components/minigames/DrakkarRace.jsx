@@ -160,20 +160,26 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       return;
     }
 
+    // ── OPTIMISTIC UI UPDATE ──
+    setMyBets(prev => ({
+      ...prev,
+      [shipId]: (prev[shipId] || 0) + amount
+    }));
     setPendingBetsTotal(prev => prev + amount);
 
     try {
       const result = await placeDrakkarBet(shipId, amount);
       if (result.success) {
         setDisplayedPoints(result.newBalance);
-        setMyBets(prev => ({
-          ...prev,
-          [shipId]: (prev[shipId] || 0) + amount
-        }));
+        // Note: myBets is already updated optimistically!
       } else {
+        // ROLLBACK 
+        setMyBets(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - amount) }));
         setLocalError(result.error);
       }
     } catch (err) {
+      // ROLLBACK
+      setMyBets(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - amount) }));
       setLocalError(err.message);
     } finally {
       setPendingBetsTotal(prev => prev - amount);
