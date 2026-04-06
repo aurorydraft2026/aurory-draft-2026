@@ -226,37 +226,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       {/* ═══ MAIN LAYOUT: History | Track+Betting ═══ */}
       <div className="dv2-main-layout">
 
-        {/* ── LEFT: Race History ── */}
-        <div className="dv2-history-panel">
-          <h3 className="dv2-history-title">📜 Recent Races</h3>
-          <div className="dv2-history-list">
-            {history.length === 0 ? (
-              <div className="dv2-history-empty">No races yet</div>
-            ) : (
-              history.map((entry, idx) => (
-                <div key={idx} className="dv2-history-item">
-                  <div className="dv2-history-winner-row">
-                    <img
-                      src={process.env.PUBLIC_URL + '/icons/minigames/legendary_ship.png'}
-                      alt=""
-                      className="dv2-history-ship-icon"
-                      style={{ filter: `drop-shadow(0 0 4px ${entry.winner?.color || '#fff'})` }}
-                    />
-                    <span className="dv2-history-ship-name" style={{ color: entry.winner?.color }}>
-                      {entry.winner?.name || '???'}
-                    </span>
-                  </div>
-                  <div className="dv2-history-details">
-                    <span>🪙 {entry.totalPool || 0}</span>
-                    <span className="dv2-history-multiplier">{entry.payoutMultiplier?.toFixed(1) || '—'}x</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* ── RIGHT: Track + Betting ── */}
+        {/* ── TRACK & BETTING ── */}
         <div className="dv2-race-section">
 
           {/* ═══ WEATHER BAR ═══ */}
@@ -358,8 +328,13 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                 return (
                   <div
                     key={ship.id}
-                    className={`dv2-bet-card ${state.phase !== 'betting' ? 'disabled' : ''}`}
+                    className={`dv2-bet-card ${state.phase !== 'betting' ? 'disabled' : ''} ${isSubmitting ? 'submitting' : ''}`}
                     style={{ '--ship-accent': ship.color }}
+                    onClick={() => {
+                        if (!isSubmitting && state.phase === 'betting') {
+                            handlePlaceBet(ship.id);
+                        }
+                    }}
                   >
                     <div className="dv2-bet-card-top">
                       <img
@@ -392,17 +367,6 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                         <span className="dv2-pool-amount dv2-payout">{getEstimatedPayout(ship.id)}</span>
                       </div>
                     </div>
-
-                    {state.phase === 'betting' && (
-                      <button
-                        className="dv2-place-bet-btn"
-                        disabled={isSubmitting}
-                        onClick={() => handlePlaceBet(ship.id)}
-                        style={{ background: ship.color }}
-                      >
-                        {isSubmitting ? '...' : `Bet ×${selectedChip}`}
-                      </button>
-                    )}
                   </div>
                 );
               })}
@@ -415,6 +379,37 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
             </div>
           </div>
         </div>
+
+        {/* ── BOTTOM: Race History ── */}
+        <div className="dv2-history-panel">
+          <h3 className="dv2-history-title">📜 Recent Races</h3>
+          <div className="dv2-history-list">
+            {history.length === 0 ? (
+              <div className="dv2-history-empty">No races yet</div>
+            ) : (
+              history.map((entry, idx) => (
+                <div key={idx} className="dv2-history-item">
+                  <div className="dv2-history-winner-row">
+                    <img
+                      src={process.env.PUBLIC_URL + '/icons/minigames/legendary_ship.png'}
+                      alt=""
+                      className="dv2-history-ship-icon"
+                      style={{ filter: `drop-shadow(0 0 4px ${entry.winner?.color || '#fff'})` }}
+                    />
+                    <span className="dv2-history-ship-name" style={{ color: entry.winner?.color }}>
+                      {entry.winner?.name || '???'}
+                    </span>
+                  </div>
+                  <div className="dv2-history-details">
+                    <span>🪙 {entry.totalPool || 0}</span>
+                    <span className="dv2-history-multiplier">{entry.payoutMultiplier?.toFixed(1) || '—'}x</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
       </div>
 
       {/* ═══ RULES MODAL ═══ */}

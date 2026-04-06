@@ -31,13 +31,13 @@ const ALL_WEATHERS = [
 // Each row and column contains each value exactly once
 const SPEED_MATRIX: number[][] = [
     // Calm  Storm  Fog  Kraken  Gale  Ice  Aurora
-    [  13,    5,     7,    8,     9,   10,   11  ], // Sleipnir Swift
-    [   9,   10,    11,   13,     5,    7,    8  ], // Jörmungandr
-    [   7,    8,     9,   10,    11,   13,    5  ], // Ironbound Hulk
-    [  10,   11,    13,    5,     7,    8,    9  ], // Hugin's Shadow
-    [  11,   13,     5,    7,     8,    9,   10  ], // Drakkar Prime
-    [   5,    7,     8,    9,    10,   11,   13  ], // Freyja's Chariot
-    [   8,    9,    10,   11,    13,    5,    7  ], // Norse Raider
+    [13, 5, 7, 8, 9, 10, 11], // Sleipnir Swift
+    [9, 10, 11, 13, 5, 7, 8], // Jörmungandr
+    [7, 8, 9, 10, 11, 13, 5], // Ironbound Hulk
+    [10, 11, 13, 5, 7, 8, 9], // Hugin's Shadow
+    [11, 13, 5, 7, 8, 9, 10], // Drakkar Prime
+    [5, 7, 8, 9, 10, 11, 13], // Freyja's Chariot
+    [8, 9, 10, 11, 13, 5, 7], // Norse Raider
 ];
 
 const BASE_SPEED = 8; // % of track per second at 1.0x
@@ -84,7 +84,7 @@ function pick3(): number[] {
  */
 function computeFinishTimeMs(shipIdx: number, weatherIndices: number[]): number {
     let totalMs = 0;
-    
+
     // 1. Dock traversal (SHIP_START to DOCK_WIDTH) at Weather 1 speed
     const dockDist = DOCK_WIDTH - SHIP_START;
     const firstSpeed = SPEED_MATRIX[shipIdx][weatherIndices[0]];
@@ -95,7 +95,7 @@ function computeFinishTimeMs(shipIdx: number, weatherIndices: number[]): number 
         const speed = SPEED_MATRIX[shipIdx][wIdx];
         totalMs += (ZONE_WIDTH * 10000) / (speed * BASE_SPEED);
     }
-    
+
     return totalMs;
 }
 

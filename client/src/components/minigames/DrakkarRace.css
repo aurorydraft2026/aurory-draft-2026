@@ -478,6 +478,7 @@
   transition: all 0.2s;
   position: relative;
   overflow: hidden;
+  cursor: pointer;
 }
 
 .dv2-bet-card::before {
@@ -491,14 +492,21 @@
   opacity: 0.6;
 }
 
-.dv2-bet-card:hover:not(.disabled) {
+.dv2-bet-card:hover:not(.disabled):not(.submitting) {
   border-color: var(--ship-accent);
   box-shadow: 0 0 20px rgba(0,0,0,0.3);
   transform: translateY(-2px);
+  filter: brightness(1.15);
 }
 
 .dv2-bet-card.disabled {
   opacity: 0.6;
+  pointer-events: none;
+}
+
+.dv2-bet-card.submitting {
+  opacity: 0.5;
+  cursor: not-allowed;
   pointer-events: none;
 }
 
@@ -554,29 +562,7 @@
   color: #fbbf24;
 }
 
-.dv2-place-bet-btn {
-  width: 100%;
-  border: none;
-  color: white;
-  padding: 8px;
-  border-radius: 8px;
-  font-weight: 800;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all 0.15s;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
 
-.dv2-place-bet-btn:hover:not(:disabled) {
-  filter: brightness(1.15);
-  transform: scale(1.02);
-}
-
-.dv2-place-bet-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 
 .dv2-totals-bar {
   display: flex;
