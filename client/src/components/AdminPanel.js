@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db, auth } from '../firebase';
+import { db, auth, functions } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
 import {
   collection,
   onSnapshot,
@@ -122,6 +123,11 @@ function AdminPanel() {
   const [selectedUserForLogs, setSelectedUserForLogs] = useState(null);
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsError, setLogsError] = useState(null);
+  
+  // User Notifications state
+  const [selectedUserForNotifications, setSelectedUserForNotifications] = useState(null);
+  const [userNotifications, setUserNotifications] = useState([]);
+  const [userNotificationsLoading, setUserNotificationsLoading] = useState(false);
 
   // Wallet History Tab State
   const [walletHistoryUserSearch, setWalletHistoryUserSearch] = useState('');
@@ -139,6 +145,10 @@ function AdminPanel() {
   // Manual Payout state
   const [payoutDraftId, setPayoutDraftId] = useState('');
   const [payoutLoading, setPayoutLoading] = useState(false);
+  
+  // Custom Global Wipes
+  const [wipeAllConfirmText, setWipeAllConfirmText] = useState('');
+  const [isWiping, setIsWiping] = useState(false);
 
   // Banner social links (max 3 displayed)
   const [bannerDiscord, setBannerDiscord] = useState('');
@@ -1296,6 +1306,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
    // Mini-game reset stats
   const [resetStatsConfirmText, setResetStatsConfirmText] = useState('');
+  const [resetStatsWipeHistory, setResetStatsWipeHistory] = useState(false);
   const [isResettingStats, setIsResettingStats] = useState(false);
 
   // Reset Mini-Game Leaderboard Stats Handler
@@ -1313,24 +1324,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     setProcessingId('reset_game_stats');
 
     try {
-      const token = await auth.currentUser.getIdToken();
-      const projectId = auth.app.options.projectId;
-
-      const response = await fetch(`https://us-central1-${projectId}.cloudfunctions.net/resetMiniGameStats`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      const responseData = await response.json();
-      const result = responseData.result;
-
-      if (!response.ok || (responseData && responseData.error)) {
-        throw new Error(responseData?.error?.message || responseData?.error || 'Failed to reset stats');
-      }
-
+      const resetFn = httpsCallable(functions, 'resetMiniGameStats');
+      const { data: result } = await resetFn({ wipeHistory: resetStatsWipeHistory });
+      
       alert(`✅ ${result.message}`);
       setResetStatsConfirmText('');
       
@@ -1350,6 +1346,84 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     }
   };
 
+  // Fetch notifications for a specific user
+  const fetchUserNotifications = async (uid) => {
+    if (!uid) return;
+    setUserNotificationsLoading(true);
+    try {
+      const notificationsRef = collection(db, 'users', uid, 'notifications');
+      const q = query(notificationsRef, orderBy('createdAt', 'desc'), limit(50));
+      const snapshot = await getDocs(q);
+      const notifs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setUserNotifications(notifs);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      alert('Error fetching notifications: ' + error.message);
+    } finally {
+      setUserNotificationsLoading(false);
+    }
+  };
+
+  // Delete a specific notification
+  const handleDeleteNotification = async (uid, notifId) => {
+    if (!isSuperAdminUser || !uid || !notifId) return;
+    if (!window.confirm('Are you sure you want to delete this notification?')) return;
+
+    try {
+      await deleteDoc(doc(db, 'users', uid, 'notifications', notifId));
+      setUserNotifications(prev => prev.filter(n => n.id !== notifId));
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      alert('Error deleting: ' + error.message);
+    }
+  };
+
+  // Clear all notifications for a user
+  const handleClearAllNotifications = async (uid) => {
+    if (!isSuperAdminUser || !uid) return;
+    if (!window.confirm('🚨 Irreversible: Are you sure you want to CLEAR ALL notifications for this user?')) return;
+
+    try {
+      const notificationsRef = collection(db, 'users', uid, 'notifications');
+      const snapshot = await getDocs(notificationsRef);
+      const batch = writeBatch(db);
+      snapshot.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      setUserNotifications([]);
+      alert('✅ All notifications cleared.');
+    } catch (error) {
+      console.error('Error clearing notifications:', error);
+      alert('Error clearing notifications: ' + error.message);
+    }
+  };
+
+  // Handle global notification wipe
+  const handleClearAllGlobalNotifications = async () => {
+    if (!isSuperAdminUser || wipeAllConfirmText !== 'WIPE ALL') return;
+    if (!window.confirm('💣 FINAL WARNING: This will permanently delete ALL notifications for EVERY user on the platform. Proceed?')) return;
+
+    setIsWiping(true);
+    try {
+      const clearFn = httpsCallable(functions, 'clearAllGlobalNotifications');
+      const { data: result } = await clearFn({});
+
+      if (result?.success) {
+        alert(result.message);
+        setWipeAllConfirmText('');
+      } else {
+        throw new Error(result?.message || 'Wipe failed');
+      }
+    } catch (error) {
+      console.error('Global notification wipe error:', error);
+      alert('Error wiping notifications: ' + error.message);
+    } finally {
+      setIsWiping(false);
+    }
+  };
+
   // Manual Payout Handler
   const handleManualPayout = async () => {
     if (!payoutDraftId) return alert('Please enter a Draft ID');
@@ -1357,25 +1431,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
     setPayoutLoading(true);
     try {
+      const payoutFn = httpsCallable(functions, 'manualPayout');
+      const { data: result } = await payoutFn({ draftId: payoutDraftId });
 
-      const token = await auth.currentUser.getIdToken();
-
-      const projectId = auth.app.options.projectId;
-      const response = await fetch(`https://us-central1-${projectId}.cloudfunctions.net/manualPayout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ data: { draftId: payoutDraftId } })
-      });
-
-      const result = await response.json();
-      if (result.error) {
-        throw new Error(result.error.message || result.error);
-      }
-
-      alert(`Success: ${result.result.message}`);
+      alert(`Success: ${result.message}`);
       setPayoutDraftId('');
     } catch (error) {
       console.error('Manual payout error:', error);
@@ -3786,6 +3845,43 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 />
               </div>
 
+              {isSuperAdminUser && (
+                <div className="global-maintenance-row" style={{ 
+                  display: 'flex', alignItems: 'center', gap: '10px', 
+                  marginBottom: '20px', padding: '15px', background: 'rgba(239, 68, 68, 0.05)', 
+                  borderRadius: '12px', border: '1px dashed rgba(239, 68, 68, 0.2)' 
+                }}>
+                  <div style={{ marginRight: '10px' }}>
+                    <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '0.85em', display: 'block' }}>🚨 Global Maintenance</span>
+                    <span style={{ fontSize: '0.75em', opacity: 0.6 }}>Irreversible Platform-wide Actions</span>
+                  </div>
+                  <input 
+                    type="text" 
+                    placeholder="Type WIPE ALL to confirm" 
+                    value={wipeAllConfirmText}
+                    onChange={(e) => setWipeAllConfirmText(e.target.value)}
+                    className="admin-compact-input"
+                    style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(239,68,68,0.3)', width: '180px' }}
+                  />
+                  <button 
+                    className="clear-btn-admin risky" 
+                    onClick={clearActivityLogs}
+                    disabled={isWiping || wipeAllConfirmText !== 'WIPE ALL'}
+                    style={{ padding: '8px 15px', fontSize: '0.85em' }}
+                  >
+                    🗑️ Clear All Activity Logs
+                  </button>
+                  <button 
+                    className="clear-btn-admin risky" 
+                    onClick={handleClearAllGlobalNotifications}
+                    disabled={isWiping || wipeAllConfirmText !== 'WIPE ALL'}
+                    style={{ padding: '8px 15px', fontSize: '0.85em' }}
+                  >
+                    🔔 Clear All Notifications
+                  </button>
+                </div>
+              )}
+
               <div className="admin-user-list">
                 <div className="user-list-header">
                   <div className="col-user">User</div>
@@ -4012,15 +4108,27 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                   {isSuperAdminUser && <option value="delete">🗑️ Delete User</option>}
                                 </select>
                                 {isSuperAdminUser && (
-                                  <button
-                                    className="manage-btn"
-                                    onClick={() => {
-                                      setSelectedUserForLogs(u);
-                                      fetchUserLogs(u.id);
-                                    }}
-                                  >
-                                    📊 Logs
-                                  </button>
+                                  <div style={{ display: 'flex', gap: '5px' }}>
+                                    <button
+                                      className="manage-btn"
+                                      onClick={() => {
+                                        setSelectedUserForLogs(u);
+                                        fetchUserLogs(u.id);
+                                      }}
+                                    >
+                                      📊 Logs
+                                    </button>
+                                    <button
+                                      className="manage-btn"
+                                      onClick={() => {
+                                        setSelectedUserForNotifications(u);
+                                        fetchUserNotifications(u.id);
+                                      }}
+                                      style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.2)' }}
+                                    >
+                                      🔔 Alerts
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             )}
@@ -4985,6 +5093,15 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 <div className="header-actions">
                   {isSuperAdminUser && (
                     <div className="global-reset-control">
+                      <div className="wipe-option" style={{ display: 'flex', alignItems: 'center', marginRight: '15px', color: '#94a3b8', fontSize: '0.8em', cursor: 'pointer' }} onClick={() => setResetStatsWipeHistory(!resetStatsWipeHistory)}>
+                        <input 
+                          type="checkbox" 
+                          checked={resetStatsWipeHistory}
+                          onChange={(e) => setResetStatsWipeHistory(e.target.checked)}
+                          style={{ marginRight: '6px' }}
+                        />
+                        <span>Wipe History Logs</span>
+                      </div>
                       <input 
                         type="text" 
                         placeholder="Type RESET ALL STATS to confirm" 
@@ -4998,7 +5115,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         onClick={handleResetLeaderboardStats}
                         disabled={isResettingStats || resetStatsConfirmText !== 'RESET ALL STATS'}
                       >
-                        {isResettingStats ? 'Resetting...' : '🚨 Reset All Leaderboard Stats'}
+                        {isResettingStats ? 'Resetting...' : resetStatsWipeHistory ? '🔥 Wipe All Records' : '🚨 Reset Leaderboard Stats'}
                       </button>
                     </div>
                   )}
@@ -5228,7 +5345,75 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           </div>
         )
       }
-    </div >
+      {/* Per-User Notifications Modal */}
+      {selectedUserForNotifications && (
+        <div className="admin-modal-overlay activity-modal">
+          <div className="admin-modal" style={{ maxWidth: '800px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <h2>🔔 Notifications: {resolveDisplayName(selectedUserForNotifications)}</h2>
+                {isSuperAdminUser && userNotifications.length > 0 && (
+                  <button 
+                    className="clear-btn-admin small risky" 
+                    onClick={() => handleClearAllNotifications(selectedUserForNotifications.id)}
+                    style={{ padding: '5px 12px', fontSize: '0.75em' }}
+                  >
+                    🧹 Clear All
+                  </button>
+                )}
+              </div>
+              <button className="close-btn" onClick={() => setSelectedUserForNotifications(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              {userNotificationsLoading ? (
+                <LoadingScreen message="Fetching notifications..." />
+              ) : userNotifications.length === 0 ? (
+                <div className="empty-state">
+                  <p>📭 This user's inbox is currently empty.</p>
+                </div>
+              ) : (
+                <div className="logs-table-container">
+                  <table className="logs-table">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Type</th>
+                        <th>Title</th>
+                        <th>Message</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {userNotifications.map(notif => (
+                        <tr key={notif.id} style={{ opacity: notif.read ? 0.6 : 1 }}>
+                          <td className="log-time">{formatTime(notif.createdAt)}</td>
+                          <td>
+                            <span className={`status-badge ${notif.type || 'info'}`} style={{ fontSize: '10px' }}>
+                              {notif.type?.toUpperCase() || 'SYSTEM'}
+                            </span>
+                          </td>
+                          <td style={{ fontWeight: 600 }}>{notif.title}</td>
+                          <td style={{ fontSize: '0.85em', opacity: 0.8 }}>{notif.message}</td>
+                          <td>
+                            <button 
+                              className="delete-prize-btn" 
+                              onClick={() => handleDeleteNotification(selectedUserForNotifications.id, notif.id)}
+                              style={{ width: '24px', height: '24px', fontSize: '14px' }}
+                            >
+                              ×
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

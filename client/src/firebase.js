@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, OAuthProvider, GoogleAuthProvider } from "firebase/auth";
 import { initializeFirestore } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
+import { getFunctions } from "firebase/functions";
 
 // TODO: Replace with your Firebase project configuration
 // Get this from Firebase Console > Project Settings > Your apps > Web app
@@ -32,6 +33,9 @@ export const db = initializeFirestore(app, {
 
 // Initialize Realtime Database (Explicitly specifying the asia-southeast1 URL)
 export const database = getDatabase(app, "https://asgard-duels-default-rtdb.asia-southeast1.firebasedatabase.app");
+
+// Initialize Cloud Functions
+export const functions = getFunctions(app, "us-central1");
 
 // Create Discord OAuth provider
 export const discordProvider = new OAuthProvider('oidc.discord');

@@ -138,7 +138,7 @@ export const cleanupInactiveGuests = onCall(
 
 /**
  * Reset all mini-game leaderboard statistics.
- * Clears the 'stats.miniGames' field for all users.
+ * Optionally wipes all play history logs (miniGameHistory subcollection).
  */
 export const resetMiniGameStats = onCall(
     {
@@ -157,33 +157,52 @@ export const resetMiniGameStats = onCall(
             throw new HttpsError('permission-denied', 'Only Super Admin can reset stats.');
         }
 
-        console.log(`🏆 Global Mini-Game Stats Reset Triggered by ${callerUid}`);
+        const wipeHistory = request.data?.wipeHistory === true;
+        console.log(`🏆 Global Mini-Game Stats Reset Triggered by ${callerUid} (Wipe History: ${wipeHistory})`);
 
         try {
             const db = admin.firestore();
             const usersRef = db.collection('users');
             
-            // Note: For very large collections (>10k users), we might need 
-            // a multi-invocation approach, but for now a loop with batches is fine.
             let snapshot = await usersRef.get();
-            let totalProcessed = 0;
+            let totalUsersProcessed = 0;
+            let totalHistoryDeleted = 0;
             let currentBatch = db.batch();
             let countInBatch = 0;
 
-            for (const doc of snapshot.docs) {
-                currentBatch.update(doc.ref, {
+            for (const userDoc of snapshot.docs) {
+                // Reset overall stats
+                currentBatch.update(userDoc.ref, {
                     'stats.miniGames': {}
                 });
                 
                 countInBatch++;
-                totalProcessed++;
+                totalUsersProcessed++;
 
-                // Commit batch every 450 docs
+                // Optional: Wipe individual game logs
+                if (wipeHistory) {
+                    const historySnapshot = await userDoc.ref.collection('miniGameHistory').get();
+                    for (const histDoc of historySnapshot.docs) {
+                        currentBatch.delete(histDoc.ref);
+                        countInBatch++;
+                        totalHistoryDeleted++;
+
+                        // Commit batch if it hits the limit (Firestore limit is 500)
+                        if (countInBatch >= 450) {
+                            await currentBatch.commit();
+                            currentBatch = db.batch();
+                            countInBatch = 0;
+                            console.log(`Processed ${totalUsersProcessed} users, deleted ${totalHistoryDeleted} logs...`);
+                        }
+                    }
+                }
+
+                // Periodic commit even without history
                 if (countInBatch >= 450) {
                     await currentBatch.commit();
                     currentBatch = db.batch();
                     countInBatch = 0;
-                    console.log(`Processed ${totalProcessed} users...`);
+                    console.log(`Processed ${totalUsersProcessed} users...`);
                 }
             }
 
@@ -194,13 +213,89 @@ export const resetMiniGameStats = onCall(
 
             return {
                 success: true,
-                count: totalProcessed,
-                message: `Successfully reset mini-game stats for ${totalProcessed} users.`
+                count: totalUsersProcessed,
+                historyDeleted: totalHistoryDeleted,
+                message: `Successfully reset mini-game stats for ${totalUsersProcessed} users.${wipeHistory ? ` Deleted ${totalHistoryDeleted} history records.` : ''}`
             };
 
         } catch (error: any) {
             console.error('Reset stats failed:', error);
             throw new HttpsError('internal', error.message || 'Unknown error during stats reset.');
+        }
+    }
+);
+
+/**
+ * Permanently delete ALL notifications for ALL users across the platform.
+ * HIGH RISK: Clears the 'notifications' subcollection for every user record.
+ */
+export const clearAllGlobalNotifications = onCall(
+    {
+        region: 'us-central1',
+        timeoutSeconds: 540, // 9 minutes
+        memory: '512MiB',
+        maxInstances: 10
+    },
+    async (request) => {
+        // 1. Auth Check
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User must be logged in.');
+        }
+
+        const callerUid = request.auth.uid;
+        if (callerUid !== SUPER_ADMIN_UID) {
+            throw new HttpsError('permission-denied', 'Only Super Admin can clear all notifications.');
+        }
+
+        console.log(`🚨 Global Notification Wipe Triggered by ${callerUid}`);
+
+        try {
+            const db = admin.firestore();
+            
+            // USE COLLECTION GROUP: Hits all 'notifications' subcollections across all users efficiently
+            const notificationsRef = db.collectionGroup('notifications');
+            const snapshot = await notificationsRef.get();
+            
+            if (snapshot.empty) {
+                return {
+                    success: true,
+                    notificationsDeleted: 0,
+                    message: "No notifications found to clear."
+                };
+            }
+
+            let totalNotificationsDeleted = 0;
+            let currentBatch = db.batch();
+            let countInBatch = 0;
+
+            for (const notifDoc of snapshot.docs) {
+                currentBatch.delete(notifDoc.ref);
+                countInBatch++;
+                totalNotificationsDeleted++;
+
+                // Commit batch at 450 items (Firestore limit is 500)
+                if (countInBatch >= 450) {
+                    await currentBatch.commit();
+                    currentBatch = db.batch();
+                    countInBatch = 0;
+                    console.log(`Deleted ${totalNotificationsDeleted} notifications...`);
+                }
+            }
+
+            // Final commit for leftover items
+            if (countInBatch > 0) {
+                await currentBatch.commit();
+            }
+
+            return {
+                success: true,
+                notificationsDeleted: totalNotificationsDeleted,
+                message: `Successfully cleared ${totalNotificationsDeleted} notifications across all users.`
+            };
+
+        } catch (error: any) {
+            console.error('Global notification wipe failed:', error);
+            throw new HttpsError('internal', error.message || 'Unknown error during notification wipe.');
         }
     }
 );
