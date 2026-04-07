@@ -57,6 +57,13 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const pendingBatchRef = useRef({}); // { shipId: amount }
   const batchTimerRef = useRef(null);
   const [serverOffset, setServerOffset] = useState(0);
+  const errorTimeoutRef = useRef(null);
+
+  const triggerLocalError = (msg) => {
+    setLocalError(msg);
+    if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
+    errorTimeoutRef.current = setTimeout(() => setLocalError(null), 2000);
+  };
 
   // Animation Strategy: Use refs to prevent stale closures and competing loops
   const stateRef = useRef(null);
@@ -289,14 +296,14 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
           setMyBets(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - amount) }));
           setDisplayedPoints(prev => prev + amount); 
           await incrementDrakkarPool(shipId, -amount);
-          setLocalError(result.error);
+          triggerLocalError(result.error);
         }
       } catch (err) {
         // EMERGENCY REVERT
         setMyBets(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - amount) }));
         setDisplayedPoints(prev => prev + amount);
         await incrementDrakkarPool(shipId, -amount);
-        setLocalError(err.message);
+        triggerLocalError(err.message);
       } finally {
         pendingRequestsRef.current = Math.max(0, pendingRequestsRef.current - 1);
         if (pendingRequestsRef.current === 0) {
@@ -308,7 +315,10 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
   const handlePlaceBet = async (shipId) => {
     // Phase check (server has 2s grace for late packets)
-    if (state?.phase !== 'betting' || timeLeft < 500) return;
+    if (state?.phase !== 'betting' || timeLeft < 500) {
+      if (state?.phase !== 'betting') triggerLocalError("Betting is currently closed.");
+      return;
+    }
     setLocalError(null);
 
     const amount = selectedChip;
@@ -316,11 +326,11 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
     
     // Safety check
     if (currentTotal + pendingBetsTotal + amount > MAX_BET_PER_USER) {
-      setLocalError(`Max bet is ${MAX_BET_PER_USER} per race.`);
+      triggerLocalError(`Max bet is ${MAX_BET_PER_USER} per race.`);
       return;
     }
     if (amount > userPoints) {
-      setLocalError(`Insufficient Valcoins.`);
+      triggerLocalError(`Insufficient Valcoins.`);
       return;
     }
 
