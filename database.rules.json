@@ -1,0 +1,21 @@
+{
+  "rules": {
+    "recentMiniGameWinners": {
+      ".read": true,
+      ".write": false,
+      ".indexOn": ["timestamp"]
+    },
+    "drakkar_race": {
+      ".read": true,
+      ".write": false,
+      "presence": {
+        "$uid": {
+          ".write": "auth != null && auth.uid == $uid"
+        }
+      },
+      "history": {
+        ".indexOn": ["timestamp"]
+      }
+    }
+  }
+}
