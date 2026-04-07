@@ -17,6 +17,9 @@ import {
   subscribeDrakkarRaceState,
   subscribeDrakkarPools,
   subscribeDrakkarHistory,
+  subscribeDrakkarBettors,
+  subscribeDrakkarPresence,
+  updateDrakkarPresence,
   refreshDrakkarRace,
   placeDrakkarBet
 } from '../../services/miniGameService';
@@ -37,6 +40,8 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const [timeLeft, setTimeLeft] = useState(0);
   const [showRules, setShowRules] = useState(false);
   const [isPeeking, setIsPeeking] = useState(false);
+  const [bettors, setBettors] = useState({});
+  const [presence, setPresence] = useState({});
 
   // Animation
   const animFrameRef = useRef();
@@ -85,6 +90,22 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       unsubHistory();
     };
   }, []);
+
+  // ─── 2. Social Proof ───
+  useEffect(() => {
+    const unsubBettors = subscribeDrakkarBettors(setBettors);
+    const unsubPresence = subscribeDrakkarPresence(setPresence);
+    return () => {
+      unsubBettors();
+      unsubPresence();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (user?.uid) {
+      updateDrakkarPresence(user.uid);
+    }
+  }, [user?.uid]);
 
   // Reset bets when a new race starts
   useEffect(() => {
@@ -227,6 +248,10 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       ...prev,
       [shipId]: (prev[shipId] || 0) + amount
     }));
+    setPools(prev => ({
+      ...prev,
+      [shipId]: (prev[shipId] || 0) + amount
+    }));
     setPendingBetsTotal(prev => prev + amount);
     setDisplayedPoints(prev => prev - amount); // Optimistic deduction
     pendingRequestsRef.current += 1;
@@ -244,6 +269,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
         // ROLLBACK 
         pendingRequestsRef.current -= 1;
         setMyBets(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - amount) }));
+        setPools(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - amount) }));
         setDisplayedPoints(prev => prev + amount); // Rollback optimistic deduction
         if (pendingRequestsRef.current === 0) setFrozen(false);
         setLocalError(result.error);
@@ -252,6 +278,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       // ROLLBACK
       pendingRequestsRef.current -= 1;
       setMyBets(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - amount) }));
+      setPools(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - amount) }));
       setDisplayedPoints(prev => prev + amount); // Rollback optimistic deduction
       if (pendingRequestsRef.current === 0) setFrozen(false);
       setLocalError(err.message);
@@ -296,6 +323,9 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       {/* ═══ STATUS BAR ═══ */}
       <div className="dv2-status-bar">
         <div className="dv2-status-left">
+          <span className="dv2-players-count">
+            👤 {Object.keys(presence).length} Players
+          </span>
           <span
             className="dv2-phase-label"
             onMouseDown={() => setIsPeeking(true)}
@@ -475,6 +505,20 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                     }}
                   >
                     <div className="dv2-bet-card-top">
+                      <div className="dv2-avatar-bubbles">
+                        {Object.values(bettors[ship.id] || {}).slice(0, 4).map((b, bi) => (
+                          <img key={bi} 
+                            src={b.avatar || `${process.env.PUBLIC_URL}/icons/default_avatar.png`} 
+                            alt={b.name} 
+                            className="dv2-avatar-bubble" 
+                            title={b.name} 
+                            onError={(e) => { e.target.src = `${process.env.PUBLIC_URL}/icons/default_avatar.png`; }}
+                          />
+                        ))}
+                        {Object.keys(bettors[ship.id] || {}).length > 4 && (
+                          <span className="dv2-avatar-more">+{Object.keys(bettors[ship.id] || {}).length - 4}</span>
+                        )}
+                      </div>
                       <img
                         src={`${process.env.PUBLIC_URL}/icons/minigames/ships/${ship.id}.png`}
                         alt={ship.name}

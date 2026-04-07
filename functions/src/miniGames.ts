@@ -358,12 +358,24 @@ export const placeDrakkarBet = onCall(
                     });
                 }
 
-                return { success: true, newBalance: currentPoints - amount };
+                return { 
+                    success: true, 
+                    newBalance: currentPoints - amount,
+                    playerName: userData.auroryPlayerName || userData.displayName || 'Guest',
+                    playerAvatar: userData.auroryProfilePicture || userData.photoURL || ''
+                };
             });
 
             // Side effect: Update public pool in RTDB
             const rtdb = admin.database();
             await rtdb.ref(`drakkar_race/pools/${shipId}`).transaction((current) => (current || 0) + amount);
+
+            // Real-time bettors for social proof (Avatar Bubbles)
+            const resultData = result as any;
+            await rtdb.ref(`drakkar_race/bettors/${shipId}/${uid}`).set({
+                name: resultData.playerName,
+                avatar: resultData.playerAvatar
+            });
 
             return result;
         } catch (error: any) {
@@ -490,6 +502,7 @@ export const refreshDrakkarRace = onCall(
                     const poolReset: Record<string, number> = {};
                     shipIds.forEach((id: string) => { poolReset[id] = 0; });
                     await rtdb.ref('drakkar_race/pools').set(poolReset);
+                    await rtdb.ref('drakkar_race/bettors').remove(); // Clear social bubbles for new race
                     await clearBets(db.collection('settings').doc('mini_games').collection('drakkar_race').doc('current'));
                 } else if (newState.phase === 'result') {
                     await processDrakkarPayouts(newState);

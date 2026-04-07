@@ -1,6 +1,6 @@
 import { db, database } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { ref, onValue, off, query, orderByChild, limitToLast } from 'firebase/database';
+import { ref, onValue, off, query, orderByChild, limitToLast, set, onDisconnect } from 'firebase/database';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { createNotification } from './notifications';
 
@@ -231,6 +231,29 @@ export function subscribeDrakkarHistory(callback) {
     }
   });
   return () => off(historyRef);
+}
+
+export function subscribeDrakkarBettors(callback) {
+  const bettorsRef = ref(database, 'drakkar_race/bettors');
+  onValue(bettorsRef, (snapshot) => {
+    callback(snapshot.exists() ? snapshot.val() : {});
+  });
+  return () => off(bettorsRef);
+}
+
+export function subscribeDrakkarPresence(callback) {
+  const presenceRef = ref(database, 'drakkar_race/presence');
+  onValue(presenceRef, (snapshot) => {
+    callback(snapshot.exists() ? snapshot.val() : {});
+  });
+  return () => off(presenceRef);
+}
+
+export function updateDrakkarPresence(uid) {
+  if (!uid) return;
+  const pRef = ref(database, `drakkar_race/presence/${uid}`);
+  set(pRef, Date.now());
+  onDisconnect(pRef).remove();
 }
 
 export async function refreshDrakkarRace() {
