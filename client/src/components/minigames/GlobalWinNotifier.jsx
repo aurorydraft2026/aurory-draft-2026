@@ -6,6 +6,7 @@ import './GlobalWinNotifier.css';
 
 const GlobalWinNotifier = () => {
   const [activeWinners, setActiveWinners] = useState([]);
+  const [isArcadeOpen, setIsArcadeOpen] = useState(false);
   const mountedTime = useRef(Date.now());
 
   useEffect(() => {
@@ -56,6 +57,23 @@ const GlobalWinNotifier = () => {
     };
   }, []);
 
+  // Listen for the Arcade hub opening/closing to adjust position
+  useEffect(() => {
+    const checkOverlay = () => {
+      const overlay = document.querySelector('.minigames-overlay');
+      setIsArcadeOpen(!!overlay);
+    };
+
+    // Initial check
+    checkOverlay();
+
+    // Observe body for changes (modals are usually added to body)
+    const observer = new MutationObserver(checkOverlay);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => observer.disconnect();
+  }, []);
+
   const handleOpenArcade = () => {
     window.dispatchEvent(new CustomEvent('openMiniGames'));
   };
@@ -63,7 +81,7 @@ const GlobalWinNotifier = () => {
   if (activeWinners.length === 0) return null;
 
   return (
-    <div className="global-win-ticker">
+    <div className={`global-win-ticker ${isArcadeOpen ? 'is-arcade-open' : ''}`}>
       <div className="ticker-track">
         {activeWinners.map(winner => (
           <div key={winner.id} className={`ticker-item ${winner.rarity}`}>
