@@ -143,8 +143,10 @@ export const cleanupInactiveGuests = onCall(
 export const resetMiniGameStats = onCall(
     {
         region: 'us-central1',
-        timeoutSeconds: 540, // 9 minutes max for large user bases
-        memory: '512MiB'
+        timeoutSeconds: 540,
+        memory: '1GiB',
+        maxInstances: 10,
+        cors: true
     },
     async (request) => {
         // 1. Auth Check
@@ -162,54 +164,60 @@ export const resetMiniGameStats = onCall(
 
         try {
             const db = admin.firestore();
-            const usersRef = db.collection('users');
-            
-            let snapshot = await usersRef.get();
-            let totalUsersProcessed = 0;
             let totalHistoryDeleted = 0;
             let currentBatch = db.batch();
             let countInBatch = 0;
 
-            for (const userDoc of snapshot.docs) {
-                // Reset overall stats
+            const commitBatch = async () => {
+                if (countInBatch > 0) {
+                    await currentBatch.commit();
+                    currentBatch = db.batch();
+                    countInBatch = 0;
+                }
+            };
+
+            // 1. OPTIONAL: Wipe individual game logs using COLLECTION GROUP (Fast!)
+            if (wipeHistory) {
+                // Clear Firestore subcollections
+                const historySnapshot = await db.collectionGroup('miniGameHistory').get();
+                for (const histDoc of historySnapshot.docs) {
+                    currentBatch.delete(histDoc.ref);
+                    countInBatch++;
+                    totalHistoryDeleted++;
+
+                    if (countInBatch >= 450) await commitBatch();
+                }
+                await commitBatch();
+
+                // Clear Realtime Database 'Recent Action' feed
+                try {
+                    await admin.database().ref('recentMiniGameWinners').remove();
+                    await admin.database().ref('drakkar_race/history').remove();
+                    console.log('Successfully cleared Realtime Database recent winners and Drakkar history.');
+                } catch (rtdbErr) {
+                    console.error('Error clearing RTDB winners:', rtdbErr);
+                }
+
+                console.log(`Deleted ${totalHistoryDeleted} mini-game logs.`);
+            }
+
+            // 2. Reset overall stats for every user
+            const usersRef = db.collection('users');
+            const usersSnapshot = await usersRef.get();
+            let totalUsersProcessed = 0;
+
+            for (const userDoc of usersSnapshot.docs) {
                 currentBatch.update(userDoc.ref, {
-                    'stats.miniGames': {}
+                    'stats.miniGames': {},
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 });
                 
                 countInBatch++;
                 totalUsersProcessed++;
 
-                // Optional: Wipe individual game logs
-                if (wipeHistory) {
-                    const historySnapshot = await userDoc.ref.collection('miniGameHistory').get();
-                    for (const histDoc of historySnapshot.docs) {
-                        currentBatch.delete(histDoc.ref);
-                        countInBatch++;
-                        totalHistoryDeleted++;
-
-                        // Commit batch if it hits the limit (Firestore limit is 500)
-                        if (countInBatch >= 450) {
-                            await currentBatch.commit();
-                            currentBatch = db.batch();
-                            countInBatch = 0;
-                            console.log(`Processed ${totalUsersProcessed} users, deleted ${totalHistoryDeleted} logs...`);
-                        }
-                    }
-                }
-
-                // Periodic commit even without history
-                if (countInBatch >= 450) {
-                    await currentBatch.commit();
-                    currentBatch = db.batch();
-                    countInBatch = 0;
-                    console.log(`Processed ${totalUsersProcessed} users...`);
-                }
+                if (countInBatch >= 450) await commitBatch();
             }
-
-            // Commit final batch
-            if (countInBatch > 0) {
-                await currentBatch.commit();
-            }
+            await commitBatch();
 
             return {
                 success: true,
@@ -296,6 +304,123 @@ export const clearAllGlobalNotifications = onCall(
         } catch (error: any) {
             console.error('Global notification wipe failed:', error);
             throw new HttpsError('internal', error.message || 'Unknown error during notification wipe.');
+        }
+    }
+);
+
+/**
+ * Global Wallet Reset (Beta-to-Launch Cleanup)
+ * 1. Resets points (users) to 0.
+ * 2. Resets balance and usdcBalance (wallets) to 0.
+ * 3. Wipes ALL transactions, pointsHistory, withdrawals, and depositNotifications.
+ */
+export const resetGlobalWallets = onCall(
+    {
+        region: 'us-central1',
+        timeoutSeconds: 540,
+        memory: '1GiB',
+        maxInstances: 10,
+        cors: true
+    },
+    async (request) => {
+        // 1. Auth Check
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User must be logged in.');
+        }
+
+        const callerUid = request.auth.uid;
+        if (callerUid !== SUPER_ADMIN_UID) {
+            throw new HttpsError('permission-denied', 'Only Super Admin can reset global wallets.');
+        }
+
+        console.log(`🚨 GLOBAL WALLET RESET TRIGGERED BY ${callerUid}`);
+
+        try {
+            const db = admin.firestore();
+            let totalRecordsDeleted = 0;
+            let currentBatch = db.batch();
+            let countInBatch = 0;
+
+            const commitBatch = async () => {
+                if (countInBatch > 0) {
+                    await currentBatch.commit();
+                    currentBatch = db.batch();
+                    countInBatch = 0;
+                }
+            };
+
+            // A. WIPE HISTORY (Recursive/CollectionGroup Deletions)
+            // 1. Transactions (wallets subcollection)
+            const transactionsSnap = await db.collectionGroup('transactions').get();
+            for (const doc of transactionsSnap.docs) {
+                currentBatch.delete(doc.ref);
+                countInBatch++;
+                totalRecordsDeleted++;
+                if (countInBatch >= 450) await commitBatch();
+            }
+            await commitBatch();
+
+            // 2. PointsHistory (users subcollection)
+            const pointsSnap = await db.collectionGroup('pointsHistory').get();
+            for (const doc of pointsSnap.docs) {
+                currentBatch.delete(doc.ref);
+                countInBatch++;
+                totalRecordsDeleted++;
+                if (countInBatch >= 450) await commitBatch();
+            }
+            await commitBatch();
+
+            // 3. Withdrawals (top-level collection)
+            const withdrawalsSnap = await db.collection('withdrawals').get();
+            for (const doc of withdrawalsSnap.docs) {
+                currentBatch.delete(doc.ref);
+                countInBatch++;
+                totalRecordsDeleted++;
+                if (countInBatch >= 450) await commitBatch();
+            }
+            await commitBatch();
+
+            // 4. DepositNotifications (top-level collection)
+            const depositsSnap = await db.collection('depositNotifications').get();
+            for (const doc of depositsSnap.docs) {
+                currentBatch.delete(doc.ref);
+                countInBatch++;
+                totalRecordsDeleted++;
+                if (countInBatch >= 450) await commitBatch();
+            }
+            await commitBatch();
+
+            // B. RESET BALANCES
+            // 1. Reset points in users collection
+            const usersSnap = await db.collection('users').get();
+            for (const doc of usersSnap.docs) {
+                currentBatch.update(doc.ref, { points: 0, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+                countInBatch++;
+                if (countInBatch >= 450) await commitBatch();
+            }
+            await commitBatch();
+
+            // 2. Reset balance and usdcBalance in wallets collection
+            const walletsSnap = await db.collection('wallets').get();
+            for (const doc of walletsSnap.docs) {
+                currentBatch.update(doc.ref, { 
+                    balance: 0, 
+                    usdcBalance: 0, 
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+                });
+                countInBatch++;
+                if (countInBatch >= 450) await commitBatch();
+            }
+            await commitBatch();
+
+            return {
+                success: true,
+                message: `SUCCESS: Reset all balances to 0 and cleared ${totalRecordsDeleted} history records.`
+            };
+
+        } catch (error: any) {
+            console.error('Global Reset Failed:', error);
+            throw new HttpsError('internal', error.message || 'Unknown error during global reset.');
         }
     }
 );

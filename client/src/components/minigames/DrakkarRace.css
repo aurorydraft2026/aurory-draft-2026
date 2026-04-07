@@ -218,6 +218,7 @@
   width: 8%;
   background: rgba(30,58,138,0.6);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   font-size: 0.6rem;
@@ -226,12 +227,17 @@
   border-right: 2px dashed rgba(255,255,255,0.15);
 }
 
+.dv2-dock-icon {
+  font-size: 0.8rem;
+}
+
 .dv2-weather-zone {
   width: 18%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 2px;
   font-size: 0.7rem;
   font-weight: 700;
   color: rgba(255,255,255,0.7);
@@ -262,6 +268,19 @@
   align-items: center;
   justify-content: center;
   font-size: 0.7rem;
+}
+
+/* Hide text labels on mobile for cleaner look */
+@media (max-width: 768px) {
+  .dv2-weather-name,
+  .dv2-dock-text {
+    display: none;
+  }
+  
+  .dv2-weather-zone,
+  .dv2-weather-dock {
+    gap: 0;
+  }
 }
 
 
@@ -390,6 +409,7 @@
   z-index: 10;
   transition: transform 0.05s linear; /* Smooth micro-movement */
   filter: drop-shadow(0 4px 8px rgba(0,0,0,0.6)); /* Standard shadow for depth */
+  --dv2-ship-width: 86px;
 }
 
 .dv2-ship-wrapper.winner {
@@ -402,8 +422,8 @@
 }
 
 .dv2-ship-img {
-  width: 86px;
-  height: 64px;
+  width: var(--dv2-ship-width);
+  height: auto;
   object-fit: contain;
   filter: brightness(1.25) drop-shadow(0 4px 10px rgba(0,0,0,0.7));
 }
@@ -771,11 +791,31 @@
 /* ─── RESPONSIVE ─── */
 @media (max-width: 700px) {
   .dv2-bet-cards {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 10px;
+    padding: 4px 2px 12px 2px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none; /* Hide scrollbar for Firefox */
+  }
+
+  .dv2-bet-cards::-webkit-scrollbar {
+    display: none; /* Hide scrollbar for Chrome/Safari */
+  }
+
+  .dv2-bet-card {
+    flex: 0 0 160px; /* Fixed width for horizontal items */
+    scroll-snap-align: start;
+    padding: 10px;
   }
 
   .dv2-track-area {
     height: 240px;
+  }
+
+  .dv2-ship-wrapper {
+    --dv2-ship-width: 68px; /* Slightly smaller for mobile */
   }
 
   .dv2-ship-img {

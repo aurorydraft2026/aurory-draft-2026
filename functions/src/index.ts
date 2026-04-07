@@ -91,8 +91,8 @@ export const verifyMatches = onSchedule(
 );
 // ─── 4. ADMIN OPERATIONS ───
 // Manual triggers for admins (e.g. payout retry)
-import { manualPayout, cleanupInactiveGuests, resetMiniGameStats, clearAllGlobalNotifications } from './adminOps';
-export { manualPayout, cleanupInactiveGuests, resetMiniGameStats, clearAllGlobalNotifications };
+import { manualPayout, cleanupInactiveGuests, resetMiniGameStats, clearAllGlobalNotifications, resetGlobalWallets } from './adminOps';
+export { manualPayout, cleanupInactiveGuests, resetMiniGameStats, clearAllGlobalNotifications, resetGlobalWallets };
 
 // ─── 5. REFUNDS ───
 // Refund creator when a paid 1v1 tournament is deleted or updated

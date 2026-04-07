@@ -1424,6 +1424,30 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     }
   };
 
+  // Handle global wallet reset (Balances + History)
+  const handleResetGlobalWallets = async () => {
+    if (!isSuperAdminUser || wipeAllConfirmText !== 'WIPE ALL') return;
+    if (!window.confirm('🚨 FINAL NUCLEAR WARNING: This will permanently reset ALL user balances to 0 and WIPE ALL transaction history, withdrawals, and deposits. THIS IS IRREVERSIBLE. Are you 100% sure?')) return;
+
+    setIsWiping(true);
+    try {
+      const resetFn = httpsCallable(functions, 'resetGlobalWallets');
+      const { data: result } = await resetFn({});
+
+      if (result?.success) {
+        alert(result.message);
+        setWipeAllConfirmText('');
+      } else {
+        throw new Error(result?.message || 'Reset failed');
+      }
+    } catch (error) {
+      console.error('Global wallet reset error:', error);
+      alert('Error resetting wallets: ' + error.message);
+    } finally {
+      setIsWiping(false);
+    }
+  };
+
   // Manual Payout Handler
   const handleManualPayout = async () => {
     if (!payoutDraftId) return alert('Please enter a Draft ID');
@@ -3878,6 +3902,26 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     style={{ padding: '8px 15px', fontSize: '0.85em' }}
                   >
                     🔔 Clear All Notifications
+                  </button>
+                  <button 
+                    className="clear-btn-admin risky" 
+                    onClick={handleResetGlobalWallets}
+                    disabled={isWiping || wipeAllConfirmText !== 'WIPE ALL'}
+                    style={{ padding: '8px 15px', fontSize: '0.85em', background: 'linear-gradient(135deg, #ef4444 0%, #991b1b 100%)' }}
+                  >
+                    💰 Wipe All Wallet Balances
+                  </button>
+                  <button 
+                    className="clear-btn-admin risky" 
+                    onClick={() => {
+                      setResetStatsWipeHistory(true);
+                      setResetStatsConfirmText('RESET ALL STATS');
+                      handleResetLeaderboardStats();
+                    }}
+                    disabled={isWiping || wipeAllConfirmText !== 'WIPE ALL'}
+                    style={{ padding: '8px 15px', fontSize: '0.85em', background: 'linear-gradient(135deg, #f59e0b 0%, #b45309 100%)' }}
+                  >
+                    🎮 Wipe All Mini-Game Histories
                   </button>
                 </div>
               )}

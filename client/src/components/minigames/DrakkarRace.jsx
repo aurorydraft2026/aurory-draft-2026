@@ -211,7 +211,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   // ─── Derived Data ───
   const raceShips = state?.ships || [];
   const raceWeathers = state?.weathers || [];
-  
+
   const currentHouseSeed = state?.houseSeed ?? DEFAULT_HOUSE_SEED;
   const currentMultiplier = state?.multiplierFactor ?? DEFAULT_MULTIPLIER;
 
@@ -243,7 +243,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       {/* ═══ STATUS BAR ═══ */}
       <div className="dv2-status-bar">
         <div className="dv2-status-left">
-          <span 
+          <span
             className="dv2-phase-label"
             onMouseDown={() => setIsPeeking(true)}
             onMouseUp={() => setIsPeeking(false)}
@@ -275,7 +275,10 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
           {/* ═══ WEATHER BAR ═══ */}
           <div className="dv2-weather-bar">
-            <div className="dv2-weather-dock">🏰 Dock</div>
+            <div className="dv2-weather-dock">
+              <span className="dv2-dock-icon">🏰</span>
+              <span className="dv2-dock-text">Dock</span>
+            </div>
             {raceWeathers.map((w, i) => {
               const isHidden = state.phase === 'betting' && i !== state.revealedIndex;
               return (
@@ -331,8 +334,9 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                   <div
                     className={`dv2-ship-wrapper ${state.phase === 'racing' ? 'racing' : ''} ${state.phase === 'result' && state.winnerIdx === i ? 'winner' : ''}`}
                     style={{
-                      left: `calc(${shipPositions[i]}% - (${shipPositions[i]} / ${FINISH_LINE} * 63px))`,
-                      '--ship-glow': ship.color
+                      // Precise Nose-Touch: Scale offset based on the actual track length (FINISH_LINE)
+                      // This ensures that at Finish (98%), the right edge is exactly at 98%.
+                      left: `calc(16px + ${shipPositions[i]}% - (${shipPositions[i]} / ${FINISH_LINE} * var(--dv2-ship-width)))`,
                     }}
                   >
                     <img
@@ -384,8 +388,8 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
             <div className="dv2-bet-cards">
               {raceShips.map((ship) => {
                 const shipGlobalIdx = getShipGlobalIndex(ship.id);
-                const revealedIdx = (state.revealedIndex !== undefined && raceWeathers[state.revealedIndex]) 
-                  ? getWeatherGlobalIndex(raceWeathers[state.revealedIndex].id) 
+                const revealedIdx = (state.revealedIndex !== undefined && raceWeathers[state.revealedIndex])
+                  ? getWeatherGlobalIndex(raceWeathers[state.revealedIndex].id)
                   : -1;
                 const revealedWeatherSpeed = revealedIdx >= 0 && shipGlobalIdx >= 0
                   ? SPEED_MATRIX[shipGlobalIdx][revealedIdx]
@@ -501,7 +505,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                 <li><strong>Multiplier</strong> = (Total Pool ÷ Winning Ship's Total Pool) × {currentMultiplier.toFixed(2)}</li>
                 <li>Wins that <strong>double your total investment (2x+)</strong> trigger a Global Win Announcement!</li>
               </ul>
-              
+
               <div className="dv2-formula" style={{ margin: '15px 0', background: 'rgba(0,0,0,0.4)', padding: '15px', borderRadius: '8px', textAlign: 'center', fontWeight: 'bold' }}>
                 Your Winning = (Your Bet ÷ Winning Ship Pool) × Total Pool × {currentMultiplier.toFixed(2)}
               </div>
