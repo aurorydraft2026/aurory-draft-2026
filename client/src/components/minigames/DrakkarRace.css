@@ -916,8 +916,8 @@
   }
 
   .dv2-ship-wrapper {
-    --dv2-ship-width: 68px;
-    /* Slightly smaller for mobile */
+    --dv2-ship-width: 58px;
+    /* Resolution-Independent nose alignment */
   }
 
   .dv2-ship-img {

@@ -187,7 +187,11 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
           console.log(`Drakkar Engine v2.11 | Race#${s.raceId} | Elapsed: ${elapsed}ms | Positions:`, newPositions);
         }
       } else {
-        // Idle / Betting Phase
+        // Idle / Betting Phase: Clear Direct-DOM variables to avoid "stuck" visuals
+        shipRefs.current.forEach(ref => {
+          if (ref) ref.style.removeProperty('--dv2-ship-pos');
+        });
+
         setShipPositions([SHIP_START, SHIP_START, SHIP_START]);
         setRaceFinished(false);
       }
@@ -634,7 +638,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
         pointerEvents: 'none',
         zIndex: 1000
       }}>
-        v2.11.Diagnostic [{tickCount}]
+        v2.12.Final [{tickCount}]
       </div>
     </div>
   );
