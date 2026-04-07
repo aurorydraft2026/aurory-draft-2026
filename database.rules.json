@@ -15,6 +15,13 @@
       },
       "history": {
         ".indexOn": ["timestamp"]
+      },
+      "pools": {
+        ".read": true,
+        ".write": "auth != null",
+        "$shipId": {
+          ".validate": "newData.isNumber()"
+        }
       }
     }
   }

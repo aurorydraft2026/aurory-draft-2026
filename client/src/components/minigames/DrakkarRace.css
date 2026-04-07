@@ -1142,3 +1142,49 @@
     transform: translate(-50%, -140px) scale(0.8);
   }
 }
+
+/* --- SYNC LOCK OVERLAY --- */
+.dv2-sync-lock {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  animation: dv2-fade-in 0.3s ease-out;
+}
+
+.dv2-sync-content {
+  text-align: center;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.dv2-sync-content h3 {
+  margin: 0;
+  font-size: 1.4rem;
+  color: #fbbf24;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.dv2-sync-content p {
+  margin: 0;
+  opacity: 0.8;
+  font-size: 0.9rem;
+}
+
+@keyframes dv2-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+

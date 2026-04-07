@@ -1,6 +1,6 @@
 import { db, database } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { ref, onValue, off, query, orderByChild, limitToLast, set, onDisconnect } from 'firebase/database';
+import { ref, onValue, off, query, orderByChild, limitToLast, set, onDisconnect, runTransaction } from 'firebase/database';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { createNotification } from './notifications';
 
@@ -275,6 +275,21 @@ export async function placeDrakkarBet(shipId, amount) {
   } catch (err) {
     console.error('Error placing Drakkar bet:', err);
     return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Perform a raw client-side increment to the RTDB pool for instant visual feedback. 
+ * Note: This is a "display-only" increment; the server validates the true balance.
+ */
+export async function incrementDrakkarPool(shipId, amount) {
+  try {
+    const poolRef = ref(database, `drakkar_race/pools/${shipId}`);
+    await runTransaction(poolRef, (current) => {
+      return (current || 0) + amount;
+    });
+  } catch (err) {
+    console.error('Error incrementing pool locally:', err);
   }
 }
 

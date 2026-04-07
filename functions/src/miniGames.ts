@@ -51,7 +51,7 @@ const MAX_BET_PER_USER = 10000;
 // Phase Durations (ms)
 const DURATIONS = {
     betting: 20000,
-    reveal: 10000, // 10s buffer for Master Sync and synchronization
+    reveal: 4000, // 4s buffer for Master Sync and synchronization
     racing: 0, // dynamic — set to winner's finish time + buffer
     result: 3000
 };
@@ -313,7 +313,15 @@ export const placeDrakkarBet = onCall(
                 const betSnap = await transaction.get(betRef);
 
                 const state = stateSnap.data();
-                if (!state || state.phase !== 'betting') {
+                if (!state) throw new Error('State not found');
+                
+                const now = Date.now();
+                const phaseDuration = now - (state.lastUpdate || 0);
+                
+                const isBetting = state.phase === 'betting';
+                const isGracePeriod = state.phase === 'reveal' && phaseDuration < 2000; // 2s grace window
+
+                if (!isBetting && !isGracePeriod) {
                     throw new Error('Betting is currently closed.');
                 }
 
@@ -366,10 +374,8 @@ export const placeDrakkarBet = onCall(
                 };
             });
 
-            // Side effect: Update public pool in RTDB
             const rtdb = admin.database();
-            await rtdb.ref(`drakkar_race/pools/${shipId}`).transaction((current) => (current || 0) + amount);
-
+            
             // Real-time bettors for social proof (Avatar Bubbles)
             const resultData = result as any;
             await rtdb.ref(`drakkar_race/bettors/${shipId}/${uid}`).set({
@@ -508,6 +514,11 @@ export const refreshDrakkarRace = onCall(
                     // MASTER SYNC: Consolidated/flushed bets from Firestore ground truth to RTDB
                     try {
                         const statePath = db.collection('settings').doc('mini_games').collection('drakkar_race').doc('current');
+                        
+                        // ── SAFETY DELAY ──
+                        // Wait for any concurrent Firestore transactions from late-betting clients to fully replicate.
+                        await new Promise(resolve => setTimeout(resolve, 5000));
+
                         const betsSnap = await statePath.collection('bets').get();
                         const shipIds = (newState.ships || []).map((s: any) => s.id);
                         const flushedPools: Record<string, number> = {};

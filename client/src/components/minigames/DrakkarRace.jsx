@@ -21,7 +21,8 @@ import {
   subscribeDrakkarPresence,
   updateDrakkarPresence,
   refreshDrakkarRace,
-  placeDrakkarBet
+  placeDrakkarBet,
+  incrementDrakkarPool
 } from '../../services/miniGameService';
 import './DrakkarRace.css';
 
@@ -34,7 +35,6 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const [pools, setPools] = useState({});
   const [history, setHistory] = useState([]);
   const [reactions, setReactions] = useState([]);
-  const [optimisticPools, setOptimisticPools] = useState({});
   const prevBettorsRef = useRef({});
   const [selectedChip, setSelectedChip] = useState(5);
   const [myBets, setMyBets] = useState({});
@@ -54,6 +54,8 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const prevRaceIdRef = useRef(null);
 
   const pendingRequestsRef = useRef(0);
+  const pendingBatchRef = useRef({}); // { shipId: amount }
+  const batchTimerRef = useRef(null);
   const [serverOffset, setServerOffset] = useState(0);
 
   // Animation Strategy: Use refs to prevent stale closures and competing loops
@@ -143,6 +145,11 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       setMyBets({});
       setLocalError(null);
       setRaceFinished(false);
+      
+      // Safety Reset for Sync Lock
+      pendingRequestsRef.current = 0;
+      setPendingBetsTotal(0);
+      setFrozen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.raceId]);
@@ -253,74 +260,85 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
     return () => cancelAnimationFrame(animFrameRef.current);
   }, []); // Run only once on mount
 
-  // ─── 4. Betting Logic ───
+  // ─── 4. Betting Logic (Redesigned with Batching) ───
+  const sendBatchToServer = async () => {
+    const currentBatch = { ...pendingBatchRef.current };
+    // Clear batch ref immediately so new clicks start a new batch
+    pendingBatchRef.current = {};
+    if (batchTimerRef.current) clearTimeout(batchTimerRef.current);
+    batchTimerRef.current = null;
+
+    const shipIds = Object.keys(currentBatch);
+    if (shipIds.length === 0) return;
+
+    // Track active network requests correctly
+    pendingRequestsRef.current += shipIds.length;
+
+    // Process all ships in the batch in parallel
+    await Promise.all(shipIds.map(async (shipId) => {
+      const amount = currentBatch[shipId];
+      try {
+        const result = await placeDrakkarBet(shipId, amount);
+        if (result.success) {
+          // If this was the last in-flight batch, sync confirmed balance
+          if (pendingRequestsRef.current === 1) {
+            setDisplayedPoints(result.newBalance);
+          }
+        } else {
+          // REVERT: Request was rejected by server (e.g. out of funds/time)
+          setMyBets(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - amount) }));
+          setDisplayedPoints(prev => prev + amount); 
+          await incrementDrakkarPool(shipId, -amount);
+          setLocalError(result.error);
+        }
+      } catch (err) {
+        // EMERGENCY REVERT
+        setMyBets(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - amount) }));
+        setDisplayedPoints(prev => prev + amount);
+        await incrementDrakkarPool(shipId, -amount);
+        setLocalError(err.message);
+      } finally {
+        pendingRequestsRef.current = Math.max(0, pendingRequestsRef.current - 1);
+        if (pendingRequestsRef.current === 0) {
+          setFrozen(false);
+        }
+      }
+    }));
+  };
+
   const handlePlaceBet = async (shipId) => {
-    if (state?.phase !== 'betting') return;
+    // Phase check (server has 2s grace for late packets)
+    if (state?.phase !== 'betting' || timeLeft < 500) return;
     setLocalError(null);
 
     const amount = selectedChip;
     const currentTotal = Object.values(myBets).reduce((a, b) => a + b, 0);
+    
+    // Safety check
     if (currentTotal + pendingBetsTotal + amount > MAX_BET_PER_USER) {
-      setLocalError(`Max bet is ${MAX_BET_PER_USER} per race. You have ${currentTotal + pendingBetsTotal} placed/pending.`);
+      setLocalError(`Max bet is ${MAX_BET_PER_USER} per race.`);
       return;
     }
-
-    // ── Pre-flight Balance Check ──
     if (amount > userPoints) {
-      setLocalError(`Insufficient Valcoins. You have ${userPoints} available.`);
+      setLocalError(`Insufficient Valcoins.`);
       return;
     }
 
-    // ── OPTIMISTIC UI UPDATE ──
-    setFrozen(true); // Disable global sync while we are betting
-    setMyBets(prev => ({
-      ...prev,
-      [shipId]: (prev[shipId] || 0) + amount
-    }));
-    setOptimisticPools(prev => ({
-      ...prev,
-      [shipId]: (prev[shipId] || 0) + amount
-    }));
+    // ── STEP 1: HYPER-INSTANT VISUALS (Feel) ──
+    setFrozen(true);
+    setMyBets(prev => ({ ...prev, [shipId]: (prev[shipId] || 0) + amount }));
     setPendingBetsTotal(prev => prev + amount);
-    setDisplayedPoints(prev => prev - amount); // Optimistic deduction
-    pendingRequestsRef.current += 1;
-
-    try {
-      const result = await placeDrakkarBet(shipId, amount);
-      if (result.success) {
-        pendingRequestsRef.current -= 1;
-        // ONLY sync with server if this is the LAST pending request
-        if (pendingRequestsRef.current === 0) {
-          setDisplayedPoints(result.newBalance);
-          setFrozen(false); // Re-enable global sync
-        }
-      } else {
-        // ROLLBACK 
-        pendingRequestsRef.current -= 1;
-        setMyBets(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - amount) }));
-        setPools(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - amount) }));
-        setDisplayedPoints(prev => prev + amount); // Rollback optimistic deduction
-        if (pendingRequestsRef.current === 0) setFrozen(false);
-        setLocalError(result.error);
-      }
-    } catch (err) {
-      // ROLLBACK
-      pendingRequestsRef.current -= 1;
-      setMyBets(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - amount) }));
-      setPools(prev => ({ ...prev, [shipId]: Math.max(0, (prev[shipId] || 0) - amount) }));
-      setDisplayedPoints(prev => prev + amount); // Rollback optimistic deduction
-      if (pendingRequestsRef.current === 0) setFrozen(false);
-      setLocalError(err.message);
-    } finally {
-      setPendingBetsTotal(prev => prev - amount);
-      // Wait for RTDB sync to catch up (1.5s) before removing the optimistic bonus
-      setTimeout(() => {
-        setOptimisticPools(prev => ({
-          ...prev,
-          [shipId]: Math.max(0, (prev[shipId] || 0) - amount)
-        }));
-      }, 1500);
-    }
+    setDisplayedPoints(prev => prev - amount); // Optimistic Balance
+    
+    // Global Pool increment is now TRULY instant for everyone
+    incrementDrakkarPool(shipId, amount); 
+    
+    // ── STEP 2: ADD TO BATCH ──
+    pendingBatchRef.current[shipId] = (pendingBatchRef.current[shipId] || 0) + amount;
+    
+    // ── STEP 3: DEBOUNCED FLUSH (250ms) ──
+    if (batchTimerRef.current) clearTimeout(batchTimerRef.current);
+    batchTimerRef.current = setTimeout(sendBatchToServer, 250);
   };
 
   // ─── Derived Data ───
@@ -332,15 +350,16 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const highestProgress = Math.max(...shipPositions);
 
   const totalPool = raceShips.reduce((sum, s) => {
-    const serverPool = pools[s.id] || 0;
-    const optPool = optimisticPools[s.id] || 0;
-    return sum + serverPool + optPool;
+    return sum + (pools[s.id] || 0);
   }, 0) + (currentHouseSeed * 3);
+
+  const isSyncing = (state?.phase !== 'betting') && (pendingRequestsRef.current > 0);
 
   const getPhaseLabel = () => {
     if (!state) return '';
     switch (state.phase) {
-      case 'betting': return '⚓ PLACE YOUR BETS';
+      case 'betting': 
+        return timeLeft < 500 ? '🔒 LOCKING BETS...' : '⚓ PLACE YOUR BETS';
       case 'reveal': return '🌊 WEATHERS REVEALED';
       case 'racing': return '⛵ RACE IN PROGRESS';
       case 'result': return '🏅 WINNER REVEALED';
@@ -349,9 +368,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   };
 
   const getEstimatedPayout = (shipId) => {
-    const serverPool = pools[shipId] || 0;
-    const optPool = optimisticPools[shipId] || 0;
-    const shipPool = serverPool + optPool + currentHouseSeed;
+    const shipPool = (pools[shipId] || 0) + currentHouseSeed;
     if (shipPool === 0 || totalPool === 0) return '—';
     const multiplier = (totalPool / shipPool) * currentMultiplier;
     return multiplier.toFixed(1) + 'x';
@@ -362,6 +379,17 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
   return (
     <div className="drakkar-v2-container">
+      {/* ═══ SYNC LOCK OVERLAY ═══ */}
+      {isSyncing && (
+        <div className="dv2-sync-lock">
+          <div className="dv2-sync-content">
+            <div className="dv2-spinner" />
+            <h3>Finalizing Your Bets...</h3>
+            <p>Wait a moment for all transactions to synchronize.</p>
+          </div>
+        </div>
+      )}
+
       {/* ═══ STATUS BAR ═══ */}
       <div className="dv2-status-bar">
         <div className="dv2-status-left">
@@ -578,7 +606,9 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                     <div className="dv2-bet-card-pools">
                       <div className="dv2-pool-row">
                         <span>Global Pool</span>
-                        <span className="dv2-pool-amount">🪙 {(pools[ship.id] || 0) + (optimisticPools[ship.id] || 0) + currentHouseSeed}</span>
+                        <span className="dv2-pool-amount">
+                          🪙 {(pools[ship.id] || 0) + currentHouseSeed}
+                        </span>
                       </div>
                       <div className="dv2-pool-row">
                         <span>Your Bet</span>
