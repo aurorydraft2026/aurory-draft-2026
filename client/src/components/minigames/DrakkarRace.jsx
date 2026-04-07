@@ -683,25 +683,6 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
               <button className="dv2-rules-close" onClick={() => setShowRules(false)}>✕</button>
             </div>
             <div className="dv2-rules-body">
-              <h3>How It Works</h3>
-              <p>3 random ships and <strong>5 random weather zones</strong> are selected for each race. Only 1 weather zone is revealed during betting — the other 4 zones remain hidden until the race begins! Each zone affects a ship's speed based on its unique stats.</p>
-
-              <h3>Parimutuel Payout</h3>
-              <p>Drakkar Race uses a <strong>Parimutuel Payout</strong> system where total bets are shared among winners. To ensure high payouts even for solo players:</p>
-              <ul>
-                <li>The House seeds <strong>{currentHouseSeed} Valcoins</strong> on each ship (Total {currentHouseSeed * 3} seed per race).</li>
-                <li><strong>Total Pool</strong> = All player bets + {currentHouseSeed * 3} House Seed.</li>
-                <li><strong>Multiplier</strong> = (Total Pool ÷ Winning Ship's Total Pool) × {currentMultiplier.toFixed(2)}</li>
-                <li>Wins that <strong>double your total investment (2x+)</strong> trigger a Global Win Announcement!</li>
-              </ul>
-
-              <div className="dv2-formula" style={{ margin: '15px 0', background: 'rgba(0,0,0,0.4)', padding: '15px', borderRadius: '8px', textAlign: 'center', fontWeight: 'bold' }}>
-                Your Winning = (Your Bet ÷ Winning Ship Pool) × Total Pool × {currentMultiplier.toFixed(2)}
-              </div>
-              <p style={{ marginTop: '10px', fontSize: '0.9em', opacity: 0.8 }}>
-                The house takes a {Math.round((1 - currentMultiplier) * 100)}% fee. You swipe the House's seed if you are the only one who correctly predicts the winner!
-              </p>
-
               <h3>Speed Multiplier Table</h3>
               <p>Each ship has strengths and weaknesses across 7 weather types:</p>
               <div className="dv2-rules-table-wrapper">
@@ -736,6 +717,25 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                   </tbody>
                 </table>
               </div>
+
+              <h3>How It Works</h3>
+              <p>3 random ships and <strong>5 random weather zones</strong> are selected for each race. Only 1 weather zone is revealed during betting — the other 4 zones remain hidden until the race begins! Each zone affects a ship's speed based on its unique stats.</p>
+
+              <h3>Parimutuel Payout</h3>
+              <p>Drakkar Race uses a <strong>Parimutuel Payout</strong> system where total bets are shared among winners. To ensure high payouts even for solo players:</p>
+              <ul>
+                <li>The House seeds <strong>{currentHouseSeed} Valcoins</strong> on each ship (Total {currentHouseSeed * 3} seed per race).</li>
+                <li><strong>Total Pool</strong> = All player bets + {currentHouseSeed * 3} House Seed.</li>
+                <li><strong>Multiplier</strong> = (Total Pool ÷ Winning Ship's Total Pool) × {currentMultiplier.toFixed(2)}</li>
+                <li>Wins that <strong>double your total investment (2x+)</strong> trigger a Global Win Announcement!</li>
+              </ul>
+
+              <div className="dv2-formula" style={{ margin: '15px 0', background: 'rgba(0,0,0,0.4)', padding: '15px', borderRadius: '8px', textAlign: 'center', fontWeight: 'bold' }}>
+                Your Winning = (Your Bet ÷ Winning Ship Pool) × Total Pool × {currentMultiplier.toFixed(2)}
+              </div>
+              <p style={{ marginTop: '10px', fontSize: '0.9em', opacity: 0.8 }}>
+                The house takes a {Math.round((1 - currentMultiplier) * 100)}% fee. You swipe the House's seed if you are the only one who correctly predicts the winner!
+              </p>
 
               <h3>Betting Rules</h3>
               <ul>

@@ -408,7 +408,7 @@
 
 .dv2-lane-label {
   position: absolute;
-  right: 16px;
+  left: 10px;
   top: 6px;
   font-size: 0.6rem;
   font-weight: 900;
