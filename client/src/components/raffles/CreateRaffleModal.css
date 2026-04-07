@@ -110,6 +110,12 @@
     box-shadow: 0 0 0 3px var(--accent-cyan-glow);
 }
 
+/* Make calendar icon white for dark mode */
+.create-raffle-modal .form-input::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+}
+
 .create-raffle-modal .modal-footer {
     padding: 16px 24px;
     display: flex;
@@ -240,4 +246,27 @@
     color: var(--text-muted);
     margin-top: 4px;
     font-style: italic;
+}
+
+.registration-limit-group {
+    margin-top: 10px;
+    padding: 16px;
+    background: rgba(99, 102, 241, 0.05);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: var(--radius-md);
+}
+
+.registration-limit-input {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.registration-limit-input .sub-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    margin-bottom: 8px;
 }

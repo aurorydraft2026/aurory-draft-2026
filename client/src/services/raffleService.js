@@ -100,6 +100,35 @@ export async function joinRaffle(raffleId, user, auroryData) {
         }
       }
 
+      // Check if user account is old enough or within window
+      if (raffle.registrationDateLimit || raffle.registrationDateBefore || raffle.registrationDateAfter) {
+        const userRef = doc(db, 'users', user.uid);
+        const userSnap = await transaction.get(userRef);
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          if (userData.createdAt) {
+            const userCreated = userData.createdAt.toDate ? userData.createdAt.toDate() : new Date(userData.createdAt);
+            
+            // Check "Before" limit (registrationDateLimit is the legacy name for registrationDateBefore)
+            const beforeLimit = raffle.registrationDateBefore || raffle.registrationDateLimit;
+            if (beforeLimit) {
+              const limitDate = beforeLimit.toDate ? beforeLimit.toDate() : new Date(beforeLimit);
+              if (userCreated > limitDate) {
+                throw new Error(`Only users who joined before ${limitDate.toLocaleDateString()} can participate.`);
+              }
+            }
+
+            // Check "After" limit
+            if (raffle.registrationDateAfter) {
+              const limitDate = raffle.registrationDateAfter.toDate ? raffle.registrationDateAfter.toDate() : new Date(raffle.registrationDateAfter);
+              if (userCreated < limitDate) {
+                throw new Error(`Only users who joined after ${limitDate.toLocaleDateString()} can participate.`);
+              }
+            }
+          }
+        }
+      }
+
       // Check if user already joined
       const isAlreadyJoined = raffle.participants?.some(p => p.uid === user.uid);
       if (isAlreadyJoined) throw new Error('You have already joined this raffle');

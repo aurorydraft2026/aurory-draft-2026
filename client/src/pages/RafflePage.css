@@ -179,6 +179,28 @@
   color: #ffca28;
 }
 
+.raffle-stat-box.restriction-box {
+  padding-left: 1.5rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.raffle-stat-value.restriction {
+  color: #f87171;
+  font-size: 1.2rem;
+}
+
+.restriction-note {
+  margin-top: 1rem;
+  padding: 0.8rem;
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px dashed rgba(248, 113, 113, 0.3);
+  border-radius: 8px;
+  color: #f87171;
+  font-size: 0.85rem;
+  text-align: center;
+  font-weight: 500;
+}
+
 .raffle-main {
   display: grid;
   grid-template-columns: 1fr 300px;

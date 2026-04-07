@@ -18,6 +18,10 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
   const [auryAmount, setAuryAmount] = useState(100);
   const [usdcAmount, setUsdcAmount] = useState(10);
   const [endDate, setEndDate] = useState('');
+  const [registrationDateBefore, setRegistrationDateBefore] = useState('');
+  const [registrationDateAfter, setRegistrationDateAfter] = useState('');
+  const [restrictByRegistrationDateBefore, setRestrictByRegistrationDateBefore] = useState(false);
+  const [restrictByRegistrationDateAfter, setRestrictByRegistrationDateAfter] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Populate fields when editing
@@ -35,6 +39,13 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
       setAuryAmount(editData.auryAmount || 0);
       setUsdcAmount(editData.usdcAmount || 0);
       setEndDate(editData.endDate ? new Date(editData.endDate).toISOString().slice(0, 16) : '');
+      
+      const beforeLimit = editData.registrationDateBefore || editData.registrationDateLimit;
+      setRegistrationDateBefore(beforeLimit ? new Date(beforeLimit).toISOString().slice(0, 16) : '');
+      setRestrictByRegistrationDateBefore(!!beforeLimit);
+      
+      setRegistrationDateAfter(editData.registrationDateAfter ? new Date(editData.registrationDateAfter).toISOString().slice(0, 16) : '');
+      setRestrictByRegistrationDateAfter(!!editData.registrationDateAfter);
     }
   }, [editData]);
 
@@ -64,7 +75,9 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
       maxParticipants: parseInt(maxParticipants),
       auryAmount: isAury ? parseFloat(auryAmount) : 0,
       usdcAmount: isUsdc ? parseFloat(usdcAmount) : 0,
-      endDate: endDate ? new Date(endDate).toISOString() : null
+      endDate: endDate ? new Date(endDate).toISOString() : null,
+      registrationDateBefore: restrictByRegistrationDateBefore && registrationDateBefore ? new Date(registrationDateBefore).toISOString() : null,
+      registrationDateAfter: restrictByRegistrationDateAfter && registrationDateAfter ? new Date(registrationDateAfter).toISOString() : null
     };
 
     if (isEditMode) {
@@ -252,6 +265,51 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
                 required
               />
               <small className="form-help-text">Joining will be disabled after this time.</small>
+            </div>
+
+            <div className="form-group registration-limit-group">
+              <label className="checkbox-label">
+                <input 
+                  type="checkbox" 
+                  checked={restrictByRegistrationDateAfter} 
+                  onChange={(e) => setRestrictByRegistrationDateAfter(e.target.checked)} 
+                />
+                🛡️ Restrict by "Joined AFTER" Date
+              </label>
+              {restrictByRegistrationDateAfter && (
+                <div className="registration-limit-input">
+                  <label className="sub-label">Only users who joined after:</label>
+                  <input 
+                    type="datetime-local" 
+                    className="form-input"
+                    value={registrationDateAfter} 
+                    onChange={(e) => setRegistrationDateAfter(e.target.value)} 
+                    required={restrictByRegistrationDateAfter}
+                  />
+                </div>
+              )}
+
+              <label className="checkbox-label" style={{ marginTop: '15px' }}>
+                <input 
+                  type="checkbox" 
+                  checked={restrictByRegistrationDateBefore} 
+                  onChange={(e) => setRestrictByRegistrationDateBefore(e.target.checked)} 
+                />
+                🛡️ Restrict by "Joined BEFORE" Date
+              </label>
+              {restrictByRegistrationDateBefore && (
+                <div className="registration-limit-input">
+                  <label className="sub-label">Only users who joined before:</label>
+                  <input 
+                    type="datetime-local" 
+                    className="form-input"
+                    value={registrationDateBefore} 
+                    onChange={(e) => setRegistrationDateBefore(e.target.value)} 
+                    required={restrictByRegistrationDateBefore}
+                  />
+                </div>
+              )}
+              <small className="form-help-text" style={{ marginTop: '10px' }}>Prevents "sybil" attacks or targets new/old users specifically.</small>
             </div>
           </form>
         </div>

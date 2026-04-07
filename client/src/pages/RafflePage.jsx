@@ -420,7 +420,19 @@ import './RafflePage.css';
   
   const isExpired = raffle.endDate && (raffle.endDate.toDate ? raffle.endDate.toDate() : new Date(raffle.endDate)) < new Date();
   
-  const canJoin = !isJoined && !isSpinning && !isCompleted && !isEntriesClosed && !isExpired && raffle.participantsCount < raffle.maxParticipants;
+  const userCreatedAt = user?.createdAt?.toDate ? user.createdAt.toDate() : (user?.createdAt ? new Date(user.createdAt) : null);
+  
+  // Backward compatibility with registrationDateLimit (acts as "Before")
+  const registrationLimitBefore = raffle.registrationDateBefore || raffle.registrationDateLimit;
+  const limitDateBefore = registrationLimitBefore?.toDate ? registrationLimitBefore.toDate() : (registrationLimitBefore ? new Date(registrationLimitBefore) : null);
+  
+  const registrationLimitAfter = raffle.registrationDateAfter;
+  const limitDateAfter = registrationLimitAfter?.toDate ? registrationLimitAfter.toDate() : (registrationLimitAfter ? new Date(registrationLimitAfter) : null);
+
+  const isTooNew = limitDateBefore && userCreatedAt && userCreatedAt > limitDateBefore;
+  const isTooOld = limitDateAfter && userCreatedAt && userCreatedAt < limitDateAfter;
+
+  const canJoin = !isJoined && !isSpinning && !isCompleted && !isEntriesClosed && !isExpired && !isTooNew && !isTooOld && raffle.participantsCount < raffle.maxParticipants;
   const isAury = raffle.itemType === 'aury';
   const itemType = raffle.itemType;
   const isCurrencyPrize = itemType === 'aury' || itemType === 'usdc';
@@ -487,6 +499,20 @@ import './RafflePage.css';
               </span>
             </div>
           )}
+          {(limitDateBefore || limitDateAfter) && (
+            <div className="raffle-stat-box restriction-box">
+              <span className="raffle-stat-label">🛡️ Registration Restriction</span>
+              <span className="raffle-stat-value restriction">
+                {limitDateBefore && limitDateAfter ? (
+                  `Between ${limitDateAfter.toLocaleDateString()} and ${limitDateBefore.toLocaleDateString()}`
+                ) : limitDateBefore ? (
+                  `Before ${limitDateBefore.toLocaleDateString()}`
+                ) : (
+                  `After ${limitDateAfter.toLocaleDateString()}`
+                )}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -547,13 +573,17 @@ import './RafflePage.css';
                             <p className="login-note">Log in to participate</p>
                         </div>
                     ) : (
+                        <>
                         <button 
                             className={`join-btn-large ${!canJoin ? 'disabled' : ''}`}
                             onClick={handleJoin}
                             disabled={!canJoin || joining}
                         >
-                            {joining ? 'Joining...' : 'Join Raffle'}
+                            {joining ? 'Joining...' : isTooNew ? 'Account Too New' : isTooOld ? 'Account Too Old' : 'Join Raffle'}
                         </button>
+                        {isTooNew && <p className="restriction-note">⚠️ Only accounts created before {limitDateBefore.toLocaleDateString()} can join.</p>}
+                        {isTooOld && <p className="restriction-note">⚠️ Only accounts created after {limitDateAfter.toLocaleDateString()} can join.</p>}
+                        </>
                     )}
                 </div>
             )}
