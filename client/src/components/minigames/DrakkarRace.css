@@ -898,6 +898,34 @@
     width: 100%;
   }
 
+  .dv2-status-bar {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .dv2-status-left {
+    gap: 10px; /* Closer together */
+  }
+
+  .dv2-phase-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.5px;
+  }
+
+  .dv2-race-id {
+    font-size: 0.55rem;
+    white-space: nowrap;
+  }
+
+  .dv2-history-panel {
+    max-height: 100px;
+  }
+
+  .dv2-history-title {
+    font-size: 0.6rem;
+    margin-bottom: 6px;
+  }
+
   .dv2-bet-card {
     flex: 1;
     min-width: 0; /* Critical for shrinking */
@@ -965,6 +993,13 @@
     height: auto;
     /* Let height scale naturally with width */
   }
+
+  .dv2-lane-label {
+    font-size: 0.45rem;
+    right: 8px;
+    top: 4px;
+    letter-spacing: 0;
+  }
 }
 /* --- SOCIAL PROOF STYLES --- */
 .dv2-players-count {
@@ -1023,6 +1058,10 @@
 
 /* Mobile Adjustments for Bubbles */
 @media (max-width: 700px) {
+  .dv2-players-label,
+  .dv2-race-label {
+    display: none;
+  }
   .dv2-avatar-bubbles {
     margin-bottom: 2px;
   }
@@ -1035,5 +1074,71 @@
     font-size: 0.5rem;
     padding: 1px 3px;
     margin-left: 2px;
+  }
+}
+
+/* ─── LIVE BET REACTIONS ─── */
+.dv2-reactions-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 100;
+  overflow: visible;
+}
+
+.dv2-floating-reaction {
+  position: absolute;
+  bottom: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  padding: 4px 10px;
+  border-radius: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 10px rgba(59, 130, 246, 0.3);
+  animation: dv2-float-up 2.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  white-space: nowrap;
+}
+
+.dv2-floating-reaction img {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dv2-reaction-plus {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #60a5fa;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+@keyframes dv2-float-up {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.5);
+  }
+  10% {
+    opacity: 1;
+    transform: translate(-50%, -20px) scale(1.1);
+  }
+  20% {
+    transform: translate(-50%, -30px) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translate(-50%, -100px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -140px) scale(0.8);
   }
 }

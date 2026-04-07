@@ -33,6 +33,9 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const [state, setState] = useState(null);
   const [pools, setPools] = useState({});
   const [history, setHistory] = useState([]);
+  const [reactions, setReactions] = useState([]);
+  const [optimisticPools, setOptimisticPools] = useState({});
+  const prevBettorsRef = useRef({});
   const [selectedChip, setSelectedChip] = useState(5);
   const [myBets, setMyBets] = useState({});
   const [pendingBetsTotal, setPendingBetsTotal] = useState(0);
@@ -40,7 +43,6 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const [timeLeft, setTimeLeft] = useState(0);
   const [showRules, setShowRules] = useState(false);
   const [isPeeking, setIsPeeking] = useState(false);
-  const [bettors, setBettors] = useState({});
   const [presence, setPresence] = useState({});
 
   // Animation
@@ -93,7 +95,34 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
   // ─── 2. Social Proof ───
   useEffect(() => {
-    const unsubBettors = subscribeDrakkarBettors(setBettors);
+    const unsubBettors = subscribeDrakkarBettors((newBettors) => {
+      // Detect new bets for live "floating" reactions
+      const prev = prevBettorsRef.current;
+      Object.keys(newBettors).forEach(shipId => {
+        const shipBettors = newBettors[shipId];
+        Object.keys(shipBettors).forEach(uid => {
+          // If this user wasn't in the previous list for this ship, or they were but the data is fresh
+          // Note: In RTDB, we don't have the amount easily here unless we add it, but we can animate the avatar
+          if (!prev[shipId] || !prev[shipId][uid]) {
+            const reactionId = `react-${shipId}-${uid}-${Date.now()}`;
+            setReactions(prevR => [
+              ...prevR,
+              { 
+                id: reactionId, 
+                shipId, 
+                avatar: shipBettors[uid].avatar,
+                name: shipBettors[uid].name
+              }
+            ]);
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+              setReactions(prevR => prevR.filter(r => r.id !== reactionId));
+            }, 3000);
+          }
+        });
+      });
+      prevBettorsRef.current = newBettors;
+    });
     const unsubPresence = subscribeDrakkarPresence(setPresence);
     return () => {
       unsubBettors();
@@ -248,7 +277,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       ...prev,
       [shipId]: (prev[shipId] || 0) + amount
     }));
-    setPools(prev => ({
+    setOptimisticPools(prev => ({
       ...prev,
       [shipId]: (prev[shipId] || 0) + amount
     }));
@@ -284,6 +313,13 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       setLocalError(err.message);
     } finally {
       setPendingBetsTotal(prev => prev - amount);
+      // Wait for RTDB sync to catch up (1.5s) before removing the optimistic bonus
+      setTimeout(() => {
+        setOptimisticPools(prev => ({
+          ...prev,
+          [shipId]: Math.max(0, (prev[shipId] || 0) - amount)
+        }));
+      }, 1500);
     }
   };
 
@@ -295,7 +331,11 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const currentMultiplier = state?.multiplierFactor ?? DEFAULT_MULTIPLIER;
   const highestProgress = Math.max(...shipPositions);
 
-  const totalPool = raceShips.reduce((sum, s) => sum + (pools[s.id] || 0), 0) + (currentHouseSeed * 3);
+  const totalPool = raceShips.reduce((sum, s) => {
+    const serverPool = pools[s.id] || 0;
+    const optPool = optimisticPools[s.id] || 0;
+    return sum + serverPool + optPool;
+  }, 0) + (currentHouseSeed * 3);
 
   const getPhaseLabel = () => {
     if (!state) return '';
@@ -309,7 +349,9 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   };
 
   const getEstimatedPayout = (shipId) => {
-    const shipPool = (pools[shipId] || 0) + currentHouseSeed;
+    const serverPool = pools[shipId] || 0;
+    const optPool = optimisticPools[shipId] || 0;
+    const shipPool = serverPool + optPool + currentHouseSeed;
     if (shipPool === 0 || totalPool === 0) return '—';
     const multiplier = (totalPool / shipPool) * currentMultiplier;
     return multiplier.toFixed(1) + 'x';
@@ -324,7 +366,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       <div className="dv2-status-bar">
         <div className="dv2-status-left">
           <span className="dv2-players-count">
-            👤 {Object.keys(presence).length} Players
+            👤 {Object.keys(presence).length} <span className="dv2-players-label">Players</span>
           </span>
           <span
             className="dv2-phase-label"
@@ -336,7 +378,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
           >
             {getPhaseLabel()}
           </span>
-          <span className="dv2-race-id">Race #{state.raceId || 0}</span>
+          <span className="dv2-race-id"><span className="dv2-race-label">Race</span> #{state.raceId || 0}</span>
         </div>
         <div className="dv2-status-right">
           <button className="dv2-rules-btn" onClick={() => setShowRules(true)}>📜 Rules</button>
@@ -504,21 +546,16 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                       }
                     }}
                   >
+                    {/* Floating Reactions */}
+                    <div className="dv2-reactions-container">
+                      {reactions.filter(r => r.shipId === ship.id).map(r => (
+                        <div key={r.id} className="dv2-floating-reaction">
+                          <img src={r.avatar || `${process.env.PUBLIC_URL}/icons/default_avatar.png`} alt="" />
+                          <span className="dv2-reaction-plus">+Bet</span>
+                        </div>
+                      ))}
+                    </div>
                     <div className="dv2-bet-card-top">
-                      <div className="dv2-avatar-bubbles">
-                        {Object.values(bettors[ship.id] || {}).slice(0, 4).map((b, bi) => (
-                          <img key={bi} 
-                            src={b.avatar || `${process.env.PUBLIC_URL}/icons/default_avatar.png`} 
-                            alt={b.name} 
-                            className="dv2-avatar-bubble" 
-                            title={b.name} 
-                            onError={(e) => { e.target.src = `${process.env.PUBLIC_URL}/icons/default_avatar.png`; }}
-                          />
-                        ))}
-                        {Object.keys(bettors[ship.id] || {}).length > 4 && (
-                          <span className="dv2-avatar-more">+{Object.keys(bettors[ship.id] || {}).length - 4}</span>
-                        )}
-                      </div>
                       <img
                         src={`${process.env.PUBLIC_URL}/icons/minigames/ships/${ship.id}.png`}
                         alt={ship.name}
@@ -541,7 +578,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                     <div className="dv2-bet-card-pools">
                       <div className="dv2-pool-row">
                         <span>Global Pool</span>
-                        <span className="dv2-pool-amount">🪙 {(pools[ship.id] || 0) + currentHouseSeed}</span>
+                        <span className="dv2-pool-amount">🪙 {(pools[ship.id] || 0) + (optimisticPools[ship.id] || 0) + currentHouseSeed}</span>
                       </div>
                       <div className="dv2-pool-row">
                         <span>Your Bet</span>

@@ -46,12 +46,12 @@ const DEFAULT_HOUSE_CUT = 0.10; // 10% house edge
 const DEFAULT_HOUSE_SEED = 500; // Phantom seed injected into every ship's pool
 const DOCK_WIDTH = 10;
 const SHIP_START = 10;
-const MAX_BET_PER_USER = 1000;
+const MAX_BET_PER_USER = 10000;
 
 // Phase Durations (ms)
 const DURATIONS = {
     betting: 20000,
-    reveal: 2000,
+    reveal: 10000, // 10s buffer for Master Sync and synchronization
     racing: 0, // dynamic — set to winner's finish time + buffer
     result: 3000
 };
@@ -504,6 +504,28 @@ export const refreshDrakkarRace = onCall(
                     await rtdb.ref('drakkar_race/pools').set(poolReset);
                     await rtdb.ref('drakkar_race/bettors').remove(); // Clear social bubbles for new race
                     await clearBets(db.collection('settings').doc('mini_games').collection('drakkar_race').doc('current'));
+                } else if (newState.phase === 'reveal') {
+                    // MASTER SYNC: Consolidated/flushed bets from Firestore ground truth to RTDB
+                    try {
+                        const statePath = db.collection('settings').doc('mini_games').collection('drakkar_race').doc('current');
+                        const betsSnap = await statePath.collection('bets').get();
+                        const shipIds = (newState.ships || []).map((s: any) => s.id);
+                        const flushedPools: Record<string, number> = {};
+                        shipIds.forEach((id: string) => { flushedPools[id] = 0; });
+
+                        if (!betsSnap.empty) {
+                            betsSnap.docs.forEach((doc) => {
+                                const betData = doc.data();
+                                shipIds.forEach((id: string) => {
+                                    if (betData[id]) flushedPools[id] += betData[id];
+                                });
+                            });
+                        }
+                        // Update RTDB with the Source of Truth
+                        await rtdb.ref('drakkar_race/pools').set(flushedPools);
+                    } catch (e) {
+                        console.error('Master Sync failed during Reveal phase', e);
+                    }
                 } else if (newState.phase === 'result') {
                     await processDrakkarPayouts(newState);
                 }
