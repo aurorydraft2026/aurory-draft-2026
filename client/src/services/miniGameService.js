@@ -31,13 +31,13 @@ export const ALL_WEATHERS = [
 // Latin Square speed matrix (x10)
 // Row = ship index (0-6), Column = weather index (0-6)
 export const SPEED_MATRIX = [
-  [16,  8,   9,  10, 11, 12, 14], // Sleipnir Swift
-  [11, 12, 14, 16,  8,   9, 10], // Jörmungandr
-  [ 9, 10, 11, 12, 14, 16,  8], // Ironbound Hulk
-  [12, 14, 16,  8,  9,  10, 11], // Hugin's Shadow
-  [14, 16,  8,  9, 10,  11, 12], // Drakkar Prime
-  [ 8,  9, 10, 11, 12,  14, 16], // Freyja's Chariot
-  [10, 11, 12, 14, 16,   8,  9], // Norse Raider
+  [16, 8, 9, 10, 11, 12, 14], // Sleipnir Swift
+  [11, 12, 14, 16, 8, 9, 10], // Jörmungandr
+  [9, 10, 11, 12, 14, 16, 8], // Ironbound Hulk
+  [12, 14, 16, 8, 9, 10, 11], // Hugin's Shadow
+  [14, 16, 8, 9, 10, 11, 12], // Drakkar Prime
+  [8, 9, 10, 11, 12, 14, 16], // Freyja's Chariot
+  [10, 11, 12, 14, 16, 8, 9], // Norse Raider
 ];
 
 export const CHIP_VALUES = [1, 5, 10, 50, 100];
@@ -46,33 +46,20 @@ export const MAX_BET_PER_USER = 1000;
 // Animation constants
 export const BASE_SPEED = 8; // Reverted to 8 for original race duration and excitement
 export const ZONE_WIDTH = 18; // 90% / 5 zones = 18% each
-export const DOCK_WIDTH = 8; // % start zone
-export const FINISH_WIDTH = 2; // % finish zone
+export const DOCK_WIDTH = 10; // % start zone (increased from 8)
+export const FINISH_WIDTH = 0; // Final edge is 100%
 
-export const SHIP_START = 0; // Ships start at 0% (on the ocean)
+export const SHIP_START = 10; // Ships start at 10% (the weather boundary)
 
 /**
  * Compute ship position at a given elapsed time (ms)
- * Ships start inside the dock and accelerate through the dock into weather zones.
- * Returns position as % of track (0-100)
+ * Progresses from SHIP_START (10) to 100%
  */
 export function computeShipPosition(speeds, elapsedMs) {
   let position = SHIP_START;
   let remainingMs = elapsedMs;
 
-  // Phase 1: Traverse dock area (SHIP_START → DOCK_WIDTH) at first zone speed
-  const dockDistance = DOCK_WIDTH - SHIP_START; // 6%
-  const firstZoneSpeed = (speeds[0] / 10) * BASE_SPEED; // % per second
-  const dockTimeMs = (dockDistance / firstZoneSpeed) * 1000;
-
-  if (remainingMs < dockTimeMs) {
-    position += (remainingMs / 1000) * firstZoneSpeed;
-    return position;
-  }
-  position = DOCK_WIDTH;
-  remainingMs -= dockTimeMs;
-
-  // Phase 2: Traverse 3 weather zones
+  // Traverse 5 weather zones
   for (let i = 0; i < speeds.length; i++) {
     const speed = speeds[i];
     const zoneSpeed = (speed / 10) * BASE_SPEED;
@@ -83,12 +70,12 @@ export function computeShipPosition(speeds, elapsedMs) {
       remainingMs -= zoneTimeMs;
     } else {
       position += (remainingMs / 1000) * zoneSpeed;
-      return Math.min(position, DOCK_WIDTH + 5 * ZONE_WIDTH);
+      return Math.min(position, 100);
     }
   }
 
   // Past all zones — at finish line
-  return DOCK_WIDTH + 5 * ZONE_WIDTH;
+  return 100;
 }
 
 /**

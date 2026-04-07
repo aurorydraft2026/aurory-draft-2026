@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ref, onValue } from 'firebase/database';
+import { database } from '../../firebase';
 import {
   ALL_SHIPS,
   ALL_WEATHERS,
@@ -20,7 +22,7 @@ import {
 } from '../../services/miniGameService';
 import './DrakkarRace.css';
 
-const FINISH_LINE = DOCK_WIDTH + 5 * ZONE_WIDTH; // 98%
+const FINISH_LINE = DOCK_WIDTH + 5 * ZONE_WIDTH; // 100%
 const DEFAULT_HOUSE_SEED = 500;
 const DEFAULT_MULTIPLIER = 0.9;
 
@@ -38,21 +40,32 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
   // Animation
   const animFrameRef = useRef();
+  const shipRefs = useRef([]);
   const [shipPositions, setShipPositions] = useState([SHIP_START, SHIP_START, SHIP_START]);
   const [raceFinished, setRaceFinished] = useState(false);
+  const [tickCount, setTickCount] = useState(0); // Forced repaint counter
   const prevRaceIdRef = useRef(null);
 
-  const [localRaceStartTime, setLocalRaceStartTime] = useState(null);
   const pendingRequestsRef = useRef(0);
+  const [serverOffset, setServerOffset] = useState(0);
 
-  // ─── 0. Local Clock Sync ───
+  // Animation Strategy: Use refs to prevent stale closures and competing loops
+  const stateRef = useRef(null);
+  const raceFinishedRef = useRef(false);
+  const serverOffsetRef = useRef(0);
+
+  useEffect(() => { stateRef.current = state; }, [state]);
+  useEffect(() => { raceFinishedRef.current = raceFinished; }, [raceFinished]);
+  useEffect(() => { serverOffsetRef.current = serverOffset; }, [serverOffset]);
+
+  // ─── 0. Server Time Offset ───
   useEffect(() => {
-    if (state?.phase === 'racing' && !localRaceStartTime) {
-      setLocalRaceStartTime(Date.now());
-    } else if (state?.phase !== 'racing') {
-      setLocalRaceStartTime(null);
-    }
-  }, [state?.phase, localRaceStartTime]);
+    const offsetRef = ref(database, ".info/serverTimeOffset");
+    const unsub = onValue(offsetRef, (snap) => {
+      setServerOffset(snap.val() || 0);
+    });
+    return () => unsub();
+  }, []);
 
   // ─── 1. Subscriptions ───
   useEffect(() => {
@@ -100,56 +113,91 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
     return () => clearInterval(interval);
   }, [state]);
 
-  // ─── 3. Race Animation ───
-  const animate = useCallback(() => {
-    if (state && state.phase === 'racing' && state.shipIndices && state.weatherIndices && localRaceStartTime && !raceFinished) {
-      const now = Date.now();
-      const elapsed = now - localRaceStartTime;
-      const winnerFinishTime = state.finishTimes ? state.finishTimes[state.winnerIdx] : 999999;
+  // ─── 3. Stable Animation Engine ───
+  useEffect(() => {
+    const tick = () => {
+      const s = stateRef.current;
+      const rf = raceFinishedRef.current;
+      const offset = serverOffsetRef.current;
 
-      // 1. If we've passed the winner's finish time, stop EVERYTHING
-      if (elapsed >= winnerFinishTime) {
-        const finalPositions = state.shipIndices.map((sIdx, i) => {
-          if (i === state.winnerIdx) return FINISH_LINE;
-          const shipTotalTime = state.finishTimes[i];
-          const shipSpeeds = state.weatherIndices.map((wIdx) => SPEED_MATRIX[sIdx][wIdx]);
-          return computeShipPosition(shipSpeeds, Math.min(winnerFinishTime, shipTotalTime));
-        });
-        setShipPositions(finalPositions);
-        setRaceFinished(true);
+      if (!s || rf) {
+        animFrameRef.current = requestAnimationFrame(tick);
         return;
       }
 
-      // 2. Normal race movement
-      const newPositions = state.shipIndices.map((sIdx) => {
-        const shipSpeeds = state.weatherIndices.map((wIdx) => SPEED_MATRIX[sIdx][wIdx]);
-        return computeShipPosition(shipSpeeds, Math.max(0, elapsed));
-      });
+      // ─── 3.1 Racing or Result Phase ───
+      if (s.phase === 'racing' || s.phase === 'result') {
+        if (!s.shipIndices || !s.weatherIndices) {
+          animFrameRef.current = requestAnimationFrame(tick);
+          return;
+        }
 
-      setShipPositions(newPositions);
-    } else if (state && state.phase === 'result' && state.finishTimes && !raceFinished) {
-      // 3. Fallback: If server jumped to 'result' phase before client finished animation,
-      // instantly snap ships to exact mathematical finish positions.
-      const winnerFinishTime = state.finishTimes[state.winnerIdx] || 999999;
-      const finalPositions = state.shipIndices.map((sIdx, i) => {
-        if (i === state.winnerIdx) return FINISH_LINE;
-        const shipTotalTime = state.finishTimes[i] || 999999;
-        const shipSpeeds = state.weatherIndices.map((wIdx) => SPEED_MATRIX[sIdx][wIdx]);
-        return computeShipPosition(shipSpeeds, Math.min(winnerFinishTime, shipTotalTime));
-      });
-      setShipPositions(finalPositions);
-      setRaceFinished(true);
-    } else if (state && (state.phase === 'betting' || state.phase === 'reveal')) {
-      setShipPositions([SHIP_START, SHIP_START, SHIP_START]);
-    }
-    // In result phase or raceFinished, keep final positions
-    animFrameRef.current = requestAnimationFrame(animate);
-  }, [state, raceFinished, localRaceStartTime]);
+        const now = Date.now() + offset;
+        const duration = s.raceDuration || 25000;
+        const serverStart = s.raceStartTime || (s.endTime - duration);
 
-  useEffect(() => {
-    animFrameRef.current = requestAnimationFrame(animate);
+        if (!serverStart) {
+          animFrameRef.current = requestAnimationFrame(tick);
+          return;
+        }
+
+        const elapsed = now - serverStart;
+        const winnerFinishTime = s.finishTimes ? s.finishTimes[s.winnerIdx] : 999999;
+
+        // Finish Condition
+        if (elapsed >= winnerFinishTime) {
+          const finalPositions = s.shipIndices.map((sIdx, i) => {
+            if (i === s.winnerIdx) return FINISH_LINE;
+            const shipTotalTime = s.finishTimes[i];
+            const shipSpeeds = s.weatherIndices.map((wIdx) => SPEED_MATRIX[sIdx][wIdx]);
+            return computeShipPosition(shipSpeeds, Math.min(winnerFinishTime, shipTotalTime));
+          });
+
+          // Direct-DOM Final Snap
+          finalPositions.forEach((pos, i) => {
+            if (shipRefs.current[i]) {
+              shipRefs.current[i].style.setProperty('--dv2-ship-pos', `${pos}%`);
+            }
+          });
+
+          setShipPositions(finalPositions);
+          setRaceFinished(true); // Triggers re-render and ref update
+          animFrameRef.current = requestAnimationFrame(tick);
+          return;
+        }
+
+        // Live Movement
+        const newPositions = s.shipIndices.map((sIdx) => {
+          const shipSpeeds = s.weatherIndices.map((wIdx) => SPEED_MATRIX[sIdx][wIdx]);
+          return computeShipPosition(shipSpeeds, elapsed);
+        });
+        
+        // Direct-DOM Update for perfectly smooth 60fps movement
+        newPositions.forEach((pos, i) => {
+          if (shipRefs.current[i]) {
+            shipRefs.current[i].style.setProperty('--dv2-ship-pos', `${pos}%`);
+          }
+        });
+
+        setShipPositions(newPositions);
+        setTickCount(c => (c + 1) % 1000); // Pulse a re-render
+
+        // Deep Diagnostic Log
+        if (Math.random() < 0.05) {
+          console.log(`Drakkar Engine v2.11 | Race#${s.raceId} | Elapsed: ${elapsed}ms | Positions:`, newPositions);
+        }
+      } else {
+        // Idle / Betting Phase
+        setShipPositions([SHIP_START, SHIP_START, SHIP_START]);
+        setRaceFinished(false);
+      }
+
+      animFrameRef.current = requestAnimationFrame(tick);
+    };
+
+    animFrameRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animFrameRef.current);
-  }, [animate]);
+  }, []); // Run only once on mount
 
   // ─── 4. Betting Logic ───
   const handlePlaceBet = async (shipId) => {
@@ -214,6 +262,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
   const currentHouseSeed = state?.houseSeed ?? DEFAULT_HOUSE_SEED;
   const currentMultiplier = state?.multiplierFactor ?? DEFAULT_MULTIPLIER;
+  const highestProgress = Math.max(...shipPositions);
 
   const totalPool = raceShips.reduce((sum, s) => sum + (pools[s.id] || 0), 0) + (currentHouseSeed * 3);
 
@@ -275,16 +324,21 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
           {/* ═══ WEATHER BAR ═══ */}
           <div className="dv2-weather-bar">
-            <div className="dv2-weather-dock">
+            <div className="dv2-weather-dock" style={{ width: `${DOCK_WIDTH}%` }}>
               <span className="dv2-dock-icon">🏰</span>
               <span className="dv2-dock-text">Dock</span>
             </div>
             {raceWeathers.map((w, i) => {
               const isHidden = state.phase === 'betting' && i !== state.revealedIndex;
+              const isTouched = highestProgress >= (DOCK_WIDTH + i * ZONE_WIDTH);
+              const statusClass = state.phase === 'racing' || state.phase === 'result'
+                ? (isTouched ? 'zone-active' : 'zone-untouched')
+                : '';
+
               return (
                 <div
                   key={i}
-                  className={`dv2-weather-zone ${isHidden ? 'hidden' : ''}`}
+                  className={`dv2-weather-zone ${isHidden ? 'hidden' : ''} ${statusClass}`}
                 >
                   <span className="dv2-weather-icon">
                     {isHidden ? '❓' : w.icon}
@@ -295,7 +349,6 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                 </div>
               );
             })}
-            <div className="dv2-weather-finish">🏁</div>
           </div>
 
           {/* ═══ RACE TRACK ═══ */}
@@ -305,10 +358,15 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
             {/* Weather Zone Tints */}
             {raceWeathers.map((w, i) => {
               const isHidden = state.phase === 'betting' && i !== state.revealedIndex;
+              const isTouched = highestProgress >= (DOCK_WIDTH + i * ZONE_WIDTH);
+              const statusClass = state.phase === 'racing' || state.phase === 'result'
+                ? (isTouched ? 'zone-active' : 'zone-untouched')
+                : '';
+
               return (
                 <div
                   key={i}
-                  className="dv2-zone-tint"
+                  className={`dv2-zone-tint ${statusClass}`}
                   style={{
                     left: `${DOCK_WIDTH + i * ZONE_WIDTH}%`,
                     width: `${ZONE_WIDTH}%`,
@@ -324,7 +382,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
             <div className="dv2-zone-divider" style={{ left: `${DOCK_WIDTH + 2 * ZONE_WIDTH}%` }} />
             <div className="dv2-zone-divider" style={{ left: `${DOCK_WIDTH + 3 * ZONE_WIDTH}%` }} />
             <div className="dv2-zone-divider" style={{ left: `${DOCK_WIDTH + 4 * ZONE_WIDTH}%` }} />
-            <div className="dv2-finish-line" style={{ left: `${FINISH_LINE}%` }} />
+            <div className="dv2-finish-line" />
 
             {/* Ship Lanes */}
             <div className="dv2-lanes">
@@ -332,11 +390,11 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                 <div key={ship.id} className="dv2-lane">
                   <div className="dv2-lane-label" style={{ color: ship.color }}>{ship.name}</div>
                   <div
+                    ref={el => shipRefs.current[i] = el}
                     className={`dv2-ship-wrapper ${state.phase === 'racing' ? 'racing' : ''} ${state.phase === 'result' && state.winnerIdx === i ? 'winner' : ''}`}
                     style={{
-                      // Precise Nose-Touch: Scale offset based on the actual track length (FINISH_LINE)
-                      // This ensures that at Finish (98%), the right edge is exactly at 98%.
-                      left: `calc(16px + ${shipPositions[i]}% - (${shipPositions[i]} / ${FINISH_LINE} * var(--dv2-ship-width)))`,
+                      // Nose-Centric Positioning: Priority to CSS Variable for Direct-DOM performance
+                      left: `calc(var(--dv2-ship-pos, ${shipPositions[i]}%) + 1.5% - var(--dv2-ship-width))`,
                     }}
                   >
                     <img
@@ -344,6 +402,12 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                       alt={ship.name}
                       className="dv2-ship-img"
                     />
+                    {state.phase === 'racing' && (
+                      <div className={`dv2-ship-speed speed-tag-${SPEED_MATRIX[getShipGlobalIndex(ship.id)][state.weatherIndices[Math.max(0, Math.min(4, Math.floor((shipPositions[i] - DOCK_WIDTH) / ZONE_WIDTH)))]]
+                        }`}>
+                        {raceWeathers[Math.max(0, Math.min(4, Math.floor((shipPositions[i] - DOCK_WIDTH) / ZONE_WIDTH)))]?.icon} {formatSpeed(SPEED_MATRIX[getShipGlobalIndex(ship.id)][state.weatherIndices[Math.max(0, Math.min(4, Math.floor((shipPositions[i] - DOCK_WIDTH) / ZONE_WIDTH)))]])}
+                      </div>
+                    )}
                     {state.phase === 'result' && state.winnerIdx === i && (
                       <span className="dv2-winner-badge">👑</span>
                     )}
@@ -559,6 +623,19 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
           </div>
         </div>
       )}
+
+      {/* Version Stamp for Diagnostic */}
+      <div style={{
+        position: 'absolute',
+        bottom: '10px',
+        right: '20px',
+        fontSize: '10px',
+        color: 'rgba(255,255,255,0.4)',
+        pointerEvents: 'none',
+        zIndex: 1000
+      }}>
+        v2.11.Diagnostic [{tickCount}]
+      </div>
     </div>
   );
 };

@@ -44,8 +44,8 @@ const BASE_SPEED = 8; // Reverted to 8 for original race duration and excitement
 const ZONE_WIDTH = 18; // 90% / 5 zones = 18% each
 const DEFAULT_HOUSE_CUT = 0.10; // 10% house edge
 const DEFAULT_HOUSE_SEED = 500; // Phantom seed injected into every ship's pool
-const DOCK_WIDTH = 8;
-const SHIP_START = 0;
+const DOCK_WIDTH = 10;
+const SHIP_START = 10;
 const MAX_BET_PER_USER = 1000;
 
 // Phase Durations (ms)
@@ -88,17 +88,12 @@ function pick5Weathers(): number[] {
 
 /**
  * Compute race finish time (ms) for a ship given 5 weather zone speeds.
- * time = sum( ZONE_WIDTH / (speed * BASE_SPEED / 10) ) in seconds, converted to ms
+ * Race starts at 10% (the weather boundary) and ends at 100%
  */
 function computeFinishTimeMs(shipIdx: number, weatherIndices: number[]): number {
     let totalMs = 0;
 
-    // 1. Dock traversal (SHIP_START to DOCK_WIDTH) at Weather 1 speed
-    const dockDist = DOCK_WIDTH - SHIP_START;
-    const firstSpeed = SPEED_MATRIX[shipIdx][weatherIndices[0]];
-    totalMs += (dockDist * 10000) / (firstSpeed * BASE_SPEED);
-
-    // 2. Weather traversal (5 zones x 18% each)
+    // Weather traversal (5 zones x 18% each = 90% total distance)
     for (const wIdx of weatherIndices) {
         const speed = SPEED_MATRIX[shipIdx][wIdx];
         totalMs += (ZONE_WIDTH * 10000) / (speed * BASE_SPEED);

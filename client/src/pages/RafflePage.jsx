@@ -501,10 +501,13 @@ import './RafflePage.css';
           )}
           {(limitDateBefore || limitDateAfter) && (
             <div className="raffle-stat-box restriction-box">
-              <span className="raffle-stat-label">🛡️ Registration Restriction</span>
+              <span className="raffle-stat-label">
+                🛡️ {limitDateBefore && limitDateAfter ? 'Accounts between' : 
+                    limitDateBefore ? 'Old accounts only' : 'New accounts only'}
+              </span>
               <span className="raffle-stat-value restriction">
                 {limitDateBefore && limitDateAfter ? (
-                  `Between ${limitDateAfter.toLocaleDateString()} and ${limitDateBefore.toLocaleDateString()}`
+                  `${limitDateAfter.toLocaleDateString()} - ${limitDateBefore.toLocaleDateString()}`
                 ) : limitDateBefore ? (
                   `Before ${limitDateBefore.toLocaleDateString()}`
                 ) : (
@@ -579,10 +582,8 @@ import './RafflePage.css';
                             onClick={handleJoin}
                             disabled={!canJoin || joining}
                         >
-                            {joining ? 'Joining...' : isTooNew ? 'Account Too New' : isTooOld ? 'Account Too Old' : 'Join Raffle'}
+                            {joining ? 'Joining...' : 'Join Raffle'}
                         </button>
-                        {isTooNew && <p className="restriction-note">⚠️ Only accounts created before {limitDateBefore.toLocaleDateString()} can join.</p>}
-                        {isTooOld && <p className="restriction-note">⚠️ Only accounts created after {limitDateAfter.toLocaleDateString()} can join.</p>}
                         </>
                     )}
                 </div>
