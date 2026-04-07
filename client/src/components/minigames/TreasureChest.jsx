@@ -17,8 +17,11 @@ const TreasureChest = ({
   const [result, setResult] = useState(null);
   const [phase, setPhase] = useState('idle'); // idle, shaking, opening, reveal
   const [error, setError] = useState('');
+  const [multiplier, setMultiplier] = useState(1);
   const [showPrizesModal, setShowPrizesModal] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
+  
+  const MULTIPLIERS = [1, 2, 5, 10, 50, 100];
   
   const [recentWinners, setRecentWinners] = useState([]);
   const [displayedWinners, setDisplayedWinners] = useState([]);
@@ -62,8 +65,9 @@ const TreasureChest = ({
 
   const handleOpen = async () => {
     if (isOpening) return;
-    if ((userPoints ?? 0) < costPerPlay) {
-      setError(`Not enough Valcoins! Need ${costPerPlay}`);
+    const totalCost = costPerPlay * multiplier;
+    if ((userPoints ?? 0) < totalCost) {
+      setError(`Not enough Valcoins! Need ${totalCost}`);
       setTimeout(() => setError(''), 3000);
       return;
     }
@@ -74,13 +78,13 @@ const TreasureChest = ({
 
     // 1. Optimistic deduction in UI and Freeze sync
     setFrozen(true);
-    setDisplayedPoints(prev => (prev ?? 0) - costPerPlay);
+    setDisplayedPoints(prev => (prev ?? 0) - (costPerPlay * multiplier));
 
     // Phase 1: Shaking animation
     setPhase('shaking');
 
     // Call service while animation plays (fixed parameter order)
-    const playResult = await playMiniGame(user, 'treasureChest');
+    const playResult = await playMiniGame(user, 'treasureChest', multiplier);
 
     if (!playResult.success) {
       setError(playResult.error);
@@ -270,10 +274,28 @@ const TreasureChest = ({
           </div>
         )}
       </div>
+      </div>
 
       {/* Action Button */}
-      <div className="chest-controls">
-        {phase !== 'reveal' ? (
+      <div className="chest-controls-wrapper">
+        <div className="minigame-multiplier-selector">
+          <span className="multiplier-label">Multiplier:</span>
+          <div className="multiplier-options">
+            {MULTIPLIERS.map(m => (
+              <button
+                key={m}
+                className={`multiplier-opt ${multiplier === m ? 'active' : ''}`}
+                onClick={() => !isOpening && setMultiplier(m)}
+                disabled={isOpening}
+              >
+                ×{m}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="chest-controls">
+          {phase !== 'reveal' ? (
           <>
             <button
               className="chest-open-btn"
@@ -286,7 +308,7 @@ const TreasureChest = ({
               {!isOpening && (
                 <span className="chest-btn-cost">
                   <img src={process.env.PUBLIC_URL + '/valcoin-icon.jpg'} alt="V" className="chest-cost-icon" />
-                  {costPerPlay}
+                  {costPerPlay * multiplier}
                 </span>
               )}
             </button>

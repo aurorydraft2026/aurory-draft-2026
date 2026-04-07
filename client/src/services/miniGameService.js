@@ -163,7 +163,7 @@ function getDefaultConfig() {
 //  PLAY MINI GAME (Slot Machine / Treasure Chest)
 // ═══════════════════════════════════════════════════════
 
-export async function playMiniGame(user, gameType) {
+export async function playMiniGame(user, gameType, multiplier = 1) {
   if (!user || !user.uid) {
     return { success: false, error: 'Please log in to play' };
   }
@@ -171,7 +171,7 @@ export async function playMiniGame(user, gameType) {
   try {
     const functions = getFunctions();
     const playMiniGameFn = httpsCallable(functions, 'playMiniGame');
-    const result = await playMiniGameFn({ gameType });
+    const result = await playMiniGameFn({ gameType, multiplier });
     const { success, prize, cost, newBalance, error } = result.data;
 
     if (!success) {

@@ -17,10 +17,13 @@ const SlotMachine = ({
   const [result, setResult] = useState(null);
   const [showResult, setShowResult] = useState(false);
   const [error, setError] = useState('');
+  const [multiplier, setMultiplier] = useState(1);
   const [showPrizesModal, setShowPrizesModal] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [currentIndices, setCurrentIndices] = useState([0, 0, 0]);
   const reelRefs = [useRef(null), useRef(null), useRef(null)];
+
+  const MULTIPLIERS = [1, 2, 5, 10, 50, 100];
 
   const prizes = useMemo(() => gameConfig?.prizes || [], [gameConfig]);
   const costPerPlay = gameConfig?.costPerPlay || 50;
@@ -79,8 +82,8 @@ const SlotMachine = ({
 
   const handleSpin = async () => {
     if (isSpinning) return;
-    if ((userPoints ?? 0) < costPerPlay) {
-      setError(`Not enough Valcoins! Need ${costPerPlay}`);
+    if ((userPoints ?? 0) < costPerPlay * multiplier) {
+      setError(`Not enough Valcoins! Need ${costPerPlay * multiplier}`);
       setTimeout(() => setError(''), 3000);
       return;
     }
@@ -106,10 +109,10 @@ const SlotMachine = ({
 
     // 1. Optimistic deduction in UI and Freeze sync
     setFrozen(true);
-    setDisplayedPoints(prev => (prev ?? 0) - costPerPlay);
+    setDisplayedPoints(prev => (prev ?? 0) - (costPerPlay * multiplier));
 
     // Call the service to determine the prize (fixed parameter order)
-    const playResult = await playMiniGame(user, 'slotMachine');
+    const playResult = await playMiniGame(user, 'slotMachine', multiplier);
 
     if (!playResult.success) {
       setError(playResult.error);
@@ -297,6 +300,22 @@ const SlotMachine = ({
         </div>
 
         {/* Controls */}
+        <div className="minigame-multiplier-selector">
+          <span className="multiplier-label">Multiplier:</span>
+          <div className="multiplier-options">
+            {MULTIPLIERS.map(m => (
+              <button
+                key={m}
+                className={`multiplier-opt ${multiplier === m ? 'active' : ''}`}
+                onClick={() => !isSpinning && setMultiplier(m)}
+                disabled={isSpinning}
+              >
+                ×{m}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="slot-controls-wrapper">
           <div className="slot-controls">
             <button
@@ -311,7 +330,7 @@ const SlotMachine = ({
                   <span className="spin-btn-text">SPIN</span>
                   <span className="spin-btn-cost">
                     <img src={process.env.PUBLIC_URL + '/valcoin-icon.jpg'} alt="V" className="spin-cost-icon" />
-                    {costPerPlay}
+                    {costPerPlay * multiplier}
                   </span>
                 </>
               )}

@@ -144,10 +144,15 @@ export const playMiniGame = onCall(
         }
 
         const { uid } = request.auth;
-        const { gameType } = request.data;
+        const { gameType, multiplier = 1 } = request.data;
+        const allowedMultipliers = [1, 2, 5, 10, 50, 100];
 
         if (!gameType || !['slotMachine', 'treasureChest'].includes(gameType)) {
             throw new HttpsError('invalid-argument', 'Invalid game type requested.');
+        }
+
+        if (!allowedMultipliers.includes(multiplier)) {
+            throw new HttpsError('invalid-argument', 'Invalid bet multiplier requested.');
         }
 
         const db = admin.firestore();
@@ -169,7 +174,8 @@ export const playMiniGame = onCall(
                 if (!gameConfig) throw new Error('Game configuration not found.');
                 if (!gameConfig.enabled) throw new Error('This game is currently disabled.');
 
-                const costPerPlay = gameConfig.costPerPlay || 50;
+                const baseCost = gameConfig.costPerPlay || 50;
+                const costPerPlay = baseCost * multiplier;
                 const noWinWeight = gameConfig.noWinWeight || 0;
                 const prizes = gameConfig.prizes || [];
 
@@ -191,7 +197,18 @@ export const playMiniGame = onCall(
                     throw new Error(`Insufficient Valcoins. Need ${costPerPlay}, have ${currentPoints}`);
                 }
 
-                const selectedPrize = selectWeightedPrize(prizes, noWinWeight, costPerPlay);
+                const selectedPrize = selectWeightedPrize(prizes, noWinWeight, baseCost);
+                let finalPrize = selectedPrize ? { ...selectedPrize } : null;
+
+                if (finalPrize) {
+                    finalPrize.amount = finalPrize.amount * multiplier;
+                    // Try to update name if it specifies amount
+                    if (finalPrize.name.toLowerCase().includes('valcoins') || 
+                        finalPrize.name.toLowerCase().includes('aury') || 
+                        finalPrize.name.toLowerCase().includes('usdc')) {
+                        finalPrize.name = `${finalPrize.amount.toLocaleString()} ${finalPrize.type}`;
+                    }
+                }
 
                 transaction.update(userRef, {
                     points: admin.firestore.FieldValue.increment(-costPerPlay),
@@ -199,19 +216,19 @@ export const playMiniGame = onCall(
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 });
 
-                if (selectedPrize) {
-                    if (selectedPrize.type.toLowerCase() === 'valcoins' && selectedPrize.amount > 0) {
+                if (finalPrize) {
+                    if (finalPrize.type.toLowerCase() === 'valcoins' && finalPrize.amount > 0) {
                         transaction.update(userRef, {
-                            points: admin.firestore.FieldValue.increment(selectedPrize.amount)
+                            points: admin.firestore.FieldValue.increment(finalPrize.amount)
                         });
-                    } else if (selectedPrize.type.toLowerCase() === 'aury' && selectedPrize.amount > 0) {
-                        const amountSmallest = Math.floor(selectedPrize.amount * 1e9);
+                    } else if (finalPrize.type.toLowerCase() === 'aury' && finalPrize.amount > 0) {
+                        const amountSmallest = Math.floor(finalPrize.amount * 1e9);
                         transaction.set(walletRef, {
                             balance: admin.firestore.FieldValue.increment(amountSmallest),
                             updatedAt: admin.firestore.FieldValue.serverTimestamp()
                         }, { merge: true });
-                    } else if (selectedPrize.type.toLowerCase() === 'usdc' && selectedPrize.amount > 0) {
-                        const amountSmallest = Math.floor(selectedPrize.amount * 1e6);
+                    } else if (finalPrize.type.toLowerCase() === 'usdc' && finalPrize.amount > 0) {
+                        const amountSmallest = Math.floor(finalPrize.amount * 1e6);
                         transaction.set(walletRef, {
                             usdcBalance: admin.firestore.FieldValue.increment(amountSmallest),
                             updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -223,10 +240,10 @@ export const playMiniGame = onCall(
                     [`stats.miniGames.${gameType}.totalPlays`]: admin.firestore.FieldValue.increment(1),
                     [`stats.miniGames.${gameType}.totalSpent`]: admin.firestore.FieldValue.increment(costPerPlay),
                 };
-                if (selectedPrize && selectedPrize.amount > 0) {
-                    const currencyKey = selectedPrize.type.toLowerCase();
-                    statsUpdate[`stats.miniGames.${gameType}.totalWon.${currencyKey}`] = admin.firestore.FieldValue.increment(selectedPrize.amount);
-                    statsUpdate[`stats.miniGames.all.totalWon.${currencyKey}`] = admin.firestore.FieldValue.increment(selectedPrize.amount);
+                if (finalPrize && finalPrize.amount > 0) {
+                    const currencyKey = finalPrize.type.toLowerCase();
+                    statsUpdate[`stats.miniGames.${gameType}.totalWon.${currencyKey}`] = admin.firestore.FieldValue.increment(finalPrize.amount);
+                    statsUpdate[`stats.miniGames.all.totalWon.${currencyKey}`] = admin.firestore.FieldValue.increment(finalPrize.amount);
                 }
                 statsUpdate[`stats.miniGames.all.totalPlays`] = admin.firestore.FieldValue.increment(1);
                 statsUpdate[`stats.miniGames.all.totalSpent`] = admin.firestore.FieldValue.increment(costPerPlay);
@@ -235,26 +252,28 @@ export const playMiniGame = onCall(
                 const historyRef = userRef.collection('miniGameHistory').doc();
                 transaction.set(historyRef, {
                     gameType,
-                    prizeName: selectedPrize ? selectedPrize.name : 'Better Luck Next Time',
-                    prizeType: selectedPrize ? selectedPrize.type : 'none',
-                    prizeAmount: selectedPrize ? selectedPrize.amount : 0,
-                    prizeRarity: selectedPrize ? selectedPrize.rarity : 'common',
-                    prizeIcon: selectedPrize ? selectedPrize.icon : '❌',
+                    prizeName: finalPrize ? finalPrize.name : 'Better Luck Next Time',
+                    prizeType: finalPrize ? finalPrize.type : 'none',
+                    prizeAmount: finalPrize ? finalPrize.amount : 0,
+                    prizeRarity: finalPrize ? finalPrize.rarity : 'common',
+                    prizeIcon: finalPrize ? finalPrize.icon : '❌',
                     cost: costPerPlay,
+                    multiplier,
                     timestamp: admin.firestore.FieldValue.serverTimestamp()
                 });
 
-                if (selectedPrize && selectedPrize.amount > 0) {
+                if (finalPrize && finalPrize.amount > 0) {
                     try {
                         const rtdb = admin.database();
                         const feedRef = rtdb.ref('recentMiniGameWinners');
                         feedRef.push({
                             playerName: userData.auroryPlayerName || userData.displayName || 'Guest',
                             playerAvatar: userData.auroryProfilePicture || userData.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png',
-                            prizeName: selectedPrize.name,
-                            rarity: selectedPrize.rarity,
-                            icon: selectedPrize.icon || '🎁',
+                            prizeName: finalPrize.name,
+                            rarity: finalPrize.rarity,
+                            icon: finalPrize.icon || '🎁',
                             gameType,
+                            multiplier,
                             timestamp: admin.database.ServerValue.TIMESTAMP
                         });
                     } catch (e) {
@@ -272,9 +291,9 @@ export const playMiniGame = onCall(
 
                 return {
                     success: true,
-                    prize: selectedPrize,
+                    prize: finalPrize,
                     cost: costPerPlay,
-                    newBalance: currentPoints - costPerPlay + (selectedPrize && selectedPrize.type.toLowerCase() === 'valcoins' ? selectedPrize.amount : 0)
+                    newBalance: currentPoints - costPerPlay + (finalPrize && finalPrize.type.toLowerCase() === 'valcoins' ? finalPrize.amount : 0)
                 };
             });
         } catch (error: any) {
