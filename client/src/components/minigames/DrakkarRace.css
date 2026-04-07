@@ -891,24 +891,64 @@
   .dv2-bet-cards {
     display: flex;
     flex-wrap: nowrap;
-    overflow-x: auto;
-    gap: 10px;
-    padding: 4px 2px 12px 2px;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none;
-    /* Hide scrollbar for Firefox */
-  }
-
-  .dv2-bet-cards::-webkit-scrollbar {
-    display: none;
-    /* Hide scrollbar for Chrome/Safari */
+    overflow-x: hidden; /* No scrolling - fit everything */
+    gap: 5px;
+    padding: 4px;
+    justify-content: space-between;
+    width: 100%;
   }
 
   .dv2-bet-card {
-    flex: 0 0 160px;
-    /* Fixed width for horizontal items */
-    scroll-snap-align: start;
-    padding: 10px;
+    flex: 1;
+    min-width: 0; /* Critical for shrinking */
+    padding: 6px 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .dv2-bet-card-top {
+    flex-direction: column;
+    text-align: center;
+    gap: 2px;
+  }
+
+  .dv2-bet-card-ship {
+    width: 36px !important;
+    height: auto !important;
+  }
+
+  .dv2-bet-card-info h4 {
+    font-size: 0.55rem !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .dv2-pool-row {
+    font-size: 0.5rem !important;
+    flex-direction: column;
+    gap: 1px;
+    align-items: center;
+    line-height: 1.1;
+  }
+
+  .dv2-pool-amount {
+    font-size: 0.5rem !important;
+  }
+
+  .dv2-chip-selector {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 4px;
+  }
+
+  .dv2-chip {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+    min-width: 40px;
   }
 
   .dv2-track-area {

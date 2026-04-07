@@ -40,8 +40,8 @@ export const SPEED_MATRIX = [
   [10, 11, 12, 14, 16, 8, 9], // Norse Raider
 ];
 
-export const CHIP_VALUES = [1, 5, 10, 50, 100];
-export const MAX_BET_PER_USER = 1000;
+export const CHIP_VALUES = [1, 5, 10, 50, 100, 500, 1000];
+export const MAX_BET_PER_USER = 10000;
 
 // Animation constants
 export const BASE_SPEED = 8; // Reverted to 8 for original race duration and excitement
