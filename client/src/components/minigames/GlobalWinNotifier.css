@@ -16,7 +16,7 @@
 
 .global-win-ticker.is-arcade-open {
   top: 0;
-  z-index: 99999; /* Above the modal overlay */
+  z-index: 2005; /* Above backdrop (2000) but below modal (2010) */
 }
 
 .ticker-track {

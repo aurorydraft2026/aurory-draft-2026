@@ -85,42 +85,45 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
     const gameConfig = config[selectedGame];
 
     return (
-      <div className="minigames-overlay" onClick={onClose}>
-        <div className="minigames-modal minigames-game-view" onClick={e => e.stopPropagation()}>
-          <div className="minigames-modal-header">
-            <button className="minigames-back-btn" onClick={handleBackToHub}>
-              ← Games
-            </button>
-            <h2>{gameInfo.icon} {gameInfo.name}</h2>
-            <div className="minigames-balances-group">
-              <div className="minigames-balance" title="Valcoins">
-                <img src={process.env.PUBLIC_URL + '/valcoin-icon.jpg'} alt="Valcoins" className="valcoin-icon-sm" />
-                <span>{displayedPoints ?? 0}</span>
+      <>
+        <div className="minigames-backdrop" onClick={onClose} />
+        <div className="minigames-overlay">
+          <div className="minigames-modal minigames-game-view" onClick={e => e.stopPropagation()}>
+            <div className="minigames-modal-header">
+              <button className="minigames-back-btn" onClick={handleBackToHub}>
+                ← Games
+              </button>
+              <h2>{gameInfo.icon} {gameInfo.name}</h2>
+              <div className="minigames-balances-group">
+                <div className="minigames-balance" title="Valcoins">
+                  <img src={process.env.PUBLIC_URL + '/valcoin-icon.jpg'} alt="Valcoins" className="valcoin-icon-sm" />
+                  <span>{displayedPoints ?? 0}</span>
+                </div>
+                <div className="minigames-balance aury-pill" title="AURY Balance">
+                  <img src={process.env.PUBLIC_URL + '/aury-icon.png'} alt="AURY" className="valcoin-icon-sm" />
+                  <span>{formatAuryAmount ? formatAuryAmount(displayedAury) : (displayedAury / 1e9).toFixed(2)}</span>
+                </div>
+                <div className="minigames-balance usdc-pill" title="USDC Balance">
+                  <img src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png" alt="USDC" className="valcoin-icon-sm" />
+                  <span>{formatUsdcAmount ? formatUsdcAmount(displayedUsdc) : (displayedUsdc / 1e6).toFixed(2)}</span>
+                </div>
               </div>
-              <div className="minigames-balance aury-pill" title="AURY Balance">
-                <img src={process.env.PUBLIC_URL + '/aury-icon.png'} alt="AURY" className="valcoin-icon-sm" />
-                <span>{formatAuryAmount ? formatAuryAmount(displayedAury) : (displayedAury / 1e9).toFixed(2)}</span>
-              </div>
-              <div className="minigames-balance usdc-pill" title="USDC Balance">
-                <img src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png" alt="USDC" className="valcoin-icon-sm" />
-                <span>{formatUsdcAmount ? formatUsdcAmount(displayedUsdc) : (displayedUsdc / 1e6).toFixed(2)}</span>
-              </div>
+              <button className="minigames-close-btn" onClick={onClose}>✕</button>
             </div>
-            <button className="minigames-close-btn" onClick={onClose}>✕</button>
-          </div>
 
-          <div className="minigames-game-content">
-            <GameComponent
-              user={user}
-              userPoints={userPoints}
-              gameConfig={gameConfig}
-              onConfigReload={loadConfig}
-              setFrozen={setIsFrozen}
-              setDisplayedPoints={setDisplayedPoints}
-            />
+            <div className="minigames-game-content">
+              <GameComponent
+                user={user}
+                userPoints={userPoints}
+                gameConfig={gameConfig}
+                onConfigReload={loadConfig}
+                setFrozen={setIsFrozen}
+                setDisplayedPoints={setDisplayedPoints}
+              />
+            </div>
           </div>
         </div>
-      </div>
+      </>
     );
   }
 
@@ -149,68 +152,71 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
 
   // Hub view — game selector
   return (
-    <div className="minigames-overlay" onClick={onClose}>
-      <div className="minigames-modal" onClick={e => e.stopPropagation()}>
-        <div className="minigames-modal-header">
-          <h2>🎮 Mini-Games</h2>
-          <div className="minigames-balances-group">
-            <div className="minigames-balance" title="Valcoins">
-              <img src={process.env.PUBLIC_URL + '/valcoin-icon.jpg'} alt="Valcoins" className="valcoin-icon-sm" />
-              <span>{displayedPoints ?? 0}</span>
+    <>
+      <div className="minigames-backdrop" onClick={onClose} />
+      <div className="minigames-overlay">
+        <div className="minigames-modal" onClick={e => e.stopPropagation()}>
+          <div className="minigames-modal-header">
+            <h2>🎮 Mini-Games</h2>
+            <div className="minigames-balances-group">
+              <div className="minigames-balance" title="Valcoins">
+                <img src={process.env.PUBLIC_URL + '/valcoin-icon.jpg'} alt="Valcoins" className="valcoin-icon-sm" />
+                <span>{displayedPoints ?? 0}</span>
+              </div>
+              <div className="minigames-balance aury-pill" title="AURY Balance">
+                <img src={process.env.PUBLIC_URL + '/aury-icon.png'} alt="AURY" className="valcoin-icon-sm" />
+                <span>{formatAuryAmount ? formatAuryAmount(displayedAury) : (displayedAury / 1e9).toFixed(2)}</span>
+              </div>
+              <div className="minigames-balance usdc-pill" title="USDC Balance">
+                <img src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png" alt="USDC" className="valcoin-icon-sm" />
+                <span>{formatUsdcAmount ? formatUsdcAmount(displayedUsdc) : (displayedUsdc / 1e6).toFixed(2)}</span>
+              </div>
             </div>
-            <div className="minigames-balance aury-pill" title="AURY Balance">
-              <img src={process.env.PUBLIC_URL + '/aury-icon.png'} alt="AURY" className="valcoin-icon-sm" />
-              <span>{formatAuryAmount ? formatAuryAmount(displayedAury) : (displayedAury / 1e9).toFixed(2)}</span>
-            </div>
-            <div className="minigames-balance usdc-pill" title="USDC Balance">
-              <img src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png" alt="USDC" className="valcoin-icon-sm" />
-              <span>{formatUsdcAmount ? formatUsdcAmount(displayedUsdc) : (displayedUsdc / 1e6).toFixed(2)}</span>
-            </div>
+            <button className="minigames-close-btn" onClick={onClose}>✕</button>
           </div>
-          <button className="minigames-close-btn" onClick={onClose}>✕</button>
-        </div>
 
-        <div className="minigames-hub-body">
-          {loading ? (
-            <div className="minigames-loading">
-              <div className="minigames-spinner" />
-              <p>Loading games...</p>
-            </div>
-          ) : availableGames.length === 0 ? (
-            <div className="minigames-empty">
-              <span className="empty-icon">🎮</span>
-              <p>No games available right now. Check back later!</p>
-            </div>
-          ) : (
-            <div className="minigames-hub-sections">
-              {/* SOLO PLAY */}
-              {availableGames.filter(k => k === 'slotMachine' || k === 'treasureChest').length > 0 && (
-                <div className="minigames-section">
-                  <h3 className="minigames-section-title">👤 Solo Play</h3>
-                  <div className="minigames-grid">
-                    {availableGames
-                      .filter(k => k === 'slotMachine' || k === 'treasureChest')
-                      .map(gameKey => renderGameCard(gameKey))}
+          <div className="minigames-hub-body">
+            {loading ? (
+              <div className="minigames-loading">
+                <div className="minigames-spinner" />
+                <p>Loading games...</p>
+              </div>
+            ) : availableGames.length === 0 ? (
+              <div className="minigames-empty">
+                <span className="empty-icon">🎮</span>
+                <p>No games available right now. Check back later!</p>
+              </div>
+            ) : (
+              <div className="minigames-hub-sections">
+                {/* SOLO PLAY */}
+                {availableGames.filter(k => k === 'slotMachine' || k === 'treasureChest').length > 0 && (
+                  <div className="minigames-section">
+                    <h3 className="minigames-section-title">👤 Solo Play</h3>
+                    <div className="minigames-grid">
+                      {availableGames
+                        .filter(k => k === 'slotMachine' || k === 'treasureChest')
+                        .map(gameKey => renderGameCard(gameKey))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* SOCIAL PLAY */}
-              {availableGames.filter(k => k === 'drakkarRace').length > 0 && (
-                <div className="minigames-section">
-                  <h3 className="minigames-section-title">🌍 Social Play</h3>
-                  <div className="minigames-grid">
-                    {availableGames
-                      .filter(k => k === 'drakkarRace')
-                      .map(gameKey => renderGameCard(gameKey))}
+                {/* SOCIAL PLAY */}
+                {availableGames.filter(k => k === 'drakkarRace').length > 0 && (
+                  <div className="minigames-section">
+                    <h3 className="minigames-section-title">🌍 Social Play</h3>
+                    <div className="minigames-grid">
+                      {availableGames
+                        .filter(k => k === 'drakkarRace')
+                        .map(gameKey => renderGameCard(gameKey))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

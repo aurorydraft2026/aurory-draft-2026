@@ -3,11 +3,19 @@
   position: fixed;
   inset: 0;
   z-index: 2000;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: none; /* Let clicks through to the backdrop sibling */
+}
+
+.minigames-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
   animation: mgFadeIn 0.25s ease;
 }
 
@@ -29,6 +37,8 @@
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(139, 92, 246, 0.1);
   animation: mgSlideUp 0.3s ease;
+  z-index: 2010; /* Above the win ticker (2005) */
+  pointer-events: all;
 }
 
 .minigames-modal.minigames-game-view {
