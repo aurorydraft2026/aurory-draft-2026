@@ -21,8 +21,11 @@ const GlobalWinNotifier = () => {
         const winner = snapshot.val();
         const winnerId = snapshot.key;
         
-        // Only notify for Epic and Legendary
-        if (winner.rarity === 'epic' || winner.rarity === 'legendary') {
+        // Notify for Epic/Legendary, or Rare with a multiplier
+        const shouldNotify = (winner.rarity === 'epic' || winner.rarity === 'legendary') || 
+                            (winner.rarity === 'rare' && winner.multiplier > 1);
+        
+        if (shouldNotify) {
           // Delay by 3 seconds so the winner sees their own reveal first
           setTimeout(() => {
             const newWinnerEntry = {

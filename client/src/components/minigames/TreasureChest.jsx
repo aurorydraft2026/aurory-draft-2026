@@ -196,133 +196,135 @@ const TreasureChest = ({
         </div>
       </div>
 
-      {/* CENTER COLUMN: Chest Visual */}
-      <div className="chest-stage-wrapper">
-        {error && (
-          <div className="chest-error">
-            <span>⚠️ {error}</span>
-          </div>
-        )}
-        <div className="chest-stage">
-        <div className={`chest-wrapper ${phase}`}>
-          {/* The Chest itself */}
-          <div className={`chest-body ${phase}`}>
-            <div className="chest-lid">
-              <div className="chest-lid-front">
-                <div className="chest-lock">🔒</div>
-              </div>
-            </div>
-            <div className="chest-base">
-              <div className="chest-base-front" />
-            </div>
-          </div>
-
-          {/* Prize Reveal Card / Empty Message */}
-          {phase === 'reveal' && result && (
-            <div className={`chest-prize-reveal ${result.prize ? result.prize.rarity : 'none'}`}>
-              {result.prize && (
-                <div
-                  className={`chest-glow ${result.prize.rarity}`}
-                  style={{ '--rarity-color': getRarityColor(result.prize.rarity) }}
-                />
-              )}
-              {result.prize ? (
-                <>
-                  <div className="chest-prize-icon">
-                    {result.prize.icon && result.prize.icon.endsWith('.png') ? (
-                      <img src={`${process.env.PUBLIC_URL}/icons/minigames/${result.prize.icon}`} alt="" className="chest-icon-img" />
-                    ) : (
-                      result.prize.icon || '🎁'
-                    )}
-                  </div>
-                  <span
-                    className="chest-prize-rarity"
-                    style={{ color: getRarityColor(result.prize.rarity) }}
-                  >
-                    {rarityLabel(result.prize.rarity)}
-                  </span>
-                  <span className="chest-prize-name">{result.prize.name}</span>
-                  <span className="chest-prize-credited">Added to your balance!</span>
-                </>
-              ) : (
-                <>
-                  <div className="chest-prize-icon">💨</div>
-                  <span className="chest-prize-rarity" style={{ color: '#64748b' }}>
-                    EMPTY...
-                  </span>
-                  <span className="chest-prize-name">Better luck next time!</span>
-                </>
-              )}
+      {/* CENTER COLUMN: Chest Visual & Controls */}
+      <div className="minigame-main-view">
+        <div className="chest-stage-wrapper">
+          {error && (
+            <div className="chest-error">
+              <span>⚠️ {error}</span>
             </div>
           )}
-        </div>
+          <div className="chest-stage">
+            <div className={`chest-wrapper ${phase}`}>
+              {/* The Chest itself */}
+              <div className={`chest-body ${phase}`}>
+                <div className="chest-lid">
+                  <div className="chest-lid-front">
+                    <div className="chest-lock">🔒</div>
+                  </div>
+                </div>
+                <div className="chest-base">
+                  <div className="chest-base-front" />
+                </div>
+              </div>
 
-        {/* Particles for legendary/epic */}
-        {phase === 'reveal' && result && result.prize && (result.prize.rarity === 'legendary' || result.prize.rarity === 'epic') && (
-          <div className="chest-particles">
-            {[...Array(12)].map((_, i) => (
-              <span
-                key={i}
-                className="chest-particle"
-                style={{
-                  '--angle': `${(i * 30)}deg`,
-                  '--delay': `${i * 0.05}s`,
-                  '--color': getRarityColor(result.prize.rarity)
-                }}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-      </div>
-
-      {/* Action Button */}
-      <div className="chest-controls-wrapper">
-        <div className="minigame-multiplier-selector">
-          <span className="multiplier-label">Multiplier:</span>
-          <div className="multiplier-options">
-            {MULTIPLIERS.map(m => (
-              <button
-                key={m}
-                className={`multiplier-opt ${multiplier === m ? 'active' : ''}`}
-                onClick={() => !isOpening && setMultiplier(m)}
-                disabled={isOpening}
-              >
-                ×{m}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="chest-controls">
-          {phase !== 'reveal' ? (
-          <>
-            <button
-              className="chest-open-btn"
-              onClick={handleOpen}
-              disabled={isOpening}
-            >
-              <span className="chest-btn-text">
-                {isOpening ? 'OPENING...' : 'OPEN CHEST'}
-              </span>
-              {!isOpening && (
-                <span className="chest-btn-cost">
-                  <img src={process.env.PUBLIC_URL + '/valcoin-icon.jpg'} alt="V" className="chest-cost-icon" />
-                  {costPerPlay * multiplier}
-                </span>
+              {/* Prize Reveal Card / Empty Message */}
+              {phase === 'reveal' && result && (
+                <div className={`chest-prize-reveal ${result.prize ? result.prize.rarity : 'none'}`}>
+                  {result.prize && (
+                    <div
+                      className={`chest-glow ${result.prize.rarity}`}
+                      style={{ '--rarity-color': getRarityColor(result.prize.rarity) }}
+                    />
+                  )}
+                  {result.prize ? (
+                    <>
+                      <div className="chest-prize-icon">
+                        {result.prize.icon && result.prize.icon.endsWith('.png') ? (
+                          <img src={`${process.env.PUBLIC_URL}/icons/minigames/${result.prize.icon}`} alt="" className="chest-icon-img" />
+                        ) : (
+                          result.prize.icon || '🎁'
+                        )}
+                      </div>
+                      <span
+                        className="chest-prize-rarity"
+                        style={{ color: getRarityColor(result.prize.rarity) }}
+                      >
+                        {rarityLabel(result.prize.rarity)}
+                      </span>
+                      <span className="chest-prize-name">{result.prize.name}</span>
+                      <span className="chest-prize-credited">Added to your balance!</span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="chest-prize-icon">💨</div>
+                      <span className="chest-prize-rarity" style={{ color: '#64748b' }}>
+                        EMPTY...
+                      </span>
+                      <span className="chest-prize-name">Better luck next time!</span>
+                    </>
+                  )}
+                </div>
               )}
-            </button>
-            <div className="chest-action-buttons">
-              <button className="chest-small-action-btn" onClick={() => setShowPrizesModal(true)}>🏆 Prizes</button>
-              <button className="chest-small-action-btn" onClick={() => setShowRulesModal(true)}>📖 Rules</button>
             </div>
-          </>
-        ) : (
-          <button className="chest-again-btn" onClick={handlePlayAgain}>
-            Open Another
-          </button>
-        )}
-      </div>
+
+            {/* Particles for legendary/epic */}
+            {phase === 'reveal' && result && result.prize && (result.prize.rarity === 'legendary' || result.prize.rarity === 'epic') && (
+              <div className="chest-particles">
+                {[...Array(12)].map((_, i) => (
+                  <span
+                    key={i}
+                    className="chest-particle"
+                    style={{
+                      '--angle': `${(i * 30)}deg`,
+                      '--delay': `${i * 0.05}s`,
+                      '--color': getRarityColor(result.prize.rarity)
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Action Controls */}
+        <div className="chest-controls-wrapper">
+          <div className="minigame-multiplier-selector">
+            <span className="multiplier-label">SELECT STAKE</span>
+            <div className="multiplier-options">
+              {MULTIPLIERS.map(m => (
+                <button
+                  key={m}
+                  className={`multiplier-opt ${multiplier === m ? 'active' : ''}`}
+                  onClick={() => !isOpening && setMultiplier(m)}
+                  disabled={isOpening}
+                >
+                  ×{m}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="chest-action-group">
+            {phase !== 'reveal' ? (
+              <>
+                <button
+                  className="chest-open-btn"
+                  onClick={handleOpen}
+                  disabled={isOpening}
+                >
+                  <span className="chest-btn-text">
+                    {isOpening ? 'Opening...' : 'Open Chest'}
+                  </span>
+                  {!isOpening && (
+                    <span className="chest-btn-cost">
+                      <img src={process.env.PUBLIC_URL + '/valcoin-icon.jpg'} alt="V" className="chest-cost-icon" />
+                      {costPerPlay * multiplier}
+                    </span>
+                  )}
+                </button>
+                <div className="chest-meta-buttons">
+                  <button className="chest-meta-btn" onClick={() => setShowPrizesModal(true)}>🏆 Prizes</button>
+                  <button className="chest-meta-btn" onClick={() => setShowRulesModal(true)}>📖 Rules</button>
+                </div>
+              </>
+            ) : (
+              <button className="chest-again-btn" onClick={handlePlayAgain}>
+                Open Another
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Prizes Modal */}

@@ -258,87 +258,91 @@ const SlotMachine = ({
         </div>
       </div>
 
-      {/* CENTER COLUMN: Machine Frame */}
-      <div className="slot-machine-frame">
-        {error && (
-          <div className="slot-error">
-            <span>⚠️ {error}</span>
-          </div>
-        )}
-        <div className="slot-machine-top-bar">
-          <span className="slot-light" />
-          <span className="slot-title">FORTUNE SLOTS</span>
-          <span className="slot-light" />
-        </div>
-
-        {/* Reels */}
-        <div className="slot-reels-window">
-          {[0, 1, 2].map(reelIndex => (
-            <div key={reelIndex} className="slot-reel-container">
-              <div className="slot-reel" ref={reelRefs[reelIndex]}>
-                {reelSymbols.map((prize, symIdx) => (
-                  <div
-                    key={`${reelIndex}-${symIdx}`}
-                    className={`slot-symbol ${prize.rarity}`}
-                    style={{ height: `${symbolHeight}px` }}
-                  >
-                    <span className="slot-symbol-icon">
-                      {prize.icon && prize.icon.endsWith('.png') ? (
-                        <img src={`${process.env.PUBLIC_URL}/icons/minigames/${prize.icon}`} alt="" className="slot-icon-img" />
-                      ) : (
-                        prize.icon || '🎁'
-                      )}
-                    </span>
-                    <span className="slot-symbol-name">{prize.name}</span>
-                  </div>
-                ))}
-              </div>
+      {/* CENTER COLUMN: Machine & Controls */}
+      <div className="minigame-main-view">
+        <div className="slot-machine-frame">
+          {error && (
+            <div className="slot-error">
+              <span>⚠️ {error}</span>
             </div>
-          ))}
-          {/* Center line indicator */}
-          <div className="slot-payline" />
+          )}
+          <div className="slot-machine-top-bar">
+            <span className="slot-light" />
+            <span className="slot-title">FORTUNE SLOTS</span>
+            <span className="slot-light" />
+          </div>
+
+          {/* Reels */}
+          <div className="slot-reels-window">
+            {[0, 1, 2].map(reelIndex => (
+              <div key={reelIndex} className="slot-reel-container">
+                <div className="slot-reel" ref={reelRefs[reelIndex]}>
+                  {reelSymbols.map((prize, symIdx) => (
+                    <div
+                      key={`${reelIndex}-${symIdx}`}
+                      className={`slot-symbol ${prize.rarity}`}
+                      style={{ height: `${symbolHeight}px` }}
+                    >
+                      <span className="slot-symbol-icon">
+                        {prize.icon && prize.icon.endsWith('.png') ? (
+                          <img src={`${process.env.PUBLIC_URL}/icons/minigames/${prize.icon}`} alt="" className="slot-icon-img" />
+                        ) : (
+                          prize.icon || '🎁'
+                        )}
+                      </span>
+                      <span className="slot-symbol-name">{prize.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {/* Center line indicator */}
+            <div className="slot-payline" />
+          </div>
         </div>
 
-        {/* Controls */}
-        <div className="minigame-multiplier-selector">
-          <span className="multiplier-label">Multiplier:</span>
-          <div className="multiplier-options">
-            {MULTIPLIERS.map(m => (
+        {/* Action Controls */}
+        <div className="slot-controls-wrapper">
+          <div className="minigame-multiplier-selector">
+            <span className="multiplier-label">SELECT STAKE</span>
+            <div className="multiplier-options">
+              {MULTIPLIERS.map(m => (
+                <button
+                  key={m}
+                  className={`multiplier-opt ${multiplier === m ? 'active' : ''}`}
+                  onClick={() => !isSpinning && setMultiplier(m)}
+                  disabled={isSpinning}
+                >
+                  ×{m}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="slot-action-group">
+            <div className="slot-controls">
               <button
-                key={m}
-                className={`multiplier-opt ${multiplier === m ? 'active' : ''}`}
-                onClick={() => !isSpinning && setMultiplier(m)}
+                className={`slot-spin-btn ${isSpinning ? 'spinning' : ''}`}
+                onClick={handleSpin}
                 disabled={isSpinning}
               >
-                ×{m}
+                {isSpinning ? (
+                  <span className="spin-btn-spinning">Spinning...</span>
+                ) : (
+                  <>
+                    <span className="spin-btn-text">SPIN</span>
+                    <span className="spin-btn-cost">
+                      <img src={process.env.PUBLIC_URL + '/valcoin-icon.jpg'} alt="V" className="spin-cost-icon" />
+                      {costPerPlay * multiplier}
+                    </span>
+                  </>
+                )}
               </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="slot-controls-wrapper">
-          <div className="slot-controls">
-            <button
-              className={`slot-spin-btn ${isSpinning ? 'spinning' : ''}`}
-              onClick={handleSpin}
-              disabled={isSpinning}
-            >
-              {isSpinning ? (
-                <span className="spin-btn-spinning">Spinning...</span>
-              ) : (
-                <>
-                  <span className="spin-btn-text">SPIN</span>
-                  <span className="spin-btn-cost">
-                    <img src={process.env.PUBLIC_URL + '/valcoin-icon.jpg'} alt="V" className="spin-cost-icon" />
-                    {costPerPlay * multiplier}
-                  </span>
-                </>
-              )}
-            </button>
-          </div>
-          <div className="slot-action-buttons">
-            <button className="slot-small-action-btn" onClick={() => setShowPrizesModal(true)}>🏆 Prizes</button>
-            <button className="slot-small-action-btn" onClick={() => setShowRulesModal(true)}>📖 Rules</button>
+            </div>
+            <div className="slot-meta-buttons">
+              <button className="slot-meta-btn" onClick={() => setShowPrizesModal(true)}>🏆 Prizes</button>
+              <button className="slot-meta-btn" onClick={() => setShowRulesModal(true)}>📖 Rules</button>
+            </div>
           </div>
         </div>
       </div>
