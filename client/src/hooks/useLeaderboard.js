@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
+import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { ref, onValue, query as rtdbQuery, orderByChild, limitToLast } from 'firebase/database';
+import { db, database } from '../firebase';
 import { fetchVerifiedMatches, scanAndVerifyCompletedDrafts } from '../services/matchVerificationService';
 
 export const useLeaderboard = (registeredUsers) => {
@@ -16,9 +17,12 @@ export const useLeaderboard = (registeredUsers) => {
 
     // --- Earners Leaderboard Filters ---
     const [earnersCurrency, setEarnersCurrency] = useState('valcoins'); // 'valcoins', 'aury', 'usdc'
-    const [earnersGameFilter, setEarnersGameFilter] = useState('all'); // 'all', 'slotMachine', 'treasureChest'
-    const [wallets, setWallets] = useState([]); // [{id, balance, usdcBalance}]
-
+    const [earnersGameFilter, setEarnersGameFilter] = useState('wealth'); // 'wealth', 'all', 'slotMachine', 'treasureChest', 'drakkarRace'
+    const [earnersTimeframe, setEarnersTimeframe] = useState('all_time'); // 'daily', 'weekly', 'monthly', 'all_time'
+    const [topEarners, setTopEarners] = useState([]);
+    const [earnersLoading, setEarnersLoading] = useState(false);
+    
+    
     // Fetch match history (verified matches from all tournaments)
     useEffect(() => {
         const loadMatchHistory = async () => {
@@ -193,64 +197,109 @@ export const useLeaderboard = (registeredUsers) => {
     }, [matchHistory]);
 
     // Listen to wallets collection for AURY/USDC leaderboard
+
+    // --- THE NEW LEADERBOARD ENGINE (RTDB + Focus Queries) ---
     useEffect(() => {
-        const walletsRef = collection(db, 'wallets');
-        const unsubscribe = onSnapshot(walletsRef, (snapshot) => {
-            const walletData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                balance: doc.data().balance || 0,
-                usdcBalance: doc.data().usdcBalance || 0
-            }));
-            setWallets(walletData);
-        }, (err) => {
-            console.error('Error listening to wallets:', err);
-        });
-        return () => unsubscribe();
-    }, []);
+        setEarnersLoading(true);
 
-    // Compute top earners based on selected currency + game filter
-    const topEarnersFiltered = useMemo(() => {
-        if (!registeredUsers) return [];
-
-        const gameKey = earnersGameFilter; // 'all', 'slotMachine', 'treasureChest'
-
-        return [...registeredUsers]
-            .map(u => {
-                let value = 0;
-                const wallet = wallets.find(w => w.id === u.id);
-
-                if (earnersCurrency === 'valcoins') {
-                    if (gameKey === 'all') {
-                        // Total Valcoin balance (includes all sources)
-                        value = u.points || 0;
+        if (earnersGameFilter === 'wealth') {
+            // ─── WEALTH MODE: Direct Firestore Query (Top 10) ───
+            const loadWealth = async () => {
+                try {
+                    if (earnersCurrency === 'valcoins') {
+                        const q = query(collection(db, 'users'), orderBy('points', 'desc'), limit(10));
+                        const snap = await getDocs(q);
+                        const results = snap.docs.map(doc => {
+                            const data = doc.data();
+                            return {
+                                uid: doc.id,
+                                ...data,
+                                displayName: data.auroryPlayerName || data.displayName || 'Guest',
+                                photoURL: data.auroryProfilePicture || data.photoURL || '',
+                                earnedValue: data.points || 0
+                            };
+                        });
+                        setTopEarners(results);
                     } else {
-                        // Game-specific Valcoin winnings from stats
-                        value = u.stats?.miniGames?.[gameKey]?.totalWon?.valcoins || 0;
+                        // AURY/USDC: Query wallets first
+                        const field = earnersCurrency === 'aury' ? 'balance' : 'usdcBalance';
+                        const wq = query(collection(db, 'wallets'), orderBy(field, 'desc'), limit(10));
+                        const wSnap = await getDocs(wq);
+                        
+                        const results = await Promise.all(wSnap.docs.map(async (wDoc) => {
+                            const wData = wDoc.data();
+                            const val = earnersCurrency === 'aury' ? (wData.balance || 0) / 1e9 : (wData.usdcBalance || 0) / 1e6;
+                            
+                            // Find in current registeredUsers list
+                            const u = registeredUsers?.find(ru => ru.id === wDoc.id);
+                            
+                            // Fallback: If not found in memory, we could fetch, but for now just use data if it exists
+                            return {
+                                uid: wDoc.id,
+                                displayName: u?.auroryPlayerName || u?.displayName || 'Guest',
+                                photoURL: u?.auroryProfilePicture || u?.photoURL || '',
+                                earnedValue: val
+                            };
+                        }));
+                        setTopEarners(results.filter(r => r.earnedValue > 0));
                     }
-                } else if (earnersCurrency === 'aury') {
-                    if (gameKey === 'all') {
-                        // Total AURY wallet balance (stored in lamports, convert to display)
-                        value = wallet ? wallet.balance / 1e9 : 0;
-                    } else {
-                        // Game-specific AURY winnings from stats
-                        value = u.stats?.miniGames?.[gameKey]?.totalWon?.aury || 0;
-                    }
-                } else if (earnersCurrency === 'usdc') {
-                    if (gameKey === 'all') {
-                        // Total USDC wallet balance (stored in smallest units)
-                        value = wallet ? wallet.usdcBalance / 1e6 : 0;
-                    } else {
-                        // Game-specific USDC winnings from stats
-                        value = u.stats?.miniGames?.[gameKey]?.totalWon?.usdc || 0;
-                    }
+                } catch (err) {
+                    console.error('Wealth query failed:', err);
+                } finally {
+                    setEarnersLoading(false);
                 }
+            };
+            loadWealth();
+            return;
+        }
 
-                return { ...u, earnedValue: value };
-            })
-            .filter(u => u.earnedValue > 0)
-            .sort((a, b) => b.earnedValue - a.earnedValue)
-            .slice(0, 10);
-    }, [registeredUsers, wallets, earnersCurrency, earnersGameFilter]);
+        // ─── EARNINGS MODE: Realtime Database Listeners ───
+        const now = new Date();
+        let timeframeKey = 'all_time';
+        
+        if (earnersTimeframe === 'daily') {
+            timeframeKey = now.toISOString().split('T')[0];
+        } else if (earnersTimeframe === 'monthly') {
+            timeframeKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        } else if (earnersTimeframe === 'weekly') {
+            const sunday = new Date(now);
+            sunday.setDate(now.getDate() - now.getDay());
+            timeframeKey = sunday.toISOString().split('T')[0];
+        }
+
+        const timeframePath = earnersTimeframe === 'all_time' ? 'all_time' : `${earnersTimeframe}/${timeframeKey}`;
+        const path = `leaderboards/earnings/${earnersCurrency}/${earnersGameFilter}/${timeframePath}`;
+        
+        const leaderboardRef = rtdbQuery(ref(database, path), orderByChild('score'), limitToLast(10));
+        
+        const unsubscribe = onValue(leaderboardRef, (snapshot) => {
+            const data = snapshot.val();
+            if (!data) {
+                setTopEarners([]);
+                setEarnersLoading(false);
+                return;
+            }
+
+            const list = Object.entries(data)
+                .map(([uid, val]) => ({
+                    uid,
+                    displayName: val.displayName || 'Guest',
+                    photoURL: val.photoURL || '',
+                    earnedValue: val.score || 0
+                }))
+                .sort((a, b) => b.earnedValue - a.earnedValue);
+
+            setTopEarners(list);
+            setEarnersLoading(false);
+        }, (err) => {
+            console.error('RTDB Leaderboard error:', err);
+            setEarnersLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [earnersCurrency, earnersGameFilter, earnersTimeframe, registeredUsers]);
+
+    const topEarnersFiltered = topEarners;
 
     return {
         matchHistory,
@@ -263,6 +312,8 @@ export const useLeaderboard = (registeredUsers) => {
         topPlayers,
         topEarnersFiltered,
         earnersCurrency, setEarnersCurrency,
-        earnersGameFilter, setEarnersGameFilter
+        earnersGameFilter, setEarnersGameFilter,
+        earnersTimeframe, setEarnersTimeframe,
+        earnersLoading
     };
 };

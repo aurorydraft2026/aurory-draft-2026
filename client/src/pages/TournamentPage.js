@@ -701,21 +701,52 @@ function TournamentPage() {
         // Football-style: draw → mark as 'draw' and award +1 each
         bracketMatch.winner = 'draw';
       } else if (!isDraw) {
-        // Use mapping to determine which bracket player is Team A
-        // Check top-level persist field first, then fallback to assignmentLeaders
-        const teamAIsOriginalTeam1 = (draftState.teamAIsOriginalTeam1 !== undefined)
-          ? draftState.teamAIsOriginalTeam1
-          : (draftState.assignmentLeaders?.teamAIsOriginalTeam1 !== false);
+        // DETERMINISTIC WINNER RESOLUTION (Fixes "loser-proceed" inversion bug)
+        const matchResults = freshMatchResults || draftState.matchResults || [];
+        const is1v1 = draftState.draftType === 'mode3' || draftState.draftType === 'mode4';
+        
+        // Helper to extract UID from a bracket participant slot
+        const getBracketPlayerUid = (p) => {
+          if (!p) return null;
+          return (matchupData.format === 'teams' ? p.leader : (p.uid || p.leader || p)) || null;
+        };
 
-        const winnerParticipant = (overallWinner === 'A' ? teamAIsOriginalTeam1 : !teamAIsOriginalTeam1)
-          ? bracketMatch.player1
-          : bracketMatch.player2;
+        const p1Uid = getBracketPlayerUid(bracketMatch.player1);
+        const p2Uid = getBracketPlayerUid(bracketMatch.player2);
+        
+        let winnerParticipant = null;
 
-        const winnerId = matchupData.format === 'teams'
-          ? (winnerParticipant?.leader || null)
-          : (typeof winnerParticipant === 'object' ? (winnerParticipant?.uid || null) : (winnerParticipant || null));
+        // Try to resolve by matching result UIDs directly from the API result
+        if (overallWinner === 'A' || overallWinner === 'B') {
+          // Find the actual UID of the player who won in the results
+          const winningUidResult = is1v1 
+            ? (overallWinner === 'A' ? matchResults[0]?.playerAUid : matchResults[0]?.playerBUid)
+            : (overallWinner === 'A' ? draftState.teamALeader : draftState.teamBLeader); // Fallback for 3v3
 
-        if (!winnerId) return;
+          if (winningUidResult) {
+            if (p1Uid === winningUidResult) winnerParticipant = bracketMatch.player1;
+            else if (p2Uid === winningUidResult) winnerParticipant = bracketMatch.player2;
+          }
+        }
+
+        // Fallback: If ID matching failed (e.g. legacy match or ID mismatch), use the A/B mapping
+        if (!winnerParticipant) {
+          const teamAIsOriginalTeam1 = (draftState.teamAIsOriginalTeam1 !== undefined)
+            ? draftState.teamAIsOriginalTeam1
+            : (draftState.assignmentLeaders?.teamAIsOriginalTeam1 !== false);
+
+          winnerParticipant = (overallWinner === 'A' ? teamAIsOriginalTeam1 : !teamAIsOriginalTeam1)
+            ? bracketMatch.player1
+            : bracketMatch.player2;
+        }
+
+        const winnerId = getBracketPlayerUid(winnerParticipant);
+
+        if (!winnerId) {
+          console.error('[CRITICAL] Failed to resolve winner ID in bracket update');
+          return;
+        }
+
         bracketMatch.winner = winnerId;
 
         // For single elimination, propagate winner to next round using parentMatchId

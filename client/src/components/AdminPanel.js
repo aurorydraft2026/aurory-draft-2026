@@ -1467,6 +1467,42 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     setPayoutLoading(false);
   };
 
+  // Handle Leaderboard Migration (Firestore -> RTDB)
+  const handleMigrateLeaderboards = async () => {
+    if (!isSuperAdminUser || wipeAllConfirmText !== 'WIPE ALL') {
+      return alert('Please type "WIPE ALL" in the confirmation box to run the migration.');
+    }
+    
+    if (!window.confirm('🚀 This will scan ALL users and populate the RTDB All-Time leaderboards. Proceed?')) return;
+
+    setIsWiping(true);
+    setProcessingId('migrate_leaderboards');
+    try {
+      const migrateFn = httpsCallable(functions, 'migrateMinigameLeaderboards');
+      const { data: result } = await migrateFn({});
+      
+      if (result?.success) {
+        alert(result.message);
+        setWipeAllConfirmText('');
+        
+        logActivity({
+          user,
+          type: 'ADMIN',
+          action: 'migrate_leaderboards_rtdb',
+          metadata: { userCount: result.count }
+        });
+      } else {
+        throw new Error(result?.message || 'Migration failed');
+      }
+    } catch (error) {
+      console.error('Migration error:', error);
+      alert('Error: ' + error.message);
+    } finally {
+      setIsWiping(false);
+      setProcessingId(null);
+    }
+  };
+
 
 
   const handleRestoreTickerDefaults = async () => {
@@ -3922,6 +3958,14 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     style={{ padding: '8px 15px', fontSize: '0.85em', background: 'linear-gradient(135deg, #f59e0b 0%, #b45309 100%)' }}
                   >
                     🎮 Wipe All Mini-Game Histories
+                  </button>
+                  <button 
+                    className="clear-btn-admin risky" 
+                    onClick={handleMigrateLeaderboards}
+                    disabled={isWiping || wipeAllConfirmText !== 'WIPE ALL'}
+                    style={{ padding: '8px 15px', fontSize: '0.85em', background: 'linear-gradient(135deg, #10b981 0%, #047857 100%)' }}
+                  >
+                    🚀 Migrate Leaderboards to RTDB
                   </button>
                 </div>
               )}

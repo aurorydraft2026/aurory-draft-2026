@@ -211,7 +211,7 @@ export const resetMiniGameStats = onCall(
                     'stats.miniGames': {},
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 });
-                
+
                 countInBatch++;
                 totalUsersProcessed++;
 
@@ -259,11 +259,11 @@ export const clearAllGlobalNotifications = onCall(
 
         try {
             const db = admin.firestore();
-            
+
             // USE COLLECTION GROUP: Hits all 'notifications' subcollections across all users efficiently
             const notificationsRef = db.collectionGroup('notifications');
             const snapshot = await notificationsRef.get();
-            
+
             if (snapshot.empty) {
                 return {
                     success: true,
@@ -403,10 +403,10 @@ export const resetGlobalWallets = onCall(
             // 2. Reset balance and usdcBalance in wallets collection
             const walletsSnap = await db.collection('wallets').get();
             for (const doc of walletsSnap.docs) {
-                currentBatch.update(doc.ref, { 
-                    balance: 0, 
-                    usdcBalance: 0, 
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+                currentBatch.update(doc.ref, {
+                    balance: 0,
+                    usdcBalance: 0,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 });
                 countInBatch++;
                 if (countInBatch >= 450) await commitBatch();
@@ -421,6 +421,117 @@ export const resetGlobalWallets = onCall(
         } catch (error: any) {
             console.error('Global Reset Failed:', error);
             throw new HttpsError('internal', error.message || 'Unknown error during global reset.');
+        }
+    }
+);
+
+/**
+ * Migration Script: Populate RTDB Minigame Leaderboards (All-Time) from Firestore stats.
+ */
+export const migrateMinigameLeaderboards = onCall(
+    {
+        region: 'us-central1',
+        timeoutSeconds: 540,
+        memory: '1GiB',
+        maxInstances: 5
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError('unauthenticated', 'Login required');
+
+        const db = admin.firestore();
+        const rtdb = admin.database();
+
+        try {
+            // AUTHORIZATION: Check if user is Super Admin OR has 'admin' role
+            if (request.auth.uid !== SUPER_ADMIN_UID) {
+                const userDoc = await db.collection('users').doc(request.auth.uid).get();
+                if (userDoc.data()?.role !== 'admin') {
+                    throw new HttpsError('permission-denied', 'Admin access required');
+                }
+            }
+            const usersSnap = await db.collection('users').get();
+            let migratedCount = 0;
+
+            for (const userDoc of usersSnap.docs) {
+                const userData = userDoc.data();
+                const stats = userData.stats?.miniGames;
+                if (!stats) continue;
+
+                const uid = userDoc.id;
+                const userRef = db.collection('users').doc(uid);
+                const name = userData.auroryPlayerName || userData.displayName || 'Guest';
+                const avatar = userData.auroryProfilePicture || userData.photoURL || '';
+
+                // 1. Migrate each individual game type
+                for (const gameId of ['slotMachine', 'treasureChest', 'drakkarRace']) {
+                    const gameStats = stats[gameId];
+                    if (!gameStats || !gameStats.totalWon) continue;
+
+                    for (const currency of ['valcoins', 'aury', 'usdc']) {
+                        const amount = gameStats.totalWon[currency] || 0;
+                        if (amount > 0) {
+                            await rtdb.ref(`leaderboards/earnings/${currency}/${gameId}/all_time/${uid}`).set({
+                                score: amount,
+                                displayName: name,
+                                photoURL: avatar
+                            });
+                        }
+                    }
+                }
+
+                // 2. Aggregate 'all' earnings if explicit 'all' key is missing or low
+                // Including: Minigames + Daily Check-ins
+                const explicitAll = stats.all?.totalWon || {};
+                
+                // Fetch daily check-in totals from history
+                const checkInSnap = await userRef.collection('pointsHistory')
+                    .where('type', '==', 'daily_checkin')
+                    .get();
+                let historicalCheckInTotal = 0;
+                checkInSnap.forEach((doc: any) => {
+                    historicalCheckInTotal += doc.data().amount || 0;
+                });
+
+                for (const currency of ['valcoins', 'aury', 'usdc']) {
+                    let totalVal = explicitAll[currency] || 0;
+                    
+                    // If 'all' is missing or 0, sum up from other games
+                    if (totalVal <= 0) {
+                        for (const gId of ['slotMachine', 'treasureChest', 'drakkarRace']) {
+                            totalVal += stats[gId]?.totalWon?.[currency] || 0;
+                        }
+                    }
+
+                    // Add Check-in data to Valcoins aggregate
+                    if (currency === 'valcoins') {
+                        totalVal += historicalCheckInTotal;
+                        
+                        // Also create a specific 'check-in' leaderboard entry for All-Time
+                        if (historicalCheckInTotal > 0) {
+                            await rtdb.ref(`leaderboards/earnings/${currency}/check-in/all_time/${uid}`).set({
+                                score: historicalCheckInTotal,
+                                displayName: name,
+                                photoURL: avatar
+                            });
+                        }
+                    }
+
+                    if (totalVal > 0) {
+                        await rtdb.ref(`leaderboards/earnings/${currency}/all/all_time/${uid}`).set({
+                            score: totalVal,
+                            displayName: name,
+                            photoURL: avatar
+                        });
+                    }
+                }
+
+                migratedCount++;
+            }
+
+            return { success: true, count: migratedCount, message: `Successfully migrated ${migratedCount} users to RTDB leaderboards.` };
+        } catch (error: any) {
+            console.error('Migration failed:', error);
+            throw new HttpsError('internal', error.message);
         }
     }
 );

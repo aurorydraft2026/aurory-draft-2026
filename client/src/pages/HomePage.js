@@ -130,7 +130,9 @@ function HomePage() {
     topPlayers,
     topEarnersFiltered,
     earnersCurrency, setEarnersCurrency,
-    earnersGameFilter, setEarnersGameFilter
+    earnersGameFilter, setEarnersGameFilter,
+    earnersTimeframe, setEarnersTimeframe,
+    earnersLoading
   } = useLeaderboard(registeredUsers);
 
   const {
@@ -1245,7 +1247,8 @@ function HomePage() {
                   {earnersCurrency === 'valcoins' && <img src="/valcoin-icon.jpg" alt="" className="valcoin-icon" />}
                   {earnersCurrency === 'aury' && <img src="/aury-icon.png" alt="" className="valcoin-icon" />}
                   {earnersCurrency === 'usdc' && <img src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png" alt="" className="valcoin-icon" />}
-                  {' '}Top {earnersCurrency === 'valcoins' ? 'Valcoins' : earnersCurrency.toUpperCase()} Earners
+                  {' '}
+                  {earnersGameFilter === 'wealth' ? 'Top Wealth' : 'Top Gainers'}
                 </h3>
                 <div className="earners-filters">
                   <select
@@ -1262,16 +1265,50 @@ function HomePage() {
                     value={earnersGameFilter}
                     onChange={(e) => setEarnersGameFilter(e.target.value)}
                   >
-                    <option value="all">All</option>
+                    <option value="wealth">💰 Wealth</option>
+                    <option value="all">🏆 All Earnings</option>
                     <option value="slotMachine">🎰 Slot Machine</option>
                     <option value="treasureChest">🏴‍☠️ Treasure Chest</option>
+                    <option value="drakkarRace">⛵ Drakkar Race</option>
+                    <option value="check-in">📅 Daily Check-in</option>
                   </select>
                 </div>
               </div>
+
+              {/* Timeframe Selector (Only for Earnings) */}
+              {earnersGameFilter !== 'wealth' && (
+                <div className="earners-timeframe-tabs">
+                  {[
+                    { key: 'daily', label: 'Daily' },
+                    { key: 'weekly', label: 'Weekly' },
+                    { key: 'monthly', label: 'Monthly' },
+                    { key: 'all_time', label: 'All-Time' },
+                  ].map(tab => (
+                    <button
+                      key={tab.key}
+                      className={`timeframe-tab ${earnersTimeframe === tab.key ? 'active' : ''}`}
+                      onClick={() => setEarnersTimeframe(tab.key)}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div className="top-players-list">
-                {!topEarnersFiltered || topEarnersFiltered.length === 0 ? (
+                {earnersLoading ? (
+                  <div className="top-players-loading">
+                    <div className="spinner-small" />
+                    <span>Updating rankings...</span>
+                  </div>
+                ) : !topEarnersFiltered || topEarnersFiltered.length === 0 ? (
                   <div className="top-players-empty">
-                    <p>No earners found for this filter</p>
+                    <div className="empty-ranking-msg">
+                      <p>No rankings found for this timeframe.</p>
+                      {earnersGameFilter !== 'wealth' && (
+                        <span className="empty-hint">Try a different timeframe or use the migration tool in Admin Panel.</span>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   topEarnersFiltered.map((item, idx) => {

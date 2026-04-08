@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { updateLeaderboardStats } from './leaderboardUtils';
 
 // ═══════════════════════════════════════════════════════
 //  DRAKKAR RACE v2 — 7 Ships, 7 Weathers, Latin Square
@@ -55,6 +56,11 @@ const DURATIONS = {
     racing: 0, // dynamic — set to winner's finish time + buffer
     result: 3000
 };
+
+// ═══════════════════════════════════════════════════════
+//  LEADERBOARD TRACKING (RTDB)
+// ═══════════════════════════════════════════════════════
+
 
 
 // ═══════════════════════════════════════════════════════
@@ -160,7 +166,7 @@ export const playMiniGame = onCall(
         const walletRef = db.collection('wallets').doc(uid);
 
         try {
-            return await db.runTransaction(async (transaction) => {
+            return await db.runTransaction(async (transaction: any) => {
                 const configRef = db.collection('settings').doc('mini_games');
                 const configSnap = await transaction.get(configRef);
 
@@ -276,6 +282,16 @@ export const playMiniGame = onCall(
                             multiplier,
                             timestamp: admin.database.ServerValue.TIMESTAMP
                         });
+
+                        // ─── NEW: UPDATE RTDB LEADERBOARDS ───
+                        await updateLeaderboardStats(
+                            uid,
+                            userData.auroryPlayerName || userData.displayName || 'Guest',
+                            userData.auroryProfilePicture || userData.photoURL || '',
+                            finalPrize.amount,
+                            finalPrize.type.toLowerCase(),
+                            gameType
+                        );
                     } catch (e) {
                         console.error('Failed to log win to RTDB', e);
                     }
@@ -323,7 +339,7 @@ export const placeDrakkarBet = onCall(
         const stateRef = db.collection('settings').doc('mini_games').collection('drakkar_race').doc('current');
 
         try {
-            const result = await db.runTransaction(async (transaction) => {
+            const result = await db.runTransaction(async (transaction: any) => {
                 const betRef = stateRef.collection('bets').doc(uid);
 
                 // ALL READS FIRST
@@ -423,7 +439,7 @@ export const refreshDrakkarRace = onCall(
         const rtdb = admin.database();
 
         try {
-            const result = await db.runTransaction(async (transaction) => {
+            const result = await db.runTransaction(async (transaction: any) => {
                 const stateSnap = await transaction.get(stateRef);
                 let state = stateSnap.data();
                 const now = Date.now();
@@ -544,7 +560,7 @@ export const refreshDrakkarRace = onCall(
                         shipIds.forEach((id: string) => { flushedPools[id] = 0; });
 
                         if (!betsSnap.empty) {
-                            betsSnap.docs.forEach((doc) => {
+                            betsSnap.docs.forEach((doc: any) => {
                                 const betData = doc.data();
                                 shipIds.forEach((id: string) => {
                                     if (betData[id]) flushedPools[id] += betData[id];
@@ -578,7 +594,7 @@ async function clearBets(stateRef: admin.firestore.DocumentReference) {
     const bets = await stateRef.collection('bets').get();
     if (bets.empty) return;
     const batch = admin.firestore().batch();
-    bets.docs.forEach(doc => batch.delete(doc.ref));
+    bets.docs.forEach((doc: any) => batch.delete(doc.ref));
     await batch.commit();
 }
 
@@ -619,7 +635,7 @@ async function processDrakkarPayouts(raceState: any) {
             if (winAmount <= 0) continue;
 
             try {
-                await db.runTransaction(async (t) => {
+                await db.runTransaction(async (t: any) => {
                     const userRef = db.collection('users').doc(bet.uid);
                     t.update(userRef, {
                         points: admin.firestore.FieldValue.increment(winAmount)
@@ -653,6 +669,16 @@ async function processDrakkarPayouts(raceState: any) {
                         console.error('Failed to push to GlobalWinNotifier', e);
                     }
                 }
+
+                // ─── NEW: UPDATE RTDB LEADERBOARDS ───
+                await updateLeaderboardStats(
+                    bet.uid,
+                    bet.playerName || 'Guest',
+                    bet.playerAvatar || '',
+                    winAmount,
+                    'valcoins',
+                    'drakkarRace'
+                );
             } catch (err) {
                 console.error(`Failed to pay out user ${bet.uid}`, err);
             }

@@ -84,8 +84,51 @@ const MatchupPage = () => {
 
     const getUID = useCallback((p) => {
         if (!p) return null;
-        return matchup?.format === 'teams' ? p.leader : (p.uid || p);
+        if (typeof p === 'object') {
+            // For teams, leader is the unique ID. For individuals, uid is the unique ID.
+            return (matchup?.format === 'teams' ? p.leader : (p.uid || p.leader)) || null;
+        }
+        return p; // It's a string (UID)
     }, [matchup?.format]);
+
+    // Normalizes participants into unique entities (teams or individual players)
+    const getTournamentEntities = useCallback((rawParticipants, format) => {
+        if (!rawParticipants || rawParticipants.length === 0) return [];
+        
+        if (format !== 'teams') {
+            const entityMap = new Map();
+            rawParticipants.forEach(p => {
+                const uid = typeof p === 'string' ? p : (p.uid || p.leader);
+                if (!uid) return;
+                // If we have an object and a string for the same UID, prefer the object (Mock or full profile)
+                if (typeof p === 'object' || !entityMap.has(uid)) {
+                    entityMap.set(uid, p);
+                }
+            });
+            return Array.from(entityMap.values());
+        } else {
+            const teamMemberUids = new Set();
+            const teams = [];
+            const rawIndividuals = [];
+
+            rawParticipants.forEach(p => {
+                if (typeof p === 'object' && !p.uid) { // Team object
+                    teamMemberUids.add(p.leader);
+                    (p.members || []).forEach(m => teamMemberUids.add(m));
+                    teams.push(p);
+                } else {
+                    rawIndividuals.push(p);
+                }
+            });
+
+            const filteredIndividuals = rawIndividuals.filter(p => {
+                const uid = typeof p === 'string' ? p : (p.uid || p.leader);
+                return !teamMemberUids.has(uid);
+            });
+
+            return [...teams, ...filteredIndividuals];
+        }
+    }, []);
 
     useEffect(() => {
         if (!user) { setWalletBalance(0); return; }
@@ -418,28 +461,8 @@ const MatchupPage = () => {
 
     // Derived: Unique participants for display (filters out individuals already in teams)
     const displayParticipants = useMemo(() => {
-        if (!matchup?.participants) return [];
-        if (matchup.format !== 'teams') return matchup.participants;
-
-        // Collect all UIDs that are part of any team
-        const teamMemberUids = new Set();
-        matchup.participants.forEach(p => {
-            if (typeof p === 'object' && !p.uid) { // It's a team object
-                teamMemberUids.add(p.leader);
-                (p.members || []).forEach(m => teamMemberUids.add(m));
-            }
-        });
-
-        // Filter: Keep team objects and individuals NOT in any team
-        return matchup.participants.filter(p => {
-            // If it's a team object (has teamName or leader/members but NO uid), keep it
-            if (typeof p === 'object' && !p.uid) return true;
-
-            // If it's a string (UID) or individual user object (with uid)
-            const uid = typeof p === 'string' ? p : p.uid;
-            return !teamMemberUids.has(uid);
-        });
-    }, [matchup?.participants, matchup?.format]);
+        return getTournamentEntities(matchup?.participants, matchup?.format);
+    }, [matchup?.participants, matchup?.format, getTournamentEntities]);
 
     const handleJoin = async () => {
         if (!user) return;
@@ -649,46 +672,52 @@ const MatchupPage = () => {
 
     const handleStart = async () => {
         if (!isAdmin) return;
-        if (matchup.participants.length < 2) return;
-
         try {
+            const entities = getTournamentEntities(matchup.participants, matchup.format);
+            if (entities.length < 2) {
+                alert("Need at least 2 participants to start.");
+                return;
+            }
+
             const matchupRef = doc(db, 'matchups', matchupId);
 
             if (matchup.tournamentType === 'realm_round_robin') {
-                // Realm Round Robin: split into Frost/Fire, generate group fixtures
-                if (matchup.participants.length < 4) {
-                    alert('Realm Round Robin requires at least 4 teams.');
+                if (entities.length < 4) {
+                    alert('Realm Round Robin requires at least 4 participants.');
                     return;
                 }
-                const { realms, groupStructure } = generateRealmRoundRobin(matchup.participants);
+                const result = generateRealmRoundRobin(entities);
+                
                 await updateDoc(matchupRef, {
                     status: 'active',
                     phase: 'groups',
-                    realms,
-                    groupStructure,
+                    realms: result.realms,
+                    groupStructure: result.groupStructure,
                     groupScores: {},
                     playerScores: {},
-                    startedAt: new Date()
+                    startedAt: serverTimestamp()
                 });
             } else {
-                let structure = [];
+                let structureData = [];
                 let totalSlots = null;
                 if (matchup.tournamentType === 'single_elimination') {
-                    const result = generateSingleElimination(matchup.participants);
-                    structure = result.rounds;
+                    const result = generateSingleElimination(entities);
+                    structureData = result.rounds;
                     totalSlots = result.totalSlots;
                 } else if (matchup.tournamentType === 'round_robin') {
-                    structure = generateRoundRobin(matchup.participants);
+                    structureData = generateRoundRobin(entities);
                 }
+                
                 await updateDoc(matchupRef, {
                     status: 'active',
-                    matchupStructure: structure,
+                    matchupStructure: structureData,
                     bracketTotalSlots: totalSlots,
-                    startedAt: new Date()
+                    startedAt: serverTimestamp()
                 });
             }
         } catch (err) {
-            console.error('Error starting matchup:', err);
+            console.error('Error starting tournament:', err);
+            alert("Failed to start tournament: " + err.message);
         }
     };
 

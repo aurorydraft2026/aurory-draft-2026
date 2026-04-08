@@ -23,6 +23,22 @@
           ".validate": "newData.isNumber()"
         }
       }
+    },
+    "leaderboards": {
+      "earnings": {
+        "$currency": {
+          "$gameId": {
+            "$timeframe": {
+              ".read": true,
+              ".indexOn": ["score"],
+              "$dateKey": {
+                ".read": true,
+                ".indexOn": ["score"]
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
