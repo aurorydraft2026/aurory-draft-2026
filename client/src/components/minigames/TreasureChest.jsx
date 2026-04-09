@@ -318,32 +318,19 @@ const TreasureChest = ({
             </div>
           </div>
 
-          <div className="chest-action-group">
-            {phase !== 'reveal' ? (
-              <>
-                <button
-                  className="chest-open-btn"
-                  onClick={handleOpen}
-                  disabled={isOpening}
-                >
-                  <span className="chest-btn-text">
-                    {isOpening ? 'Opening...' : 'Open Loot Box'}
-                  </span>
-                  {!isOpening && (
-                    <span className="chest-btn-cost">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
-                      {costPerPlay * multiplier}
-                    </span>
-                  )}
-                </button>
-              </>
-            ) : (
-              <button className="chest-again-btn" onClick={handlePlayAgain}>
-                Open Another
-              </button>
-            )}
-          </div>
         </div>
+
+        {/* Persistent Floating Open Button */}
+        <button 
+          className={`chest-floating-open-btn ${(isOpening || phase === 'reveal') ? 'active' : ''}`}
+          onClick={phase === 'reveal' ? handlePlayAgain : handleOpen}
+          disabled={isOpening}
+        >
+          <div className="fab-glow" />
+          <span className="fab-text">
+            {isOpening ? '...' : (phase === 'reveal' ? 'AGAIN' : 'OPEN')}
+          </span>
+        </button>
       </div>
 
       {/* Prizes Modal */}

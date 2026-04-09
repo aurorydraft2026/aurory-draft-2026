@@ -119,6 +119,7 @@
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+  position: relative; /* For result banner overlay */
 }
 
 /* ─── WEATHER BAR ─── */
@@ -263,10 +264,10 @@
   left: 50%;
   transform: translate(-50%, -50%);
   font-family: 'Cinzel', serif;
-  font-size: 0.85rem;
+  font-size: 0.7rem;
   font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 4px; /* Increased letter spacing for cinematic feel */
+  letter-spacing: 5px; /* Increased letter spacing for cinematic feel */
   opacity: 0.12; /* Faint background watermark */
   pointer-events: none;
   z-index: 5;
@@ -358,26 +359,41 @@
   color: #fff;
 }
 
-/* ─── RESULT BANNER ─── */
 .dv2-result-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 54px; /* Exact height of weather bar */
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 20px;
-  padding: 16px 32px;
   background: var(--bg-surface);
   border-radius: 12px;
   border: 2px solid var(--accent-gold);
-  animation: resultSlide 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  z-index: 2000;
+  animation: resultSlideDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px var(--accent-gold-glow);
+}
+
+@keyframes resultSlideDown {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .dv2-result-name {
   font-family: 'Cinzel', serif;
-  font-size: 1.4rem;
+  font-size: 1.1rem;
   font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 2px;
+  letter-spacing: 1px;
 }
 
 .dv2-result-payout {
@@ -501,10 +517,10 @@
 .dv2-bet-card-info h4 {
   margin: 0;
   font-family: 'Cinzel', serif;
-  font-size: 1.1rem;
+  font-size: 0.75rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
 }
 
 .dv2-speed-hint {
@@ -630,7 +646,7 @@
 
 .dv2-history-ship-name {
   font-family: 'Cinzel', serif;
-  font-size: 0.85rem;
+  font-size: 0.7rem;
   font-weight: 800;
   text-transform: uppercase;
 }
@@ -1038,10 +1054,12 @@
 
   /* Shrink Winning Message on Mobile */
   .dv2-result-banner {
-    padding: 8px 24px;
-    gap: 12px;
-    border-radius: 12px;
-    bottom: 60px;
+    padding: 0 12px;
+    height: 48px; /* Mobile weather bar height? Check below */
+    gap: 8px;
+    border-radius: 8px;
+    top: 0;
+    bottom: auto;
   }
 
   .dv2-result-name {
