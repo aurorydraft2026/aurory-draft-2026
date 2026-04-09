@@ -228,6 +228,16 @@ const SlotMachine = ({
     <div className="slot-machine-container">
       {/* LEFT COLUMN: Live Winners Feed */}
       <div className="slot-winners-feed side-panel">
+        <div className="slot-meta-buttons">
+          <button className="slot-meta-btn" onClick={() => setShowPrizesModal(true)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+            Rewards
+          </button>
+          <button className="slot-meta-btn" onClick={() => setShowRulesModal(true)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            Rules
+          </button>
+        </div>
         <div className="feed-header">
           <h4>Recent Action</h4>
           <span className="live-indicator">
@@ -272,7 +282,7 @@ const SlotMachine = ({
           )}
           <div className="slot-machine-top-bar">
             <span className="slot-light" />
-            <span className="slot-title">FORTUNE SLOTS</span>
+            <span className="slot-title">ODIN'S FORTUNE</span>
             <span className="slot-light" />
           </div>
 
@@ -343,16 +353,6 @@ const SlotMachine = ({
                 )}
               </button>
             </div>
-            <div className="slot-meta-buttons">
-              <button className="slot-meta-btn" onClick={() => setShowPrizesModal(true)}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-                Prizes
-              </button>
-              <button className="slot-meta-btn" onClick={() => setShowRulesModal(true)}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-                Rules
-              </button>
-            </div>
           </div>
         </div>
       </div>
@@ -397,7 +397,7 @@ const SlotMachine = ({
       {showPrizesModal && (
         <div className="slot-result-overlay" onClick={() => setShowPrizesModal(false)}>
           <div className="slot-result-card prize-modal-card" onClick={e => e.stopPropagation()}>
-            <h3 className="slot-result-title" style={{ marginBottom: '16px' }}>Prize Table</h3>
+            <h3 className="slot-result-title" style={{ marginBottom: '16px' }}>Trial Rewards</h3>
             <div className="slot-prizes-grid" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
               {prizes.map(prize => (
                 <div key={prize.id} className={`slot-prize-item ${prize.rarity}`}>
@@ -424,7 +424,7 @@ const SlotMachine = ({
       {showRulesModal && (
         <div className="slot-result-overlay" onClick={() => setShowRulesModal(false)}>
           <div className="slot-result-card rules-modal-card" onClick={e => e.stopPropagation()}>
-            <h3 className="slot-result-title" style={{ marginBottom: '16px' }}>How to Play</h3>
+            <h3 className="slot-result-title" style={{ marginBottom: '16px' }}>Sacred Rules</h3>
             <div className="rules-content" style={{ textAlign: 'left', fontSize: '0.9rem', color: '#cbd5e1', lineHeight: '1.6' }}>
               <p>1. Each spin costs <strong>{costPerPlay} Valcoins</strong>.</p>
               <p>2. Match 3 symbols to win.</p>

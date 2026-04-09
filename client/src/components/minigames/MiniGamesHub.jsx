@@ -9,16 +9,16 @@ import './MiniGamesHub.css';
 const GAME_REGISTRY = {
   slotMachine: {
     id: 'slotMachine',
-    name: 'Slot Machine',
+    name: "Odin's Fortune",
     icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 2h14"/><path d="M5 22h14"/><path d="M5 2v20"/><path d="M19 2v20"/><path d="M10 2v12"/><path d="M14 2v12"/><path d="M5 14h14"/></svg>,
     description: 'Spin the reels and match symbols to win!',
     component: SlotMachine
   },
   treasureChest: {
     id: 'treasureChest',
-    name: 'Treasure Chest',
+    name: 'Loot Box',
     icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H4v4"/><path d="M2 12h20"/><path d="M20 12v8H4v-8"/><line x1="12" y1="12" x2="12" y2="20"/><path d="m12 8 3-3-3-3-3 3 3 3Z"/></svg>,
-    description: 'Unlock a treasure chest to reveal your prize!',
+    description: 'Unlock a mythic chest to reveal your prize!',
     component: TreasureChest
   },
   drakkarRace: {
