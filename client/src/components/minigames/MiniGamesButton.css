@@ -1,60 +1,69 @@
-.mini-games-fab {
+.viking-arcade-btn {
   position: fixed;
   bottom: 28px;
   right: 28px;
   z-index: 1000;
-  width: 60px;
   height: 60px;
+  width: 60px;
   border-radius: 30px;
-  border: 1px solid rgba(139, 92, 246, 0.4);
-  background: rgba(15, 14, 26, 0.6);
+  background: var(--bg-card);
+  background-image: 
+    radial-gradient(circle at center, rgba(212, 175, 55, 0.15), transparent 70%),
+    linear-gradient(45deg, #1e1a17 0%, #2e2823 100%);
+  border: 1px solid var(--accent-gold);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 15px rgba(139, 92, 246, 0.2);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.5), 
+    0 0 0 1px rgba(212, 175, 55, 0.2),
+    0 0 15px rgba(212, 175, 55, 0.1);
   overflow: hidden;
   padding: 0 16px;
 }
 
-.fab-glass {
-  position: absolute;
-  inset: 0;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 100%);
-  z-index: -1;
+.viking-arcade-btn:hover {
+  width: 170px;
+  border-color: var(--text-bright);
+  box-shadow: 
+    0 12px 40px rgba(0, 0, 0, 0.6), 
+    0 0 0 1px rgba(212, 175, 55, 0.4),
+    0 0 25px rgba(212, 175, 55, 0.3);
+  transform: translateY(-5px);
 }
 
-.mini-games-fab:hover {
-  width: 160px;
-  border-color: rgba(168, 85, 247, 0.8);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(168, 85, 247, 0.4);
-  background: rgba(22, 21, 38, 0.8);
+.viking-arcade-btn:active {
+  transform: scale(0.95) translateY(0);
 }
 
-.mini-games-fab:active {
-  transform: scale(0.95);
+.viking-btn-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
 }
 
-.fab-icon {
-  font-size: 26px;
-  line-height: 1;
-  transition: transform 0.4s ease;
-  z-index: 2;
+.viking-btn-icon {
+  color: var(--accent-gold);
+  filter: drop-shadow(0 0 5px rgba(212, 175, 55, 0.5));
+  transition: all 0.4s ease;
   flex-shrink: 0;
 }
 
-.mini-games-fab:hover .fab-icon {
+.viking-arcade-btn:hover .viking-btn-icon {
   transform: rotate(-10deg) scale(1.1);
+  color: var(--text-bright);
 }
 
-.fab-text {
-  color: white;
-  font-weight: 800;
+.viking-btn-text {
+  color: var(--text-bright);
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
   font-size: 0.95rem;
   letter-spacing: 2px;
+  text-transform: uppercase;
   width: 0;
   margin-left: 0;
   opacity: 0;
@@ -62,73 +71,59 @@
   transition: all 0.3s ease;
   white-space: nowrap;
   pointer-events: none;
-  z-index: 2;
   overflow: hidden;
 }
 
-.mini-games-fab:hover .fab-text {
-  width: 80px; /* Adjust based on text length */
-  margin-left: 12px;
+.viking-arcade-btn:hover .viking-btn-text {
+  width: 90px;
+  margin-left: 14px;
   opacity: 1;
   transform: translateX(0);
 }
 
-.fab-status-dot {
+/* Status light for Arcade */
+.viking-arcade-btn::after {
+  content: '';
   position: absolute;
   top: 14px;
   right: 14px;
-  width: 8px;
-  height: 8px;
-  background: #10b981;
+  width: 6px;
+  height: 6px;
+  background: var(--accent-gold);
   border-radius: 50%;
-  box-shadow: 0 0 8px #10b981;
-  transition: all 0.3s ease;
+  box-shadow: 0 0 8px var(--accent-gold);
   z-index: 3;
+  transition: all 0.3s ease;
 }
 
-.mini-games-fab:hover .fab-status-dot {
-  right: 18px;
-  top: 18px;
-}
-
-.fab-scan-line {
-  position: absolute;
-  width: 100%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.5), transparent);
-  top: -100%;
-  left: 0;
-  animation: fabScan 4s linear infinite;
-  z-index: 1;
-  pointer-events: none;
-}
-
-@keyframes fabScan {
-  0% { top: -100%; }
-  25% { top: 100%; }
-  100% { top: 100%; }
+.viking-arcade-btn:hover::after {
+  right: 20px;
+  top: 20px;
+  background: var(--text-bright);
+  box-shadow: 0 0 12px var(--text-bright);
 }
 
 /* Responsive */
 @media (max-width: 768px) {
-  .mini-games-fab {
+  .viking-arcade-btn {
     bottom: 20px;
     right: 20px;
-    width: 52px;
-    height: 52px;
+    width: 54px;
+    height: 54px;
   }
   
-  .mini-games-fab:hover {
-    width: 140px;
+  .viking-arcade-btn:hover {
+    width: 150px;
   }
 
-  .fab-icon {
-    font-size: 22px;
+  .viking-btn-icon {
+    width: 20px;
+    height: 20px;
   }
   
-  .fab-text {
+  .viking-btn-text {
     font-size: 0.85rem;
     letter-spacing: 1px;
-    margin-left: 8px;
+    margin-left: 10px;
   }
 }

@@ -31,11 +31,13 @@ const RaffleCard = ({ raffle }) => {
       <div className="raffle-card-image-container">
         {itemType === 'aury' || itemType === 'usdc' ? (
           <div className={`raffle-card-currency-prize ${itemType}`}>
-            <img 
-              src={process.env.PUBLIC_URL + (itemType === 'aury' ? '/aury-icon.png' : '/usdc-icon.png')} 
-              alt={itemType.toUpperCase()} 
-              className="raffle-card-currency-icon" 
-            />
+            <div className="raffle-card-currency-icon-wrapper">
+              {itemType === 'aury' ? (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6a6 6 0 0 1 0 12"/><path d="M12 6v12"/><path d="M12 9h4"/><path x="0" y="0" d="M12 15h4"/></svg>
+              ) : (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><path d="M16 8h-1.5c-1.38 0-2.5 1.12-2.5 2.5s1.12 2.5 2.5 2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5H12"/></svg>
+              )}
+            </div>
             <span className="raffle-card-currency-amount">
               {itemType === 'aury' ? raffle.auryAmount : raffle.usdcAmount}
             </span>

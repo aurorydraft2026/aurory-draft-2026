@@ -33,12 +33,11 @@ const MatchupsSection = ({ user, isAdmin }) => {
         <section className="matchups-section dashboard-widget">
             <div className="section-header">
                 <div className="header-title-group">
-                    <h3>🏆 Tourneys</h3>
-                    <p className="section-subtitle">Join upcoming tournaments and earn rewards</p>
+                    <p className="section-subtitle">Prove your worth in the hallowed grounds of Asgard</p>
                 </div>
                 {isAdmin && (
                     <button onClick={() => setShowCreateModal(true)} className="create-matchup-btn-primary">
-                        <span className="plus-icon">+</span> Create Tournament
+                        <span className="plus-icon">+</span> Create Arena
                     </button>
                 )}
             </div>

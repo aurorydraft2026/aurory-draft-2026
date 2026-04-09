@@ -153,16 +153,53 @@
   .tournaments-header h3,
   .header-title-group h3 {
     margin: 0;
-    font-family: 'Exo 2', sans-serif;
-    font-weight: 800;
-    font-size: 1.5rem;
-    color: var(--text-bright);
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    font-size: 1.4rem;
+    color: var(--accent-gold);
     text-transform: uppercase;
-    letter-spacing: 1.5px;
-    padding-left: 12px;
-    border-left: 3px solid var(--accent-cyan);
-    background: radial-gradient(circle at left, rgba(0, 200, 255, 0.08) 0%, transparent 60%);
+    letter-spacing: 2px;
+    padding-left: 0;
+    border-left: none;
+    background: none;
     line-height: 1.2;
+  }
+
+  .viking-section-header {
+    margin: 80px 0 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .viking-section-title {
+    font-family: 'Cinzel', serif;
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: var(--text-bright);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    text-shadow: 0 4px 12px rgba(0,0,0,0.6);
+  }
+
+
+
+  .viking-section-title svg {
+    color: var(--accent-gold);
+    filter: drop-shadow(0 0 10px var(--accent-gold-glow));
+  }
+
+  .viking-title-line {
+    height: 3px;
+    width: 140px;
+    background: linear-gradient(90deg, var(--accent-gold), transparent);
+    border-radius: 2px;
+    margin-top: 4px;
   }
 
   .section-subtitle {
@@ -170,6 +207,40 @@
     font-size: 0.9rem;
     color: var(--text-secondary);
     font-weight: 400;
+  }
+
+  .section-subtitle {
+    font-size: 1.05rem;
+    color: var(--text-secondary);
+    margin: 10px 0 0;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    opacity: 0.85;
+    font-family: 'Outfit', sans-serif;
+    line-height: 1.4;
+  }
+
+  /* Mobile scaling for Viking titles */
+  @media (max-width: 768px) {
+    .viking-section-header {
+      margin: 50px 0 15px;
+    }
+    .viking-section-title {
+      font-size: 1.7rem;
+      letter-spacing: 1.5px;
+      gap: 10px;
+    }
+    .viking-section-title svg {
+      width: 22px;
+      height: 22px;
+    }
+    .viking-title-line {
+      width: 90px;
+    }
+    .section-subtitle {
+      font-size: 0.9rem;
+      margin-top: 6px;
+    }
   }
 
   /* Header Create Draft Button */
@@ -479,6 +550,123 @@
       transform: translateY(-8px);
     }
 
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* ============================================================
+   VIKING WELCOME SECTION
+   ============================================================ */
+  .viking-welcome-card {
+    width: 100%;
+    min-height: 340px;
+    background: var(--bg-card);
+    background-image: linear-gradient(to right, rgba(15, 13, 12, 0.95) 20%, rgba(15, 13, 12, 0.4) 100%), 
+                      url('./viking-bg.png'); /* Using relative path for Webpack */
+    background-size: cover;
+    background-position: center;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-default);
+    margin-bottom: 50px;
+    display: flex;
+    align-items: center;
+    padding: 60px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .viking-welcome-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('https://www.transparenttextures.com/patterns/dark-wood.png');
+    opacity: 0.1;
+    pointer-events: none;
+  }
+
+  .viking-card-content {
+    max-width: 600px;
+    position: relative;
+    z-index: 2;
+    animation: fadeInUp 0.8s ease-out;
+  }
+
+  .viking-hero-title {
+    font-family: 'Cinzel', serif;
+    font-size: 4rem;
+    font-weight: 900;
+    color: #fff;
+    margin-bottom: 12px;
+    line-height: 1.1;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    text-shadow: 0 4px 15px rgba(0,0,0,0.8), 0 0 30px rgba(212, 175, 55, 0.2);
+  }
+
+  .viking-hero-subtitle {
+    font-size: 1.3rem;
+    color: var(--text-secondary);
+    margin-bottom: 30px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    max-width: 450px;
+  }
+
+  .viking-hero-badges {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+  }
+
+  .viking-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    background: rgba(212, 175, 55, 0.1);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: var(--radius-sm);
+    color: var(--accent-gold);
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.3s ease;
+  }
+
+  .viking-badge:hover {
+    background: rgba(212, 175, 55, 0.2);
+    border-color: var(--accent-gold);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.2);
+  }
+
+  @media (max-width: 768px) {
+    .viking-welcome-card {
+      padding: 40px 25px;
+      min-height: 300px;
+      margin-bottom: 30px;
+    }
+    .viking-hero-title {
+      font-size: 2.5rem;
+    }
+    .viking-hero-subtitle {
+      font-size: 1.1rem;
+    }
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
     to {
       opacity: 1;
       transform: translateY(0);

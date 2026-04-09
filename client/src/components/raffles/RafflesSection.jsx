@@ -33,9 +33,9 @@ const RafflesSection = ({ user, isAdmin }) => {
     }, []);
 
     const filterTabs = [
-        { key: 'active', label: 'Open', icon: '🟢' },
-        { key: 'ended', label: 'Ended', icon: '✅' },
-        { key: 'joined', label: 'Joined', icon: '👤' }
+        { key: 'active', label: 'Open', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg> },
+        { key: 'ended', label: 'Ended', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
+        { key: 'joined', label: 'Joined', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> }
     ];
 
     const getFilteredRaffles = () => {
@@ -62,12 +62,11 @@ const RafflesSection = ({ user, isAdmin }) => {
         <section className="tournaments-section raffles-section dashboard-widget">
             <div className="section-header">
                 <div className="header-title-group">
-                    <h3>🎟️ All Raffles</h3>
-                    <p className="section-subtitle">Win premium items and tokens in our community raffles</p>
+                    <p className="section-subtitle">Test your luck and let the Norns decide your fortune</p>
                 </div>
                 {isAdmin && (
                     <button onClick={() => setShowCreateModal(true)} className="create-raffle-btn-primary">
-                        <span className="plus-icon">+</span> Create Raffle
+                        <span className="plus-icon">+</span> Create Draw
                     </button>
                 )}
             </div>

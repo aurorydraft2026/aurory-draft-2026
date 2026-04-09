@@ -79,15 +79,14 @@ const MiniGamesButton = () => {
   return (
     <>
       <button
-        className="mini-games-fab"
+        className="viking-arcade-btn"
         onClick={() => setIsHubOpen(true)}
         id="mini-games-floating-btn"
       >
-        <div className="fab-glass" />
-        <div className="fab-scan-line" />
-        <span className="fab-icon">🎮</span>
-        <span className="fab-text">ARCADE</span>
-        <div className="fab-status-dot" />
+        <div className="viking-btn-inner">
+          <svg className="viking-btn-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 22V12"/><path d="M12 12l8-4"/><path d="M12 12L4 8"/></svg>
+          <span className="viking-btn-text">Arcade</span>
+        </div>
       </button>
 
       {isHubOpen && (

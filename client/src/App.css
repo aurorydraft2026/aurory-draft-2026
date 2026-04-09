@@ -1,142 +1,130 @@
-@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700&family=Cinzel:wght@400;700;900&display=swap');
 
 :root {
-  /* ── Backgrounds (Dark – default) ── */
-  --bg-deepest: #0a0a0a;
-  --bg-deep: #111111;
-  --bg-surface: #181818;
-  --bg-secondary: rgba(20, 20, 20, 0.92);
-  --bg-card: #1a1a1a;
-  --bg-card-hover: #222222;
-  --bg-elevated: rgba(255, 255, 255, 0.04);
-  --bg-glass: rgba(20, 20, 20, 0.75);
-  --bg-primary: #141414;
-  --bg-header: rgba(14, 14, 14, 0.92);
-  --bg-ticker: #000000;
+  /* ── Backgrounds (Dark – Viking Hall) ── */
+  --bg-deepest: #0f0d0c;
+  --bg-deep: #161311;
+  --bg-surface: #1e1a17;
+  --bg-secondary: rgba(22, 19, 17, 0.94);
+  --bg-card: #25201c;
+  --bg-card-hover: #2e2823;
+  --bg-elevated: rgba(212, 175, 55, 0.05);
+  --bg-glass: rgba(15, 13, 12, 0.82);
+  --bg-primary: #1a1614;
+  --bg-header: rgba(15, 13, 12, 0.94);
+  --bg-ticker: #0a0908;
 
   /* ── Borders ── */
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-default: rgba(255, 255, 255, 0.1);
-  --border-bright: rgba(255, 255, 255, 0.18);
+  --border-subtle: rgba(212, 175, 55, 0.1);
+  --border-default: rgba(212, 175, 55, 0.18);
+  --border-bright: rgba(212, 175, 55, 0.35);
 
   /* ── Text ── */
-  --text-primary: #e5e5e5;
-  --text-secondary: #999999;
-  --text-muted: #555555;
-  --text-bright: #ffffff;
+  --text-primary: #e8e2d8;
+  --text-secondary: #b0a798;
+  --text-muted: #7a7062;
+  --text-bright: #f5f0e6;
 
-  /* ── Accents (kept original) ── */
-  --accent-cyan: #00c8ff;
-  --accent-cyan-glow: rgba(0, 200, 255, 0.2);
-  --accent-purple: #8b5cf6;
-  --accent-purple-glow: rgba(139, 92, 246, 0.2);
-  --accent-teal: #2dd4bf;
-  --accent-gold: #f0b232;
-  --accent-gold-glow: rgba(240, 178, 50, 0.2);
-  --accent-green: #10b981;
-  --accent-green-glow: rgba(16, 185, 129, 0.2);
+  /* ── Accents (Viking Theme) ── */
+  --accent-gold: #d4af37;
+  --accent-gold-glow: rgba(212, 175, 55, 0.25);
+  --accent-crimson: #8b0000;
+  --accent-crimson-glow: rgba(139, 0, 0, 0.25);
+  --accent-cyan: #d4af37; /* Replaced cyan with gold */
+  --accent-cyan-glow: rgba(212, 175, 55, 0.2);
+  --accent-purple: #c5a059; /* Replaced purple with lighter gold/bronze */
+  --accent-purple-glow: rgba(197, 160, 89, 0.2);
+  --accent-teal: #9ca3af;
+  --accent-green: #4ade80;
+  --accent-green-glow: rgba(74, 222, 128, 0.2);
   --accent-red: #ef4444;
   --accent-red-glow: rgba(239, 68, 68, 0.2);
   --accent-pink: #ec4899;
 
   /* ── Teams ── */
-  --team-blue: #3b82f6;
-  --team-blue-bg: rgba(59, 130, 246, 0.12);
-  --team-red: #ef4444;
-  --team-red-bg: rgba(239, 68, 68, 0.12);
+  --team-blue: #2563eb;
+  --team-blue-bg: rgba(37, 99, 235, 0.15);
+  --team-red: #8b0000;
+  --team-red-bg: rgba(139, 0, 0, 0.15);
 
   /* ── Layout ── */
-  --header-height: 64px;
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 18px;
-  --radius-xl: 24px;
+  --header-height: 68px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
 
   /* ── Shadows ── */
-  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.25);
-  --shadow-elevated: 0 6px 24px rgba(0, 0, 0, 0.35);
-  --shadow-glow-cyan: 0 0 16px var(--accent-cyan-glow);
-  --shadow-glow-purple: 0 0 16px var(--accent-purple-glow);
+  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-elevated: 0 10px 32px rgba(0, 0, 0, 0.5);
+  --shadow-glow-gold: 0 0 16px var(--accent-gold-glow);
+  --shadow-glow-cyan: 0 0 16px var(--accent-gold-glow);
 
   /* ── App background gradient ── */
-  --app-bg-gradient-1: rgba(139, 92, 246, 0.04);
-  --app-bg-gradient-2: rgba(0, 200, 255, 0.03);
+  --app-bg-gradient-1: rgba(212, 175, 55, 0.06);
+  --app-bg-gradient-2: rgba(139, 0, 0, 0.04);
 
   /* ── Overlay ── */
-  --overlay-bg: rgba(0, 0, 0, 0.7);
-  --overlay-bg-heavy: rgba(0, 0, 0, 0.85);
-  --overlay-bg-light: rgba(0, 0, 0, 0.5);
-  --slide-overlay-gradient: linear-gradient(45deg, rgba(6, 10, 20, 0.94) 0%, rgba(6, 10, 20, 0.8) 20%, rgba(6, 10, 20, 0.3) 100%);
-  --icon-overlay-bg: rgba(0, 0, 0, 0.7);
-  --icon-overlay-border: rgba(255, 255, 255, 0.2);
+  --overlay-bg: rgba(10, 8, 7, 0.75);
+  --overlay-bg-heavy: rgba(10, 8, 7, 0.9);
+  --overlay-bg-light: rgba(10, 8, 7, 0.5);
+  --slide-overlay-gradient: linear-gradient(to right, rgba(15, 13, 12, 0.98) 0%, rgba(15, 13, 12, 0.8) 40%, rgba(15, 13, 12, 0.1) 100%);
+  --icon-overlay-bg: rgba(20, 18, 16, 0.8);
+  --icon-overlay-border: rgba(212, 175, 55, 0.2);
 
   /* ── Banner text (on overlaid images) ── */
-  --banner-text-primary: #ffffff;
-  --banner-text-secondary: rgba(255, 255, 255, 0.75);
-  --banner-ui-bg: rgba(255, 255, 255, 0.1);
-  --banner-ui-border: rgba(255, 255, 255, 0.15);
+  --banner-text-primary: #f5f0e6;
+  --banner-text-secondary: rgba(245, 240, 230, 0.8);
+  --banner-ui-bg: rgba(20, 18, 16, 0.4);
+  --banner-ui-border: rgba(212, 175, 55, 0.25);
 
   /* ── Team card overlay ── */
-  --team-card-overlay-gradient: linear-gradient(to bottom, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.8));
+  --team-card-overlay-gradient: linear-gradient(to bottom, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.85));
 }
 
-/* ── Light Theme Overrides ── */
+/* ── Light Theme Overrides (Parchment Mode) ── */
 [data-theme="light"] {
-  --bg-deepest: #f5f5f5;
-  --bg-deep: #eeeeee;
-  --bg-surface: #ffffff;
-  --bg-secondary: rgba(245, 245, 245, 0.95);
+  --bg-deepest: #f4ece1;
+  --bg-deep: #ede4d5;
+  --bg-surface: #fdfaf5;
+  --bg-secondary: rgba(244, 236, 225, 0.96);
   --bg-card: #ffffff;
-  --bg-card-hover: #f0f0f0;
-  --bg-elevated: rgba(0, 0, 0, 0.03);
-  --bg-glass: rgba(255, 255, 255, 0.85);
-  --bg-primary: #fafafa;
-  --bg-header: rgba(255, 255, 255, 0.92);
-  --bg-ticker: #f0f0f0;
+  --bg-card-hover: #f9f6f2;
+  --bg-elevated: rgba(139, 0, 0, 0.04);
+  --bg-glass: rgba(253, 250, 245, 0.88);
+  --bg-primary: #f8f3eb;
+  --bg-header: rgba(253, 250, 245, 0.96);
+  --bg-ticker: #ede4d5;
 
-  --border-subtle: rgba(0, 0, 0, 0.06);
-  --border-default: rgba(0, 0, 0, 0.1);
-  --border-bright: rgba(0, 0, 0, 0.18);
+  --border-subtle: rgba(139, 0, 0, 0.08);
+  --border-default: rgba(139, 0, 0, 0.15);
+  --border-bright: rgba(139, 0, 0, 0.25);
 
-  --text-primary: #1a1a1a;
-  --text-secondary: #555555;
-  --text-muted: #999999;
-  --text-bright: #000000;
+  --text-primary: #2d241e;
+  --text-secondary: #5c4d44;
+  --text-muted: #8c7b70;
+  --text-bright: #1a1614;
 
-  /* Accents stay vivid but adapt glow for light bg */
-  --accent-cyan: #0099cc;
-  --accent-cyan-glow: rgba(0, 153, 204, 0.15);
-  --accent-purple: #7c3aed;
-  --accent-purple-glow: rgba(124, 58, 237, 0.15);
-  --accent-gold: #d4990a;
-  --accent-gold-glow: rgba(212, 153, 10, 0.15);
-  --accent-green: #059669;
-  --accent-green-glow: rgba(5, 150, 105, 0.15);
-  --accent-red: #dc2626;
-  --accent-red-glow: rgba(220, 38, 38, 0.15);
+  --accent-gold: #c69b12;
+  --accent-gold-glow: rgba(198, 155, 18, 0.12);
+  --accent-cyan: #c69b12;
+  --accent-cyan-glow: rgba(198, 155, 18, 0.12);
+  --accent-purple: #a58444;
 
-  --team-blue: #2563eb;
-  --team-blue-bg: rgba(37, 99, 235, 0.08);
-  --team-red: #dc2626;
-  --team-red-bg: rgba(220, 38, 38, 0.08);
+  --shadow-card: 0 4px 16px rgba(45, 36, 30, 0.08);
+  --shadow-elevated: 0 10px 24px rgba(45, 36, 30, 0.12);
 
-  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.08);
-  --shadow-elevated: 0 6px 24px rgba(0, 0, 0, 0.12);
+  --app-bg-gradient-1: rgba(139, 0, 0, 0.04);
+  --app-bg-gradient-2: rgba(198, 155, 18, 0.03);
 
-  --app-bg-gradient-1: rgba(139, 92, 246, 0.03);
-  --app-bg-gradient-2: rgba(0, 200, 255, 0.02);
-
-  --overlay-bg: rgba(0, 0, 0, 0.4);
-  --overlay-bg-heavy: rgba(0, 0, 0, 0.5);
-  --overlay-bg-light: rgba(0, 0, 0, 0.25);
-  --slide-overlay-gradient: linear-gradient(45deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.7) 20%, rgba(255, 255, 255, 0.15) 100%);
-  --icon-overlay-bg: rgba(255, 255, 255, 0.8);
-  --icon-overlay-border: rgba(0, 0, 0, 0.15);
-
-  --banner-text-primary: #1a1a1a;
-  --banner-text-secondary: rgba(0, 0, 0, 0.6);
-  --banner-ui-bg: rgba(0, 0, 0, 0.06);
-  --banner-ui-border: rgba(0, 0, 0, 0.12);
+  --overlay-bg: rgba(45, 36, 30, 0.45);
+  --overlay-bg-heavy: rgba(45, 36, 30, 0.65);
+  --slide-overlay-gradient: linear-gradient(to right, rgba(253, 250, 245, 0.98) 0%, rgba(253, 250, 245, 0.8) 40%, rgba(253, 250, 245, 0.1) 100%);
+  
+  --banner-text-primary: #2d241e;
+  --banner-text-secondary: rgba(45, 36, 30, 0.7);
+  --banner-ui-bg: rgba(45, 36, 30, 0.05);
+  --banner-ui-border: rgba(45, 36, 30, 0.12);
 
   --team-card-overlay-gradient: linear-gradient(to bottom, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.8));
 }
@@ -236,4 +224,90 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Global Viking Modal Theme ── */
+.modal-overlay, .create-raffle-overlay, .create-matchup-overlay {
+  background: var(--overlay-bg-heavy) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.create-modal, .modal-content, [class*="modal"].create-raffle-modal, [class*="modal"].create-matchup-modal {
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--accent-gold) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(212, 175, 55, 0.1) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.create-modal::before, .modal-content::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
+  z-index: 10;
+}
+
+[class*="modal"] .modal-header, .create-modal .modal-header {
+  border-bottom: 1px solid var(--border-default) !important;
+  padding: 24px 32px !important;
+  background: rgba(212, 175, 55, 0.03) !important;
+}
+
+[class*="modal"] .modal-header h3, .create-modal .modal-header h2 {
+  font-family: 'Cinzel', serif !important;
+  font-size: 1.6rem !important;
+  font-weight: 700 !important;
+  color: var(--accent-gold) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 2px !important;
+  margin: 0 !important;
+}
+
+[class*="modal"] .modal-body {
+  padding: 32px !important;
+}
+
+[class*="modal"] .form-group label {
+  font-family: 'Cinzel', serif !important;
+  color: var(--text-secondary) !important;
+  font-size: 0.85rem !important;
+  letter-spacing: 1px !important;
+}
+
+[class*="modal"] .form-input, [class*="modal"] .form-textarea, [class*="modal"] select {
+  background: var(--bg-deep) !important;
+  border: 1px solid var(--border-default) !important;
+  color: var(--text-primary) !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+[class*="modal"] .form-input:focus {
+  border-color: var(--accent-gold) !important;
+  box-shadow: 0 0 0 3px var(--accent-gold-glow) !important;
+}
+
+[class*="modal"] .modal-footer {
+  border-top: 1px solid var(--border-default) !important;
+  padding: 24px 32px !important;
+}
+
+[class*="modal"] .create-btn, [class*="modal"] .btn-primary {
+  background: var(--accent-gold) !important;
+  color: #000 !important;
+  font-family: 'Cinzel', serif !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  border-radius: var(--radius-md) !important;
+}
+
+[class*="modal"] .create-btn:hover {
+  background: var(--text-bright) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 15px var(--accent-gold-glow) !important;
 }
