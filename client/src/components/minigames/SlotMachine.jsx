@@ -274,45 +274,83 @@ const SlotMachine = ({
 
       {/* CENTER COLUMN: Machine & Controls */}
       <div className="minigame-main-view">
-        <div className="slot-machine-frame">
-          {error && (
-            <div className="slot-error">
-              <span>⚠️ {error}</span>
+        <div className="slot-machine-visuals">
+          <div className="slot-machine-frame">
+            {error && (
+              <div className="slot-error">
+                <span>⚠️ {error}</span>
+              </div>
+            )}
+            <div className="slot-machine-top-bar">
+              <span className="slot-light" />
+              <span className="slot-title">ODIN'S FORTUNE</span>
+              <span className="slot-light" />
             </div>
-          )}
-          <div className="slot-machine-top-bar">
-            <span className="slot-light" />
-            <span className="slot-title">ODIN'S FORTUNE</span>
-            <span className="slot-light" />
+
+            {/* Reels */}
+            <div className="slot-reels-window">
+              {[0, 1, 2].map(reelIndex => (
+                <div key={reelIndex} className="slot-reel-container">
+                  <div className="slot-reel" ref={reelRefs[reelIndex]}>
+                    {reelSymbols.map((prize, symIdx) => (
+                      <div
+                        key={`${reelIndex}-${symIdx}`}
+                        className={`slot-symbol ${prize.rarity}`}
+                        style={{ height: `${symbolHeight}px` }}
+                      >
+                        <span className="slot-symbol-icon">
+                          {prize.icon && prize.icon.endsWith('.png') ? (
+                            <img src={`${process.env.PUBLIC_URL}/icons/minigames/${prize.icon}`} alt="" className="slot-icon-img" />
+                          ) : (
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--accent-gold)'}}><path d="M20 12V8H4v4"/><rect width="20" height="12" x="2" y="12" rx="2"/><path d="M12 12V3"/><path d="M7 12V7"/><path d="M17 12V7"/><path d="M11 3h2"/></svg>
+                          )}
+                        </span>
+                        <span className="slot-symbol-name">{prize.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {/* Center line indicator */}
+              <div className="slot-payline" />
+            </div>
           </div>
 
-          {/* Reels */}
-          <div className="slot-reels-window">
-            {[0, 1, 2].map(reelIndex => (
-              <div key={reelIndex} className="slot-reel-container">
-                <div className="slot-reel" ref={reelRefs[reelIndex]}>
-                  {reelSymbols.map((prize, symIdx) => (
-                    <div
-                      key={`${reelIndex}-${symIdx}`}
-                      className={`slot-symbol ${prize.rarity}`}
-                      style={{ height: `${symbolHeight}px` }}
-                    >
-                      <span className="slot-symbol-icon">
-                        {prize.icon && prize.icon.endsWith('.png') ? (
-                          <img src={`${process.env.PUBLIC_URL}/icons/minigames/${prize.icon}`} alt="" className="slot-icon-img" />
-                        ) : (
-                          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--accent-gold)'}}><path d="M20 12V8H4v4"/><rect width="20" height="12" x="2" y="12" rx="2"/><path d="M12 12V3"/><path d="M7 12V7"/><path d="M17 12V7"/><path d="M11 3h2"/></svg>
-                        )}
-                      </span>
-                      <span className="slot-symbol-name">{prize.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {/* Center line indicator */}
-            <div className="slot-payline" />
+          {/* Lever UX Label */}
+          <div className="slot-lever-label">
+            <span className="lever-label-text">
+              {isSpinning ? 'SPINNING...' : 'PULL TO SPIN'}
+            </span>
+            {!isSpinning && <div className="lever-label-arrow">▼</div>}
           </div>
+
+          {/* Mechanical Pull Lever */}
+          <div 
+            className={`slot-lever-container ${isSpinning ? 'pulling' : ''}`}
+            onClick={handleSpin}
+          >
+            <div className="lever-base" />
+            <div className="lever-rod">
+              <div className="lever-knob" />
+            </div>
+          </div>
+
+          {/* Victory Particles */}
+          {showResult && result && result.prize && (result.prize.rarity === 'legendary' || result.prize.rarity === 'epic' || result.prize.rarity === 'rare') && (
+            <div className="slot-particles">
+              {[...Array(16)].map((_, i) => (
+                <span
+                  key={i}
+                  className="slot-particle"
+                  style={{
+                    '--angle': `${(i * 22.5)}deg`,
+                    '--delay': `${i * 0.03}s`,
+                    '--color': getRarityColor(result.prize.rarity)
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Action Controls */}
@@ -332,18 +370,7 @@ const SlotMachine = ({
               ))}
             </div>
           </div>
-
         </div>
-
-        {/* Persistent Floating Spin Button */}
-        <button 
-          className={`slot-floating-spin-btn ${isSpinning ? 'spinning' : ''}`}
-          onClick={handleSpin}
-          disabled={isSpinning}
-        >
-          <div className="fab-glow" />
-          <span className="fab-text">{isSpinning ? '...' : 'SPIN'}</span>
-        </button>
       </div>
 
       {/* Result Modal */}

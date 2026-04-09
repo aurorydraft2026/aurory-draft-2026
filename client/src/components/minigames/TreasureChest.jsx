@@ -219,7 +219,23 @@ const TreasureChest = ({
             </div>
           )}
           <div className="chest-stage">
-            <div className={`chest-wrapper ${phase}`}>
+            <div 
+              className={`chest-wrapper ${phase} ${phase === 'idle' ? 'interactive' : ''}`}
+              onClick={phase === 'idle' ? handleOpen : (phase === 'reveal' ? handlePlayAgain : undefined)}
+            >
+              {phase === 'idle' && (
+                <div className="chest-tap-hint">
+                  <span className="tap-text">OPEN ARTIFACT</span>
+                  <div className="tap-pulse-container">
+                    <div className="tap-pulse-ring" />
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                      <path d="M12 8v4M12 16h.01" strokeWidth="2.5"/>
+                    </svg>
+                  </div>
+                </div>
+              )}
+
               {/* The Chest itself */}
               <div className={`chest-body ${phase}`}>
                 <div className="chest-lid">
@@ -279,24 +295,23 @@ const TreasureChest = ({
                   )}
                 </div>
               )}
+              {/* Particles for rare/epic/legendary (Inside wrapper for precise anchoring) */}
+              {phase === 'reveal' && result && result.prize && (result.prize.rarity === 'legendary' || result.prize.rarity === 'epic' || result.prize.rarity === 'rare') && (
+                <div className="chest-particles">
+                  {[...Array(result.prize.rarity === 'rare' ? 12 : 16)].map((_, i) => (
+                    <span
+                      key={i}
+                      className="chest-particle"
+                      style={{
+                        '--angle': `${(i * (result.prize.rarity === 'rare' ? 30 : 22.5))}deg`,
+                        '--delay': `${i * 0.03}s`,
+                        '--color': getRarityColor(result.prize.rarity)
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
-
-            {/* Particles for legendary/epic */}
-            {phase === 'reveal' && result && result.prize && (result.prize.rarity === 'legendary' || result.prize.rarity === 'epic') && (
-              <div className="chest-particles">
-                {[...Array(12)].map((_, i) => (
-                  <span
-                    key={i}
-                    className="chest-particle"
-                    style={{
-                      '--angle': `${(i * 30)}deg`,
-                      '--delay': `${i * 0.05}s`,
-                      '--color': getRarityColor(result.prize.rarity)
-                    }}
-                  />
-                ))}
-              </div>
-            )}
           </div>
         </div>
 
@@ -320,17 +335,6 @@ const TreasureChest = ({
 
         </div>
 
-        {/* Persistent Floating Open Button */}
-        <button 
-          className={`chest-floating-open-btn ${(isOpening || phase === 'reveal') ? 'active' : ''}`}
-          onClick={phase === 'reveal' ? handlePlayAgain : handleOpen}
-          disabled={isOpening}
-        >
-          <div className="fab-glow" />
-          <span className="fab-text">
-            {isOpening ? '...' : (phase === 'reveal' ? 'AGAIN' : 'OPEN')}
-          </span>
-        </button>
       </div>
 
       {/* Prizes Modal */}
