@@ -62,7 +62,7 @@ const MatchupsSection = ({ user, isAdmin }) => {
                 <div className="no-matchups">
                     <div className="empty-icon">🎮</div>
                     <p>No active matchups yet.</p>
-                    {isAdmin && <p className="admin-hint">Click "Create Tournament" to start the first one!</p>}
+                    {isAdmin && <p className="admin-hint">Click "Create Arena" to start the first one!</p>}
                 </div>
             )}
 

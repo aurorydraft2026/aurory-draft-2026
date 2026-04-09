@@ -30,6 +30,16 @@ const FINISH_LINE = DOCK_WIDTH + 5 * ZONE_WIDTH; // 100%
 const DEFAULT_HOUSE_SEED = 500;
 const DEFAULT_MULTIPLIER = 0.9;
 
+const WEATHER_SVGS = {
+  '☀️': <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
+  '⚡': <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+  '🌫️': <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>,
+  '🐙': <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 2.4 1.3 4.5 3.3 5.7M12 2a7 7 0 0 1 7 7c0 2.4-1.3 4.5-3.3 5.7M12 9v4M8 13v4M16 13v4M5 14v4M19 14v4M12 22v-3"/></svg>,
+  '💨': <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.7 7.7A2.5 2.5 0 1 1 20 12H4M17.7 16.3A2.5 2.5 0 1 0 20 12"/></svg>,
+  '🧊': <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0-6-8-10-8-10S4 4 4 10c0 6 8 10 8 10s8-4 8-10Z"/><path d="M12 20v2"/><path d="M12 8v1"/><path d="M12 13v1"/></svg>,
+  '✨': <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+};
+
 const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const [state, setState] = useState(null);
   const [pools, setPools] = useState({});
@@ -404,7 +414,8 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       <div className="dv2-status-bar">
         <div className="dv2-status-left">
           <span className="dv2-players-count">
-            👤 {Object.keys(presence).length} <span className="dv2-players-label">Players</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '4px'}}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            {Object.keys(presence).length} <span className="dv2-players-label">Players</span>
           </span>
           <span
             className="dv2-phase-label"
@@ -419,10 +430,20 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
           <span className="dv2-race-id"><span className="dv2-race-label">Race</span> #{state.raceId || 0}</span>
         </div>
         <div className="dv2-status-right">
-          <button className="dv2-rules-btn" onClick={() => setShowRules(true)}>📜 Rules</button>
+          <button className="dv2-rules-btn" onClick={() => setShowRules(true)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            Rules
+          </button>
           <div className="dv2-timer-pill">
-            {state.phase === 'racing' ? '🏁' :
-              state.phase === 'betting' ? `${Math.ceil(timeLeft / 1000)}s` :
+            {state.phase === 'racing' ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+            ) :
+              state.phase === 'betting' ? (
+                <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  {Math.ceil(timeLeft / 1000)}s
+                </div>
+              ) :
                 <div className="dv2-spinner" />}
           </div>
         </div>
@@ -439,7 +460,9 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
           {/* ═══ WEATHER BAR ═══ */}
           <div className="dv2-weather-bar">
             <div className="dv2-weather-dock" style={{ width: `${DOCK_WIDTH}%` }}>
-              <span className="dv2-dock-icon">🏰</span>
+              <span className="dv2-dock-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"/><path d="M10 21V7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v14"/><path d="M18 21V11a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v10"/><path d="M6 21V15a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v6"/></svg>
+              </span>
               <span className="dv2-dock-text">Dock</span>
             </div>
             {raceWeathers.map((w, i) => {
@@ -455,10 +478,12 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                   className={`dv2-weather-zone ${isHidden ? 'hidden' : ''} ${statusClass}`}
                 >
                   <span className="dv2-weather-icon">
-                    {isHidden ? '❓' : w.icon}
+                    {isHidden ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    ) : WEATHER_SVGS[w.icon] || w.icon}
                   </span>
                   <span className="dv2-weather-name">
-                    {isHidden ? 'Hidden' : w.name}
+                    {isHidden ? 'Secret' : w.name}
                   </span>
                 </div>
               );
@@ -519,11 +544,16 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                     {state.phase === 'racing' && (
                       <div className={`dv2-ship-speed speed-tag-${SPEED_MATRIX[getShipGlobalIndex(ship.id)][state.weatherIndices[Math.max(0, Math.min(4, Math.floor((shipPositions[i] - DOCK_WIDTH) / ZONE_WIDTH)))]]
                         }`}>
-                        {raceWeathers[Math.max(0, Math.min(4, Math.floor((shipPositions[i] - DOCK_WIDTH) / ZONE_WIDTH)))]?.icon} {formatSpeed(SPEED_MATRIX[getShipGlobalIndex(ship.id)][state.weatherIndices[Math.max(0, Math.min(4, Math.floor((shipPositions[i] - DOCK_WIDTH) / ZONE_WIDTH)))]])}
+                        {raceWeathers[Math.max(0, Math.min(4, Math.floor((shipPositions[i] - DOCK_WIDTH) / ZONE_WIDTH)))]?.icon && 
+                          WEATHER_SVGS[raceWeathers[Math.max(0, Math.min(4, Math.floor((shipPositions[i] - DOCK_WIDTH) / ZONE_WIDTH)))]?.icon]
+                        } 
+                        {formatSpeed(SPEED_MATRIX[getShipGlobalIndex(ship.id)][state.weatherIndices[Math.max(0, Math.min(4, Math.floor((shipPositions[i] - DOCK_WIDTH) / ZONE_WIDTH)))]])}
                       </div>
                     )}
                     {state.phase === 'result' && state.winnerIdx === i && (
-                      <span className="dv2-winner-badge">👑</span>
+                      <span className="dv2-winner-badge">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--accent-gold)'}}><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>
+                      </span>
                     )}
                   </div>
                 </div>
@@ -534,7 +564,9 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
           {/* ═══ RESULT OVERLAY ═══ */}
           {state.phase === 'result' && state.winnerIdx !== null && raceShips[state.winnerIdx] && (
             <div className="dv2-result-banner">
-              <span className="dv2-result-crown">👑</span>
+              <span className="dv2-result-crown">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--accent-gold)'}}><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>
+              </span>
               <span className="dv2-result-name" style={{ color: raceShips[state.winnerIdx].color }}>
                 {raceShips[state.winnerIdx].name} Wins!
               </span>
@@ -604,7 +636,10 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                         {revealedWeatherSpeed !== null && (
                           <span className="dv2-speed-hint">
                             {isPeeking ? (
-                              <>{raceWeathers[state.revealedIndex]?.icon} {formatSpeed(revealedWeatherSpeed)}</>
+                              <>
+                                {WEATHER_SVGS[raceWeathers[state.revealedIndex]?.icon] || raceWeathers[state.revealedIndex]?.icon}
+                                <span>{formatSpeed(revealedWeatherSpeed)}</span>
+                              </>
                             ) : (
                               ''
                             )}
@@ -617,12 +652,16 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                       <div className="dv2-pool-row">
                         <span>Global Pool</span>
                         <span className="dv2-pool-amount">
-                          🪙 {(pools[ship.id] || 0) + currentHouseSeed}
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '2px'}}><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+                          {(pools[ship.id] || 0) + currentHouseSeed}
                         </span>
                       </div>
                       <div className="dv2-pool-row">
                         <span>Your Bet</span>
-                        <span className="dv2-pool-amount dv2-my-bet">🪙 {myBets[ship.id] || 0}</span>
+                        <span className="dv2-pool-amount dv2-my-bet">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '2px'}}><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+                          {myBets[ship.id] || 0}
+                        </span>
                       </div>
                       <div className="dv2-pool-row">
                         <span>Est. Payout</span>
@@ -636,15 +675,18 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
             {/* Totals */}
             <div className="dv2-totals-bar">
-              <span>Total Pool: 🪙 {totalPool}</span>
-              <span>Your Total: 🪙 {Object.values(myBets).reduce((a, b) => a + b, 0)} / {MAX_BET_PER_USER}</span>
+              <span>Total Pool: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{display: 'inline', verticalAlign: 'middle', marginRight: '4px'}}><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg> {totalPool}</span>
+              <span>Your Total: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{display: 'inline', verticalAlign: 'middle', marginRight: '4px'}}><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg> {Object.values(myBets).reduce((a, b) => a + b, 0)} / {MAX_BET_PER_USER}</span>
             </div>
           </div>
         </div>
 
         {/* ── BOTTOM: Race History ── */}
         <div className="dv2-history-panel">
-          <h3 className="dv2-history-title">📜 Recent Races</h3>
+          <h3 className="dv2-history-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+            Recent Races
+          </h3>
           <div className="dv2-history-list">
             {history.length === 0 ? (
               <div className="dv2-history-empty">No races yet</div>
@@ -663,7 +705,10 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                     </span>
                   </div>
                   <div className="dv2-history-details">
-                    <span>🪙 {entry.totalPool || 0}</span>
+                    <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+                      {entry.totalPool || 0}
+                    </span>
                     <span className="dv2-history-multiplier">{entry.payoutMultiplier?.toFixed(1) || '—'}x</span>
                   </div>
                 </div>
@@ -679,7 +724,10 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
         <div className="dv2-rules-overlay" onClick={() => setShowRules(false)}>
           <div className="dv2-rules-modal" onClick={e => e.stopPropagation()}>
             <div className="dv2-rules-header">
-              <h2>📜 Drakkar Race Rules</h2>
+              <h2>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '12px'}}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                Drakkar Race Rules
+              </h2>
               <button className="dv2-rules-close" onClick={() => setShowRules(false)}>✕</button>
             </div>
             <div className="dv2-rules-body">
@@ -691,7 +739,12 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                     <tr>
                       <th>Ship</th>
                       {ALL_WEATHERS.map(w => (
-                        <th key={w.id}>{w.icon}<br /><small>{w.name}</small></th>
+                        <th key={w.id}>
+                          <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px'}}>
+                            {WEATHER_SVGS[w.icon] || w.icon}
+                            <small>{w.name}</small>
+                          </div>
+                        </th>
                       ))}
                     </tr>
                   </thead>

@@ -168,7 +168,11 @@ const TreasureChest = ({
       <div className="chest-winners-feed side-panel">
         <div className="feed-header">
           <h4>Recent Action</h4>
-          <span className="live-indicator"><span className="pulse-dot"></span> Live</span>
+          <span className="live-indicator">
+            <span className="pulse-dot"></span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
+            Live
+          </span>
         </div>
         <div className="feed-list">
           {displayedWinners.length > 0 ? (
@@ -210,7 +214,9 @@ const TreasureChest = ({
               <div className={`chest-body ${phase}`}>
                 <div className="chest-lid">
                   <div className="chest-lid-front">
-                    <div className="chest-lock">🔒</div>
+                    <div className="chest-lock">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
                   </div>
                 </div>
                 <div className="chest-base">
@@ -233,7 +239,7 @@ const TreasureChest = ({
                         {result.prize.icon && result.prize.icon.endsWith('.png') ? (
                           <img src={`${process.env.PUBLIC_URL}/icons/minigames/${result.prize.icon}`} alt="" className="chest-icon-img" />
                         ) : (
-                          result.prize.icon || '🎁'
+                          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--accent-gold)'}}><path d="M20 12V8H4v4"/><rect width="20" height="12" x="2" y="12" rx="2"/><path d="M12 12V3"/><path d="M7 12V7"/><path d="M17 12V7"/><path d="M11 3h2"/></svg>
                         )}
                       </div>
                       <span
@@ -247,7 +253,9 @@ const TreasureChest = ({
                     </>
                   ) : (
                     <>
-                      <div className="chest-prize-icon">💨</div>
+                      <div className="chest-prize-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--text-muted)'}}><path d="M17.7 7.7A2.5 2.5 0 1 1 20 12H4M17.7 16.3A2.5 2.5 0 1 0 20 12"/></svg>
+                      </div>
                       <span className="chest-prize-rarity" style={{ color: '#64748b' }}>
                         EMPTY...
                       </span>
@@ -308,14 +316,20 @@ const TreasureChest = ({
                   </span>
                   {!isOpening && (
                     <span className="chest-btn-cost">
-                      <img src={process.env.PUBLIC_URL + '/valcoin-icon.jpg'} alt="V" className="chest-cost-icon" />
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
                       {costPerPlay * multiplier}
                     </span>
                   )}
                 </button>
                 <div className="chest-meta-buttons">
-                  <button className="chest-meta-btn" onClick={() => setShowPrizesModal(true)}>🏆 Prizes</button>
-                  <button className="chest-meta-btn" onClick={() => setShowRulesModal(true)}>📖 Rules</button>
+                  <button className="chest-meta-btn" onClick={() => setShowPrizesModal(true)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+                    Prizes
+                  </button>
+                  <button className="chest-meta-btn" onClick={() => setShowRulesModal(true)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                    Rules
+                  </button>
                 </div>
               </>
             ) : (
@@ -339,7 +353,7 @@ const TreasureChest = ({
                     {prize.icon && prize.icon.endsWith('.png') ? (
                       <img src={`${process.env.PUBLIC_URL}/icons/minigames/${prize.icon}`} alt="" className="prize-table-icon-img" />
                     ) : (
-                      prize.icon || '🎁'
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H4v4"/><rect width="20" height="12" x="2" y="12" rx="2"/><path d="M12 12V3"/><path d="M7 12V7"/><path d="M17 12V7"/><path d="M11 3h2"/></svg>
                     )}
                   </span>
                   <div className="chest-pi-info">

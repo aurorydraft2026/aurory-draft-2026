@@ -85,7 +85,7 @@ const MiniGamesButton = () => {
       >
         <div className="viking-btn-inner">
           <svg className="viking-btn-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 22V12"/><path d="M12 12l8-4"/><path d="M12 12L4 8"/></svg>
-          <span className="viking-btn-text">Arcade</span>
+          <span className="viking-btn-text">Trials</span>
         </div>
       </button>
 

@@ -1,15 +1,18 @@
 /* ═══════════════════════════════════════════════════════
-   DRAKKAR RACE v2 — Complete Redesign
+   DRAKKAR RACE v2 — Viking Redesign
    ═══════════════════════════════════════════════════════ */
 
 .drakkar-v2-container {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   width: 100%;
   max-width: 1100px;
   margin: 0 auto;
   position: relative;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  padding: 10px;
 }
 
 /* ─── STATUS BAR ─── */
@@ -17,220 +20,133 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 16px;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(10px);
+  padding: 12px 20px;
+  background: var(--bg-deep);
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-default);
   position: sticky;
-  top: 10px;
+  top: 0;
   z-index: 100;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 .dv2-status-left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
+}
+
+.dv2-players-count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px 12px;
+  border-radius: 20px;
 }
 
 .dv2-phase-label {
   text-transform: uppercase;
   letter-spacing: 2px;
   font-weight: 800;
-  font-size: 0.8rem;
-  color: #f1f5f9;
+  font-size: 0.9rem;
+  color: var(--accent-gold);
+  font-family: 'Cinzel', serif;
   cursor: default;
+  text-shadow: 0 0 10px var(--accent-gold-glow);
 }
 
 .dv2-race-id {
-  font-size: 0.7rem;
-  color: #64748b;
+  font-size: 0.8rem;
+  color: var(--text-muted);
   font-weight: 600;
+  letter-spacing: 1px;
 }
 
 .dv2-status-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .dv2-rules-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #94a3b8;
-  padding: 4px 12px;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
+  background: rgba(212, 175, 55, 0.1);
+  border: 1px solid var(--accent-gold);
+  color: var(--accent-gold);
+  padding: 6px 16px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .dv2-rules-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #e2e8f0;
+  background: var(--accent-gold);
+  color: #000;
 }
 
 .dv2-timer-pill {
-  background: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
-  padding: 4px 14px;
+  background: var(--bg-surface);
+  color: var(--accent-gold);
+  padding: 6px 18px;
   border-radius: 20px;
-  font-weight: 800;
-  font-size: 0.9rem;
-  min-width: 40px;
+  font-weight: 900;
+  font-size: 1rem;
+  min-width: 50px;
   text-align: center;
+  border: 1px solid var(--border-default);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
 }
-
-.dv2-spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(96, 165, 250, 0.3);
-  border-top-color: #60a5fa;
-  border-radius: 50%;
-  animation: dv2-spin 0.8s linear infinite;
-  display: inline-block;
-  vertical-align: middle;
-}
-
-@keyframes dv2-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.dv2-error {
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #fca5a5;
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
 
 /* ─── MAIN LAYOUT ─── */
 .dv2-main-layout {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
-
-
-/* ─── HISTORY PANEL ─── */
-.dv2-history-panel {
-  width: 100%;
-  background: rgba(0, 0, 0, 0.4);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  max-height: 120px;
-}
-
-.dv2-history-title {
-  margin: 0 0 10px 0;
-  font-size: 0.8rem;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  font-weight: 700;
-}
-
-.dv2-history-list {
-  display: flex;
-  flex-direction: row;
-  overflow-x: auto;
-  gap: 8px;
-  flex: 1;
-}
-
-.dv2-history-empty {
-  color: #475569;
-  font-size: 0.75rem;
-  text-align: center;
-  padding: 20px 0;
-  width: 100%;
-}
-
-.dv2-history-item {
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 8px;
-  padding: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.03);
-  min-width: 140px;
-}
-
-.dv2-history-winner-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
-}
-
-.dv2-history-ship-icon {
-  width: 18px;
-  height: 14px;
-  object-fit: contain;
-}
-
-.dv2-history-ship-name {
-  font-size: 0.7rem;
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.dv2-history-details {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.65rem;
-  color: #64748b;
-}
-
-.dv2-history-multiplier {
-  font-weight: 700;
-  color: #fbbf24;
-}
-
 
 /* ─── RACE SECTION ─── */
 .dv2-race-section {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   min-width: 0;
 }
-
 
 /* ─── WEATHER BAR ─── */
 .dv2-weather-bar {
   display: flex;
-  height: 44px;
-  border-radius: 10px;
+  height: 54px;
+  border-radius: 12px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-default);
+  background: var(--bg-deep);
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 
 .dv2-weather-dock {
-  width: 10%;
-  background: rgba(30, 58, 138, 0.6);
+  background: linear-gradient(to bottom, rgba(50, 50, 60, 0.8), rgba(30, 30, 40, 0.8));
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: 0.6rem;
-  color: #94a3b8;
-  font-weight: 600;
-  border-right: 2px dashed rgba(255, 255, 255, 0.15);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  border-right: 2px dashed var(--border-default);
 }
 
 .dv2-dock-icon {
-  font-size: 1.1rem;
+  color: var(--accent-gold);
   margin-bottom: 2px;
 }
 
@@ -241,118 +157,61 @@
   align-items: center;
   justify-content: center;
   gap: 2px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(0, 0, 0, 0.3);
-  border-right: 2px dashed rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.2);
+  border-right: 2px dashed rgba(255, 255, 255, 0.05);
   transition: all 0.5s ease;
 }
 
 .dv2-weather-zone.hidden {
-  background: rgba(0, 0, 0, 0.6);
-  color: rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.4);
 }
 
 .dv2-weather-zone.zone-untouched {
-  background: rgba(239, 68, 68, 0.25);
-  border-bottom: 2px solid rgba(239, 68, 68, 0.5);
-  box-shadow: inset 0 0 20px rgba(239, 68, 68, 0.1);
+  background: rgba(239, 68, 68, 0.1);
+  border-bottom: 3px solid rgba(239, 68, 68, 0.3);
 }
 
 .dv2-weather-zone.zone-active {
-  background: rgba(34, 197, 94, 0.25);
-  border-bottom: 2px solid rgba(34, 197, 94, 0.5);
-  box-shadow: inset 0 0 20px rgba(34, 197, 94, 0.1);
+  background: rgba(34, 197, 94, 0.1);
+  border-bottom: 3px solid rgba(34, 197, 94, 1);
+  box-shadow: inset 0 -10px 20px rgba(34, 197, 94, 0.1);
 }
 
 .dv2-weather-icon {
-  font-size: 1rem;
+  color: var(--accent-gold);
 }
 
 .dv2-weather-name {
   font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
-.dv2-weather-finish {
-  display: none;
-}
-
-/* Hide text labels on mobile for cleaner look */
-@media (max-width: 768px) {
-
-  .dv2-weather-name,
-  .dv2-dock-text {
-    display: none;
-  }
-
-  .dv2-weather-zone,
-  .dv2-weather-dock {
-    gap: 0;
-  }
-}
-
 
 /* ─── RACE TRACK ─── */
 .dv2-track-area {
   position: relative;
   width: 100%;
-  height: 250px;
-  background: #1e3a8a;
-  /* Classic Navy Blue */
-  border-radius: 12px;
+  height: 300px;
+  background-color: #0c0c12;
+  background-image: 
+    radial-gradient(circle at 50% 50%, rgba(212, 175, 55, 0.05), transparent),
+    url('https://www.transparenttextures.com/patterns/dark-matter.png');
+  border-radius: 16px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-default);
+  box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.8);
 }
 
-.dv2-track-water {
+/* Horizontal track lines */
+.dv2-lanes::before {
+  content: '';
   position: absolute;
   inset: 0;
-  opacity: 1;
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 100% 33.33%;
   pointer-events: none;
-}
-
-/* Vertical Weather Zone Tints */
-.dv2-zone-tint {
-  position: absolute;
-  top: 0;
-  height: 100%;
-  z-index: 1;
-  pointer-events: none;
-  transition: all 0.5s ease;
-}
-
-.dv2-zone-tint.zone-untouched {
-  background: linear-gradient(to bottom, rgba(239, 68, 68, 0.3), transparent) !important;
-}
-
-.dv2-zone-tint.zone-active {
-  background: linear-gradient(to bottom, rgba(34, 197, 94, 0.3), transparent) !important;
-}
-
-.dv2-zone-watermark {
-  font-size: 10rem;
-  /* Larger for better visibility */
-  opacity: 0.15;
-  filter: grayscale(0.8) brightness(0.8);
-  user-select: none;
-  pointer-events: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-@keyframes gridDrift {
-  0% {
-    background-position: 0 0;
-  }
-
-  100% {
-    background-position: 50px 0;
-  }
 }
 
 .dv2-zone-divider {
@@ -360,7 +219,7 @@
   top: 0;
   bottom: 0;
   width: 2px;
-  border-left: 2px dashed rgba(255, 255, 255, 0.1);
+  border-left: 2px dashed rgba(255, 255, 255, 0.03);
   z-index: 5;
   pointer-events: none;
 }
@@ -370,20 +229,25 @@
   top: 0;
   bottom: 0;
   right: 0;
-  width: 2px;
-  border-right: 2px dashed #fbbf24;
+  width: 4px;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--accent-gold),
+    var(--accent-gold) 10px,
+    #000 10px,
+    #000 20px
+  );
   z-index: 10;
-  box-shadow: -2px 0 10px rgba(251, 191, 36, 0.4);
+  box-shadow: -10px 0 30px rgba(212, 175, 55, 0.3);
 }
-
 
 /* ─── SHIP LANES ─── */
 .dv2-lanes {
   position: absolute;
-  top: 10px;
+  top: 0;
   left: 0;
   right: 0;
-  bottom: 10px;
+  bottom: 0;
   display: flex;
   flex-direction: column;
 }
@@ -391,253 +255,169 @@
 .dv2-lane {
   flex: 1;
   position: relative;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   display: flex;
   align-items: center;
-  transition: background 0.3s ease;
-}
-
-.dv2-lane:nth-child(even) {
-  background: rgba(255, 255, 255, 0.015);
-  /* Zebra striping for better tracking */
-}
-
-.dv2-lane:last-child {
-  border-bottom: none;
 }
 
 .dv2-lane-label {
   position: absolute;
-  left: 10px;
-  top: 6px;
-  font-size: 0.6rem;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: 'Cinzel', serif;
+  font-size: 0.75rem;
   font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  opacity: 0.5;
+  letter-spacing: 2px;
+  opacity: 0.2;
   pointer-events: none;
   z-index: 5;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
   user-select: none;
+  white-space: nowrap;
 }
 
 .dv2-ship-wrapper {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  gap: 4px;
   z-index: 10;
   transition: transform 0.05s linear;
-  /* Smooth micro-movement */
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6));
-  /* Standard shadow for depth */
-  --dv2-ship-width: 86px;
-}
-
-.dv2-ship-wrapper.winner {
-  animation: winnerPulse 0.6s ease infinite alternate;
-}
-
-@keyframes winnerPulse {
-  0% {
-    filter: brightness(1);
-  }
-
-  100% {
-    filter: brightness(1.7);
-  }
+  filter: drop-shadow(0 0 20px rgba(0, 0, 0, 0.8));
+  --dv2-ship-width: 100px;
 }
 
 .dv2-ship-img {
   width: var(--dv2-ship-width);
   height: auto;
   object-fit: contain;
-  filter: brightness(1.25) drop-shadow(0 4px 10px rgba(0, 0, 0, 0.7));
+  filter: contrast(1.1) brightness(1.1);
+}
+
+.dv2-ship-wrapper.winner {
+  filter: drop-shadow(0 0 30px var(--accent-gold));
+  z-index: 20;
 }
 
 .dv2-ship-speed {
   position: absolute;
-  top: -4px;
+  top: -25px;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.8);
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 0.65rem;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
   font-weight: 800;
-  color: #fff;
-  white-space: nowrap;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  color: var(--accent-gold);
+  border: 1px solid var(--accent-gold);
   display: flex;
   align-items: center;
-  gap: 4px;
-  z-index: 20;
+  gap: 6px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
 }
-
-.dv2-ship-wrapper.racing .dv2-ship-speed {
-  opacity: 1;
-}
-
-.speed-tag-16 {
-  color: #4ade80 !important;
-  border-color: rgba(74, 222, 128, 0.4) !important;
-}
-
-.speed-tag-14 {
-  color: #a3e635 !important;
-}
-
-.speed-tag-12 {
-  color: #fde047 !important;
-}
-
-.speed-tag-11 {
-  color: #fef08a !important;
-}
-
-.speed-tag-10 {
-  color: #fb923c !important;
-}
-
-.speed-tag-9 {
-  color: #fdba74 !important;
-}
-
-.speed-tag-8 {
-  color: #f87171 !important;
-  border-color: rgba(248, 113, 113, 0.4) !important;
-}
-
-.dv2-winner-badge {
-  font-size: 1rem;
-  animation: crownBounce 0.5s ease infinite alternate;
-}
-
-@keyframes crownBounce {
-  0% {
-    transform: translateY(0);
-  }
-
-  100% {
-    transform: translateY(-4px);
-  }
-}
-
 
 /* ─── RESULT BANNER ─── */
 .dv2-result-banner {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 10px 20px;
-  background: rgba(0, 0, 0, 0.6);
-  border-radius: 10px;
-  border: 1px solid rgba(251, 191, 36, 0.2);
-  animation: resultSlide 0.4s ease;
-}
-
-@keyframes resultSlide {
-  0% {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.dv2-result-crown {
-  font-size: 1.5rem;
+  gap: 20px;
+  padding: 16px 32px;
+  background: var(--bg-surface);
+  border-radius: 12px;
+  border: 2px solid var(--accent-gold);
+  animation: resultSlide 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px var(--accent-gold-glow);
 }
 
 .dv2-result-name {
-  font-size: 1rem;
-  font-weight: 800;
+  font-family: 'Cinzel', serif;
+  font-size: 1.4rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 2px;
 }
 
 .dv2-result-payout {
-  font-size: 0.85rem;
-  color: #fbbf24;
-  font-weight: 700;
-  background: rgba(251, 191, 36, 0.1);
-  padding: 2px 10px;
-  border-radius: 12px;
+  font-size: 1.1rem;
+  color: #fff;
+  font-weight: 900;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 4px 16px;
+  border-radius: 20px;
 }
-
 
 /* ─── BETTING SECTION ─── */
 .dv2-betting-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid var(--border-default);
 }
 
 .dv2-chip-selector {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
 .dv2-chip-label {
-  font-size: 0.75rem;
-  color: #94a3b8;
-  font-weight: 600;
-  margin-right: 4px;
+  font-family: 'Cinzel', serif;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .dv2-chip {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #e2e8f0;
-  padding: 5px 14px;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 700;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  padding: 8px 20px;
+  border-radius: 25px;
+  font-size: 0.95rem;
+  font-weight: 900;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
 }
 
 .dv2-chip:hover {
-  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+  transform: translateY(-2px);
 }
 
 .dv2-chip.active {
-  background: rgba(59, 130, 246, 0.3);
-  border-color: #3b82f6;
-  color: #93c5fd;
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.2);
+  background: var(--accent-gold);
+  border-color: var(--accent-gold);
+  color: #000;
+  box-shadow: 0 0 20px var(--accent-gold-glow);
 }
-
 
 /* ─── BET CARDS ─── */
 .dv2-bet-cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  gap: 20px;
 }
 
 .dv2-bet-card {
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  padding: 14px;
-  transition: all 0.2s;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  padding: 24px;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   position: relative;
   overflow: hidden;
   cursor: pointer;
-  user-select: none;
-  -webkit-user-select: none;
-  touch-action: manipulation;
 }
 
 .dv2-bet-card::before {
@@ -646,155 +426,248 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: 4px;
   background: var(--ship-accent);
-  opacity: 0.6;
+  opacity: 0.8;
 }
 
-.dv2-bet-card:hover:not(.disabled):not(.submitting) {
+.dv2-bet-card:hover:not(.disabled) {
   border-color: var(--ship-accent);
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
-  transform: translateY(-2px);
-  filter: brightness(1.15);
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .dv2-bet-card.disabled {
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-.dv2-bet-card.submitting {
   opacity: 0.5;
   cursor: not-allowed;
-  pointer-events: none;
+  filter: grayscale(0.5);
 }
 
 .dv2-bet-card-top {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
 .dv2-bet-card-ship {
-  width: 40px;
-  height: 32px;
-  object-fit: contain;
+  width: 60px;
+  height: auto;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
 }
 
 .dv2-bet-card-info h4 {
   margin: 0;
-  font-size: 0.85rem;
-  font-weight: 700;
+  font-family: 'Cinzel', serif;
+  font-size: 1.1rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .dv2-speed-hint {
-  font-size: 0.65rem;
-  color: #94a3b8;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent-gold);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
 }
 
 .dv2-bet-card-pools {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 10px;
+  gap: 8px;
 }
 
 .dv2-pool-row {
   display: flex;
   justify-content: space-between;
-  font-size: 0.7rem;
-  color: #64748b;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .dv2-pool-amount {
-  font-weight: 700;
-  color: #94a3b8;
+  font-weight: 800;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .dv2-my-bet {
-  color: #60a5fa;
+  color: var(--accent-gold) !important;
 }
 
 .dv2-payout {
-  color: #fbbf24;
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 8px;
+  border-radius: 4px;
 }
-
-
 
 .dv2-totals-bar {
   display: flex;
   justify-content: space-between;
-  font-size: 0.75rem;
-  color: #64748b;
-  font-weight: 600;
-  padding: 6px 10px;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: 'Cinzel', serif;
+  color: var(--text-secondary);
+  font-weight: 700;
+  padding: 12px 20px;
+  background: var(--bg-deep);
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
+/* ─── HISTORY PANEL ─── */
+.dv2-history-panel {
+  background: var(--bg-surface);
+  border-radius: 16px;
+  padding: 20px;
+  border: 1px solid var(--border-default);
+}
+
+.dv2-history-title {
+  margin: 0 0 16px 0;
+  font-family: 'Cinzel', serif;
+  font-size: 1rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dv2-history-title::before {
+  content: '◈';
+  color: var(--accent-gold);
+}
+
+.dv2-history-list {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+}
+
+.dv2-history-item {
+  background: var(--bg-deep);
+  border-radius: 12px;
+  padding: 12px 20px;
+  border: 1px solid var(--border-default);
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.dv2-history-item:hover {
+  border-color: var(--accent-gold);
+  transform: translateY(-2px);
+}
+
+.dv2-history-winner-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dv2-history-ship-name {
+  font-family: 'Cinzel', serif;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.dv2-history-details {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.dv2-history-multiplier {
+  color: var(--accent-gold);
+}
 
 /* ─── RULES MODAL ─── */
 .dv2-rules-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(4px);
+  background: var(--overlay-bg-heavy);
+  backdrop-filter: blur(8px);
 }
 
 .dv2-rules-modal {
-  background: #1e293b;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  width: 90%;
-  max-width: 800px;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.dv2-rules-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--bg-surface);
+  border: 1px solid var(--accent-gold);
+  border-radius: 20px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.9);
 }
 
 .dv2-rules-header h2 {
-  margin: 0;
-  font-size: 1.1rem;
-  color: #f1f5f9;
+  font-family: 'Cinzel', serif;
+  font-size: 1.5rem;
+  color: var(--accent-gold);
+  text-transform: uppercase;
+  letter-spacing: 2px;
 }
 
-.dv2-rules-close {
-  background: none;
-  border: none;
-  color: #64748b;
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
-  transition: all 0.15s;
+.dv2-rules-body h3 {
+  font-family: 'Cinzel', serif;
+  color: var(--text-bright);
+  border-bottom: 1px solid var(--border-default);
+  padding-bottom: 8px;
+  margin-top: 32px;
 }
 
-.dv2-rules-close:hover {
+.dv2-speed-table th {
+  font-family: 'Cinzel', serif;
+  font-size: 0.75rem;
   background: rgba(255, 255, 255, 0.05);
-  color: #e2e8f0;
 }
 
-.dv2-rules-body {
-  padding: 20px;
-  overflow-y: auto;
-  color: #94a3b8;
-  font-size: 0.85rem;
-  line-height: 1.6;
+.dv2-formula {
+  background: var(--bg-deep) !important;
+  border: 1px solid var(--accent-gold);
+  color: var(--accent-gold);
+  font-family: 'Cinzel', serif;
+  letter-spacing: 1px;
+}
+
+/* ───────────── RESPONSIVE ───────────── */
+@media (max-width: 768px) {
+  .dv2-status-left {
+    gap: 12px;
+  }
+  
+  .dv2-players-label,
+  .dv2-race-label {
+    display: none;
+  }
+
+  .dv2-bet-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .dv2-track-area {
+    height: 240px;
+  }
+
+  .dv2-ship-wrapper {
+    --dv2-ship-width: 70px;
+  }
+
+  .dv2-bet-card {
+    padding: 16px;
+  }
 }
 
 .dv2-rules-body h3 {
