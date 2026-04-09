@@ -247,48 +247,54 @@
   .header-create-btn {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 8px;
     padding: 6px 16px;
-    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
-    border: none;
+    background: var(--bg-card);
+    border: 1px solid var(--accent-gold);
     border-radius: var(--radius-md);
-    color: white;
-    font-family: 'Exo 2', sans-serif;
+    color: var(--accent-gold);
+    font-family: 'Cinzel', serif;
     font-weight: 700;
-    font-size: 0.78rem;
-    letter-spacing: 0.5px;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
     text-transform: uppercase;
     cursor: pointer;
     transition: all 0.25s ease;
     white-space: nowrap;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
   }
 
   .header-create-btn:hover {
-    box-shadow: 0 4px 20px rgba(0, 200, 255, 0.3);
+    box-shadow: 0 0 15px var(--accent-gold-glow);
+    background: var(--accent-gold);
+    color: #000;
     transform: translateY(-1px);
   }
 
   /* Primary Create Buttons (Unifying sections) */
   .create-draft-btn-primary {
-    background: linear-gradient(90deg, #00f2fe 0%, #00c8ff 100%);
-    border: none;
-    padding: 10px 20px;
-    border-radius: 8px;
-    color: #000;
-    font-weight: 700;
+    background: var(--accent-gold);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    padding: 10px 24px;
+    border-radius: var(--radius-md);
+    color: #1a1a1a;
+    font-family: 'Cinzel', serif;
+    font-weight: 900;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     text-transform: uppercase;
-    font-size: 0.85rem;
-    letter-spacing: 0.5px;
+    font-size: 0.9rem;
+    letter-spacing: 1.5px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
   }
 
   .create-draft-btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0, 242, 254, 0.4);
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 25px var(--accent-gold-glow), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    background: var(--text-bright);
   }
 
   /* Wallet Button */
