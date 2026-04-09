@@ -432,7 +432,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
         <div className="dv2-status-right">
           <button className="dv2-rules-btn" onClick={() => setShowRules(true)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-            Rules
+            <span className="dv2-btn-text">Rules</span>
           </button>
           <div className="dv2-timer-pill">
             {state.phase === 'racing' ? (
@@ -549,11 +549,6 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                         } 
                         {formatSpeed(SPEED_MATRIX[getShipGlobalIndex(ship.id)][state.weatherIndices[Math.max(0, Math.min(4, Math.floor((shipPositions[i] - DOCK_WIDTH) / ZONE_WIDTH)))]])}
                       </div>
-                    )}
-                    {state.phase === 'result' && state.winnerIdx === i && (
-                      <span className="dv2-winner-badge">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--accent-gold)'}}><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>
-                      </span>
                     )}
                   </div>
                 </div>

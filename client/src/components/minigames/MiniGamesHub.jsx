@@ -91,7 +91,7 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
           <div className="minigames-modal minigames-game-view" onClick={e => e.stopPropagation()}>
             <div className="minigames-modal-header">
               <button className="minigames-back-btn" onClick={handleBackToHub}>
-                ← Games
+                ← <span className="back-btn-text">Games</span>
               </button>
               <h2>{gameInfo.icon} {gameInfo.name}</h2>
               <div className="minigames-balances-group">
