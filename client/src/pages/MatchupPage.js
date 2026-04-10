@@ -1527,7 +1527,7 @@ const MatchupPage = () => {
                     <div className="header-title">
                         <h1>{matchup.title}</h1>
                         <div className="header-meta-row">
-                            <span className="tournament-subtitle">Asgard Duels Tourney</span>
+                            <span className="tournament-subtitle">Asgard Tourney</span>
                             <span
                                 className="header-draft-id"
                                 onClick={() => copyToClipboard(matchupId, 'Matchup ID')}

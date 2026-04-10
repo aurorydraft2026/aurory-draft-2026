@@ -1,9 +1,9 @@
-# Asgard Duels 2026
+# Asgard 2026
 Competitive Tournament Infrastructure
 
-# Asgard Duels Project
+# Asgard Project
 
-Project for managing Asgard Duels, tournament tracking, and match history.
+Project for managing Asgard, tournament tracking, and match history.
 
 ## Architecture
 - **Frontend**: React (located in `/client`)

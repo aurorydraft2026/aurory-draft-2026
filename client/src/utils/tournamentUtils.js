@@ -1,5 +1,5 @@
 /**
- * Tournament Utilities for Asgard Duels
+ * Tournament Utilities for Asgard
  * Generates brackets and fixtures for various tournament types.
  */
 

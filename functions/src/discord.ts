@@ -74,7 +74,7 @@ export const onRaffleCreated = functions.firestore
                     }
                 ],
                 footer: {
-                    text: 'Asgard Duels • Automated Announcement',
+                    text: 'Asgard • Automated Announcement',
                     icon_url: 'https://asgard-duels.web.app/favicon.ico'
                 },
                 timestamp: new Date().toISOString()
@@ -160,7 +160,7 @@ export const onRaffleWinnerSet = functions.firestore
                         }
                     ],
                     footer: {
-                        text: 'Asgard Duels • Fair & Honest Raffles',
+                        text: 'Asgard • Fair & Honest Raffles',
                         icon_url: 'https://asgard-duels.web.app/favicon.ico'
                     },
                     timestamp: new Date().toISOString()
@@ -270,7 +270,7 @@ export const onMatchupCreated = functions.firestore
                     }
                 ],
                 footer: {
-                    text: 'Asgard Duels • Tournament Matchups',
+                    text: 'Asgard • Tournament Matchups',
                     icon_url: 'https://asgard-duels.web.app/favicon.ico'
                 },
                 timestamp: new Date().toISOString()
@@ -331,7 +331,7 @@ export const onMatchupWinner = functions.firestore
                         }
                     ],
                     footer: {
-                        text: 'Asgard Duels • Official Results',
+                        text: 'Asgard • Official Results',
                         icon_url: 'https://asgard-duels.web.app/favicon.ico'
                     },
                     timestamp: new Date().toISOString()
@@ -400,7 +400,7 @@ export const onDraftCreated = functions.firestore
                     }
                 ],
                 footer: {
-                    text: 'Asgard Duels • Automated Announcement',
+                    text: 'Asgard • Automated Announcement',
                     icon_url: 'https://asgard-duels.web.app/favicon.ico'
                 },
                 timestamp: new Date().toISOString()

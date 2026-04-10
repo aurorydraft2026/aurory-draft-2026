@@ -7,6 +7,8 @@ import {
   SPEED_MATRIX,
   CHIP_VALUES,
   MAX_BET_PER_USER,
+  MAX_BET_PER_SHIP_PER_USER,
+  MAX_SHIP_POOL,
   ZONE_WIDTH,
   DOCK_WIDTH,
   SHIP_START,
@@ -333,10 +335,20 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
     const amount = selectedChip;
     const currentTotal = Object.values(myBets).reduce((a, b) => a + b, 0);
+    const shipBet = myBets[shipId] || 0;
+    const shipPool = pools[shipId] || 0;
     
-    // Safety check
+    // Safety checks
+    if (shipPool + amount > MAX_SHIP_POOL) {
+      triggerLocalError("This ship is full!");
+      return;
+    }
+    if (shipBet + amount > MAX_BET_PER_SHIP_PER_USER) {
+      triggerLocalError(`Max bet per ship is ${MAX_BET_PER_SHIP_PER_USER}.`);
+      return;
+    }
     if (currentTotal + pendingBetsTotal + amount > MAX_BET_PER_USER) {
-      triggerLocalError(`Max bet is ${MAX_BET_PER_USER} per race.`);
+      triggerLocalError(`Max bet is ${MAX_BET_PER_USER} / race.`);
       return;
     }
     if (amount > userPoints) {
@@ -371,7 +383,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
   const totalPool = raceShips.reduce((sum, s) => {
     return sum + (pools[s.id] || 0);
-  }, 0) + (currentHouseSeed * 3);
+  }, 0);
 
   const isSyncing = (state?.phase !== 'betting') && (pendingRequestsRef.current > 0);
 
@@ -388,7 +400,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   };
 
   const getEstimatedPayout = (shipId) => {
-    const shipPool = (pools[shipId] || 0) + currentHouseSeed;
+    const shipPool = pools[shipId] || 0;
     if (shipPool === 0 || totalPool === 0) return '—';
     const multiplier = (totalPool / shipPool) * currentMultiplier;
     return multiplier.toFixed(1) + 'x';
@@ -600,17 +612,21 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                   ? SPEED_MATRIX[shipGlobalIdx][revealedIdx]
                   : null;
 
+                const shipPool = pools[ship.id] || 0;
+                const isFull = shipPool >= MAX_SHIP_POOL;
+
                 return (
                   <div
                     key={ship.id}
-                    className={`dv2-bet-card ${state.phase !== 'betting' ? 'disabled' : ''}`}
+                    className={`dv2-bet-card ${state.phase !== 'betting' || isFull ? 'disabled' : ''} ${isFull ? 'full' : ''}`}
                     style={{ '--ship-accent': ship.color }}
                     onClick={() => {
-                      if (state.phase === 'betting') {
+                      if (state.phase === 'betting' && !isFull) {
                         handlePlaceBet(ship.id);
                       }
                     }}
                   >
+                    {isFull && <div className="dv2-full-badge">FULL</div>}
                     {/* Floating Reactions */}
                     <div className="dv2-reactions-container">
                       {reactions.filter(r => r.shipId === ship.id).map(r => (
@@ -648,7 +664,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                         <span>Global Pool</span>
                         <span className="dv2-pool-amount">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '2px'}}><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
-                          {(pools[ship.id] || 0) + currentHouseSeed}
+                          {pools[ship.id] || 0}
                         </span>
                       </div>
                       <div className="dv2-pool-row">
@@ -787,9 +803,10 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
               <h3>Betting Rules</h3>
               <ul>
-                <li>Max bet per user per race: <strong>{MAX_BET_PER_USER} Valcoins</strong></li>
+                <li>Max bet per user / ship: <strong>{MAX_BET_PER_SHIP_PER_USER} Valcoins</strong> (Total {MAX_BET_PER_USER})</li>
+                <li>Max total pool per ship: <strong>{MAX_SHIP_POOL.toLocaleString()} Valcoins</strong></li>
                 <li>You can bet on multiple ships</li>
-                <li>Select a chip value (×1, ×5, ×10, ×50, ×100) and click a ship to bet</li>
+                <li>Select a chip value and click a ship to bet</li>
                 <li>Bets are deducted from your balance immediately</li>
               </ul>
             </div>

@@ -496,7 +496,7 @@ export const useAuth = (navigate) => {
             <div className="modal-overlay" onClick={() => setShowLoginModal(false)}>
                 <div className="login-modal" onClick={(e) => e.stopPropagation()}>
                     <div className="modal-header">
-                        <h3>🔐 Login to Asgard Duels</h3>
+                        <h3>🔐 Login to Asgard</h3>
                         <button className="close-modal" onClick={() => setShowLoginModal(false)}>✖</button>
                     </div>
                     <div className="login-options">
@@ -579,7 +579,7 @@ export const useAuth = (navigate) => {
                     </div>
                     <div className="modal-body">
                         <div className="confirm-icon">🚪</div>
-                        <p>Are you sure you want to log out of Asgard Duels?</p>
+                        <p>Are you sure you want to log out of Asgard?</p>
                         <div className="confirm-actions">
                             <button
                                 className="btn-secondary"

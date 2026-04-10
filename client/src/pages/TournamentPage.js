@@ -4751,15 +4751,15 @@ function TournamentPage() {
           <div className="header-brand">
             {(draftState.draftType === 'mode1' || draftState.draftType === 'mode2') && (
               <img
-                src="/AsgardDuels logos/Triad_logo.png"
+                src="/Asgard logos/Triad_logo.png"
                 alt="Triad Logo"
                 className="triad-logo-header"
               />
             )}
             <div className="header-title">
-              <h1>{draftState.title || 'Asgard Duels'}</h1>
+              <h1>{draftState.title || 'Asgard'}</h1>
               <div className="header-meta-row">
-                {draftState.title && <span className="tournament-subtitle">Asgard Duels Tournament</span>}
+                {draftState.title && <span className="tournament-subtitle">Asgard Tournament</span>}
                 <span
                   className="header-draft-id"
                   onClick={() => copyToClipboard(DRAFT_ID, 'Draft ID')}

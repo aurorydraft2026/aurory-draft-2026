@@ -40,8 +40,10 @@ export const SPEED_MATRIX = [
   [10, 11, 12, 14, 16, 8, 9], // Norse Raider
 ];
 
-export const CHIP_VALUES = [1, 5, 10, 50, 100, 500, 1000];
-export const MAX_BET_PER_USER = 10000;
+export const CHIP_VALUES = [100, 500, 1000, 2500, 5000, 10000];
+export const MAX_BET_PER_USER = 30000;
+export const MAX_BET_PER_SHIP_PER_USER = 10000;
+export const MAX_SHIP_POOL = 1000000;
 
 // Animation constants
 export const BASE_SPEED = 8; // Reverted to 8 for original race duration and excitement
@@ -151,7 +153,8 @@ function getDefaultConfig() {
     drakkarRace: {
       enabled: true,
       minBet: 1,
-      maxBetPerUser: 1000,
+      maxBetPerUser: 10000,
+      maxBetPerRace: 1000000,
       description: 'Bet on legendary ships in a real-time parimutuel race!',
       multiplier: 'parimutuel'
     }

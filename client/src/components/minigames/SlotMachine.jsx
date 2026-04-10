@@ -316,19 +316,15 @@ const SlotMachine = ({
             </div>
           </div>
 
-          {/* Lever UX Label */}
-          <div className="slot-lever-label">
-            <span className="lever-label-text">
-              {isSpinning ? 'SPINNING...' : 'PULL TO SPIN'}
-            </span>
-            {!isSpinning && <div className="lever-label-arrow">▼</div>}
-          </div>
+
 
           {/* Mechanical Pull Lever */}
           <div 
             className={`slot-lever-container ${isSpinning ? 'pulling' : ''}`}
             onClick={handleSpin}
           >
+            {!isSpinning && <div className="lever-label-arrow">▼</div>}
+            {isSpinning && <div className="lever-spinning-msg">SPINNING...</div>}
             <div className="lever-base" />
             <div className="lever-rod">
               <div className="lever-knob" />

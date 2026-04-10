@@ -25,8 +25,8 @@ const MaintenancePage = () => {
             <div className="maintenance-overlay"></div>
             <div className="maintenance-glow"></div>
             <div className="maintenance-content">
-                <div className="logo-section">
-                    <img src="/logo.svg" alt="Asgard Duels" className="maintenance-logo" />
+                <div className="logo-section" onClick={() => window.location.href = '/'} style={{ cursor: 'pointer' }}>
+                    <div className="logo-themed logo-desktop maintenance-logo" aria-label="Asgard" />
                     <div className="logo-shadow"></div>
                 </div>
                 
@@ -52,17 +52,17 @@ const MaintenancePage = () => {
                 <div className="social-links">
                     <p>Stay updated via our official channels:</p>
                     <div className="link-grid">
-                        <a href="https://discord.gg/asgardduels" target="_blank" rel="noreferrer" className="social-link discord">
+                        <a href="https://discord.gg/asgard" target="_blank" rel="noreferrer" className="social-link discord">
                             <span className="link-icon">💬</span> Discord
                         </a>
-                        <a href="https://x.com/asgardduels" target="_blank" rel="noreferrer" className="social-link twitter">
+                        <a href="https://x.com/asgard" target="_blank" rel="noreferrer" className="social-link twitter">
                             <span className="link-icon">𝕏</span> Twitter
                         </a>
                     </div>
                 </div>
 
                 <footer className="maintenance-footer">
-                    &copy; {new Date().getFullYear()} Asgard Duels. All glory to the winners.
+                    &copy; {new Date().getFullYear()} Asgard. All glory to the winners.
                 </footer>
             </div>
         </div>

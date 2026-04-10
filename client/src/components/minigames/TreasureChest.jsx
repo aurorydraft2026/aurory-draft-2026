@@ -225,7 +225,6 @@ const TreasureChest = ({
             >
               {phase === 'idle' && (
                 <div className="chest-tap-hint">
-                  <span className="tap-text">OPEN ARTIFACT</span>
                   <div className="tap-pulse-container">
                     <div className="tap-pulse-ring" />
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -233,6 +232,12 @@ const TreasureChest = ({
                       <path d="M12 8v4M12 16h.01" strokeWidth="2.5"/>
                     </svg>
                   </div>
+                </div>
+              )}
+
+              {(phase === 'shaking' || phase === 'opening') && (
+                <div className="chest-status-msg">
+                  {phase === 'shaking' ? 'SHAKING...' : 'OPENING...'}
                 </div>
               )}
 

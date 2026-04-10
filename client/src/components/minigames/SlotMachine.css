@@ -965,33 +965,40 @@
   border: 2px solid rgba(184, 134, 11, 0.6);
 }
 
-/* Lever UX Label */
-.slot-lever-label {
+
+.lever-label-arrow {
   position: absolute;
-  top: 10px; /* Lowered from -40px */
-  right: -55px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--accent-gold);
+  font-size: 0.8rem;
+  z-index: 50;
+  animation: arrowBounce 1s infinite alternate;
+  text-shadow: 0 0 10px var(--accent-gold-glow);
+  pointer-events: none;
+}
+
+.lever-spinning-msg {
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--accent-gold);
+  font-family: 'Cinzel', serif;
+  font-size: 0.6rem;
+  font-weight: 800;
+  white-space: nowrap;
+  letter-spacing: 1px;
+  text-shadow: 0 0 10px var(--accent-gold-glow);
+  animation: leverMsgPulse 1s infinite alternate;
   pointer-events: none;
   z-index: 50;
 }
 
-.lever-label-text {
-  font-family: 'Cinzel', serif;
-  font-size: 0.65rem;
-  font-weight: 800;
-  color: var(--accent-gold);
-  text-shadow: 0 0 10px rgba(184, 134, 11, 0.6);
-  letter-spacing: 1px;
-  white-space: nowrap;
-}
-
-.lever-label-arrow {
-  color: var(--accent-gold);
-  font-size: 0.7rem;
-  animation: arrowBounce 1s infinite alternate;
+@keyframes leverMsgPulse {
+  from { opacity: 0.5; transform: translateX(-50%) scale(0.95); }
+  to { opacity: 1; transform: translateX(-50%) scale(1.05); }
 }
 
 @keyframes arrowBounce {

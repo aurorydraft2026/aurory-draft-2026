@@ -44,10 +44,12 @@ const SPEED_MATRIX: number[][] = [
 const BASE_SPEED = 8; // Reverted to 8 for original race duration and excitement
 const ZONE_WIDTH = 18; // 90% / 5 zones = 18% each
 const DEFAULT_HOUSE_CUT = 0.10; // 10% house edge
-const DEFAULT_HOUSE_SEED = 500; // Phantom seed injected into every ship's pool
+const DEFAULT_HOUSE_SEED = 1000000; // Updated to 1M as requested
 const DOCK_WIDTH = 10;
 const SHIP_START = 10;
-const MAX_BET_PER_USER = 10000;
+const MAX_BET_PER_USER = 30000; // 10k per ship x 3 ships
+const MAX_BET_PER_SHIP_PER_USER = 10000;
+const MAX_SHIP_POOL = 1000000;
 
 // Phase Durations (ms)
 const DURATIONS = {
@@ -372,17 +374,35 @@ export const placeDrakkarBet = onCall(
                     throw new Error('Insufficient Valcoins');
                 }
 
-                // Check max bet per user (1000 total across all ships)
+                // Check max bet per user (30000 total across all ships)
                 const existingBet = betSnap.exists ? betSnap.data() || {} : {};
                 const currentTotal = existingBet.total || 0;
                 if (currentTotal + amount > MAX_BET_PER_USER) {
                     throw new Error(`Max bet is ${MAX_BET_PER_USER} Valcoins per race. You have ${currentTotal} already placed.`);
                 }
 
+                // New: Check max bet per player per ship (10000)
+                const currentShipBet = existingBet[shipId] || 0;
+                if (currentShipBet + amount > MAX_BET_PER_SHIP_PER_USER) {
+                    throw new Error(`Max bet per ship is ${MAX_BET_PER_SHIP_PER_USER} Valcoins. You have ${currentShipBet} on this ship.`);
+                }
+
+                // New: Check max pool per ship (1M total pool)
+                const currentPools = state.pools || {};
+                const currentShipPool = currentPools[shipId] || state.houseSeed || 0;
+                if (currentShipPool + amount > MAX_SHIP_POOL) {
+                    throw new Error('This ship is full! Total pool limit reached.');
+                }
+
                 // ALL WRITES LAST
                 transaction.update(userRef, {
                     points: admin.firestore.FieldValue.increment(-amount),
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+
+                // Update state pools
+                transaction.update(stateRef, {
+                    [`pools.${shipId}`]: admin.firestore.FieldValue.increment(amount)
                 });
 
                 if (betSnap.exists) {
@@ -505,7 +525,8 @@ export const refreshDrakkarRace = onCall(
                         winnerIdx: null,
                         finishTimes: null,
                         raceDuration: null,
-                        raceStartTime: null
+                        raceStartTime: null,
+                        pools: {} // Will be populated with houseSeed below
                     };
                 }
 
@@ -516,6 +537,13 @@ export const refreshDrakkarRace = onCall(
                 
                 const houseSeed = config.houseSeed ?? DEFAULT_HOUSE_SEED;
                 const multiplierFactor = config.multiplierFactor ?? (1 - DEFAULT_HOUSE_CUT);
+
+                // If we just initialized a new betting phase, populate pools with houseSeed
+                if (nextPhase === 'betting' && updates.pools) {
+                    updates.ships.forEach((ship: any) => {
+                        updates.pools[ship.id] = houseSeed;
+                    });
+                }
 
                 const newState = {
                     ...state,
@@ -541,7 +569,7 @@ export const refreshDrakkarRace = onCall(
                     // Reset pools for new race
                     const shipIds = (newState.ships || []).map((s: any) => s.id);
                     const poolReset: Record<string, number> = {};
-                    shipIds.forEach((id: string) => { poolReset[id] = 0; });
+                    shipIds.forEach((id: string) => { poolReset[id] = newState.houseSeed || 0; });
                     await rtdb.ref('drakkar_race/pools').set(poolReset);
                     await rtdb.ref('drakkar_race/bettors').remove(); // Clear social bubbles for new race
                     await clearBets(db.collection('settings').doc('mini_games').collection('drakkar_race').doc('current'));
@@ -788,7 +816,8 @@ function getDefaultConfig(): any {
         drakkarRace: {
             enabled: true,
             minBet: 1,
-            maxBetPerUser: 1000,
+            maxBetPerUser: 10000, // Matching user's 10k per ship context
+            maxBetPerRace: 1000000,
             description: 'Bet on legendary ships in a real-time parimutuel race!',
             multiplier: 'parimutuel'
         }

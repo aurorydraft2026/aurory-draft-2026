@@ -1512,7 +1512,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     setProcessingId('restore_ticker_defaults');
     try {
       const defaults = [
-        { icon: '📢', text: 'Welcome to **Asgard Duels** — The ultimate esports platform for the **Aurory Community**! 🎮🔴' },
+        { icon: '📢', text: 'Welcome to **Asgard** — The ultimate esports platform for the **Aurory Community**! 🎮🔴' },
         { icon: '⚔️', text: 'New **Swiss Triad Drafts** are now live! Test your strategy in the latest competitive formats.' },
         { icon: '🎁', text: 'Join our **Official Discord** for tournament announcements and exclusive giveaways! 🚀' }
       ];

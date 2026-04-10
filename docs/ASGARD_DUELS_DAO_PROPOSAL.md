@@ -16,6 +16,7 @@
 1. Executive Summary
 2. Problem Statement — The Current State Issue
 3. The Solution — Why Asgard Duels?
+3. The Solution — Why Asgard?
 4. Target Audience
 5. Platform Features
 6. Roadmap & Future Plans
@@ -28,9 +29,9 @@
 
 ## 1. EXECUTIVE SUMMARY
 
-**Asgard Duels** is a community-built competitive drafting and tournament management platform for **Amiko Legends** (formerly Seekers of Tokane) — the flagship tactical turn-based game in the Aurory ecosystem on Solana. The platform enables organized, rules-based competitive play through multiple draft formats, automated match verification via the Aurory API, and integrated AURY token economics.
+**Asgard** is a community-built competitive drafting and tournament management platform for **Amiko Legends** (formerly Seekers of Tokane) — the flagship tactical turn-based game in the Aurory ecosystem on Solana. The platform enables organized, rules-based competitive play through multiple draft formats, automated match verification via the Aurory API, and integrated AURY token economics.
 
-Since its inception, Asgard Duels has served as the primary third-party competitive infrastructure for the Aurory community, providing tournament organizers and players with the tools needed to run structured, fair, and verifiable competitive events.
+Since its inception, Asgard has served as the primary third-party competitive infrastructure for the Aurory community, providing tournament organizers and players with the tools needed to run structured, fair, and verifiable competitive events.
 
 This proposal requests funding from the DAOry treasury to sustain ongoing development, expand the platform's capabilities, and grow the competitive community around Amiko Legends.
 

@@ -30,9 +30,11 @@
   --accent-gold-glow: rgba(212, 175, 55, 0.25);
   --accent-crimson: #8b0000;
   --accent-crimson-glow: rgba(139, 0, 0, 0.25);
-  --accent-cyan: #d4af37; /* Replaced cyan with gold */
+  --accent-cyan: #d4af37;
+  /* Replaced cyan with gold */
   --accent-cyan-glow: rgba(212, 175, 55, 0.2);
-  --accent-purple: #c5a059; /* Replaced purple with lighter gold/bronze */
+  --accent-purple: #c5a059;
+  /* Replaced purple with lighter gold/bronze */
   --accent-purple-glow: rgba(197, 160, 89, 0.2);
   --accent-teal: #9ca3af;
   --accent-green: #4ade80;
@@ -80,6 +82,34 @@
 
   /* ── Team card overlay ── */
   --team-card-overlay-gradient: linear-gradient(to bottom, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.85));
+
+  /* ── Logo ── */
+  --logo-desktop: url('./assets/Asgard_logo_white.svg');
+  --logo-mobile: url('./assets/Asgard_logo_white_mobile.svg');
+}
+
+/* ── Logo Utilities ── */
+.logo-themed {
+  background-color: var(--accent-gold);
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  transition: background-color 0.3s ease;
+}
+
+.logo-themed.logo-desktop {
+  mask-image: var(--logo-desktop);
+  -webkit-mask-image: var(--logo-desktop);
+}
+
+.logo-themed.logo-mobile {
+  mask-image: var(--logo-mobile);
+  -webkit-mask-image: var(--logo-mobile);
+  width: 40px;
+  height: 40px;
 }
 
 /* ── Light Theme Overrides (Parchment Mode) ── */
@@ -120,7 +150,7 @@
   --overlay-bg: rgba(45, 36, 30, 0.45);
   --overlay-bg-heavy: rgba(45, 36, 30, 0.65);
   --slide-overlay-gradient: linear-gradient(to right, rgba(253, 250, 245, 0.98) 0%, rgba(253, 250, 245, 0.8) 40%, rgba(253, 250, 245, 0.1) 100%);
-  
+
   --banner-text-primary: #2d241e;
   --banner-text-secondary: rgba(45, 36, 30, 0.7);
   --banner-ui-bg: rgba(45, 36, 30, 0.05);
@@ -204,16 +234,18 @@
 }
 
 @keyframes pulseMaintenanceWarning {
-  0% { 
-    background-color: rgba(220, 38, 38, 0.95); 
+  0% {
+    background-color: rgba(220, 38, 38, 0.95);
     box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
   }
-  50% { 
-    background-color: rgba(239, 68, 68, 1); 
+
+  50% {
+    background-color: rgba(239, 68, 68, 1);
     box-shadow: 0 4px 30px rgba(239, 68, 68, 0.7);
   }
-  100% { 
-    background-color: rgba(220, 38, 38, 0.95); 
+
+  100% {
+    background-color: rgba(220, 38, 38, 0.95);
     box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
   }
 }
@@ -227,12 +259,17 @@ body {
 }
 
 /* ── Global Viking Modal Theme ── */
-.modal-overlay, .create-raffle-overlay, .create-matchup-overlay {
+.modal-overlay,
+.create-raffle-overlay,
+.create-matchup-overlay {
   background: var(--overlay-bg-heavy) !important;
   backdrop-filter: blur(10px) !important;
 }
 
-.create-modal, .modal-content, [class*="modal"].create-raffle-modal, [class*="modal"].create-matchup-modal {
+.create-modal,
+.modal-content,
+[class*="modal"].create-raffle-modal,
+[class*="modal"].create-matchup-modal {
   background: var(--bg-surface) !important;
   border: 1px solid var(--accent-gold) !important;
   border-radius: var(--radius-lg) !important;
@@ -241,7 +278,8 @@ body {
   overflow: hidden;
 }
 
-.create-modal::before, .modal-content::before {
+.create-modal::before,
+.modal-content::before {
   content: '';
   position: absolute;
   top: 0;
@@ -252,13 +290,15 @@ body {
   z-index: 10;
 }
 
-[class*="modal"] .modal-header, .create-modal .modal-header {
+[class*="modal"] .modal-header,
+.create-modal .modal-header {
   border-bottom: 1px solid var(--border-default) !important;
   padding: 24px 32px !important;
   background: rgba(212, 175, 55, 0.03) !important;
 }
 
-[class*="modal"] .modal-header h3, .create-modal .modal-header h2 {
+[class*="modal"] .modal-header h3,
+.create-modal .modal-header h2 {
   font-family: 'Cinzel', serif !important;
   font-size: 1.6rem !important;
   font-weight: 700 !important;
@@ -279,7 +319,9 @@ body {
   letter-spacing: 1px !important;
 }
 
-[class*="modal"] .form-input, [class*="modal"] .form-textarea, [class*="modal"] select {
+[class*="modal"] .form-input,
+[class*="modal"] .form-textarea,
+[class*="modal"] select {
   background: var(--bg-deep) !important;
   border: 1px solid var(--border-default) !important;
   color: var(--text-primary) !important;
@@ -296,7 +338,8 @@ body {
   padding: 24px 32px !important;
 }
 
-[class*="modal"] .create-btn, [class*="modal"] .btn-primary {
+[class*="modal"] .create-btn,
+[class*="modal"] .btn-primary {
   background: var(--accent-gold) !important;
   color: #000 !important;
   font-family: 'Cinzel', serif !important;
@@ -310,4 +353,4 @@ body {
   background: var(--text-bright) !important;
   transform: translateY(-2px) !important;
   box-shadow: 0 4px 15px var(--accent-gold-glow) !important;
-}
+}

@@ -501,6 +501,37 @@
   filter: grayscale(0.5);
 }
 
+.dv2-bet-card.full {
+  opacity: 0.8 !important;
+  border-color: #ef4444 !important;
+  cursor: not-allowed;
+  background: rgba(239, 68, 68, 0.05) !important;
+}
+
+.dv2-bet-card.full::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(45deg, transparent 45%, rgba(239, 68, 68, 0.2) 50%, transparent 55%);
+  background-size: 20px 20px;
+  pointer-events: none;
+}
+
+.dv2-full-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: #ef4444;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 1px;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+}
+
 .dv2-bet-card-top {
   display: flex;
   align-items: center;
