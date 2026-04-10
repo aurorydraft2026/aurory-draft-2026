@@ -83,7 +83,7 @@
 .minigames-modal-header h2 {
   flex: 1;
   margin: 0;
-  font-family: 'Cinzel', serif;
+  font-family: 'Rajdhani', sans-serif;
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--accent-gold);
@@ -161,7 +161,7 @@
   padding: 8px 16px;
   border-radius: 8px;
   cursor: pointer;
-  font-family: 'Cinzel', serif;
+  font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
   font-size: 0.85rem;
   text-transform: uppercase;
@@ -228,7 +228,7 @@
 
 .minigames-section-title {
   margin: 0;
-  font-family: 'Cinzel', serif;
+  font-family: 'Rajdhani', sans-serif;
   font-size: 1.2rem;
   color: var(--text-secondary);
   font-weight: 700;
@@ -302,7 +302,7 @@
 .minigame-card h3 {
   margin: 0 0 12px 0;
   color: var(--text-bright);
-  font-family: 'Cinzel', serif;
+  font-family: 'Rajdhani', sans-serif;
   font-size: 1.3rem;
   font-weight: 700;
   text-transform: uppercase;

@@ -66,9 +66,12 @@ export const useLeaderboard = (registeredUsers) => {
 
         matchHistory.forEach(match => {
             // Filter to selected month
-            if (match.verifiedAt) {
-                const matchDate = new Date(match.verifiedAt);
+            const matchTime = match.verifiedAt || match.createdAt;
+            if (matchTime) {
+                const matchDate = new Date(matchTime);
                 if (matchDate.getMonth() !== targetMonth || matchDate.getFullYear() !== targetYear) return;
+            } else {
+                return;
             }
 
             if (!match.overallWinner) return;
@@ -80,7 +83,19 @@ export const useLeaderboard = (registeredUsers) => {
 
                 const teams = ['A', 'B'];
                 teams.forEach(tCode => {
-                    const teamPlayers = match.matchPlayers?.filter(p => p.team === tCode) || [];
+                    let teamPlayers = match.matchPlayers?.filter(p => p.team === tCode) || [];
+                    
+                    // Fallback to finalAssignments for legacy drafts
+                    if (teamPlayers.length === 0 && match.finalAssignments) {
+                        teamPlayers = match.finalAssignments
+                            .filter(a => a.team === tCode)
+                            .map(a => ({
+                                ...a.participant,
+                                uid: a.participant.uid || a.participant.id || null
+                            }))
+                            .filter(p => p.uid); // Ensure we have a UID
+                    }
+
                     if (teamPlayers.length === 0) return;
 
                     // Identity: First player is leader, rest are members
@@ -90,7 +105,8 @@ export const useLeaderboard = (registeredUsers) => {
 
                     const teamName = match.teamNames?.[tCode === 'A' ? 'team1' : 'team2'] || 'Team';
                     const bannerUrl = match.teamBanners?.[tCode === 'A' ? 'team1' : 'team2'] || null;
-                    const matchTime = match.verifiedAt?.seconds || (new Date(match.verifiedAt).getTime() / 1000) || 0;
+                    const matchTimeTs = match.verifiedAt || match.createdAt;
+                    const matchTime = matchTimeTs?.seconds || (new Date(matchTimeTs).getTime() / 1000) || 0;
 
                     if (!winCounts[teamKey]) {
                         winCounts[teamKey] = {
@@ -126,45 +142,115 @@ export const useLeaderboard = (registeredUsers) => {
                 });
 
             } else {
-                // --- INDIVIDUAL MODE: Use individual battle results ---
-                // Iterate through each battle result
-                (match.matchResults || []).forEach(result => {
-                    if (!result.winner || !result.playerA || !result.playerB) return;
+                // --- INDIVIDUAL MODE ---
+                const is1v1 = match.draftType === 'mode3' || match.draftType === 'mode4';
 
-                    // Process Player A
-                    const uidA = match.matchPlayers?.find(mp => mp.auroryPlayerId === result.playerA.playerId || mp.displayName === result.playerA.displayName)?.uid;
+                if (is1v1) {
+                    // For 1v1 matches: use matchPlayers/finalAssignments directly
+                    // since matchResults may not contain playerA/playerB objects
+                    let teamAPlayers = match.matchPlayers?.filter(p => p.team === 'A') || [];
+                    let teamBPlayers = match.matchPlayers?.filter(p => p.team === 'B') || [];
+
+                    // Fallback to finalAssignments
+                    if (teamAPlayers.length === 0 && match.finalAssignments) {
+                        teamAPlayers = match.finalAssignments
+                            .filter(a => a.team === 'A')
+                            .map(a => ({ ...a.participant, uid: a.participant.uid || a.participant.id }))
+                            .filter(p => p.uid);
+                    }
+                    if (teamBPlayers.length === 0 && match.finalAssignments) {
+                        teamBPlayers = match.finalAssignments
+                            .filter(a => a.team === 'B')
+                            .map(a => ({ ...a.participant, uid: a.participant.uid || a.participant.id }))
+                            .filter(p => p.uid);
+                    }
+
+                    const pA = teamAPlayers[0];
+                    const pB = teamBPlayers[0];
+                    const uidA = pA?.uid || pA?.id;
+                    const uidB = pB?.uid || pB?.id;
+
+                    // Record win/loss for player A
                     if (uidA) {
                         if (!winCounts[uidA]) {
                             const userData = registeredUsers.find(u => u.id === uidA);
                             winCounts[uidA] = {
                                 uid: uidA,
-                                displayName: userData?.auroryPlayerName || result.playerA.displayName || userData?.displayName || 'Player',
+                                displayName: userData?.auroryPlayerName || pA?.auroryPlayerName || pA?.displayName || userData?.displayName || 'Player',
                                 photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
                                 wins: 0,
                                 losses: 0
                             };
                         }
-                        if (result.winner === 'A') winCounts[uidA].wins += 1;
+                        if (match.overallWinner === 'A') winCounts[uidA].wins += 1;
                         else winCounts[uidA].losses += 1;
                     }
 
-                    // Process Player B
-                    const uidB = match.matchPlayers?.find(mp => mp.auroryPlayerId === result.playerB.playerId || mp.displayName === result.playerB.displayName)?.uid;
+                    // Record win/loss for player B
                     if (uidB) {
                         if (!winCounts[uidB]) {
                             const userData = registeredUsers.find(u => u.id === uidB);
                             winCounts[uidB] = {
                                 uid: uidB,
-                                displayName: userData?.auroryPlayerName || result.playerB.displayName || userData?.displayName || 'Player',
+                                displayName: userData?.auroryPlayerName || pB?.auroryPlayerName || pB?.displayName || userData?.displayName || 'Player',
                                 photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
                                 wins: 0,
                                 losses: 0
                             };
                         }
-                        if (result.winner === 'B') winCounts[uidB].wins += 1;
+                        if (match.overallWinner === 'B') winCounts[uidB].wins += 1;
                         else winCounts[uidB].losses += 1;
                     }
-                });
+                } else {
+                    // For 3v3 modes: iterate through each battle result
+                    (match.matchResults || []).forEach(result => {
+                        if (!result.winner || !result.playerA || !result.playerB) return;
+
+                        // Process Player A (Look in matchPlayers first, then finalAssignments)
+                        let pA = match.matchPlayers?.find(mp => mp.auroryPlayerId === result.playerA.playerId || mp.displayName === result.playerA.displayName);
+                        if (!pA && match.finalAssignments) {
+                            pA = match.finalAssignments.find(a => a.participant?.auroryPlayerId === result.playerA.playerId || a.participant?.displayName === result.playerA.displayName)?.participant;
+                        }
+                        const uidA = pA?.uid || pA?.id;
+
+                        if (uidA) {
+                            if (!winCounts[uidA]) {
+                                const userData = registeredUsers.find(u => u.id === uidA);
+                                winCounts[uidA] = {
+                                    uid: uidA,
+                                    displayName: userData?.auroryPlayerName || pA?.displayName || userData?.displayName || 'Player',
+                                    photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
+                                    wins: 0,
+                                    losses: 0
+                                };
+                            }
+                            if (result.winner === 'A') winCounts[uidA].wins += 1;
+                            else winCounts[uidA].losses += 1;
+                        }
+
+                        // Process Player B (Look in matchPlayers first, then finalAssignments)
+                        let pB = match.matchPlayers?.find(mp => mp.auroryPlayerId === result.playerB.playerId || mp.displayName === result.playerB.displayName);
+                        if (!pB && match.finalAssignments) {
+                            pB = match.finalAssignments.find(a => a.participant?.auroryPlayerId === result.playerB.playerId || a.participant?.displayName === result.playerB.displayName)?.participant;
+                        }
+                        const uidB = pB?.uid || pB?.id;
+
+                        if (uidB) {
+                            if (!winCounts[uidB]) {
+                                const userData = registeredUsers.find(u => u.id === uidB);
+                                winCounts[uidB] = {
+                                    uid: uidB,
+                                    displayName: userData?.auroryPlayerName || pB?.displayName || userData?.displayName || 'Player',
+                                    photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
+                                    wins: 0,
+                                    losses: 0
+                                };
+                            }
+                            if (result.winner === 'B') winCounts[uidB].wins += 1;
+                            else winCounts[uidB].losses += 1;
+                        }
+                    });
+                }
             }
         });
 

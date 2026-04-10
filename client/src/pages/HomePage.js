@@ -1222,10 +1222,10 @@ function HomePage() {
           <div className="right-sidebar">
             {/* News Section */}
             <div className="news-section">
-              <div className="news-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2" /><path d="M18 14h-8" /><path d="M15 18h-5" /><path d="M10 6h8v4h-8V6Z" /></svg>
-                  <h3>Latest News</h3>
+              <div className="news-section-header">
+                <div className="header-title-row">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sidebar-icon"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>
+                  <h3>Heimdall's Horn</h3>
                   {hasNewNews && <span className="news-count-badge">NEW</span>}
                 </div>
                 <button
@@ -1234,17 +1234,8 @@ function HomePage() {
                     fetchAllNews();
                     setShowAllNewsModal(true);
                   }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#cbd5e1',
-                    fontSize: '0.9em',
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                    padding: 0
-                  }}
                 >
-                  View All
+                  View All Tidings
                 </button>
               </div>
               <div className="news-list">
@@ -1296,7 +1287,7 @@ function HomePage() {
                   {earnersCurrency === 'aury' && <img src="/aury-icon.png" alt="" className="valcoin-icon" />}
                   {earnersCurrency === 'usdc' && <img src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png" alt="" className="valcoin-icon" />}
                   {' '}
-                  {earnersGameFilter === 'wealth' ? 'Top Wealth' : 'Top Gainers'}
+                  {earnersGameFilter === 'wealth' ? 'Valiant Wealth' : 'Top Gainers'}
                 </h3>
                 <div className="earners-filters">
                   <select
@@ -1315,8 +1306,8 @@ function HomePage() {
                   >
                     <option value="wealth">Wealth</option>
                     <option value="all">Total Earnings</option>
-                    <option value="slotMachine">Slot Machine</option>
-                    <option value="treasureChest">Treasure Chest</option>
+                    <option value="slotMachine">Odin's Fortune</option>
+                    <option value="treasureChest">Loot Box</option>
                     <option value="drakkarRace">Drakkar Race</option>
                     <option value="check-in">Daily Check-in</option>
                   </select>
@@ -1374,7 +1365,7 @@ function HomePage() {
                     return (
                       <div key={item.uid || item.id} className={`top-player-row ${idx < 3 ? `rank-${idx + 1}` : ''}`}>
                         <span className="top-player-rank">
-                          {idx === 0 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-gold)' }}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : idx === 1 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#94a3b8' }}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : idx === 2 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#92400e' }}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : `#${idx + 1}`}
+                          {idx === 0 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rank-icon gold"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : idx === 1 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rank-icon silver"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : idx === 2 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rank-icon bronze"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : `#${idx + 1}`}
                         </span>
 
                         <img
@@ -1398,34 +1389,36 @@ function HomePage() {
               </div>
             </div>
 
-            {/* Best Player of the Month */}
+            {/* Hall of Valor Leaderboard */}
             <div className="top-players-section">
               <div className="top-players-header">
-                <h3>🏆 Best Players</h3>
-                <select
-                  className="leaderboard-month-select"
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                >
-                  {availableMonths.map(monthKey => {
-                    const [year, month] = monthKey.split('-');
-                    const date = new Date(year, month - 1);
-                    const label = date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-                    return (
-                      <option key={monthKey} value={monthKey}>
-                        {label}
-                      </option>
-                    );
-                  })}
-                </select>
-                <select
-                  className="leaderboard-mode-select"
-                  value={leaderboardMode}
-                  onChange={(e) => setLeaderboardMode(e.target.value)}
-                >
-                  <option value="individual">Individual</option>
-                  <option value="team">Team</option>
-                </select>
+                <h3><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px', verticalAlign: 'middle', color: 'var(--accent-cyan)' }}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> Hall of Valor</h3>
+                <div className="top-players-controls">
+                  <select
+                    className="leaderboard-month-select"
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                  >
+                    {availableMonths.map(monthKey => {
+                      const [year, month] = monthKey.split('-');
+                      const date = new Date(year, month - 1);
+                      const label = date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+                      return (
+                        <option key={monthKey} value={monthKey}>
+                          {label}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <select
+                    className="leaderboard-mode-select"
+                    value={leaderboardMode}
+                    onChange={(e) => setLeaderboardMode(e.target.value)}
+                  >
+                    <option value="individual">Individual</option>
+                    <option value="team">Team</option>
+                  </select>
+                </div>
               </div>
               <div className="top-players-list">
                 {topPlayers.length === 0 ? (
@@ -1444,7 +1437,7 @@ function HomePage() {
                           />
                         )}
                         <span className="top-player-rank">
-                          {idx === 0 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-gold)' }}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : idx === 1 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#94a3b8' }}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : idx === 2 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#92400e' }}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : `#${idx + 1}`}
+                          {idx === 0 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rank-icon gold"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : idx === 1 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rank-icon silver"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : idx === 2 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rank-icon bronze"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : `#${idx + 1}`}
                         </span>
 
                         {isTeam ? (
@@ -1491,18 +1484,20 @@ function HomePage() {
             {/* Match History */}
             <div className="match-history-section">
               <div className="match-history-header">
-                <h3><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}><path d="M14.5 17.5L3 6V3h3l11.5 11.5" /><path d="M13 19l6 2 3-3-2-6" /><path d="M8 16l2-2" /><path d="M19 5l-2 2" /></svg> Match History</h3>
-                <select
-                  className="mode-filter-select"
-                  value={matchHistoryFilter}
-                  onChange={(e) => setMatchHistoryFilter(e.target.value)}
-                >
-                  <option value="all">All Modes</option>
-                  <option value="mode1">3v3 Triad Swiss Format 3-6-3</option>
-                  <option value="mode2">3v3 Triad Swiss Format 1-2-1</option>
-                  <option value="mode3">1v1 Deathmatch 3-3</option>
-                  <option value="mode4">1v1 Ban Draft 1-2-1</option>
-                </select>
+                <h3><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sidebar-icon"><path d="M14.5 17.5L3 6V3h3l11.5 11.5" /><path d="M13 19l6 2 3-3-2-6" /><path d="M8 16l2-2" /><path d="M19 5l-2 2" /></svg> Valor's Records</h3>
+                <div className="top-players-controls">
+                  <select
+                    className="mode-filter-select"
+                    value={matchHistoryFilter}
+                    onChange={(e) => setMatchHistoryFilter(e.target.value)}
+                  >
+                    <option value="all">All Modes</option>
+                    <option value="mode1">3v3 Triad Swiss Format 3-6-3</option>
+                    <option value="mode2">3v3 Triad Swiss Format 1-2-1</option>
+                    <option value="mode3">1v1 Deathmatch 3-3</option>
+                    <option value="mode4">1v1 Ban Draft 1-2-1</option>
+                  </select>
+                </div>
               </div>
 
               <div className="match-history-list">
@@ -1568,7 +1563,7 @@ function HomePage() {
 
                             <div className="match-summary-teams">
                               <div className={`match-team ${match.overallWinner === 'A' ? 'winner' : 'loser'} team-${teamAColor}`}>
-                                {match.overallWinner === 'A' && <span className="mini-trophy">🏆</span>}
+                                {match.overallWinner === 'A' && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mini-rank-icon gold"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>}
                                 {teamADisplay}
                               </div>
                               <div className="match-score-vs">
@@ -1579,7 +1574,7 @@ function HomePage() {
                                 )}
                               </div>
                               <div className={`match-team ${match.overallWinner === 'B' ? 'winner' : 'loser'} team-${teamBColor}`}>
-                                {match.overallWinner === 'B' && <span className="mini-trophy">🏆</span>}
+                                {match.overallWinner === 'B' && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mini-rank-icon gold"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>}
                                 {teamBDisplay}
                               </div>
                             </div>
@@ -2602,42 +2597,54 @@ function HomePage() {
       {showAllNewsModal && (
         <div className="modal-overlay all-news-overlay">
           <div className="all-news-modal">
-            <div className="news-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2>📰 All News</h2>
+            <div className="announcement-glass-effect"></div>
+
+            <div className="modal-header">
+              <div className="modal-header-title">
+                <h3>📯 HEIMDALL'S HORN: ALL TIDINGS</h3>
+                <div className="modal-header-line"></div>
+              </div>
               <button className="close-modal" onClick={() => setShowAllNewsModal(false)}>✖</button>
             </div>
 
-            <div className="all-news-content">
+            <div className="all-news-content custom-scrollbar">
               {allNewsLoading ? (
                 <div className="news-loading"><div className="news-spinner"></div></div>
               ) : allNews.length === 0 ? (
-                <div className="news-empty"><p>No news history available.</p></div>
+                <div className="news-empty">
+                  <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.3, marginBottom: '15px' }}>
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                  </svg>
+                  <p>No news history has been scribed into the chronicles yet.</p>
+                </div>
               ) : (
                 <div className="all-news-grid">
                   {allNews.map((item) => (
                     <div
                       key={item.id}
-                      className="news-item"
+                      className="news-item premium-card"
                       onClick={() => handleNewsClick(item)}
                     >
                       <div className="news-item-banner">
                         <img src={item.banner} alt={item.title} loading="lazy" />
                         <div className="news-item-overlay"></div>
+                        <div className="news-item-badge">{item.draftId ? 'Event' : 'News'}</div>
                       </div>
                       <div className="news-item-info">
                         <h4 className="news-item-title">{item.title}</h4>
                         <div className="news-item-meta">
-                          <span className="news-author">{item.authorName}</span>
-                          <span className="news-dot">•</span>
+                          <span className="news-author">
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}>
+                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+                            </svg>
+                            {item.authorName}
+                          </span>
                           <span className="news-date">
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}>
+                              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                            </svg>
                             {item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown'}
                           </span>
-                          {item.viewCount !== undefined && (
-                            <>
-                              <span className="news-dot">•</span>
-                              <span className="news-views">{item.viewCount || 0} clicks</span>
-                            </>
-                          )}
                         </div>
                       </div>
                     </div>

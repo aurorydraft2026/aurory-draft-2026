@@ -3,7 +3,7 @@
 // Uses Cloud Functions proxy to call /v1/matches global endpoint
 
 import {
-  doc, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, limit
+  doc, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, limit, orderBy
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { auroryFetch } from './auroryProxyClient';
@@ -422,7 +422,8 @@ export async function fetchVerifiedMatches(limitCount = 50, modeFilter = null) {
     const q = query(
       draftsRef,
       where('verificationStatus', 'in', ['complete', 'partial']),
-      limit(limitCount)
+      orderBy('verifiedAt', 'desc'),
+      limit(200)
     );
 
     const snapshot = await getDocs(q);

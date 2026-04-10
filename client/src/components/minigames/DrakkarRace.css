@@ -54,7 +54,7 @@
   font-weight: 800;
   font-size: 0.9rem;
   color: var(--accent-gold);
-  font-family: 'Cinzel', serif;
+  font-family: 'Rajdhani', sans-serif;
   cursor: default;
   text-shadow: 0 0 10px var(--accent-gold-glow);
 }
@@ -79,7 +79,7 @@
   padding: 6px 16px;
   border-radius: 8px;
   font-size: 0.85rem;
-  font-family: 'Cinzel', serif;
+  font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
@@ -263,7 +263,7 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-family: 'Cinzel', serif;
+  font-family: 'Rajdhani', sans-serif;
   font-size: 0.7rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -389,7 +389,7 @@
 }
 
 .dv2-result-name {
-  font-family: 'Cinzel', serif;
+  font-family: 'Rajdhani', sans-serif;
   font-size: 1.1rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -425,7 +425,7 @@
 }
 
 .dv2-chip-label {
-  font-family: 'Cinzel', serif;
+  font-family: 'Rajdhani', sans-serif;
   font-size: 0.9rem;
   color: var(--text-secondary);
   font-weight: 700;
@@ -547,7 +547,7 @@
 
 .dv2-bet-card-info h4 {
   margin: 0;
-  font-family: 'Cinzel', serif;
+  font-family: 'Rajdhani', sans-serif;
   font-size: 0.75rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -601,7 +601,7 @@
   display: flex;
   justify-content: space-between;
   font-size: 0.9rem;
-  font-family: 'Cinzel', serif;
+  font-family: 'Rajdhani', sans-serif;
   color: var(--text-secondary);
   font-weight: 700;
   padding: 12px 20px;
@@ -622,7 +622,7 @@
 
 .dv2-history-title {
   margin: 0 0 16px 0;
-  font-family: 'Cinzel', serif;
+  font-family: 'Rajdhani', sans-serif;
   font-size: 1rem;
   color: var(--text-secondary);
   text-transform: uppercase;
@@ -676,7 +676,7 @@
 }
 
 .dv2-history-ship-name {
-  font-family: 'Cinzel', serif;
+  font-family: 'Rajdhani', sans-serif;
   font-size: 0.7rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -731,7 +731,7 @@
 }
 
 .dv2-rules-header h2 {
-  font-family: 'Cinzel', serif;
+  font-family: 'Rajdhani', sans-serif;
   font-size: 1.5rem;
   color: var(--accent-gold);
   text-transform: uppercase;
@@ -739,7 +739,7 @@
 }
 
 .dv2-rules-body h3 {
-  font-family: 'Cinzel', serif;
+  font-family: 'Rajdhani', sans-serif;
   color: var(--text-bright);
   border-bottom: 1px solid var(--border-default);
   padding-bottom: 8px;
@@ -747,7 +747,7 @@
 }
 
 .dv2-speed-table th {
-  font-family: 'Cinzel', serif;
+  font-family: 'Rajdhani', sans-serif;
   font-size: 0.75rem;
   background: rgba(255, 255, 255, 0.05);
 }
@@ -756,7 +756,7 @@
   background: var(--bg-deep) !important;
   border: 1px solid var(--accent-gold);
   color: var(--accent-gold);
-  font-family: 'Cinzel', serif;
+  font-family: 'Rajdhani', sans-serif;
   letter-spacing: 1px;
 }
 
