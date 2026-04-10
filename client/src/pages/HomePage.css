@@ -157,7 +157,7 @@
   margin: 0;
   font-family: 'Cinzel', serif;
   font-weight: 700;
-  font-size: 1.4rem;
+  font-size: 1.15rem; /* Reduced from 1.4rem */
   color: var(--accent-gold);
   text-transform: uppercase;
   letter-spacing: 2px;
@@ -177,7 +177,7 @@
 
 .viking-section-title {
   font-family: 'Cinzel', serif;
-  font-size: 2.4rem;
+  font-size: 1.75rem; /* Reduced from 2.4rem */
   font-weight: 700;
   color: var(--text-bright);
   margin: 0;
@@ -229,7 +229,7 @@
   }
 
   .viking-section-title {
-    font-size: 1.7rem;
+    font-size: 1.4rem; /* Reduced from 1.7rem */
     letter-spacing: 1.5px;
     gap: 10px;
   }
@@ -612,7 +612,7 @@
 
 .viking-hero-title {
   font-family: 'Cinzel', serif;
-  font-size: 4rem;
+  font-size: 2.6rem; /* Reduced from 4rem */
   font-weight: 900;
   color: #fff;
   margin-bottom: 12px;
@@ -675,7 +675,7 @@
   }
 
   .viking-hero-title {
-    font-size: 2.5rem;
+    font-size: 1.9rem; /* Reduced from 2.5rem */
   }
 
   .viking-hero-subtitle {
@@ -4250,6 +4250,37 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.profile-modal-header {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.profile-modal-header h4 {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.75rem; /* Reduced size */
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px; /* Asgard style */
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.profile-modal-header .close-modal {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+}
+
+.profile-modal-header .close-modal svg {
+  width: 14px;
+  height: 14px;
+}
+
 .user-modal-header img {
   width: 52px;
   height: 52px;
@@ -4595,7 +4626,7 @@
   border: 1px solid var(--border-default);
   border-radius: var(--radius-xl);
   width: 100%;
-  max-width: 420px;
+  max-width: 480px; /* Increased for better presence */
   box-shadow: var(--shadow-elevated);
   animation: modalSlideUp 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   overflow: hidden;
@@ -4632,7 +4663,7 @@
     position: absolute;
     top: calc(100% + 8px);
     right: 0;
-    width: 340px;
+    width: 380px; /* Increased from 340px */
     z-index: 1001;
     animation: dropdownSlideDown 0.2s cubic-bezier(0, 0, 0.2, 1);
   }
@@ -4819,13 +4850,14 @@
   align-items: center;
   justify-content: center;
   text-align: center;
+  color: var(--text-muted); /* Mono color for icons */
 }
 
-.modal-action-btn .btn-icon-img,
 .modal-action-btn .btn-icon svg {
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  stroke-width: 1.8;
 }
 
 .modal-action-btn .btn-text {

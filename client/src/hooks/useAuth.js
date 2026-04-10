@@ -360,9 +360,11 @@ export const useAuth = (navigate) => {
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
             >
-                <div className="modal-header">
-                    <h3>👤 User Profile</h3>
-                    <button className="close-modal" onClick={() => setShowUserModal(false)}>✖</button>
+                <div className="modal-header profile-modal-header">
+                    <h4>Warrior's Profile</h4>
+                    <button className="close-modal" onClick={() => setShowUserModal(false)}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
                 </div>
 
                 <div className="user-modal-content">
@@ -447,7 +449,9 @@ export const useAuth = (navigate) => {
                                 setShowAuroryModal(true);
                             }}
                         >
-                            <span className="btn-icon">🎮</span>
+                            <span className="btn-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 12h.01"></path><path d="M9 12h.01"></path><path d="M15 12h.01"></path><path d="M18 12h.01"></path></svg>
+                            </span>
                             <div className="btn-text">
                                 <span className="btn-title">Aurory Account</span>
                                 <span className="btn-desc">Link your game account</span>
@@ -462,7 +466,9 @@ export const useAuth = (navigate) => {
                                     navigate('/admin/panel');
                                 }}
                             >
-                                <span className="btn-icon">💼</span>
+                                <span className="btn-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                                </span>
                                 <div className="btn-text">
                                     <span className="btn-title">Admin Panel</span>
                                     <span className="btn-desc">Manage wallets & deposits</span>
@@ -479,7 +485,9 @@ export const useAuth = (navigate) => {
                                 setShowLogoutConfirm(true);
                             }}
                         >
-                            <span className="btn-icon">🚪</span>
+                            <span className="btn-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                            </span>
                             <div className="btn-text">
                                 <span className="btn-title">Logout</span>
                                 <span className="btn-desc">Sign out of your account</span>
