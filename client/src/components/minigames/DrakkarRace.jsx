@@ -48,7 +48,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const [history, setHistory] = useState([]);
   const [reactions, setReactions] = useState([]);
   const prevBettorsRef = useRef({});
-  const [selectedChip, setSelectedChip] = useState(5);
+  const [selectedChip, setSelectedChip] = useState(10);
   const [myBets, setMyBets] = useState({});
   const [pendingBetsTotal, setPendingBetsTotal] = useState(0);
   const [localError, setLocalError] = useState(null);

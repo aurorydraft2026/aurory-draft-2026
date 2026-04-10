@@ -40,7 +40,7 @@ export const SPEED_MATRIX = [
   [10, 11, 12, 14, 16, 8, 9], // Norse Raider
 ];
 
-export const CHIP_VALUES = [100, 500, 1000, 2500, 5000, 10000];
+export const CHIP_VALUES = [10, 100, 500, 1000, 2500, 5000];
 export const MAX_BET_PER_USER = 30000;
 export const MAX_BET_PER_SHIP_PER_USER = 10000;
 export const MAX_SHIP_POOL = 1000000;
