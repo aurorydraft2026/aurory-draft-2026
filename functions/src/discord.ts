@@ -3,12 +3,30 @@ import fetch from 'node-fetch';
 
 /**
  * Discord Configuration
- * Note: For production, it's safer to use Firebase secrets, 
- * but for now we use the provided URL for immediate setup.
+ * Runie — The Asgard Bot
  */
 const RAFFLE_WEBHOOK_URL = 'https://discord.com/api/webhooks/1488618433569489159/vFkiaYCtoi_eoFEWxWRc_LKBDjS0k1Z8ga1-7iRIB33JzunuWvCeqjKvE10VewQETsUK';
 const MATCHUP_WEBHOOK_URL = 'https://discord.com/api/webhooks/1488913883010699326/ZpuxD5BhbdpE5N78k0rsSW2oP3DryTKEIIE-oONR48-G0LAvPi-inp0aUJ3A67Bj0Kvv';
 const DRAFT_WEBHOOK_URL = 'https://discord.com/api/webhooks/1489938404849352786/JYPXpsImnGS5Z19ZwO6c8qf66cjNBsKCmVcx4THjRpeoWqs56M5_VMKgkmII8ypA4DLB';
+const GENERAL_WEBHOOK_URL = 'https://discord.com/api/webhooks/1492129011391008908/yiO-SAMvjoJXFync1kQoYnwFutN8-3Ig8srB4Ei0FFTPBAxX7WgvVMheObUg6Jaj8kWt';
+
+// ─── RUNIE IDENTITY ───
+const RUNIE_IDENTITY = {
+    username: 'Runie',
+    avatar_url: 'https://asgard-duels.web.app/favicon.ico' // TODO: Replace with Runie's custom avatar URL
+};
+
+// ─── RUNIE'S TIPS ───
+const RUNIE_TIPS = [
+    'Running low on Valcoins? Head to **Asgard Trials** and test your luck. Choose Odin\'s Fortune, Loot Box, or Drakkar Race and see what fate has in store for you. ⚔️',
+    'Don\'t forget your **daily check-in**! Build your streak and earn even more Valcoins over time. 🔥',
+    'Always check **Fate Draw**. The Gods might be feeling generous today. 🎰',
+    'Our tournaments aren\'t just about power. **Strategy is key.** Join in, compete, and prove your mastery of your Amikos. 🏆',
+    'New to Amiko Legends? Visit our Discord and explore our guides. Our **Wardens** are ready to help you get started. 🛡️',
+    'Stay updated by following our socials. Never miss an event, announcement, or drop. 📢',
+    'The Asgard Site is built for fun and rewards. Earn Aury, collect Amikos, and enjoy being part of the community. 🌟',
+    'Keep an eye on the **news section** for upcoming events, major updates, and surprises. 📰',
+];
 
 /**
  * Trigger: When a new raffle is created in Firestore
@@ -424,5 +442,96 @@ export const onDraftCreated = functions.firestore
             console.log(`✅ Successfully announced draft ${draftId} to Discord`);
         } catch (error: any) {
             console.error(`❌ Error announcing draft ${draftId} to Discord:`, error.message);
+        }
+    });
+
+// ═══════════════════════════════════════════════════════
+//  RUNIE — SCHEDULED TIPS
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Trigger: Runs every 6 hours via Cloud Scheduler
+ * Goal: Randomly post a helpful tip to Discord (50% chance per run = ~2 tips/day)
+ */
+export const scheduledRunieTips = functions.pubsub
+    .schedule('every 6 hours')
+    .onRun(async () => {
+        // 50% chance to post — makes the timing feel organic
+        if (Math.random() > 0.5) {
+            console.log('Runie decided to stay quiet this time. 🤫');
+            return;
+        }
+
+        const tip = RUNIE_TIPS[Math.floor(Math.random() * RUNIE_TIPS.length)];
+
+        try {
+            const embed = {
+                title: '💡 Runie\'s Tip of the Day',
+                description: tip,
+                color: 0xD4AF37, // Gold
+                footer: {
+                    text: 'Runie • Your Asgard Companion',
+                    icon_url: 'https://asgard-duels.web.app/favicon.ico'
+                },
+                timestamp: new Date().toISOString()
+            };
+
+            await fetch(GENERAL_WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...RUNIE_IDENTITY,
+                    embeds: [embed]
+                })
+            });
+
+            console.log('✅ Runie posted a tip!');
+        } catch (error: any) {
+            console.error('❌ Runie tip failed:', error.message);
+        }
+    });
+
+// ═══════════════════════════════════════════════════════
+//  RUNIE — WELCOME NEW USERS
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Trigger: When a new user document is created in Firestore
+ * Goal: Announce the new warrior in Discord
+ */
+export const onNewUserWelcome = functions.firestore
+    .document('users/{uid}')
+    .onCreate(async (snap) => {
+        const user = snap.data();
+        if (!user) return;
+
+        const displayName = user.displayName || 'A new warrior';
+        const avatar = user.auroryProfilePicture || user.photoURL || '';
+
+        try {
+            const embed = {
+                title: '⚔️ A New Warrior Enters Asgard!',
+                description: `Welcome **${displayName}** to the halls of Asgard! May the runes favor your journey. 🛡️`,
+                color: 0x3498DB, // Blue
+                thumbnail: avatar ? { url: avatar } : undefined,
+                footer: {
+                    text: 'Runie • Your Asgard Companion',
+                    icon_url: 'https://asgard-duels.web.app/favicon.ico'
+                },
+                timestamp: new Date().toISOString()
+            };
+
+            await fetch(GENERAL_WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...RUNIE_IDENTITY,
+                    embeds: [embed]
+                })
+            });
+
+            console.log(`✅ Runie welcomed ${displayName} to Asgard!`);
+        } catch (error: any) {
+            console.error(`❌ Runie welcome failed:`, error.message);
         }
     });
