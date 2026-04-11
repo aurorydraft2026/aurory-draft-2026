@@ -559,27 +559,29 @@ export const useAuth = (navigate) => {
                                         +{bonusEffect.amount} Bonus
                                     </div>
                                 )}
-                                <button
-                                    className={`daily-checkin-btn compact ${isCheckedIn ? 'checked-in' : ''}`}
-                                    onClick={handleDailyCheckIn}
-                                    disabled={isCheckedIn || !user.auroryPlayerId || isAuthenticating}
-                                    style={!user.auroryPlayerId ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                                    title={!user.auroryPlayerId ? 'Connect Aurory account first' : isCheckedIn ? 'Already checked in today' : 'Claim daily reward'}
-                                >
-                                    <span>
-                                        {isCheckedIn ? (
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                        ) : (
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                                        )}
-                                    </span>
-                                    {user.checkInStreak > 0 && (
-                                        <span className="streak-badge-mini">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mini-flame-icon"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.256 1.189-3.103.111-.124.32-.303.486-.411.5-.327 1.056-.628 1.639-.815"></path></svg>
-                                            {user.checkInStreak}d
+                                <div className="profile-checkin-row">
+                                    <button
+                                        className={`daily-checkin-btn compact ${isCheckedIn ? 'checked-in' : ''}`}
+                                        onClick={handleDailyCheckIn}
+                                        disabled={isCheckedIn || !user.auroryPlayerId || isAuthenticating}
+                                        style={!user.auroryPlayerId ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                                        title={!user.auroryPlayerId ? 'Connect Aurory account first' : isCheckedIn ? 'Already checked in today' : 'Claim daily reward'}
+                                    >
+                                        <span>
+                                            {isCheckedIn ? (
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                            ) : (
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                            )}
                                         </span>
+                                    </button>
+                                    {user.checkInStreak > 0 && (
+                                        <div className="streak-badge-mini external" title={`${user.checkInStreak} day streak`}>
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mini-flame-icon"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.256 1.189-3.103.111-.124.32-.303.486-.411.5-.327 1.056-.628 1.639-.815"></path></svg>
+                                            <span>{user.checkInStreak}d</span>
+                                        </div>
                                     )}
-                                </button>
+                                </div>
                             </div>
                         </div>
 

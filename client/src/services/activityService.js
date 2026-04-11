@@ -15,13 +15,22 @@ export const logActivity = async ({ user, type, action, metadata = {} }) => {
 
     try {
         const activityRef = collection(db, 'activity_logs');
+        
+        // Sanitize metadata: Strip any fields that are undefined
+        const sanitizedMetadata = Object.entries(metadata || {}).reduce((acc, [key, value]) => {
+            if (value !== undefined) {
+                acc[key] = value;
+            }
+            return acc;
+        }, {});
+
         await addDoc(activityRef, {
             userId: user.uid,
             username: resolveDisplayName(user),
             userEmail: user.email || '',
             type,
             action,
-            metadata,
+            metadata: sanitizedMetadata,
             timestamp: serverTimestamp(),
             path: window.location.pathname
         });

@@ -116,6 +116,8 @@ export const collectDailyReward = onCall(
                     ? `Check-in successful! +${result.baseAmount} Valcoins and +${result.bonusAmount} bonus!`
                     : `Check-in successful! +${result.baseAmount} Valcoins`,
                 points: result.totalAmount,
+                baseAmount: result.baseAmount,
+                bonusAmount: result.bonusAmount,
                 streak: result.newStreak
             };
 
