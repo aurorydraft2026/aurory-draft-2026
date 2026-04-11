@@ -1,56 +1,93 @@
-.raffle-page {
-  padding: 2rem;
-  max-width: 1200px;
+.raffle-page.cinematic-page {
+  padding: 2rem 1.5rem;
+  max-width: 1400px;
   margin: 0 auto;
   min-height: 100vh;
-  color: white;
+  color: var(--text-bright);
 }
 
-/* ─── Page Header (matches Tournament/Matchup pages) ─── */
-.raffle-page-header {
+/* ─── Page Header (Viking Themed) ─── */
+.viking-page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
-  padding: 1rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 3rem;
+  padding: 1.5rem 0;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
-.raffle-page-title h1 {
-  margin: 0;
-  font-size: 1.8rem;
-  font-weight: 800;
-  text-transform: capitalize;
-  background: linear-gradient(45deg, #fff, #b1a2ff);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+.viking-page-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.raffle-page-subtitle {
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.45);
-  display: block;
-  margin-top: 0.2rem;
-  white-space: pre-wrap;
-}
-
-.back-home-btn {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.7);
-  padding: 0.6rem 1.2rem;
-  border-radius: 8px;
+.viking-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 2px;
+  color: var(--text-muted);
   cursor: pointer;
-  font-weight: 600;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-  white-space: nowrap;
+  transition: color 0.2s;
 }
 
-.back-home-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+.viking-breadcrumb:hover {
+  color: var(--accent-gold);
+}
+
+.viking-breadcrumb .separator {
+  opacity: 0.3;
+}
+
+.viking-page-title {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.viking-page-title .type-prefix {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--accent-cyan);
+  letter-spacing: 3px;
+}
+
+.viking-page-title .main-title {
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 900;
+  font-size: 2.8rem;
+  color: var(--text-bright);
+  text-transform: uppercase;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+}
+
+.viking-btn-secondary {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-md);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 1.5px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.viking-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-bright);
+  color: var(--text-bright);
+  transform: translateY(-1px);
 }
 
 /* ─── AURY Prize Badge ─── */
@@ -102,81 +139,165 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
-.raffle-header {
-  background: rgba(25, 25, 45, 0.8);
-  border-radius: 20px;
-  padding: 2rem;
-  margin-bottom: 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+.hero-raffle-card {
+  padding: 3rem;
+  margin-bottom: 3rem;
+  background: radial-gradient(circle at top right, rgba(251, 191, 36, 0.05), transparent);
 }
 
 .item-info-top {
   display: flex;
-  gap: 2rem;
+  gap: 3.5rem;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: 3rem;
+}
+
+.viking-prize-display {
+  width: 180px;
+  height: 180px;
+  background: var(--bg-card);
+  border: 2px solid var(--accent-gold);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 30px var(--accent-gold-glow);
+}
+
+.prize-amount-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.viking-prize-display .currency-amount {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 3.5rem;
+  font-weight: 900;
+  color: var(--accent-gold);
+  line-height: 1;
+}
+
+.viking-prize-display .currency-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+.item-image-wrapper {
+  width: 180px;
+  height: 180px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
 }
 
 .raffle-item-large {
-  width: 150px;
-  height: 150px;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 12px;
-  padding: 1rem;
 }
 
-.item-text-top h1 {
-  margin: 0 0 0.5rem 0;
-  font-size: 2.5rem;
-  background: linear-gradient(45deg, #fff, #b1a2ff);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.item-text-top p {
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 1.1rem;
-  margin: 0 0 1rem 0;
-  max-width: 600px;
-  white-space: pre-wrap;
-}
-
-.raffle-item-link {
-  color: #8bc34a;
-  text-decoration: none;
-  font-weight: 600;
-  transition: color 0.2s;
-}
-
-.raffle-item-link:hover {
-  color: #aed581;
-}
-
-.raffle-stats-strip {
+.viking-badge-group {
   display: flex;
-  gap: 2rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-top: 1.5rem;
+  gap: 10px;
+  margin-bottom: 1rem;
 }
 
-.raffle-stat-box {
+.viking-badge {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 800;
+  font-size: 0.65rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+  letter-spacing: 1px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+.viking-badge.expired {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.viking-badge.completed {
+  color: var(--accent-cyan);
+  border-color: rgba(0, 200, 255, 0.3);
+}
+
+.raffle-description-main {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.25rem;
+  color: var(--text-bright);
+  line-height: 1.6;
+  max-width: 800px;
+  margin-bottom: 1.5rem;
+}
+
+.viking-link {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.viking-link:hover {
+  text-shadow: 0 0 10px var(--accent-cyan-glow);
+  color: white;
+}
+
+.raffle-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 2rem;
+}
+
+.raffle-stat-card {
   display: flex;
   flex-direction: column;
+  gap: 5px;
 }
 
-.raffle-stat-label {
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.4);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.raffle-stat-value {
-  font-size: 1.5rem;
+.stat-label {
+  font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
-  color: #ffca28;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+
+.stat-value {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.8rem;
+  font-weight: 800;
+}
+
+.stat-value.gold {
+  color: var(--accent-gold);
+}
+
+.stat-value.white {
+  color: var(--text-bright);
+}
+
+.stat-value.cyan {
+  color: var(--accent-cyan);
+}
+
+.stat-value.purple {
+  color: var(--accent-purple);
 }
 
 .raffle-stat-box.restriction-box {
@@ -192,9 +313,6 @@
 .restriction-note {
   margin-top: 1rem;
   padding: 0.8rem;
-  background: rgba(248, 113, 113, 0.1);
-  border: 1px dashed rgba(248, 113, 113, 0.3);
-  border-radius: 8px;
   color: #f87171;
   font-size: 0.85rem;
   text-align: center;
@@ -203,148 +321,111 @@
 
 .raffle-main {
   display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 2rem;
-}
-
-.wheel-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.admin-wheel-controls {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-  width: 100%;
-  max-width: 500px;
-}
-
-.raffle-btn.admin-shuffle,
-.raffle-btn.admin-mock,
-.raffle-btn.admin-start {
-    flex: 1;
-    min-width: 140px;
-    font-size: 0.85rem;
-    padding: 0.7rem 1rem;
-    white-space: normal;
-    text-align: center;
-}
-
-.raffle-btn {
-  padding: 0.8rem 1.5rem;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  border: none;
-  transition: all 0.2s;
-}
-
-.raffle-btn.secondary {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-}
-
-.raffle-btn.secondary:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.raffle-btn.admin-shuffle {
-    background: #673ab7;
-    color: white;
-}
-
-.raffle-btn.admin-mock {
-    background: #2196f3;
-    color: white;
-}
-
-.raffle-btn.admin-mock:hover {
-    background: #1e88e5;
-}
-
-.raffle-btn.admin-start {
-    background: #4caf50;
-    color: white;
-}
-
-.raffle-btn.admin-start:disabled {
-    background: #388e3c;
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.raffle-btn.danger {
-  background: rgba(244, 67, 54, 0.2);
-  color: #f44336;
-  width: 100%;
-  margin-top: 0.5rem;
-}
-
-.raffle-btn.danger:hover {
-  background: rgba(244, 67, 54, 0.3);
+  grid-template-columns: 1fr 340px;
+  gap: 2.5rem;
 }
 
 .raffle-actions-aside {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .join-btn-large {
   width: 100%;
   padding: 1.5rem;
-  background: #2563eb;
-  color: white;
+  background: var(--accent-gold);
+  color: #000;
   border: none;
-  border-radius: 12px;
-  font-size: 1.25rem;
-  font-weight: 700;
+  border-radius: var(--radius-lg);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 2px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
-.join-btn-large:hover {
-  background: #1d4ed8;
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(37, 99, 235, 0.4);
+.join-btn-large:hover:not(.disabled) {
+  background: white;
+  transform: translateY(-4px);
+  box-shadow: 0 15px 40px var(--accent-gold-glow);
 }
 
 .join-btn-large.disabled {
-    background: #9ca3af;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  border: 1px solid var(--border-subtle);
+  box-shadow: none;
 }
 
 .joined-status {
-    padding: 1.5rem;
-    background: rgba(76, 175, 80, 0.1);
-    border: 1px solid rgba(76, 175, 80, 0.3);
-    border-radius: 12px;
-    color: #4caf50;
-    text-align: center;
-    font-weight: 700;
-    font-size: 1.1rem;
+  padding: 1.5rem;
+  background: rgba(0, 255, 157, 0.05);
+  border: 1px solid rgba(0, 255, 157, 0.2);
+  border-radius: var(--radius-lg);
+  color: #00ff9d;
+  text-align: center;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 800;
+  font-size: 1.25rem;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }
 
-.check {
-    margin-right: 0.5rem;
+.viking-admin-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.viking-admin-actions .viking-btn-secondary {
+  width: 100%;
+  justify-content: center;
+}
+
+.viking-btn-danger {
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  padding: 0.75rem;
+  border-radius: var(--radius-md);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  width: 100%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.viking-btn-danger:hover {
+  background: #ef4444;
+  color: white;
+  border-color: #ef4444;
 }
 
 .login-note {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px dashed rgba(255, 255, 255, 0.1);
-    padding: 10px;
-    border-radius: 8px;
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 0.85rem;
-    margin-top: 1rem;
-    text-align: center;
-    font-weight: 500;
+  font-family: 'Outfit', sans-serif;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-subtle);
 }
 
 @media (max-width: 900px) {
@@ -352,7 +433,7 @@
     grid-template-columns: 1fr;
     gap: 1rem;
   }
-  
+
   .raffle-actions-aside {
     order: -1;
   }
@@ -379,92 +460,67 @@
 }
 
 @media (max-width: 600px) {
-    .raffle-page {
-        padding: 1rem;
-    }
+  .raffle-page {
+    padding: 1rem;
+  }
 
-    .raffle-page-header {
-        flex-direction: column;
-        gap: 0.8rem;
-        align-items: flex-start;
-    }
+  .raffle-page-header {
+    flex-direction: column;
+    gap: 0.8rem;
+    align-items: flex-start;
+  }
 
-    .raffle-page-title h1 {
-        font-size: 1.3rem;
-    }
+  .raffle-page-title h1 {
+    font-size: 1.3rem;
+  }
 
-    .back-home-btn {
-        align-self: flex-end;
-    }
+  .back-home-btn {
+    align-self: flex-end;
+  }
 
-    .raffle-header {
-        padding: 1.5rem;
-    }
+  .aury-prize-badge {
+    width: 100px;
+    height: 100px;
+  }
 
-    .admin-wheel-controls {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .raffle-btn.admin-shuffle,
-    .raffle-btn.admin-mock,
-    .raffle-btn.admin-start {
-        width: 100%;
-        min-width: unset;
-    }
-
-    .aury-prize-badge {
-        width: 100px;
-        height: 100px;
-    }
-
-    .aury-prize-badge .aury-amount {
-        font-size: 1.8rem;
-    }
+  .aury-prize-badge .aury-amount {
+    font-size: 1.8rem;
+  }
 }
 
 /* Prize Celebration Button */
 .prize-celebration-btn {
-    background: linear-gradient(135deg, #fbbf24, #f59e0b) !important;
-    color: #000 !important;
-    font-weight: 800 !important;
-    box-shadow: 0 4px 15px rgba(251, 191, 36, 0.3) !important;
-    margin-bottom: 1rem !important;
-    width: 100% !important;
-    padding: 1.2rem !important;
-    font-size: 1.1rem !important;
-    border: none !important;
-    border-radius: 12px !important;
-    cursor: pointer !important;
-    transition: all 0.2s !important;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b) !important;
+  color: #000 !important;
+  font-weight: 800 !important;
+  box-shadow: 0 4px 15px rgba(251, 191, 36, 0.3) !important;
+  margin-bottom: 1rem !important;
+  width: 100% !important;
+  padding: 1.2rem !important;
+  font-size: 1.1rem !important;
+  border: none !important;
+  border-radius: 12px !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
 }
 
 .prize-celebration-btn:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 6px 20px rgba(251, 191, 36, 0.4) !important;
-    filter: brightness(1.1) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(251, 191, 36, 0.4) !important;
+  filter: brightness(1.1) !important;
 }
 
 .admin-start.disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    background: #1e293b !important;
-    color: rgba(255,255,255,0.3) !important;
-}
-
-.raffle-btn.admin-close-entries {
-    background: #f44336;
-    color: white;
-}
-
-.raffle-btn.admin-close-entries:hover {
-    background: #d32f2f;
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #1e293b !important;
+  color: rgba(255, 255, 255, 0.3) !important;
 }
 
 .joined-status.expired {
-    background: rgba(244, 67, 54, 0.1);
-    border: 1px solid rgba(244, 67, 54, 0.3);
-    color: #f44336;
+  background: rgba(244, 67, 54, 0.1);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  color: #f44336;
 }
 
 /* =============================================
@@ -473,9 +529,10 @@
 
 .raffle-chat-container {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
-  width: 380px;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 420px;
   z-index: 1000;
   display: flex;
   flex-direction: column;
@@ -483,67 +540,72 @@
   font-family: var(--font-primary);
 }
 
-.chat-toggle-btn {
+.viking-chat-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 12px 20px;
-  background: linear-gradient(135deg, rgba(88, 80, 236, 0.9) 0%, rgba(63, 58, 171, 0.9) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-lg);
-  color: white;
+  padding: 12px 24px;
+  background: rgba(10, 10, 15, 0.9);
+  border: 1px solid var(--border-subtle);
+  border-bottom: none;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  color: var(--text-bright);
   cursor: pointer;
-  box-shadow: var(--shadow-lg);
-  transition: all 0.2s ease;
-  backdrop-filter: blur(8px);
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  backdrop-filter: blur(20px);
 }
 
-.chat-toggle-btn:hover {
+.viking-chat-toggle:hover {
+  border-color: var(--accent-gold);
   transform: translateY(-2px);
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-  filter: brightness(1.1);
 }
 
-.chat-icon {
-  font-size: 18px;
+.toggle-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.chat-label {
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: 0.5px;
-}
-
-.chat-badge {
-  background: #ff4d4d;
-  color: white;
-  font-size: 10px;
+.viking-chat-toggle .chat-label {
+  font-family: 'Rajdhani', sans-serif;
   font-weight: 800;
+  font-size: 1rem;
+  letter-spacing: 2px;
+  color: var(--text-bright);
+}
+
+.viking-badge.unread {
+  background: var(--accent-gold);
+  color: #000;
+  font-size: 10px;
+  font-weight: 900;
   padding: 2px 6px;
   border-radius: 10px;
   min-width: 18px;
   text-align: center;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
 
-.toggle-icon {
-  font-size: 12px;
-  opacity: 0.8;
+.toggle-arrow {
+  color: var(--accent-gold);
+  font-size: 10px;
+  opacity: 0.6;
 }
 
 .chat-panel {
   margin-bottom: 12px;
-  background: rgba(15, 23, 42, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-xl);
+  background: rgba(10, 10, 15, 0.95);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
   max-height: 450px;
-  backdrop-filter: blur(12px);
-  animation: chatPanelSlide 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  backdrop-filter: blur(20px);
+  animation: chatPanelSlide 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 @keyframes chatPanelSlide {
@@ -551,6 +613,7 @@
     opacity: 0;
     transform: translateY(20px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -604,8 +667,15 @@
 }
 
 @keyframes messageFadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .chat-message.own {
@@ -769,7 +839,7 @@
   padding: 8px;
   display: flex;
   gap: 6px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
   z-index: 100;
 }
 
@@ -811,12 +881,27 @@
   animation: typingBounce 1.4s infinite ease-in-out both;
 }
 
-.typing-dots span:nth-child(1) { animation-delay: -0.32s; }
-.typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+.typing-dots span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: -0.16s;
+}
 
 @keyframes typingBounce {
-  0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
-  40% { transform: scale(1); opacity: 1; }
+
+  0%,
+  80%,
+  100% {
+    transform: scale(0);
+    opacity: 0.3;
+  }
+
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* Input Form */
@@ -893,11 +978,11 @@
     right: 0;
     width: 100%;
   }
-  
+
   .chat-toggle-btn {
     border-radius: 0;
   }
-  
+
   .chat-panel {
     border-radius: 20px 20px 0 0;
     margin-bottom: 0;

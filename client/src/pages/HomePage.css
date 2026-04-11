@@ -270,8 +270,10 @@
   cursor: pointer;
   transition: all 0.25s ease;
   display: -webkit-box;
+  -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
+  overflow: hidden;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
 }
 
@@ -1103,8 +1105,10 @@
   display: flex;
   align-items: center;
   display: -webkit-box;
+  -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .announcement-track {
@@ -1972,10 +1976,7 @@
   line-height: 1.3;
   min-width: 0;
   flex: 1;
-  display: -webkit-box;
-  line-clamp: 1;
-  -webkit-box-orient: vertical;
-  line-clamp: 1;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -2083,6 +2084,7 @@
   line-height: 1.5;
   margin: 0 0 8px 0;
   display: -webkit-box;
+  -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -5708,13 +5710,19 @@
 
   .tournament-header h4 {
     font-size: 0.78rem;
-    line-clamp: 1;
-    line-clamp: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .tournament-description {
     font-size: 0.68rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
     line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .tournament-details {

@@ -438,81 +438,80 @@ import './RafflePage.css';
   const isCurrencyPrize = itemType === 'aury' || itemType === 'usdc';
 
   return (
-    <div className="raffle-page">
+    <div className="raffle-page cinematic-page">
       {/* Page Header — matches Tournament/Matchup pages */}
-      <header className="raffle-page-header">
-        <div className="raffle-page-title">
-          <h1>{raffle.itemType?.toUpperCase()} Raffle</h1>
-          <span className="raffle-page-subtitle">{raffle.description}</span>
+      <header className="viking-page-header">
+        <div className="viking-page-title-group">
+          <h1 className="viking-page-title">
+            <span className="type-prefix">{raffle.itemType?.toUpperCase()}</span>
+            <span className="main-title">Fate Draw</span>
+          </h1>
         </div>
-        <button className="back-home-btn" onClick={() => navigate('/')}>
-          ← Back to Home
-        </button>
+        <div className="header-actions">
+          <button className="viking-btn-secondary" onClick={() => navigate('/')}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            HOME
+          </button>
+        </div>
       </header>
 
-      <div className="raffle-header">
+      <div className="viking-card hero-raffle-card">
         <div className="item-info-top">
           {itemType === 'aury' || itemType === 'usdc' ? (
-            <div className={`currency-prize-badge ${itemType}`}>
-              <span className="currency-amount">
-                {itemType === 'aury' ? (raffle.auryAmount || 0) : (raffle.usdcAmount || 0)}
-              </span>
-              <span className="currency-label">{itemType.toUpperCase()}</span>
+            <div className={`viking-prize-display ${itemType}`}>
+              <div className="prize-amount-group">
+                <span className="currency-amount">
+                  {itemType === 'aury' ? (raffle.auryAmount || 0) : (raffle.usdcAmount || 0)}
+                </span>
+                <span className="currency-label">{itemType.toUpperCase()}</span>
+              </div>
             </div>
           ) : (
-            raffle.itemImage && <img src={raffle.itemImage} alt={raffle.itemType} className="raffle-item-large" />
+            raffle.itemImage && (
+              <div className="item-image-wrapper">
+                <img src={raffle.itemImage} alt={raffle.itemType} className="raffle-item-large" />
+              </div>
+            )
           )}
           <div className="item-text-top">
-            <p>{raffle.description}</p>
+            <div className="viking-badge-group">
+              <span className="viking-badge">{raffle.itemType?.toUpperCase()} PRIZE</span>
+              {isExpired && <span className="viking-badge expired">EXPIRED</span>}
+              {isCompleted && <span className="viking-badge completed">CONCLUDED</span>}
+            </div>
+            <p className="raffle-description-main">{raffle.description}</p>
             {!isAury && raffle.itemLink && (
-              <a href={raffle.itemLink} target="_blank" rel="noopener noreferrer" className="raffle-item-link">
-                View Item Details ↗
+              <a href={raffle.itemLink} target="_blank" rel="noopener noreferrer" className="viking-link">
+                Examine Artifact ↗
               </a>
             )}
           </div>
         </div>
 
-        <div className="raffle-stats-strip">
-          <div className="raffle-stat-box">
-            <span className="raffle-stat-label">Total Entry Fees</span>
-            <span className="raffle-stat-value">
+        <div className="raffle-stats-grid">
+          <div className="raffle-stat-card">
+            <span className="stat-label">Total Pool</span>
+            <span className="stat-value gold">
               {raffle.entryFeeCurrency === 'USDC' ? formatUsdcAmount(raffle.totalFeesCollected || 0) : 
                raffle.entryFeeCurrency === 'Valcoins' ? (raffle.totalFeesCollected || 0) :
                formatAuryAmount(raffle.totalFeesCollected || 0)} {raffle.entryFeeCurrency || 'AURY'}
             </span>
           </div>
-          <div className="raffle-stat-box">
-            <span className="raffle-stat-label">Entry Fee</span>
-            <span className="raffle-stat-value">
+          <div className="raffle-stat-card">
+            <span className="stat-label">Entry Tribute</span>
+            <span className="stat-value white">
               {raffle.isFree ? 'FREE' : `${raffle.entryFee} ${raffle.entryFeeCurrency || 'AURY'}`}
             </span>
           </div>
-          <div className="raffle-stat-box">
-            <span className="raffle-stat-label">Participants</span>
-            <span className="raffle-stat-value">{raffle.participantsCount} / {raffle.maxParticipants}</span>
+          <div className="raffle-stat-card">
+            <span className="stat-label">Fellow Participants</span>
+            <span className="stat-value cyan">{raffle.participantsCount} / {raffle.maxParticipants}</span>
           </div>
           {raffle.endDate && (
-            <div className="raffle-stat-box">
-              <span className="raffle-stat-label">Ends At</span>
-              <span className="raffle-stat-value">
-                {new Date(raffle.endDate.toDate ? raffle.endDate.toDate() : raffle.endDate).toLocaleString()}
-              </span>
-            </div>
-          )}
-          {(limitDateBefore || limitDateAfter) && (
-            <div className="raffle-stat-box restriction-box">
-              <span className="raffle-stat-label">
-                🛡️ {limitDateBefore && limitDateAfter ? 'Accounts between' : 
-                    limitDateBefore ? 'Old accounts only' : 'New accounts only'}
-              </span>
-              <span className="raffle-stat-value restriction">
-                {limitDateBefore && limitDateAfter ? (
-                  `${limitDateAfter.toLocaleDateString()} - ${limitDateBefore.toLocaleDateString()}`
-                ) : limitDateBefore ? (
-                  `Before ${limitDateBefore.toLocaleDateString()}`
-                ) : (
-                  `After ${limitDateAfter.toLocaleDateString()}`
-                )}
+            <div className="raffle-stat-card">
+              <span className="stat-label">Norns' Deadline</span>
+              <span className="stat-value purple">
+                {new Date(raffle.endDate.toDate ? raffle.endDate.toDate() : raffle.endDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
           )}
@@ -521,29 +520,6 @@ import './RafflePage.css';
 
       <div className="raffle-main">
         <div className="wheel-section">
-          {isAdminUser && !isSpinning && !isCompleted && (
-            <div className="admin-wheel-controls">
-                <button className="raffle-btn admin-shuffle" onClick={handleShuffle}>
-                    Randomize Participants
-                </button>
-                <button className="raffle-btn admin-mock" onClick={handleAddMock} title="Super Admin Only">
-                    Add Mock Participants
-                </button>
-                <button 
-                    className={`raffle-btn admin-start ${isStarting || isSpinning || isCompleted ? 'disabled' : ''}`} 
-                    onClick={handleStartSpin}
-                    disabled={raffle.participantsCount < raffle.minParticipants || isStarting || isSpinning || isCompleted}
-                >
-                    {isStarting ? 'Please wait...' : 'Start Raffle (Spin)'}
-                </button>
-                {raffle.status === 'active' && (
-                    <button className="raffle-btn admin-close-entries" onClick={handleCloseEntries}>
-                        🔒 Close Entries
-                    </button>
-                )}
-            </div>
-          )}
-
           <RaffleWheel 
             participants={raffle.participants}
             onSpinEnd={handleSpinEnd}
@@ -598,22 +574,51 @@ import './RafflePage.css';
             )}
 
             {isCompleted && raffle.winner && (
-                <button className="raffle-btn prize-celebration-btn" onClick={() => setShowWinner(true)}>
-                    🎊 Show Winner
+                <button className="viking-btn-primary prize-celebration-btn" onClick={() => setShowWinner(true)}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+                    REVEAL VICTOR
                 </button>
             )}
 
-            <button className="raffle-btn secondary" onClick={() => setShowParticipants(true)}>
-                Show All Participants
+            <button className="viking-btn-secondary" onClick={() => setShowParticipants(true)}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                PARTICIPANTS
             </button>
 
             {isAdminUser && (
-                <div className="admin-danger-zone">
-                    <button className="raffle-btn edit-btn" onClick={() => setShowEditModal(true)}>
-                        ✏️ Edit Raffle
+                <div className="viking-admin-actions">
+                    <button className="viking-btn-secondary edit-btn" onClick={() => setShowEditModal(true)}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        EDIT
                     </button>
-                    <button className="raffle-btn danger" onClick={handleDelete}>
-                        Delete Raffle
+                    
+                    {!isSpinning && !isCompleted && (
+                        <>
+                            <button className="viking-btn-secondary admin-shuffle" onClick={handleShuffle}>
+                                Randomize Participants
+                            </button>
+                            <button className="viking-btn-secondary admin-mock" onClick={handleAddMock} title="Super Admin Only">
+                                Add Mock Participants
+                            </button>
+                            <button 
+                                className={`viking-btn-secondary admin-start ${isStarting || isSpinning || isCompleted ? 'disabled' : ''}`} 
+                                onClick={handleStartSpin}
+                                disabled={raffle.participantsCount < raffle.minParticipants || isStarting || isSpinning || isCompleted}
+                            >
+                                {isStarting ? 'Please wait...' : 'Start Raffle (Spin)'}
+                            </button>
+                            {raffle.status === 'active' && (
+                                <button className="viking-btn-secondary admin-close-entries" onClick={handleCloseEntries}>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                    Close Entries
+                                </button>
+                            )}
+                        </>
+                    )}
+
+                    <button className="viking-btn-danger" onClick={handleDelete}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        PURGE
                     </button>
                 </div>
             )}
@@ -789,13 +794,16 @@ import './RafflePage.css';
           </div>
         )}
 
-        <button className="chat-toggle-btn" onClick={() => setIsChatOpen(!isChatOpen)}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span className="chat-icon">{isChatOpen ? '❌' : '💬'}</span>
-            <span className="chat-label">{isChatOpen ? 'Close Chat' : 'Raffle Chat'}</span>
-            {!isChatOpen && unreadCount > 0 && <span className="chat-badge">{unreadCount}</span>}
+        <button className="viking-chat-toggle" onClick={() => setIsChatOpen(!isChatOpen)}>
+          <div className="toggle-content">
+            <span className="chat-icon">{isChatOpen ? 
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> : 
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            }</span>
+            <span className="chat-label">{isChatOpen ? 'CLOSE CHAT' : 'RAFFLE CHAT'}</span>
+            {!isChatOpen && unreadCount > 0 && <span className="viking-badge unread">{unreadCount}</span>}
           </div>
-          <span className="toggle-icon">{isChatOpen ? '▼' : '▲'}</span>
+          <span className="toggle-arrow">{isChatOpen ? '▼' : '▲'}</span>
         </button>
       </div>
     </div>

@@ -26,10 +26,49 @@ export const useAuth = (navigate) => {
         const handleRedirectResult = async () => {
             try {
                 const result = await getRedirectResult(auth);
-                if (result) {
+                if (result && result.user) {
                     console.log('✅ Auth result from redirect capture');
-                    // Existing logic for saving user would go here if needed, 
-                    // but onAuthStateChanged will handle the user state.
+                    const additionalInfo = getAdditionalUserInfo(result);
+                    const providerId = additionalInfo?.providerId || result.providerId || (result.user.providerData && result.user.providerData[0]?.providerId);
+                    
+                    let userEmail = result.user.email;
+                    if (!userEmail && result.user.providerData && result.user.providerData.length > 0) {
+                        userEmail = result.user.providerData[0].email;
+                    }
+
+                    let displayName = result.user.displayName;
+                    if (!displayName && result.user.providerData && result.user.providerData.length > 0) {
+                        displayName = result.user.providerData[0].displayName || userEmail?.split('@')[0] || 'User';
+                    }
+
+                    if (providerId === 'discord.com') {
+                        const discordData = additionalInfo?.profile;
+                        const discordId = discordData?.id || result.user.providerData[0]?.uid || '';
+                        const username = discordData?.username || displayName;
+
+                        await setDoc(doc(db, 'users', result.user.uid), {
+                            uid: result.user.uid,
+                            username: username,
+                            discordUsername: discordData?.username || displayName,
+                            discordId: discordId,
+                            avatar: discordData?.avatar && discordId
+                                ? `https://cdn.discordapp.com/avatars/${discordId}/${discordData.avatar}.png`
+                                : result.user.photoURL || null,
+                            discriminator: discordData?.discriminator || '',
+                            email: userEmail || '',
+                            displayName: displayName,
+                            lastLogin: new Date()
+                        }, { merge: true });
+                    } else {
+                        await setDoc(doc(db, 'users', result.user.uid), {
+                            uid: result.user.uid,
+                            email: userEmail || '',
+                            displayName: displayName,
+                            photoURL: result.user.photoURL || null,
+                            lastLogin: new Date()
+                        }, { merge: true });
+                    }
+                    setShowLoginSuccessModal(true);
                 }
             } catch (error) {
                 console.error('Redirect result error:', error);
@@ -165,14 +204,16 @@ export const useAuth = (navigate) => {
                 displayName: displayName || 'Discord User'
             };
 
+            const discordId = discordData?.id || result.user.providerData[0]?.uid || '';
+
             try {
                 await setDoc(doc(db, 'users', result.user.uid), {
                     uid: result.user.uid,
                     username: username,
                     discordUsername: discordData?.username || displayName,
-                    discordId: discordData?.id || '',
-                    avatar: discordData?.avatar
-                        ? `https://cdn.discordapp.com/avatars/${discordData.id}/${discordData.avatar}.png`
+                    discordId: discordId,
+                    avatar: discordData?.avatar && discordId
+                        ? `https://cdn.discordapp.com/avatars/${discordId}/${discordData.avatar}.png`
                         : result.user.photoURL || null,
                     discriminator: discordData?.discriminator || '',
                     email: userEmail || '',

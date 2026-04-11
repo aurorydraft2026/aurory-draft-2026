@@ -1,32 +1,37 @@
 .raffles-listing-page {
-  padding: 2rem;
-  max-width: 1200px;
+  padding: 2.5rem 1.5rem;
+  max-width: 1400px;
   margin: 0 auto;
   min-height: 100vh;
 }
 
-.raffles-listing-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  margin-bottom: 3rem;
-  padding-bottom: 2rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+/* Hero Header Adjustments for Listing Page */
+.viking-section-header.hero-header {
+  margin-bottom: 4rem;
+  padding: 4rem 2rem;
+  background: radial-gradient(circle at top left, rgba(251, 191, 36, 0.05) 0%, transparent 70%);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-subtle);
+  position: relative;
+  overflow: hidden;
 }
 
-.header-text h1 {
-  font-size: 3rem;
-  margin: 0 0 0.5rem 0;
-  background: linear-gradient(45deg, #fff, #ffca28);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+.raffles-listing-page .viking-section-title {
+  font-size: 3.5rem;
+  margin-bottom: 1rem;
 }
 
-.header-text p {
-  font-size: 1.2rem;
-  color: rgba(255, 255, 255, 0.6);
-  margin: 0;
+.viking-section-subtitle {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.15rem;
+  color: var(--text-secondary);
+  max-width: 600px;
+}
+
+.header-action {
+  position: absolute;
+  top: 2rem;
+  right: 2rem;
 }
 
 .create-raffle-btn-top {
@@ -47,40 +52,13 @@
 }
 
 .raffles-section {
-    margin-bottom: 4rem;
-}
-
-.section-title {
-    font-size: 1.5rem;
-    color: white;
-    margin-bottom: 2rem;
-    position: relative;
-    display: inline-block;
-}
-
-.section-title::after {
-    content: '';
-    position: absolute;
-    bottom: -8px;
-    left: 0;
-    width: 40px;
-    height: 3px;
-    background: #ffca28;
-}
-
-.no-raffles {
-  text-align: center;
-  padding: 4rem;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 20px;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 1.2rem;
+    margin-bottom: 5rem;
 }
 
 .raffles-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 2rem;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
 }
 
 .past-raffles {

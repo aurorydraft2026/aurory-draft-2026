@@ -1,18 +1,20 @@
 .raffle-card {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  transition: transform 0.3s, box-shadow 0.3s;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   display: flex;
   flex-direction: column;
   height: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 .raffle-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-bright);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
 
 .raffle-card-image-container {
@@ -94,28 +96,35 @@
 .usdc .raffle-card-currency-label { color: #60a5fa; }
 
 .raffle-card-content {
-  padding: 1.5rem;
+  padding: 1.25rem 1.5rem;
   display: flex;
   flex-direction: column;
   flex-grow: 1;
 }
 
 .raffle-card-type {
-  font-size: 0.8rem;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.7rem;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  color: #8bc34a;
+  letter-spacing: 1.5px;
+  color: var(--accent-cyan);
   margin-bottom: 0.5rem;
   font-weight: 700;
 }
 
 .raffle-card-description {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: white;
+  font-family: 'Exo 2', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-bright);
   margin-bottom: 1rem;
-  line-height: 1.4;
-  white-space: pre-wrap;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .raffle-card-info {
@@ -124,7 +133,7 @@
   align-items: center;
   margin-top: auto;
   padding-top: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .raffle-card-fee {
@@ -133,22 +142,29 @@
 }
 
 .fee-label {
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.5);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .fee-value {
-  font-size: 1.1rem;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.15rem;
   font-weight: 700;
-  color: #ffca28;
+  color: var(--accent-gold);
 }
 
 .raffle-card-participants {
-  background: rgba(255, 255, 255, 0.1);
-  padding: 0.3rem 0.8rem;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  color: white;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
 }
 
 .raffle-card-footer {
@@ -158,24 +174,38 @@
 
 .raffle-join-button {
   width: 100%;
-  background: #2563eb;
-  color: white;
+  background: var(--accent-gold);
+  color: #000;
   border: none;
-  padding: 0.8rem;
-  border-radius: 8px;
-  font-weight: 600;
+  padding: 0.75rem;
+  border-radius: var(--radius-md);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 800;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.3s ease;
 }
 
 .raffle-join-button:hover {
-  background: #1d4ed8;
+  background: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px var(--accent-gold-glow);
 }
 
 .raffle-join-button.completed {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
   cursor: default;
+  border: 1px solid var(--border-subtle);
+}
+
+.raffle-join-button.disabled {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  border: 1px solid var(--border-subtle);
 }
 
 .raffle-winner-badge {

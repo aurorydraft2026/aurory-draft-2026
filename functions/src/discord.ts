@@ -465,23 +465,12 @@ export const scheduledRunieTips = functions.pubsub
         const tip = RUNIE_TIPS[Math.floor(Math.random() * RUNIE_TIPS.length)];
 
         try {
-            const embed = {
-                title: '💡 Runie\'s Tip of the Day',
-                description: tip,
-                color: 0xD4AF37, // Gold
-                footer: {
-                    text: 'Runie • Your Asgard Companion',
-                    icon_url: 'https://asgard-duels.web.app/favicon.ico'
-                },
-                timestamp: new Date().toISOString()
-            };
-
             await fetch(GENERAL_WEBHOOK_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     ...RUNIE_IDENTITY,
-                    embeds: [embed]
+                    content: `💡 **Runie's Tip of the Day**\n${tip}`
                 })
             });
 
