@@ -13,7 +13,7 @@ const GENERAL_WEBHOOK_URL = 'https://discord.com/api/webhooks/149212901139100890
 // ─── RUNIE IDENTITY ───
 const RUNIE_IDENTITY = {
     username: 'Runie',
-    avatar_url: 'https://asgard-duels.web.app/favicon.ico' // TODO: Replace with Runie's custom avatar URL
+    avatar_url: 'https://asgard-duels.web.app/runie-avatar.png' 
 };
 
 // ─── RUNIE'S TIPS ───
@@ -93,7 +93,7 @@ export const onRaffleCreated = functions.firestore
                 ],
                 footer: {
                     text: 'Asgard • Automated Announcement',
-                    icon_url: 'https://asgard-duels.web.app/favicon.ico'
+                    icon_url: RUNIE_IDENTITY.avatar_url
                 },
                 timestamp: new Date().toISOString()
             };
@@ -111,6 +111,7 @@ export const onRaffleCreated = functions.firestore
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    ...RUNIE_IDENTITY,
                     content: '🚀 **A new raffle has just been posted!**',
                     embeds: [embed]
                 })
@@ -179,7 +180,7 @@ export const onRaffleWinnerSet = functions.firestore
                     ],
                     footer: {
                         text: 'Asgard • Fair & Honest Raffles',
-                        icon_url: 'https://asgard-duels.web.app/favicon.ico'
+                        icon_url: RUNIE_IDENTITY.avatar_url
                     },
                     timestamp: new Date().toISOString()
                 };
@@ -194,6 +195,7 @@ export const onRaffleWinnerSet = functions.firestore
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        ...RUNIE_IDENTITY,
                         content: `🎉 **Congratulations to our latest winner!** 🎊`,
                         embeds: [embed]
                     })
@@ -289,7 +291,7 @@ export const onMatchupCreated = functions.firestore
                 ],
                 footer: {
                     text: 'Asgard • Tournament Matchups',
-                    icon_url: 'https://asgard-duels.web.app/favicon.ico'
+                    icon_url: RUNIE_IDENTITY.avatar_url
                 },
                 timestamp: new Date().toISOString()
             };
@@ -299,6 +301,7 @@ export const onMatchupCreated = functions.firestore
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    ...RUNIE_IDENTITY,
                     content: '🚀 **A new Tournament Matchup has been posted!**',
                     embeds: [embed]
                 })
@@ -350,7 +353,7 @@ export const onMatchupWinner = functions.firestore
                     ],
                     footer: {
                         text: 'Asgard • Official Results',
-                        icon_url: 'https://asgard-duels.web.app/favicon.ico'
+                        icon_url: RUNIE_IDENTITY.avatar_url
                     },
                     timestamp: new Date().toISOString()
                 };
@@ -359,6 +362,7 @@ export const onMatchupWinner = functions.firestore
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        ...RUNIE_IDENTITY,
                         content: '🎉 **Tournament Results are in!** 🎊',
                         embeds: [embed]
                     })
@@ -419,7 +423,7 @@ export const onDraftCreated = functions.firestore
                 ],
                 footer: {
                     text: 'Asgard • Automated Announcement',
-                    icon_url: 'https://asgard-duels.web.app/favicon.ico'
+                    icon_url: RUNIE_IDENTITY.avatar_url
                 },
                 timestamp: new Date().toISOString()
             };
@@ -429,6 +433,7 @@ export const onDraftCreated = functions.firestore
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    ...RUNIE_IDENTITY,
                     content: '🚀 **A new Tournament Draft is ready!**',
                     embeds: [embed]
                 })
@@ -505,7 +510,7 @@ export const onNewUserWelcome = functions.firestore
                 thumbnail: avatar ? { url: avatar } : undefined,
                 footer: {
                     text: 'Runie • Your Asgard Companion',
-                    icon_url: 'https://asgard-duels.web.app/favicon.ico'
+                    icon_url: RUNIE_IDENTITY.avatar_url
                 },
                 timestamp: new Date().toISOString()
             };
