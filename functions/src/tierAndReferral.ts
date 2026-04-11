@@ -3,10 +3,12 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 
 // ─── TIER CONFIGURATION ───
 const TIER_CONFIG: Record<number, { max: number; upgradeCost: number | null }> = {
-  1: { max: 30000, upgradeCost: null },      // Tier I: 30k cap, no cost (starting tier)
-  2: { max: 50000, upgradeCost: 29000 },     // Tier II: 50k cap, costs 29k to unlock
-  3: { max: 100000, upgradeCost: 49000 },    // Tier III: 100k cap, costs 49k to unlock
+  1: { max: 30000, upgradeCost: null },      // Tier I: 30k cap
+  2: { max: 50000, upgradeCost: 30000 },     // Tier II: 50k cap
+  3: { max: 100000, upgradeCost: 50000 },    // Tier III: 100k cap
 };
+
+const UPGRADE_BONUS = 1000;
 
 const REFERRAL_BONUS = 20000;
 
@@ -114,9 +116,12 @@ export const upgradeTier = onCall(
       }
 
       // Deduct cost and upgrade tier
+      // NEW: Add 1,000 Valcoins promotion bonus
+      const netChange = (-upgradeCost) + UPGRADE_BONUS;
+
       transaction.update(userRef, {
         tier: nextTier,
-        points: admin.firestore.FieldValue.increment(-upgradeCost),
+        points: admin.firestore.FieldValue.increment(netChange),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
@@ -129,7 +134,21 @@ export const upgradeTier = onCall(
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      return { newTier: nextTier, cost: upgradeCost, remainingPoints: currentPoints - upgradeCost };
+      // Record the bonus separately in history for clarity
+      const bonusHistoryRef = historyRef.doc();
+      transaction.set(bonusHistoryRef, {
+        amount: UPGRADE_BONUS,
+        type: 'tier_promotion_bonus',
+        description: `Promotion reward for reaching Tier ${nextTier === 2 ? 'II' : 'III'}!`,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return { 
+        newTier: nextTier, 
+        cost: upgradeCost, 
+        bonus: UPGRADE_BONUS,
+        remainingPoints: currentPoints + netChange 
+      };
     });
 
     // After upgrading to Tier II, check if this user was referred — might trigger bonus

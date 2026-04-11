@@ -8010,3 +8010,257 @@ input[type="file"] {
     justify-content: center;
   }
 }
+
+/* --- TIER LIMIT WARNING --- */
+.tier-limit-warning.small {
+  margin: 8px 0;
+  padding: 6px 12px;
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: pulse-border 3s infinite;
+}
+
+.warning-icon-outlined {
+  width: 14px;
+  height: 14px;
+  color: var(--accent-red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.warning-icon-outlined svg {
+  width: 100%;
+  height: 100%;
+}
+
+.tier-limit-warning.small .warning-text {
+  margin: 0;
+  font-size: 0.68rem;
+  color: var(--accent-red);
+  letter-spacing: 0.2px;
+  opacity: 0.9;
+}
+
+/* --- MONO OUTLINED ICON SYSTEM --- */
+.aurorian-badge-outlined {
+  width: 14px;
+  height: 14px;
+  color: var(--accent-gold);
+  margin-left: 6px;
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.aurorian-badge-outlined svg,
+.sync-profile-mini-btn svg,
+.daily-checkin-btn svg,
+.referral-copy-btn svg,
+.referral-share-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.sync-profile-mini-btn svg {
+  color: var(--accent-cyan);
+}
+
+.sync-spinner {
+  animation: rotate 2s linear infinite;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.mini-flame-icon {
+  width: 10px;
+  height: 10px;
+  margin-right: 2px;
+  color: var(--accent-gold);
+}
+
+.valcoin-icon-outlined {
+  width: 28px;
+  height: 28px;
+  color: var(--accent-gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  padding: 4px;
+  background: rgba(240, 178, 50, 0.05);
+  border: 1px solid rgba(240, 178, 50, 0.15);
+  border-radius: 50%;
+}
+
+.valcoin-icon-outlined svg {
+  width: 100%;
+  height: 100%;
+}
+
+.valcoin-icon-tiny-outlined {
+  width: 14px;
+  height: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  display: inline-flex;
+  margin-left: 4px;
+}
+
+.valcoin-icon-tiny-outlined svg {
+  width: 100%;
+  height: 100%;
+}
+
+.upgrade-arrow-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  color: white;
+  stroke-width: 3;
+}
+
+.btn-cost-text {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.success-icon {
+  color: #4ade80 !important;
+}
+
+@keyframes pulse-border {
+  0% { border-color: rgba(239, 68, 68, 0.2); }
+  50% { border-color: rgba(239, 68, 68, 0.35); }
+  100% { border-color: rgba(239, 68, 68, 0.2); }
+}
+
+/* ============================================================
+   TIER UPGRADE PREMIUM ANIMATION
+   ============================================================ */
+.tier-upgrade-anim-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  animation: fadeIn 0.4s ease forwards;
+  pointer-events: none;
+}
+
+.tier-slam-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  z-index: 10;
+}
+
+.unlock-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--accent-cyan);
+  letter-spacing: 6px;
+  text-shadow: 0 0 15px rgba(0, 200, 255, 0.6);
+  animation: slideDownIn 0.6s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+}
+
+.slam-badge {
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 900;
+  font-size: 3rem;
+  padding: 20px 40px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 2px solid var(--accent-gold);
+  border-radius: var(--radius-lg);
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  box-shadow: 0 0 40px rgba(240, 178, 50, 0.2);
+  transform: scale(0.5);
+  opacity: 0;
+  animation: tierSlam 0.5s 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  position: relative;
+}
+
+.slam-badge::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: inherit;
+  background: radial-gradient(circle, var(--accent-gold) 0%, transparent 70%);
+  opacity: 0;
+  animation: glowPop 1s 0.6s ease-out forwards;
+}
+
+.unlock-subtext {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  opacity: 0;
+  animation: fadeIn 0.8s 1s ease forwards;
+}
+
+/* Floating Viking Runes (Background) */
+.viking-runes-bg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px;
+  padding: 40px;
+  justify-content: center;
+  align-items: center;
+  opacity: 0.15;
+}
+
+.viking-runes-bg span {
+  font-size: 2.5rem;
+  color: var(--accent-purple);
+  animation: runeFloat 6s infinite ease-in-out;
+}
+
+.viking-runes-bg span:nth-child(even) {
+  animation-delay: -3s;
+}
+
+@keyframes tierSlam {
+  0% { transform: scale(3); opacity: 0; filter: blur(10px); }
+  100% { transform: scale(1); opacity: 1; filter: blur(0); }
+}
+
+@keyframes glowPop {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.1); opacity: 0.6; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+@keyframes runeFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-20px) rotate(10deg); }
+}
+
+@keyframes slideDownIn {
+  0% { transform: translateY(-30px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fadeIn {
+  to { opacity: 1; }
+}

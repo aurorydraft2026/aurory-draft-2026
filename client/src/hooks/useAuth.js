@@ -21,6 +21,8 @@ export const useAuth = (navigate) => {
     const [bonusEffect, setBonusEffect] = useState(null);
     const [isSyncing, setIsSyncing] = useState(false);
     const [isUpgradingTier, setIsUpgradingTier] = useState(false);
+    const [showTierUpgradeAnim, setShowTierUpgradeAnim] = useState(false);
+    const [unlockedTierData, setUnlockedTierData] = useState(null);
     const [referralInput, setReferralInput] = useState('');
     const [isApplyingReferral, setIsApplyingReferral] = useState(false);
     const [referralCopied, setReferralCopied] = useState(false);
@@ -35,7 +37,7 @@ export const useAuth = (navigate) => {
                     console.log('✅ Auth result from redirect capture');
                     const additionalInfo = getAdditionalUserInfo(result);
                     const providerId = additionalInfo?.providerId || result.providerId || (result.user.providerData && result.user.providerData[0]?.providerId);
-                    
+
                     let userEmail = result.user.email;
                     if (!userEmail && result.user.providerData && result.user.providerData.length > 0) {
                         userEmail = result.user.providerData[0].email;
@@ -87,7 +89,7 @@ export const useAuth = (navigate) => {
         const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
             if (firebaseUser) {
                 setUser(firebaseUser);
-                
+
                 if (unsubProfile) {
                     unsubProfile();
                     unsubProfile = null;
@@ -340,11 +342,11 @@ export const useAuth = (navigate) => {
     // Handle Daily Check-in
     const handleDailyCheckIn = async () => {
         if (!user || isAuthenticating) return;
-        
+
         setIsAuthenticating(true);
         try {
             const result = await dailyCheckIn(user.uid);
-            
+
             if (result.success) {
                 // If there's a bonus, trigger the animation
                 if (result.bonusAmount > 0) {
@@ -360,7 +362,7 @@ export const useAuth = (navigate) => {
                     user,
                     type: 'POINTS',
                     action: 'daily_checkin',
-                    metadata: { 
+                    metadata: {
                         amount: result.points,
                         baseAmount: result.baseAmount,
                         bonusAmount: result.bonusAmount,
@@ -419,7 +421,9 @@ export const useAuth = (navigate) => {
             try {
                 const result = await upgradeTierCall();
                 if (result.success) {
-                    alert(`✅ ${result.message}`);
+                    setUnlockedTierData(next);
+                    setShowTierUpgradeAnim(true);
+                    setTimeout(() => setShowTierUpgradeAnim(false), 4000);
                 }
             } catch (error) {
                 alert('❌ ' + (error.message || 'Upgrade failed'));
@@ -484,6 +488,23 @@ export const useAuth = (navigate) => {
                         </button>
                     </div>
 
+                    {/* ── TIER UPGRADE PREMIUM ANIMATION OVERLAY ── */}
+                    {showTierUpgradeAnim && unlockedTierData && (
+                        <div className="tier-upgrade-anim-overlay">
+                            <div className="viking-runes-bg">
+                                <span>ᚠ</span><span>ᚢ</span><span>ᚦ</span><span>ᚨ</span><span>ᚱ</span><span>ᚲ</span>
+                                <span>ᚷ</span><span>ᚹ</span><span>ᚺ</span><span>ᚻ</span><span>ᛁ</span><span>ᛃ</span>
+                            </div>
+                            <div className="tier-slam-content">
+                                <span className="unlock-label">SAGA UNLOCKED</span>
+                                <div className={`slam-badge tier-${unlockedTierData.roman.toLowerCase()}`}>
+                                    {unlockedTierData.name}
+                                </div>
+                                <span className="unlock-subtext">Your power grows, Warrior!</span>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="user-modal-content">
                         {/* ── PROFILE HEADER ROW ── */}
                         <div className="user-header-info">
@@ -496,9 +517,13 @@ export const useAuth = (navigate) => {
                             <div className="user-text-info">
                                 <span className="modal-username">
                                     {user.displayName}
-                                    {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}
+                                    {user.isAurorian && (
+                                        <span className="aurorian-badge-outlined" title="Aurorian NFT Holder">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                                        </span>
+                                    )}
                                     {user.auroryPlayerId && (
-                                        <button 
+                                        <button
                                             className={`sync-profile-mini-btn ${isSyncing ? 'syncing' : ''}`}
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -507,7 +532,11 @@ export const useAuth = (navigate) => {
                                             title="Sync Profile Data"
                                             disabled={isSyncing}
                                         >
-                                            {isSyncing ? '⌛' : '🔄'}
+                                            {isSyncing ? (
+                                                <svg className="sync-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+                                            ) : (
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                                            )}
                                         </button>
                                     )}
                                 </span>
@@ -530,16 +559,25 @@ export const useAuth = (navigate) => {
                                         +{bonusEffect.amount} Bonus
                                     </div>
                                 )}
-                                <button 
+                                <button
                                     className={`daily-checkin-btn compact ${isCheckedIn ? 'checked-in' : ''}`}
                                     onClick={handleDailyCheckIn}
                                     disabled={isCheckedIn || !user.auroryPlayerId || isAuthenticating}
                                     style={!user.auroryPlayerId ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                                     title={!user.auroryPlayerId ? 'Connect Aurory account first' : isCheckedIn ? 'Already checked in today' : 'Claim daily reward'}
                                 >
-                                    <span>{isCheckedIn ? '✅' : '📅'}</span>
+                                    <span>
+                                        {isCheckedIn ? (
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                        ) : (
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                        )}
+                                    </span>
                                     {user.checkInStreak > 0 && (
-                                        <span className="streak-badge-mini">🔥{user.checkInStreak}d</span>
+                                        <span className="streak-badge-mini">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mini-flame-icon"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.256 1.189-3.103.111-.124.32-.303.486-.411.5-.327 1.056-.628 1.639-.815"></path></svg>
+                                            {user.checkInStreak}d
+                                        </span>
                                     )}
                                 </button>
                             </div>
@@ -561,11 +599,24 @@ export const useAuth = (navigate) => {
                                 <span className="tier-limit">{userPoints.toLocaleString()} / {tierConfig.max.toLocaleString()}</span>
                             </div>
                             <div className="tier-gauge-bar">
-                                <div 
+                                <div
                                     className={`tier-gauge-fill tier-${userTier}-fill`}
                                     style={{ width: `${tierProgress}%` }}
                                 ></div>
                             </div>
+
+                            {/* --- NEW: Limit Reached Warning --- */}
+                            {userPoints >= tierConfig.max && (
+                                <div className="tier-limit-warning small">
+                                    <span className="warning-icon-outlined">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                                    </span>
+                                    <p className="warning-text">
+                                        Tier limit reached! Upgrade to earn more Valcoins.
+                                    </p>
+                                </div>
+                            )}
+
                             {nextTier && (
                                 <div className="tier-upgrade-row">
                                     <span className="tier-upgrade-info">
@@ -577,8 +628,15 @@ export const useAuth = (navigate) => {
                                         disabled={isUpgradingTier || userPoints < nextTier.upgradeCost}
                                         title={userPoints < nextTier.upgradeCost ? `Need ${nextTier.upgradeCost.toLocaleString()} Valcoins` : `Upgrade for ${nextTier.upgradeCost.toLocaleString()} Valcoins`}
                                     >
-                                        {isUpgradingTier ? '⏳' : `⬆ ${nextTier.upgradeCost.toLocaleString()}`}
-                                        <img src="/valcoin-icon.jpg" alt="" className="valcoin-icon-tiny" />
+                                        {isUpgradingTier ? (
+                                            <svg className="sync-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+                                        ) : (
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="upgrade-arrow-icon"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                                        )}
+                                        <span className="btn-cost-text">{nextTier.upgradeCost.toLocaleString()}</span>
+                                        <span className="valcoin-icon-tiny-outlined">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8"></circle><line x1="12" y1="12" x2="12.01" y2="12"></line></svg>
+                                        </span>
                                     </button>
                                 </div>
                             )}
@@ -595,10 +653,14 @@ export const useAuth = (navigate) => {
                                     <div className="referral-code-display">
                                         <span className="referral-code-text">{displayCode}</span>
                                         <button className="referral-copy-btn" onClick={handleCopyCode} title="Copy Code">
-                                            {referralCopied ? '✅' : '📋'}
+                                            {referralCopied ? (
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="success-icon"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                            ) : (
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                            )}
                                         </button>
                                         <button className="referral-share-btn" onClick={handleShareLink} title="Share Link">
-                                            🔗
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
                                         </button>
                                     </div>
                                 </div>

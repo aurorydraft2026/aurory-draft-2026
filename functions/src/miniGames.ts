@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { updateLeaderboardStats } from './leaderboardUtils';
+import { clampPointsToTierMax } from './tierAndReferral';
 
 // ═══════════════════════════════════════════════════════
 //  DRAKKAR RACE v2 — 7 Ships, 7 Weathers, Latin Square
@@ -226,8 +227,12 @@ export const playMiniGame = onCall(
 
                 if (finalPrize) {
                     if (finalPrize.type.toLowerCase() === 'valcoins' && finalPrize.amount > 0) {
+                        const rawNewPoints = (userData.points || 0) + finalPrize.amount;
+                        const userTier = userData.tier || 1;
+                        const clampedPoints = clampPointsToTierMax(rawNewPoints, userTier);
+                        
                         transaction.update(userRef, {
-                            points: admin.firestore.FieldValue.increment(finalPrize.amount)
+                            points: clampedPoints
                         });
                     } else if (finalPrize.type.toLowerCase() === 'aury' && finalPrize.amount > 0) {
                         const amountSmallest = Math.floor(finalPrize.amount * 1e9);
@@ -665,8 +670,19 @@ async function processDrakkarPayouts(raceState: any) {
             try {
                 await db.runTransaction(async (t: any) => {
                     const userRef = db.collection('users').doc(bet.uid);
+                    const userSnap = await t.get(userRef);
+                    if (!userSnap.exists) return;
+                    
+                    const userData = userSnap.data();
+                    const currentPoints = userData.points || 0;
+                    const userTier = userData.tier || 1;
+                    
+                    const rawNewPoints = currentPoints + winAmount;
+                    const clampedPoints = clampPointsToTierMax(rawNewPoints, userTier);
+
                     t.update(userRef, {
-                        points: admin.firestore.FieldValue.increment(winAmount)
+                        points: clampedPoints,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
                     });
 
                     const historyRef = userRef.collection('miniGameHistory').doc();
