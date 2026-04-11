@@ -505,7 +505,7 @@ export const onNewUserWelcome = functions.firestore
         try {
             const embed = {
                 title: '⚔️ A New Warrior Enters Asgard!',
-                description: `Welcome **${displayName}** to the halls of Asgard! May the runes favor your journey. 🛡️`,
+                description: `A new **Warrior** has entered the halls of Asgard! May the runes favor your journey. 🛡️`,
                 color: 0x3498DB, // Blue
                 thumbnail: avatar ? { url: avatar } : undefined,
                 footer: {
@@ -524,7 +524,7 @@ export const onNewUserWelcome = functions.firestore
                 })
             });
 
-            console.log(`✅ Runie welcomed ${displayName} to Asgard!`);
+            console.log(`✅ Runie welcomed a new Warrior to Asgard!`);
         } catch (error: any) {
             console.error(`❌ Runie welcome failed:`, error.message);
         }

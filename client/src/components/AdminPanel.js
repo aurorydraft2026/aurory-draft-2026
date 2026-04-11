@@ -1420,29 +1420,40 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     }
   };
 
-  // Handle global notification wipe
-  const handleClearAllGlobalNotifications = async () => {
+  // Handle cleanup of inactive guest accounts
+  const handleCleanupInactiveGuests = async () => {
     if (!isSuperAdminUser || wipeAllConfirmText !== 'WIPE ALL') return;
-    if (!window.confirm('💣 FINAL WARNING: This will permanently delete ALL notifications for EVERY user on the platform. Proceed?')) return;
+    if (!window.confirm('🧹 Are you sure you want to delete all anonymous Guest accounts that have been inactive for over 24 hours? This is irreversible.')) return;
 
     setIsWiping(true);
+    setProcessingId('cleanup_guests');
     try {
-      const clearFn = httpsCallable(functions, 'clearAllGlobalNotifications');
-      const { data: result } = await clearFn({});
+      const cleanupFn = httpsCallable(functions, 'cleanupInactiveGuests');
+      const { data: result } = await cleanupFn({});
 
       if (result?.success) {
         alert(result.message);
         setWipeAllConfirmText('');
+        
+        logActivity({
+          user,
+          type: 'ADMIN',
+          action: 'cleanup_inactive_guests',
+          metadata: { deletedCount: result.count }
+        });
       } else {
-        throw new Error(result?.message || 'Wipe failed');
+        throw new Error(result?.message || 'Cleanup failed');
       }
     } catch (error) {
-      console.error('Global notification wipe error:', error);
-      alert('Error wiping notifications: ' + error.message);
+      console.error('Cleanup error:', error);
+      alert('Error: ' + error.message);
     } finally {
       setIsWiping(false);
+      setProcessingId(null);
     }
   };
+
+  // Handle global notification wipe
 
   // Handle global wallet reset (Balances + History)
   const handleResetGlobalWallets = async () => {
@@ -1465,6 +1476,42 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       alert('Error resetting wallets: ' + error.message);
     } finally {
       setIsWiping(false);
+    }
+  };
+
+  // Targeted Valcoin Reset (Only points field)
+  const handleResetAllValcoinBalances = async () => {
+    if (!isSuperAdminUser || wipeAllConfirmText !== 'WIPE ALL') return;
+    if (!window.confirm('🚨 WARNING: This will permanently reset ALL user Valcoin balances to 0. AURY and USDC balances will remain untouched. Proceed?')) return;
+
+    setIsWiping(true);
+    setProcessingId('reset_valcoins');
+    try {
+      const resetFn = httpsCallable(functions, 'resetAllValcoinBalances');
+      const { data: result } = await resetFn({});
+
+      if (result?.success) {
+        alert(result.message);
+        setWipeAllConfirmText('');
+        
+        logActivity({
+          user,
+          type: 'ADMIN',
+          action: 'reset_all_valcoins',
+          metadata: { userCount: result.count }
+        });
+
+        // Refresh users in local state if needed
+        setAllUsers(prev => prev.map(u => ({ ...u, points: 0 })));
+      } else {
+        throw new Error(result?.message || 'Reset failed');
+      }
+    } catch (error) {
+      console.error('Valcoin reset error:', error);
+      alert('Error: ' + error.message);
+    } finally {
+      setIsWiping(false);
+      setProcessingId(null);
     }
   };
 
@@ -3963,11 +4010,27 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   </button>
                   <button 
                     className="clear-btn-admin risky" 
+                    onClick={handleCleanupInactiveGuests}
+                    disabled={isWiping || wipeAllConfirmText !== 'WIPE ALL'}
+                    style={{ padding: '8px 15px', fontSize: '0.85em', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
+                  >
+                    🧹 Clear Inactive Guest Accounts
+                  </button>
+                  <button 
+                    className="clear-btn-admin risky" 
                     onClick={handleClearAllGlobalNotifications}
                     disabled={isWiping || wipeAllConfirmText !== 'WIPE ALL'}
                     style={{ padding: '8px 15px', fontSize: '0.85em' }}
                   >
                     🔔 Clear All Notifications
+                  </button>
+                  <button 
+                    className="clear-btn-admin risky" 
+                    onClick={handleResetAllValcoinBalances}
+                    disabled={isWiping || wipeAllConfirmText !== 'WIPE ALL'}
+                    style={{ padding: '8px 15px', fontSize: '0.85em', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}
+                  >
+                    💰 Reset All Valcoin Balances
                   </button>
                   <button 
                     className="clear-btn-admin risky" 

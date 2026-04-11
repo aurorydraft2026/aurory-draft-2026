@@ -55,7 +55,8 @@ const commands = [
           { name: '🏆 Best Players', value: 'best_players' },
           { name: '🎰 Slot Machine Top Earners', value: 'slotMachine' },
           { name: '📦 Loot Box Top Earners', value: 'treasureChest' },
-          { name: '⛵ Drakkar Race Top Earners', value: 'drakkarRace' }
+          { name: '⛵ Drakkar Race Top Earners', value: 'drakkarRace' },
+          { name: '🤝 Top Recruiters', value: 'referral' }
         ]
       }
     ]

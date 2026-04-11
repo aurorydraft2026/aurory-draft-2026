@@ -426,6 +426,81 @@ export const resetGlobalWallets = onCall(
 );
 
 /**
+ * Targeted Valcoin Reset
+ * Resets ONLY the 'points' field in users collection to 0.
+ * Preserves wallets, AURY, USDC and all histories.
+ */
+export const resetAllValcoinBalances = onCall(
+    {
+        region: 'us-central1',
+        timeoutSeconds: 540,
+        memory: '512MiB',
+        maxInstances: 10,
+        cors: true
+    },
+    async (request) => {
+        // 1. Auth Check
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User must be logged in.');
+        }
+
+        const callerUid = request.auth.uid;
+        if (callerUid !== SUPER_ADMIN_UID) {
+            throw new HttpsError('permission-denied', 'Only Super Admin can reset balances.');
+        }
+
+        console.log(`🚨 GLOBAL VALCOIN RESET TRIGGERED BY ${callerUid}`);
+
+        try {
+            const db = admin.firestore();
+            const usersRef = db.collection('users');
+            const snapshot = await usersRef.get();
+
+            if (snapshot.empty) {
+                return { success: true, count: 0, message: "No users found to reset." };
+            }
+
+            let currentBatch = db.batch();
+            let countInBatch = 0;
+            let totalProcessed = 0;
+
+            for (const doc of snapshot.docs) {
+                currentBatch.update(doc.ref, { 
+                    points: 0, 
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+                });
+                
+                countInBatch++;
+                totalProcessed++;
+
+                // Commit batch at 450 items
+                if (countInBatch >= 450) {
+                    await currentBatch.commit();
+                    currentBatch = db.batch();
+                    countInBatch = 0;
+                    console.log(`Processed ${totalProcessed} users...`);
+                }
+            }
+
+            // Final commit
+            if (countInBatch > 0) {
+                await currentBatch.commit();
+            }
+
+            return {
+                success: true,
+                count: totalProcessed,
+                message: `Successfully reset Valcoin balances for ${totalProcessed} users.`
+            };
+
+        } catch (error: any) {
+            console.error('Valcoin Reset Failed:', error);
+            throw new HttpsError('internal', error.message || 'Unknown error during Valcoin reset.');
+        }
+    }
+);
+
+/**
  * Migration Script: Populate RTDB Minigame Leaderboards (All-Time) from Firestore stats.
  */
 export const migrateMinigameLeaderboards = onCall(

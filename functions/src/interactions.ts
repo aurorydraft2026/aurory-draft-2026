@@ -369,6 +369,21 @@ async function handleLeaderboard(interaction: any, res: any) {
             }
             title = `🏆 Top ${gameNames[category]} Earners`;
             color = 0xF1C40F;
+        } else if (category === 'referral') {
+            const snap = await db.collection('users').orderBy('referralCount', 'desc').limit(10).get();
+            if (snap.empty) {
+                leaderboardText = '📊 No referral data yet.';
+            } else {
+                const results = snap.docs.map(doc => {
+                    const data = doc.data();
+                    return { name: data.displayName || 'Warrior', score: data.referralCount || 0 };
+                });
+                const validResults = results.filter(r => r.score > 0);
+                if (validResults.length === 0) leaderboardText = '📊 No referrals recorded yet.';
+                else leaderboardText = validResults.map((e, i) => `${i < 3 ? medals[i] : `\`${i + 1}.\``} **${e.name}** — ${e.score} Recruits`).join('\n');
+            }
+            title = '🤝 Top Recruiters — All Time';
+            color = 0x3498DB;
         }
 
         res.status(200).json({
