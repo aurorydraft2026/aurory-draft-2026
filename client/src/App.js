@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
-import { ThemeProvider } from './context/ThemeContext';
+import { useTheme } from './context/ThemeContext';
 import HomePage from './pages/HomePage';
 import TournamentPage from './pages/TournamentPage';
 import TermsPage from './pages/TermsPage';
@@ -16,7 +16,7 @@ import AdminPanel from './components/AdminPanel';
 import MaintenancePage from './pages/MaintenancePage';
 import MiniGamesButton from './components/minigames/MiniGamesButton';
 import GlobalWinNotifier from './components/minigames/GlobalWinNotifier';
-import { isStaff } from './config/admins';
+import { isStaff, isUserSuperAdmin } from './config/admins';
 import { doc, onSnapshot, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 
 function MaintenanceWarningBanner({ message, onDismiss }) {
@@ -115,38 +115,47 @@ function App() {
     return () => clearInterval(interval);
   }, [user]);
 
+  // Theme Reset: Ensure non-superadmins are forced to dark mode
+  const { theme, setTheme } = useTheme();
+  useEffect(() => {
+    // Only reset if theme is 'light' and user is not a superadmin
+    // This also handles guests (user === null)
+    if (theme === 'light' && !isUserSuperAdmin(user)) {
+      console.log('🌙 Non-superadmin detected in light mode. Resetting to dark mode...');
+      setTheme('dark');
+    }
+  }, [user, theme, setTheme]);
+
   if (!loadingMaintenance && maintenance.enabled && !isStaff(user)) {
     return <MaintenancePage />;
   }
 
   return (
-    <ThemeProvider>
-      <Router>
-        <div className="App">
-          {maintenance.warningEnabled && !maintenance.enabled && !isWarningDismissed && (
-            <MaintenanceWarningBanner 
-              message={maintenance.warningText} 
-              onDismiss={handleDismissWarning} 
-            />
-          )}
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/tournament/:tournamentId" element={<TournamentPage />} />
-            <Route path="/admin/panel" element={<AdminPanel />} />
-            <Route path="/matchup/:matchupId" element={<MatchupPage />} />
-            <Route path="/raffles" element={<RafflesListingPage />} />
-            <Route path="/raffle/:id" element={<RafflePage />} />
-            <Route path="/terms" element={<TermsPage />} />
-            <Route path="/privacy" element={<PrivacyPage />} />
-            {/* Fallback for maintenance page if someone tries to access directly */}
-            <Route path="/maintenance" element={<MaintenancePage />} />
-          </Routes>
-          <Footer />
-          <MiniGamesButton />
-          <GlobalWinNotifier />
-        </div>
-      </Router>
-    </ThemeProvider>
+    <Router>
+      <div className="App">
+        {maintenance.warningEnabled && !maintenance.enabled && !isWarningDismissed && (
+          <MaintenanceWarningBanner 
+            message={maintenance.warningText} 
+            onDismiss={handleDismissWarning} 
+          />
+        )}
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/tournament/:tournamentId" element={<TournamentPage />} />
+          <Route path="/admin/panel" element={<AdminPanel />} />
+          <Route path="/matchup/:matchupId" element={<MatchupPage />} />
+          <Route path="/raffles" element={<RafflesListingPage />} />
+          <Route path="/raffle/:id" element={<RafflePage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          {/* Fallback for maintenance page if someone tries to access directly */}
+          <Route path="/maintenance" element={<MaintenancePage />} />
+        </Routes>
+        <Footer />
+        <MiniGamesButton />
+        <GlobalWinNotifier />
+      </div>
+    </Router>
   );
 }
 
