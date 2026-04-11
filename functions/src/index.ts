@@ -128,3 +128,7 @@ export { collectDailyReward };
 // ─── 10. DISCORD INTERACTIONS (Runie Slash Commands) ───
 import { discordInteraction } from './interactions';
 export { discordInteraction };
+
+// ─── 11. TIER & REFERRAL SYSTEM ───
+import { upgradeTier, applyReferralCode, ensureReferralCode } from './tierAndReferral';
+export { upgradeTier, applyReferralCode, ensureReferralCode };

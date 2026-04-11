@@ -6,6 +6,7 @@ import { isSuperAdmin } from '../config/admins';
 import { logActivity } from '../services/activityService';
 import { dailyCheckIn } from '../services/pointsService';
 import { syncAuroryName } from '../services/auroryProfileService';
+import { TIER_CONFIG, getTierProgress, getNextTier, upgradeTier as upgradeTierCall, applyReferralCode as applyReferralCodeCall, generateReferralLink } from '../services/tierService';
 import './CheckInBonus.css';
 
 export const useAuth = (navigate) => {
@@ -19,6 +20,10 @@ export const useAuth = (navigate) => {
     const [registeredUsers, setRegisteredUsers] = useState([]);
     const [bonusEffect, setBonusEffect] = useState(null);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [isUpgradingTier, setIsUpgradingTier] = useState(false);
+    const [referralInput, setReferralInput] = useState('');
+    const [isApplyingReferral, setIsApplyingReferral] = useState(false);
+    const [referralCopied, setReferralCopied] = useState(false);
     const profileMenuRef = useRef(null);
 
     // Auth state listener and redirect result handler
@@ -397,147 +402,298 @@ export const useAuth = (navigate) => {
 
     const renderUserProfileContent = ({ setShowAuroryModal }) => {
         if (!user) return null;
+
+        const userTier = user.tier || 1;
+        const userPoints = user.points || 0;
+        const tierConfig = TIER_CONFIG[userTier] || TIER_CONFIG[1];
+        const tierProgress = getTierProgress(userPoints, userTier);
+        const nextTier = getNextTier(userTier);
+        const isCheckedIn = user.lastDailyCheckIn === new Date().toISOString().split('T')[0];
+
+        const handleUpgradeTier = async () => {
+            if (isUpgradingTier) return;
+            const next = getNextTier(userTier);
+            if (!next) return;
+            if (!window.confirm(`⚔️ Upgrade to ${next.name} for ${next.upgradeCost.toLocaleString()} Valcoins?\n\nThis will increase your max balance to ${next.max.toLocaleString()} Valcoins.`)) return;
+            setIsUpgradingTier(true);
+            try {
+                const result = await upgradeTierCall();
+                if (result.success) {
+                    alert(`✅ ${result.message}`);
+                }
+            } catch (error) {
+                alert('❌ ' + (error.message || 'Upgrade failed'));
+            } finally {
+                setIsUpgradingTier(false);
+            }
+        };
+
+        const handleApplyReferral = async () => {
+            if (isApplyingReferral || !referralInput.trim()) return;
+            setIsApplyingReferral(true);
+            try {
+                const result = await applyReferralCodeCall(referralInput.trim());
+                if (result.success) {
+                    alert(`✅ ${result.message}`);
+                    setReferralInput('');
+                }
+            } catch (error) {
+                alert('❌ ' + (error.message || 'Failed to apply referral code'));
+            } finally {
+                setIsApplyingReferral(false);
+            }
+        };
+
+        const handleCopyCode = () => {
+            const code = user.referralCode;
+            if (!code) return;
+            navigator.clipboard.writeText(code);
+            setReferralCopied(true);
+            setTimeout(() => setReferralCopied(false), 2000);
+        };
+
+        const handleShareLink = () => {
+            const code = user.referralCode;
+            if (!code) return;
+            const link = generateReferralLink(code);
+            if (navigator.share) {
+                navigator.share({ title: 'Join Asgard Duels!', text: 'Use my referral code to earn bonus Valcoins!', url: link });
+            } else {
+                navigator.clipboard.writeText(link);
+                setReferralCopied(true);
+                setTimeout(() => setReferralCopied(false), 2000);
+            }
+        };
+
+        const displayCode = user.referralCode || '------';
+
         return (
             <div
-                className="user-profile-modal"
-                onClick={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
+                className="profile-modal-overlay"
+                onClick={() => setShowUserModal(false)}
             >
-                <div className="modal-header profile-modal-header">
-                    <h4>Warrior's Profile</h4>
-                    <button className="close-modal" onClick={() => setShowUserModal(false)}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                    </button>
-                </div>
-
-                <div className="user-modal-content">
-                    <div className="user-header-info">
-                        <img
-                            src={user.auroryProfilePicture || user.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
-                            alt="Profile"
-                            className="modal-profile-pic"
-                            onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                        />
-                        <div className="user-text-info">
-                            <span className="modal-username">
-                                {user.displayName}
-                                {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}
-                                {user.auroryPlayerId && (
-                                    <button 
-                                        className={`sync-profile-mini-btn ${isSyncing ? 'syncing' : ''}`}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleSyncProfile();
-                                        }}
-                                        title="Sync Profile Data"
-                                        disabled={isSyncing}
-                                    >
-                                        {isSyncing ? '⌛' : '🔄'}
-                                    </button>
-                                )}
-                            </span>
-                            <span className="modal-email">{user.email}</span>
-                            {isSuperAdminUser ? (
-                                <span className="modal-admin-badge">⭐Super Admin</span>
-                            ) : user.role === 'admin' ? (
-                                <span className="modal-admin-badge admin-staff">⭐Admin</span>
-                            ) : isGamesManagerUser ? (
-                                <span className="modal-admin-badge games-manager-badge">🎮Games Manager</span>
-                            ) : null}
-
-                            {user.isAurorian && <span className="aurorian-tag">Aurorian Holder</span>}
-                        </div>
-                    </div>
-
-                    <div className="user-stats-grid">
-                        <div className="user-stat-card points-card">
-                            <span className="stat-label">Total Valcoins</span>
-                            <span className="stat-value">
-                                <img src="/valcoin-icon.jpg" alt="" className="valcoin-icon profile-points-icon" />
-                                {user.points || 0}
-                            </span>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', position: 'relative' }}>
-                            {/* Bonus Bubble Animation */}
-                            {bonusEffect && (
-                                <div key={bonusEffect.id} className="bonus-bubble-effect">
-                                    +{bonusEffect.amount} Bonus
-                                </div>
-                            )}
-
-                            <button 
-                                className={`daily-checkin-btn ${user.lastDailyCheckIn === new Date().toISOString().split('T')[0] ? 'checked-in' : ''}`}
-                                onClick={handleDailyCheckIn}
-                                disabled={user.lastDailyCheckIn === new Date().toISOString().split('T')[0] || !user.auroryPlayerId || isAuthenticating}
-                                style={!user.auroryPlayerId ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                            >
-                                <div className="btn-content-with-streak">
-                                    <span>{user.lastDailyCheckIn === new Date().toISOString().split('T')[0] ? '✅ Checked In' : '📅 Daily Check-in'}</span>
-                                    {user.checkInStreak > 0 && (
-                                        <span className="streak-badge-mini">🔥 {user.checkInStreak}d</span>
-                                    )}
-                                </div>
-                            </button>
-                            {!user.auroryPlayerId && (
-                                <span style={{ fontSize: '12px', color: '#ff4d4d', textAlign: 'center', marginTop: '-4px' }}>
-                                    ⚠️ Connect your Aurory account to check in.
-                                </span>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="user-modal-actions">
-                        <button
-                            className="modal-action-btn aurory"
-                            onClick={() => {
-                                setShowUserModal(false);
-                                setShowAuroryModal(true);
-                            }}
-                        >
-                            <span className="btn-icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 12h.01"></path><path d="M9 12h.01"></path><path d="M15 12h.01"></path><path d="M18 12h.01"></path></svg>
-                            </span>
-                            <div className="btn-text">
-                                <span className="btn-title">Aurory Account</span>
-                                <span className="btn-desc">Link your game account</span>
-                            </div>
+                <div
+                    className="user-profile-modal"
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                >
+                    <div className="modal-header profile-modal-header">
+                        <h4>Warrior's Profile</h4>
+                        <button className="close-modal" onClick={() => setShowUserModal(false)}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                         </button>
+                    </div>
 
-                        {isAdminUser && (
+                    <div className="user-modal-content">
+                        {/* ── PROFILE HEADER ROW ── */}
+                        <div className="user-header-info">
+                            <img
+                                src={user.auroryProfilePicture || user.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                alt="Profile"
+                                className="modal-profile-pic"
+                                onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                            />
+                            <div className="user-text-info">
+                                <span className="modal-username">
+                                    {user.displayName}
+                                    {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}
+                                    {user.auroryPlayerId && (
+                                        <button 
+                                            className={`sync-profile-mini-btn ${isSyncing ? 'syncing' : ''}`}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleSyncProfile();
+                                            }}
+                                            title="Sync Profile Data"
+                                            disabled={isSyncing}
+                                        >
+                                            {isSyncing ? '⌛' : '🔄'}
+                                        </button>
+                                    )}
+                                </span>
+                                <span className="modal-email">{user.email}</span>
+                                <div className="modal-badges-row">
+                                    {isSuperAdminUser ? (
+                                        <span className="modal-admin-badge">⭐Super Admin</span>
+                                    ) : user.role === 'admin' ? (
+                                        <span className="modal-admin-badge admin-staff">⭐Admin</span>
+                                    ) : isGamesManagerUser ? (
+                                        <span className="modal-admin-badge games-manager-badge">🎮Games Manager</span>
+                                    ) : null}
+                                    {user.isAurorian && <span className="aurorian-tag">Aurorian Holder</span>}
+                                </div>
+                            </div>
+                            {/* ── DAILY CHECK-IN (right side) ── */}
+                            <div className="profile-checkin-area">
+                                {bonusEffect && (
+                                    <div key={bonusEffect.id} className="bonus-bubble-effect">
+                                        +{bonusEffect.amount} Bonus
+                                    </div>
+                                )}
+                                <button 
+                                    className={`daily-checkin-btn compact ${isCheckedIn ? 'checked-in' : ''}`}
+                                    onClick={handleDailyCheckIn}
+                                    disabled={isCheckedIn || !user.auroryPlayerId || isAuthenticating}
+                                    style={!user.auroryPlayerId ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                                    title={!user.auroryPlayerId ? 'Connect Aurory account first' : isCheckedIn ? 'Already checked in today' : 'Claim daily reward'}
+                                >
+                                    <span>{isCheckedIn ? '✅' : '📅'}</span>
+                                    {user.checkInStreak > 0 && (
+                                        <span className="streak-badge-mini">🔥{user.checkInStreak}d</span>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* ── VALCOINS BALANCE ── */}
+                        <div className="profile-valcoins-section">
+                            <div className="valcoins-display">
+                                <img src="/valcoin-icon.jpg" alt="" className="valcoin-icon profile-points-icon" />
+                                <span className="valcoins-amount">{userPoints.toLocaleString()}</span>
+                                <span className="valcoins-label">Valcoins</span>
+                            </div>
+                        </div>
+
+                        {/* ── TIER GAUGE ── */}
+                        <div className="tier-gauge-section">
+                            <div className="tier-gauge-header">
+                                <span className={`tier-badge tier-${userTier}`}>{tierConfig.name}</span>
+                                <span className="tier-limit">{userPoints.toLocaleString()} / {tierConfig.max.toLocaleString()}</span>
+                            </div>
+                            <div className="tier-gauge-bar">
+                                <div 
+                                    className={`tier-gauge-fill tier-${userTier}-fill`}
+                                    style={{ width: `${tierProgress}%` }}
+                                ></div>
+                            </div>
+                            {nextTier && (
+                                <div className="tier-upgrade-row">
+                                    <span className="tier-upgrade-info">
+                                        Upgrade to {nextTier.name} — Max {nextTier.max.toLocaleString()}
+                                    </span>
+                                    <button
+                                        className="tier-upgrade-btn"
+                                        onClick={handleUpgradeTier}
+                                        disabled={isUpgradingTier || userPoints < nextTier.upgradeCost}
+                                        title={userPoints < nextTier.upgradeCost ? `Need ${nextTier.upgradeCost.toLocaleString()} Valcoins` : `Upgrade for ${nextTier.upgradeCost.toLocaleString()} Valcoins`}
+                                    >
+                                        {isUpgradingTier ? '⏳' : `⬆ ${nextTier.upgradeCost.toLocaleString()}`}
+                                        <img src="/valcoin-icon.jpg" alt="" className="valcoin-icon-tiny" />
+                                    </button>
+                                </div>
+                            )}
+                            {userTier >= 3 && (
+                                <div className="tier-max-label">🏆 Maximum Tier Reached</div>
+                            )}
+                        </div>
+
+                        {/* ── REFERRAL SECTION ── */}
+                        <div className="referral-section">
+                            <div className="referral-main-row">
+                                <div className="referral-code-area">
+                                    <span className="referral-label">Your Referral Code</span>
+                                    <div className="referral-code-display">
+                                        <span className="referral-code-text">{displayCode}</span>
+                                        <button className="referral-copy-btn" onClick={handleCopyCode} title="Copy Code">
+                                            {referralCopied ? '✅' : '📋'}
+                                        </button>
+                                        <button className="referral-share-btn" onClick={handleShareLink} title="Share Link">
+                                            🔗
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="referral-stats">
+                                    <div className="referral-stat">
+                                        <span className="referral-stat-value">{user.validReferralCount || 0}</span>
+                                        <span className="referral-stat-label">Valid</span>
+                                    </div>
+                                    <div className="referral-stat-divider"></div>
+                                    <div className="referral-stat">
+                                        <span className="referral-stat-value">{user.referralCount || 0}</span>
+                                        <span className="referral-stat-label">Total</span>
+                                    </div>
+                                </div>
+                            </div>
+                            {!user.referredBy && (
+                                <div className="referral-input-row">
+                                    <input
+                                        type="text"
+                                        className="referral-input"
+                                        placeholder="Enter referral code"
+                                        value={referralInput}
+                                        onChange={(e) => setReferralInput(e.target.value.toUpperCase())}
+                                        maxLength={6}
+                                    />
+                                    <button
+                                        className="referral-apply-btn"
+                                        onClick={handleApplyReferral}
+                                        disabled={isApplyingReferral || referralInput.length !== 6}
+                                    >
+                                        {isApplyingReferral ? '⏳' : 'Apply'}
+                                    </button>
+                                </div>
+                            )}
+                            {user.referredBy && (
+                                <div className="referral-applied-tag">
+                                    ✅ Referral applied {!user.referralBonusClaimed && <span className="referral-pending">· Bonus pending (need Aurory + Tier II)</span>}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ── ACTION BUTTONS ── */}
+                        <div className="user-modal-actions">
                             <button
-                                className="modal-action-btn admin"
+                                className="modal-action-btn aurory"
                                 onClick={() => {
                                     setShowUserModal(false);
-                                    navigate('/admin/panel');
+                                    setShowAuroryModal(true);
                                 }}
                             >
                                 <span className="btn-icon">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 12h.01"></path><path d="M9 12h.01"></path><path d="M15 12h.01"></path><path d="M18 12h.01"></path></svg>
                                 </span>
                                 <div className="btn-text">
-                                    <span className="btn-title">Admin Panel</span>
-                                    <span className="btn-desc">Manage wallets & deposits</span>
+                                    <span className="btn-title">Aurory Account</span>
+                                    <span className="btn-desc">Link your game account</span>
                                 </div>
                             </button>
-                        )}
 
-                        <div className="modal-divider"></div>
+                            {isAdminUser && (
+                                <button
+                                    className="modal-action-btn admin"
+                                    onClick={() => {
+                                        setShowUserModal(false);
+                                        navigate('/admin/panel');
+                                    }}
+                                >
+                                    <span className="btn-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                                    </span>
+                                    <div className="btn-text">
+                                        <span className="btn-title">Admin Panel</span>
+                                        <span className="btn-desc">Manage wallets & deposits</span>
+                                    </div>
+                                </button>
+                            )}
 
-                        <button
-                            className="modal-action-btn logout"
-                            onClick={() => {
-                                setShowUserModal(false);
-                                setShowLogoutConfirm(true);
-                            }}
-                        >
-                            <span className="btn-icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                            </span>
-                            <div className="btn-text">
-                                <span className="btn-title">Logout</span>
-                                <span className="btn-desc">Sign out of your account</span>
-                            </div>
-                        </button>
+                            <div className="modal-divider"></div>
+
+                            <button
+                                className="modal-action-btn logout"
+                                onClick={() => {
+                                    setShowUserModal(false);
+                                    setShowLogoutConfirm(true);
+                                }}
+                            >
+                                <span className="btn-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                                </span>
+                                <div className="btn-text">
+                                    <span className="btn-title">Logout</span>
+                                    <span className="btn-desc">Sign out of your account</span>
+                                </div>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

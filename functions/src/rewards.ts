@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { updateLeaderboardStats } from './leaderboardUtils';
+import { clampPointsToTierMax } from './tierAndReferral';
 
 /**
  * Claim the daily check-in reward.
@@ -63,8 +64,13 @@ export const collectDailyReward = onCall(
                 const totalAmount = baseAmount + bonusAmount;
 
                 // Update User
+                const rawNewPoints = (userData.points || 0) + totalAmount;
+                const userTier = userData.tier || 1;
+                const clampedPoints = clampPointsToTierMax(rawNewPoints, userTier);
+                const actualAward = clampedPoints - (userData.points || 0);
+
                 transaction.update(userRef, {
-                    points: admin.firestore.FieldValue.increment(totalAmount),
+                    points: clampedPoints,
                     lastDailyCheckIn: todayStr,
                     checkInStreak: newStreak,
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -73,7 +79,7 @@ export const collectDailyReward = onCall(
                 // Record History
                 const newHistoryRef = historyRef.doc();
                 transaction.set(newHistoryRef, {
-                    amount: totalAmount,
+                    amount: actualAward > 0 ? actualAward : totalAmount,
                     baseAmount,
                     bonusAmount,
                     streak: newStreak,

@@ -1,17 +1,17 @@
 import { db } from '../firebase';
 import { 
     doc, 
-    updateDoc, 
     collection, 
     addDoc, 
     serverTimestamp, 
-    increment
+    runTransaction
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { createNotification } from './notifications';
+import { TIER_CONFIG } from './tierService';
 
 /**
- * Award points to a user
+ * Award points to a user and clamp to their tier maximum
  * @param {string} userId - The user ID to award points to
  * @param {number} amount - Number of points to award (can be negative for deductions)
  * @param {string} type - The type of activity (e.g. 'raffle_join', 'tournament_join')
@@ -25,28 +25,55 @@ export const awardPoints = async (userId, amount, type, description) => {
         const userRef = doc(db, 'users', userId);
         const historyRef = collection(db, 'users', userId, 'pointsHistory');
 
-        // Update total points atomically to avoid race conditions
-        await updateDoc(userRef, {
-            points: increment(amount),
-            updatedAt: serverTimestamp()
+        const actuallyAwarded = await runTransaction(db, async (transaction) => {
+            const userDoc = await transaction.get(userRef);
+            if (!userDoc.exists()) return 0;
+            
+            const userData = userDoc.data();
+            const currentPoints = userData.points || 0;
+            const currentTier = userData.tier || 1;
+            
+            const config = TIER_CONFIG[currentTier] || TIER_CONFIG[1];
+            const maxPoints = config.max;
+            
+            let newPoints = currentPoints + amount;
+            if (amount > 0 && newPoints > maxPoints) {
+                newPoints = maxPoints;
+            }
+            
+            const actualIncrement = newPoints - currentPoints;
+            if (actualIncrement === 0 && amount > 0) {
+                 return 0; // Already at cap
+            }
+
+            transaction.update(userRef, {
+                points: newPoints,
+                updatedAt: serverTimestamp()
+            });
+
+            return actualIncrement;
         });
 
-        // Add history entry
-        await addDoc(historyRef, {
-            amount,
-            type,
-            description,
-            timestamp: serverTimestamp()
-        });
+        // If something was awarded or deducted, add history and notification
+        if (actuallyAwarded !== 0) {
+            await addDoc(historyRef, {
+                amount: actuallyAwarded,
+                type,
+                description,
+                timestamp: serverTimestamp()
+            });
 
-        // Add user notification
-        await createNotification(userId, {
-            title: 'Valcoins Awarded!',
-            message: `You earned ${amount} Valcoins for: ${description}`,
-            type: 'points'
-        });
+            if (actuallyAwarded > 0) {
+                await createNotification(userId, {
+                    title: 'Valcoins Awarded!',
+                    message: `You earned ${actuallyAwarded} Valcoins for: ${description}`,
+                    type: 'points'
+                });
+            }
+            return true;
+        }
 
-        return true;
+        return false;
     } catch (error) {
         console.error('Error awarding points:', error);
         return false;

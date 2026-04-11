@@ -36,6 +36,7 @@ const DEPOSIT_WALLET_ADDRESS = 'Gx8pDnqYwn7pb5bWQMGsmTVbpB1EPrPEBCgKVZJGKqTo';
 function HomePage() {
   const navigate = useNavigate();
 
+
   const {
     user, setUser,
     showUserModal, setShowUserModal,
@@ -228,6 +229,17 @@ function HomePage() {
       if (unsubscribeUserDoc) unsubscribeUserDoc();
     };
   }, [setUser]);
+
+
+
+  // Ensure user has a referral code
+  useEffect(() => {
+    if (user && !user.referralCode) {
+      import('../services/tierService').then(({ ensureReferralCode }) => {
+        ensureReferralCode().catch(console.error);
+      });
+    }
+  }, [user]);
 
 
 
@@ -656,12 +668,6 @@ function HomePage() {
                   </div>
                   <span className={`menu-arrow ${showUserModal ? 'active' : ''}`}>▾</span>
                 </div>
-
-                {showUserModal && (
-                  <div className="desktop-profile-dropdown">
-                    {renderUserProfileContent({ setShowAuroryModal })}
-                  </div>
-                )}
               </div>
             </div>
           ) : (
@@ -2784,6 +2790,10 @@ function HomePage() {
           onClose={() => setShowMajorAnnouncement(false)}
         />
       )}
+
+      {/* Profile Modal (Centered Overlay - moved here to escape header backdrop-filter constraints) */}
+      {showUserModal && renderUserProfileContent({ setShowAuroryModal })}
+
     </div >
   );
 }

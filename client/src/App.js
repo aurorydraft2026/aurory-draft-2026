@@ -32,10 +32,14 @@ function MaintenanceWarningBanner({ message, onDismiss }) {
   );
 }
 
+// 🛡️ Global Referral Singleton Lock (Outside component to survive all re-renders)
+let activeReferralProcessing = null;
+
 function App() {
   const [user, setUser] = useState(null);
   const [maintenance, setMaintenance] = useState({ enabled: false });
   const [loadingMaintenance, setLoadingMaintenance] = useState(true);
+  const [referralSuccess, setReferralSuccess] = useState(null);
   const [isWarningDismissed, setIsWarningDismissed] = useState(
     sessionStorage.getItem('maintenance-warning-dismissed') === 'true'
   );
@@ -126,7 +130,82 @@ function App() {
     }
   }, [user, theme, setTheme]);
 
-  if (!loadingMaintenance && maintenance.enabled && !isStaff(user)) {
+  // Maintenance Bypass Logic via URL parameter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const testerParam = params.get('tester');
+    
+    if (testerParam === 'bypass') {
+      console.log('🛡️ Maintenance bypass enabled via URL');
+      localStorage.setItem('maintenance-bypass', 'true');
+      // Clear parameter from URL without reloading
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (testerParam === 'clear') {
+      console.log('🚫 Maintenance bypass cleared');
+      localStorage.removeItem('maintenance-bypass');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
+  // Central Referral Link Handling (Stabilized & Idempotent)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const refCode = params.get('ref');
+
+    // 1. Exit early if no referral code or no authenticated user
+    if (!user || !refCode) return;
+
+    // 2. Clear URL parameters IMMEDIATELY to prevent loop triggers in subsequent re-renders
+    const cleanUrl = window.location.pathname + window.location.search.replace(/[?&]ref=[^&]*/, '').replace(/^&/, '?');
+    window.history.replaceState({}, document.title, cleanUrl);
+
+    // 3. Persistent Guard: check if this specific user already attempted this specific code
+    const storageKey = `ref_applied_${user.uid}_${refCode}`;
+    if (localStorage.getItem(storageKey)) {
+      console.log(`[Referral] Skipping detected link (already attempted for this user: ${refCode})`);
+      return;
+    }
+
+    // 4. Memory Guard (Singleton): check if ANY referral is being processed in this session already
+    if (activeReferralProcessing === refCode) {
+      console.log(`[Referral] Guard blocked parallel attempt for code: ${refCode}`);
+      return;
+    }
+    
+    // Set the singleton lock
+    activeReferralProcessing = refCode;
+    console.log(`[Referral] 🔗 Starting process for code: ${refCode}`);
+    localStorage.setItem(storageKey, 'processing');
+
+    // 5. Trigger Cloud Function
+    import('./services/tierService').then(({ applyReferralCode }) => {
+      applyReferralCode(refCode).then(res => {
+        if (res.success) {
+          console.log(`[Referral] ✅ Successfully applied: ${refCode}`);
+          localStorage.setItem(storageKey, 'success');
+          // Replace blocking alert with state-based notification
+          setReferralSuccess({ message: res.message, code: refCode });
+        }
+      }).catch(err => {
+        // Suppress expected "already referred" status code (409) to keep console clean
+        if (err.message?.includes('already have a referral') || err.code === 'already-exists') {
+          console.log(`[Referral] User already has a referral linked. Marking as checked.`);
+          localStorage.setItem(storageKey, 'already_set');
+          return;
+        }
+        if (!err.message?.includes('Cannot use your own')) {
+          console.error('[Referral] ❌ API Error:', err);
+        }
+      });
+    }).catch(err => {
+      console.error('[Referral] ❌ Module Load Error:', err);
+    });
+    
+  }, [user]);
+
+  const isBypassed = localStorage.getItem('maintenance-bypass') === 'true';
+
+  if (!loadingMaintenance && maintenance.enabled && !isStaff(user) && !isBypassed) {
     return <MaintenancePage />;
   }
 
@@ -154,6 +233,25 @@ function App() {
         <Footer />
         <MiniGamesButton />
         <GlobalWinNotifier />
+
+        {/* --- Referral Success Modal (Singleton Notification) --- */}
+        {referralSuccess && (
+          <div className="login-success-modal referral-success-modal" style={{ zIndex: 100000 }}>
+             <div className="modal-body">
+                <div className="success-icon-wrapper">
+                    <span style={{ fontSize: '3rem' }}>🎉</span>
+                </div>
+                <h3>Referral Applied!</h3>
+                <p>{referralSuccess.message}</p>
+                <button 
+                  className="btn-primary awesome-btn" 
+                  onClick={() => setReferralSuccess(null)}
+                >
+                  Great!
+                </button>
+             </div>
+          </div>
+        )}
       </div>
     </Router>
   );

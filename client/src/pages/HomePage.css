@@ -4714,117 +4714,41 @@
 }
 
 /* ============================================================
-   USER PROFILE MODAL
+   USER PROFILE MODAL — CENTERED OVERLAY
    ============================================================ */
-.user-profile-modal {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-xl);
-  width: 100%;
-  max-width: 480px;
-  /* Increased for better presence */
-  box-shadow: var(--shadow-elevated);
-  animation: modalSlideUp 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  overflow: hidden;
-}
-
-/* Responsive Profile Dropdown */
-.desktop-profile-dropdown {
-  display: none;
-  /* Hidden on mobile */
-}
-
-.mobile-profile-modal-overlay {
-  display: flex;
-  /* Visible on mobile */
+.profile-modal-overlay {
   position: fixed;
   inset: 0;
-  background: var(--overlay-bg);
-  backdrop-filter: blur(8px);
-  z-index: 1500;
-  /* Profile modal stays below sub-modals if needed */
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 2000;
+  display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
   animation: fadeIn 0.2s ease;
 }
 
-@media (min-width: 769px) {
-  .mobile-profile-modal-overlay {
-    display: none !important;
-  }
+.user-profile-modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-xl);
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(0, 200, 255, 0.08);
+  animation: modalScaleUp 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
 
-  .desktop-profile-dropdown {
-    display: block;
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
-    width: 380px;
-    /* Increased from 340px */
-    z-index: 1001;
-    animation: dropdownSlideDown 0.2s cubic-bezier(0, 0, 0.2, 1);
-  }
+/* Hide old dropdown approach */
+.desktop-profile-dropdown {
+  display: none !important;
+}
 
-  .desktop-profile-dropdown .user-profile-modal {
-    width: 100%;
-    max-width: none;
-    border: 1px solid var(--border-bright);
-    border-radius: var(--radius-lg);
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-    animation: none;
-  }
-
-  @keyframes dropdownSlideDown {
-    from {
-      opacity: 0;
-      transform: translateY(-10px);
-    }
-
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .desktop-profile-dropdown .user-modal-content {
-    padding: 16px;
-  }
-
-  .desktop-profile-dropdown .user-header-info {
-    padding-bottom: 12px;
-    margin-bottom: 16px;
-    gap: 12px;
-  }
-
-  .desktop-profile-dropdown .modal-profile-pic {
-    width: 48px;
-    height: 48px;
-  }
-
-  .desktop-profile-dropdown .modal-username {
-    font-size: 0.95rem;
-  }
-
-  .desktop-profile-dropdown .user-modal-actions {
-    gap: 4px;
-  }
-
-  .desktop-profile-dropdown .modal-action-btn {
-    padding: 10px 12px;
-  }
-
-  .desktop-profile-dropdown .modal-action-btn .btn-icon {
-    font-size: 1.1rem;
-    width: 24px;
-  }
-
-  .desktop-profile-dropdown .btn-title {
-    font-size: 0.82rem;
-  }
-
-  .desktop-profile-dropdown .btn-desc {
-    font-size: 0.65rem;
-  }
+.mobile-profile-modal-overlay {
+  display: none !important;
 }
 
 .user-modal-content {
@@ -7603,5 +7527,486 @@ input[type="file"] {
 
   .all-news-content {
     padding: 20px;
+  }
+}
+
+/* ============================================================
+   PROFILE MODAL — VALCOINS DISPLAY
+   ============================================================ */
+.profile-valcoins-section {
+  background: radial-gradient(circle at top right, rgba(255, 215, 0, 0.08), transparent 70%);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.valcoins-display {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.valcoins-amount {
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 800;
+  font-size: 2rem;
+  background: linear-gradient(135deg, var(--accent-gold), #f59e0b);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+
+.valcoins-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  align-self: flex-end;
+  margin-bottom: 4px;
+}
+
+/* ============================================================
+   PROFILE MODAL — TIER GAUGE
+   ============================================================ */
+.tier-gauge-section {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.tier-gauge-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.tier-badge {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 3px 10px;
+  border-radius: 4px;
+}
+
+.tier-badge.tier-1 {
+  background: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+.tier-badge.tier-2 {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.tier-badge.tier-3 {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.tier-limit {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.tier-gauge-bar {
+  width: 100%;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 5px;
+  overflow: hidden;
+  position: relative;
+}
+
+.tier-gauge-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+  position: relative;
+}
+
+.tier-gauge-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: gaugeShimmer 2s infinite;
+}
+
+@keyframes gaugeShimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.tier-1-fill {
+  background: linear-gradient(90deg, #7c3aed, #a78bfa);
+}
+
+.tier-2-fill {
+  background: linear-gradient(90deg, #2563eb, #60a5fa);
+}
+
+.tier-3-fill {
+  background: linear-gradient(90deg, #d97706, #fbbf24);
+}
+
+.tier-upgrade-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  gap: 8px;
+}
+
+.tier-upgrade-info {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.tier-upgrade-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.tier-upgrade-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 200, 255, 0.3);
+  filter: brightness(1.1);
+}
+
+.tier-upgrade-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.valcoin-icon-tiny {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
+.tier-max-label {
+  margin-top: 10px;
+  text-align: center;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.78rem;
+  color: var(--accent-gold);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ============================================================
+   PROFILE MODAL — REFERRAL SECTION
+   ============================================================ */
+.referral-section {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.referral-main-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.referral-code-area {
+  flex: 1;
+}
+
+.referral-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 6px;
+}
+
+.referral-code-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.referral-code-text {
+  font-family: 'Exo 2', monospace;
+  font-weight: 800;
+  font-size: 1.3rem;
+  letter-spacing: 4px;
+  color: var(--accent-cyan);
+  text-shadow: 0 0 10px rgba(0, 200, 255, 0.3);
+}
+
+.referral-copy-btn,
+.referral-share-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  border-radius: 4px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+}
+
+.referral-copy-btn:hover,
+.referral-share-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--accent-cyan);
+  color: var(--text-bright);
+  transform: translateY(-1px);
+}
+
+.referral-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.referral-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.referral-stat-value {
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 800;
+  font-size: 1.4rem;
+  color: var(--text-bright);
+  line-height: 1;
+}
+
+.referral-stat-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+}
+
+.referral-stat-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--border-default);
+}
+
+.referral-input-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.referral-input {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  color: var(--text-bright);
+  font-family: 'Exo 2', monospace;
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  text-align: center;
+  transition: border-color 0.2s ease;
+}
+
+.referral-input::placeholder {
+  font-family: 'Outfit', sans-serif;
+  letter-spacing: 0;
+  font-weight: 400;
+  text-transform: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.referral-input:focus {
+  outline: none;
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 8px rgba(0, 200, 255, 0.15);
+}
+
+.referral-apply-btn {
+  padding: 8px 18px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.referral-apply-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.referral-apply-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.referral-applied-tag {
+  margin-top: 10px;
+  font-size: 0.75rem;
+  color: #4ade80;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.referral-pending {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+/* ============================================================
+   PROFILE MODAL — COMPACT DAILY CHECK-IN (right side)
+   ============================================================ */
+.profile-checkin-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.daily-checkin-btn.compact {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  gap: 0;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.daily-checkin-btn.compact .streak-badge-mini {
+  font-size: 0.55rem;
+  line-height: 1;
+  margin-top: -2px;
+}
+
+.modal-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+/* ============================================================
+   PROFILE MODAL — MOBILE RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  .profile-modal-overlay {
+    padding: 12px;
+  }
+
+  .user-profile-modal {
+    max-width: 100%;
+    max-height: 95vh;
+  }
+
+  .user-modal-content {
+    padding: 16px;
+  }
+
+  .user-header-info {
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 14px;
+  }
+
+  .modal-profile-pic {
+    width: 50px;
+    height: 50px;
+  }
+
+  .valcoins-amount {
+    font-size: 1.6rem;
+  }
+
+  .referral-main-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .referral-stats {
+    align-self: flex-start;
+  }
+
+  .referral-code-text {
+    font-size: 1.1rem;
+  }
+
+  .tier-upgrade-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .tier-upgrade-btn {
+    width: 100%;
+    justify-content: center;
   }
 }

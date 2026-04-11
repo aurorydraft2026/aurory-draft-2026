@@ -255,12 +255,20 @@ service cloud.firestore {
       allow read: if true;
       
       // Users can create and update their own data
-      // Protect the 'role' field: users cannot change their own role
-      // Only Super Admins can update the role field
+      // Protect sensitive fields: role, tier, referralCode, referredBy, referralBonusClaimed,
+      // referralCount, validReferralCount, points — these can only be changed by Admin SDK (cloud functions)
+      // The 'role' field is additionally protected so only Super Admins can change it.
       allow create: if isOwner(userId) || isAdmin();
       allow update: if (isOwner(userId) && (
-                         !('role' in request.resource.data) || 
-                         (request.resource.data.role == resource.data.role)
+                         // Protect role field
+                         (!('role' in request.resource.data) || (request.resource.data.role == resource.data.role)) &&
+                         // Protect tier/referral/points fields from client-side writes
+                         (!('tier' in request.resource.data) || (request.resource.data.tier == resource.data.get('tier', 1))) &&
+                         (!('referralCode' in request.resource.data) || (request.resource.data.referralCode == resource.data.get('referralCode', ''))) &&
+                         (!('referredBy' in request.resource.data) || (request.resource.data.referredBy == resource.data.get('referredBy', ''))) &&
+                         (!('referralBonusClaimed' in request.resource.data) || (request.resource.data.referralBonusClaimed == resource.data.get('referralBonusClaimed', false))) &&
+                         (!('referralCount' in request.resource.data) || (request.resource.data.referralCount == resource.data.get('referralCount', 0))) &&
+                         (!('validReferralCount' in request.resource.data) || (request.resource.data.validReferralCount == resource.data.get('validReferralCount', 0)))
                        )) || (isAdmin() && (
                          !('role' in request.resource.data) || 
                          (request.resource.data.role == resource.data.role) ||
