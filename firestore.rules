@@ -50,6 +50,13 @@ service cloud.firestore {
     }
 
     
+    // Check if user is a Games Manager (specifically for mini-games)
+    function isGamesManager() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'games_manager';
+    }
+
+    
     // Helper function to check if user is authenticated
     function isAuthenticated() {
       return request.auth != null;
@@ -273,8 +280,8 @@ service cloud.firestore {
 
       // Subcollection: Mini-Game History
       match /miniGameHistory/{historyId} {
-        // Users can read their own history, admins can read all
-        allow read: if isOwner(userId) || isAdmin();
+        // Users can read their own history, admins and games managers can read all
+        allow read: if isOwner(userId) || isAdmin() || isGamesManager();
         // Users can create their own history entries
         allow create: if isOwner(userId) || isAdmin();
         // History is immutable
@@ -433,8 +440,8 @@ service cloud.firestore {
       // Anyone can read settings
       allow read: if true;
       
-      // Only admins can manage settings
-      allow write: if isAdmin();
+      // Only admins can manage settings, except mini_games which games_manager can also edit
+      allow write: if isAdmin() || (isGamesManager() && settingId == 'mini_games');
     }
     // MATCHUPS
     // =============================================
@@ -510,7 +517,7 @@ service cloud.firestore {
     // =============================================
     // These allow collectionGroup() queries to function across multiple user subcollections
     match /{path=**}/miniGameHistory/{historyId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin() || isGamesManager();
     }
     
     match /{path=**}/pointsHistory/{historyId} {

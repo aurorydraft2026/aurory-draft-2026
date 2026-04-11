@@ -47,6 +47,8 @@ function HomePage() {
     fetchRegisteredUsers,
     isSuperAdminUser,
     isAdminUser,
+    isGamesManagerUser,
+    isGeneralAdmin,
     renderUserProfileContent,
     renderLoginModalContent,
     renderLoginSuccessModal,
@@ -305,7 +307,8 @@ function HomePage() {
 
   // Admin Financial Listeners for Homepage Alerts
   useEffect(() => {
-    if (!isAdmin) {
+    // Only General Admins (Super/Admin) can listen to financial collections
+    if (!isGeneralAdmin) {
       setAdminPendingWithdrawals(0);
       setAdminPendingDeposits(0);
       return;
@@ -329,7 +332,7 @@ function HomePage() {
       unsubscribeWithdrawals();
       unsubscribeDeposits();
     };
-  }, [isAdmin]);
+  }, [isGeneralAdmin]);
 
 
 
@@ -643,8 +646,10 @@ function HomePage() {
                     <div className="profile-badges-row">
                       {isSuperAdminUser ? (
                         <span className="admin-badge">⭐Super Admin</span>
-                      ) : isAdminUser ? (
+                      ) : user?.role === 'admin' ? (
                         <span className="admin-badge admin-staff">⭐Admin</span>
+                      ) : isGamesManagerUser ? (
+                        <span className="admin-badge games-manager-badge">🎮Games Manager</span>
                       ) : null}
                       {user.isAurorian && <span className="aurorian-tag">Aurorian Holder</span>}
                     </div>

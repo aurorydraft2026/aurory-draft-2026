@@ -335,13 +335,31 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
   // Check if current user is admin/super admin
   const isSuperAdminUser = user && (isSuperAdmin(getUserEmail(user)) || user.role === 'superadmin');
-  const isAdminUser = user && (isSuperAdminUser || user.role === 'admin');
-  const isAdmin = isAdminUser; // Keep for existing checks in the file
+  const isGamesManagerUser = user && user.role === 'games_manager';
+  const isGeneralAdmin = user && (isSuperAdminUser || user.role === 'admin');
+  const isAdminUser = isGeneralAdmin || isGamesManagerUser;
+  const isAdmin = isGeneralAdmin; // Keep for existing checks in the file (withdrawals, etc)
+
+  // Force Games Manager to appropriate initial tab
+  useEffect(() => {
+    if (isGamesManagerUser && !isGeneralAdmin) {
+        if (activeTab !== 'mini_games' && activeTab !== 'mini_game_history') {
+            setActiveTab('mini_games');
+            setExpandedCategory('games');
+        }
+    }
+  }, [isGamesManagerUser, isGeneralAdmin, activeTab]);
 
 
   // Fetch pending withdrawals
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdminUser) return;
+    
+    // If not a general admin, they don't have access to withdrawals, so we stop loading
+    if (!isGeneralAdmin) {
+      setLoading(false);
+      return;
+    }
 
     const withdrawalsRef = collection(db, 'withdrawals');
     const q = query(
@@ -367,11 +385,13 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     );
 
     return () => unsubscribe();
-  }, [isAdmin]);
+  }, [isAdminUser, isGeneralAdmin]);
 
-  // Fetch pending deposit notifications - FIXED VERSION
+  // Fetch pending deposit notifications
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdminUser) return;
+    
+    if (!isGeneralAdmin) return;
 
     console.log('Setting up deposit notifications listener...');
     console.log('Admin email:', getUserEmail(user));
@@ -444,11 +464,11 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     );
 
     return () => unsubscribe();
-  }, [isAdmin, user]);
+  }, [isAdminUser, isGeneralAdmin, user]);
 
   // Fetch mini-games config
   useEffect(() => {
-    if (!isAdmin || activeTab !== 'mini_games') return;
+    if (!isAdminUser || activeTab !== 'mini_games') return;
 
     setMiniGamesLoading(true);
     const unsub = onSnapshot(doc(db, 'settings', 'mini_games'), (snap) => {
@@ -464,11 +484,11 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       setMiniGamesLoading(false);
     });
     return () => unsub();
-  }, [activeTab, isAdmin]);
+  }, [activeTab, isAdminUser, isAdmin]);
 
   // Fetch Mini-Game Earners (User specific)
   useEffect(() => {
-    if (!isAdmin || activeTab !== 'mini_game_history' || !db) return;
+    if (!isAdminUser || activeTab !== 'mini_game_history' || !db) return;
 
     // If no user selected, we don't fetch history (as requested: "per user searched")
     if (!earnersSelectedUser) {
@@ -498,7 +518,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     });
 
     return () => unsubscribe();
-  }, [activeTab, isAdmin, earnersSelectedUser]);
+  }, [activeTab, isAdminUser, earnersSelectedUser]);
 
   // Fetch Website Maintenance config
   useEffect(() => {
@@ -524,7 +544,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     });
 
     return () => unsub();
-  }, [activeTab, isAdmin]);
+  }, [activeTab, isAdmin, isAdminUser]);
 
   const handleUpdateMiniGameConfig = async (gameType, updates) => {
     try {
@@ -2292,7 +2312,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     return <LoadingScreen fullScreen message="Accessing Admin Panel..." />;
   }
 
-  if (!isAdmin) {
+  if (!isAdminUser) {
     return (
       <div className="admin-wallet-denied">
         <h2>🚫 Access Denied</h2>
@@ -2330,6 +2350,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       <div className="admin-layout">
         <div className="admin-sidebar">
           {/* Balance Category */}
+          {isGeneralAdmin && (
           <div className={`admin-category ${expandedCategory === 'balance' ? 'expanded' : ''}`}>
             <div
               className="category-title"
@@ -2368,8 +2389,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               </button>
             </div>
           </div>
+          )}
 
           {/* Transactions Category */}
+          {isGeneralAdmin && (
           <div className={`admin-category ${expandedCategory === 'transactions' ? 'expanded' : ''}`}>
             <div
               className="category-title"
@@ -2416,8 +2439,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               )}
             </div>
           </div>
+          )}
 
           {/* Campaigns Category */}
+          {isGeneralAdmin && (
           <div className={`admin-category ${expandedCategory === 'campaigns' ? 'expanded' : ''}`}>
             <div
               className="category-title"
@@ -2461,9 +2486,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               </button>
             </div>
           </div>
+          )}
 
-          {/* Games Category (Super Admin Only) */}
-          {isSuperAdminUser && (
+          {/* Games Category (Super Admin & Games Manager) */}
+          {(isSuperAdminUser || isGamesManagerUser) && (
             <div className={`admin-category ${expandedCategory === 'games' ? 'expanded' : ''}`}>
               <div
                 className="category-title"
@@ -2492,6 +2518,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           )}
 
           {/* Website Management Category */}
+          {isGeneralAdmin && (
           <div className={`admin-category ${expandedCategory === 'website' ? 'expanded' : ''}`}>
             <div
               className="category-title"
@@ -2511,8 +2538,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               </button>
             </div>
           </div>
+          )}
 
           {/* User Management Category */}
+          {isGeneralAdmin && (
           <div className={`admin-category ${expandedCategory === 'users' ? 'expanded' : ''}`}>
             <div
               className="category-title"
@@ -2561,6 +2590,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               )}
             </div>
           </div>
+          )}
         </div>
 
         <div className="admin-content">
@@ -4149,6 +4179,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             ) : (
                               <div className="role-actions">
                                 <select
+                                  className={`role-select ${u.role === 'blocked' ? 'blocked' : ''}`}
                                   value={u.role || 'user'}
                                   onChange={async (e) => {
                                     const newRole = e.target.value;
@@ -4184,9 +4215,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                     }
                                   }}
                                   disabled={processingId === `role-${u.id}`}
-                                  className={`role-select ${u.role === 'blocked' ? 'blocked' : ''}`}
                                 >
                                   <option value="user">User</option>
+                                  <option value="games_manager">Games Manager</option>
                                   <option value="admin">Admin</option>
                                   {u.role === 'blocked' ? (
                                     <option value="user">✅ Unblock User</option>

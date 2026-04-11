@@ -173,7 +173,9 @@ export const useAuth = (navigate) => {
     };
 
     const isSuperAdminUser = user && isSuperAdmin(getUserEmail(user));
-    const isAdminUser = user && (isSuperAdminUser || user.role === 'admin');
+    const isGamesManagerUser = user && user.role === 'games_manager';
+    const isGeneralAdmin = user && (isSuperAdminUser || user.role === 'admin');
+    const isAdminUser = user && (isGeneralAdmin || isGamesManagerUser);
 
     // Handle Discord Login
     const handleDiscordLogin = async () => {
@@ -437,8 +439,10 @@ export const useAuth = (navigate) => {
                             <span className="modal-email">{user.email}</span>
                             {isSuperAdminUser ? (
                                 <span className="modal-admin-badge">⭐Super Admin</span>
-                            ) : isAdminUser ? (
+                            ) : user.role === 'admin' ? (
                                 <span className="modal-admin-badge admin-staff">⭐Admin</span>
+                            ) : isGamesManagerUser ? (
+                                <span className="modal-admin-badge games-manager-badge">🎮Games Manager</span>
                             ) : null}
 
                             {user.isAurorian && <span className="aurorian-tag">Aurorian Holder</span>}
@@ -667,6 +671,8 @@ export const useAuth = (navigate) => {
         getUserEmail,
         isSuperAdminUser,
         isAdminUser,
+        isGamesManagerUser,
+        isGeneralAdmin,
         renderUserProfileContent,
         renderLoginModalContent,
         renderLoginSuccessModal,

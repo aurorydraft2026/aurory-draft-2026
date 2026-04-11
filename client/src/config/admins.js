@@ -39,8 +39,8 @@ export const isUserSuperAdmin = (user) => {
   return email ? SUPER_ADMIN_EMAILS.includes(email.toLowerCase()) : false;
 };
 
-// Check if a user is "staff" (Super Admin OR assigned Admin)
+// Check if a user is "staff" (Super Admin OR assigned Admin OR games_manager)
 export const isStaff = (user) => {
   if (!user) return false;
-  return isUserSuperAdmin(user) || user.role === 'admin';
+  return isUserSuperAdmin(user) || user.role === 'admin' || user.role === 'games_manager';
 };
