@@ -421,7 +421,7 @@ export const useAuth = (navigate) => {
             try {
                 const result = await upgradeTierCall();
                 if (result.success) {
-                    setUnlockedTierData(next);
+                    setUnlockedTierData({ ...next, name: `Tier ${next.roman}` });
                     setShowTierUpgradeAnim(true);
                     setTimeout(() => setShowTierUpgradeAnim(false), 4000);
                 }
@@ -508,12 +508,22 @@ export const useAuth = (navigate) => {
                     <div className="user-modal-content">
                         {/* ── PROFILE HEADER ROW ── */}
                         <div className="user-header-info">
-                            <img
-                                src={user.auroryProfilePicture || user.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
-                                alt="Profile"
-                                className="modal-profile-pic"
-                                onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                            />
+                            <div className="profile-pic-wrapper">
+                                <img
+                                    src={user.auroryProfilePicture || user.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                                    alt="Profile"
+                                    className="modal-profile-pic"
+                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                                />
+                                {tierConfig.badge && (
+                                    <img 
+                                        src={tierConfig.badge} 
+                                        alt={tierConfig.name} 
+                                        className="profile-tier-badge" 
+                                        title={tierConfig.name}
+                                    />
+                                )}
+                            </div>
                             <div className="user-text-info">
                                 <span className="modal-username">
                                     {user.displayName}
@@ -588,9 +598,11 @@ export const useAuth = (navigate) => {
                         {/* ── VALCOINS BALANCE ── */}
                         <div className="profile-valcoins-section">
                             <div className="valcoins-display">
-                                <img src="/valcoin-icon.jpg" alt="" className="valcoin-icon profile-points-icon" />
-                                <span className="valcoins-amount">{userPoints.toLocaleString()}</span>
-                                <span className="valcoins-label">Valcoins</span>
+                                <img src="/valcoin-icon.jpg" alt="V" className="valcoin-profile-icon" />
+                                <div className="valcoins-info">
+                                    <span className="valcoins-amount">{userPoints.toLocaleString()}</span>
+                                    <span className="valcoins-label">Valcoins</span>
+                                </div>
                             </div>
                         </div>
 
