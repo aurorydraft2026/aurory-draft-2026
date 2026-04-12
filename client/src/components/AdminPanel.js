@@ -30,6 +30,7 @@ import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
 import { awardPoints } from '../services/pointsService';
 import { getRecommendedIcons } from '../services/miniGameService';
 import './AdminPanel.css';
+import { DEFAULT_KNOWLEDGE } from './RunieChatBot';
 
 // Helper to get user email
 const getUserEmail = (user) => {
@@ -165,6 +166,15 @@ function AdminPanel() {
   const [newsBanner, setNewsBanner] = useState('');
   const [newsVideoUrl, setNewsVideoUrl] = useState(''); // Added for news video support
   const [editingNewsId, setEditingNewsId] = useState(null);
+  
+  // Runie Chatbot state
+  const [chatbotKnowledge, setChatbotKnowledge] = useState([]);
+  const [cbLabel, setCbLabel] = useState('');
+  const [cbKeywords, setCbKeywords] = useState('');
+  const [cbResponse, setCbResponse] = useState('');
+  const [cbOrder, setCbOrder] = useState(0);
+  const [cbShowAsBadge, setCbShowAsBadge] = useState(true);
+  const [editingKnowledgeId, setEditingKnowledgeId] = useState(null);
   
   // Mini-Games state
   const [miniGamesConfig, setMiniGamesConfig] = useState(null);
@@ -485,6 +495,22 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     });
     return () => unsub();
   }, [activeTab, isAdminUser, isAdmin]);
+
+  // Fetch chatbot knowledge
+  useEffect(() => {
+    if (!isAdminUser || activeTab !== 'chatbot') return;
+
+    const q = query(collection(db, 'chatbot_knowledge'), orderBy('order', 'asc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const knowledge = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setChatbotKnowledge(knowledge);
+    });
+
+    return () => unsubscribe();
+  }, [activeTab, isAdminUser]);
 
   // Fetch Mini-Game Earners (User specific)
   useEffect(() => {
@@ -1384,6 +1410,114 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       alert('Error fetching notifications: ' + error.message);
     } finally {
       setUserNotificationsLoading(false);
+    }
+  };
+
+  // Chatbot Knowledge Handlers
+  const handleSaveChatbotKnowledge = async () => {
+    if (!cbResponse) return alert('Response is required');
+    if (!cbLabel && !cbKeywords) return alert('At least a Label or Keywords are required so Runie knows when to use this response.');
+
+    setProcessingId('chatbot');
+    try {
+      const data = {
+        label: cbLabel,
+        keywords: cbKeywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean),
+        response: cbResponse,
+        order: parseInt(cbOrder) || 0,
+        showAsBadge: cbShowAsBadge,
+        updatedAt: serverTimestamp()
+      };
+
+      if (editingKnowledgeId) {
+        await updateDoc(doc(db, 'chatbot_knowledge', editingKnowledgeId), data);
+        alert('Knowledge item updated!');
+      } else {
+        await addDoc(collection(db, 'chatbot_knowledge'), {
+          ...data,
+          createdAt: serverTimestamp()
+        });
+        alert('Knowledge item added!');
+      }
+      resetChatbotForm();
+    } catch (error) {
+      console.error('Error saving chatbot knowledge:', error);
+      alert('Error saving: ' + error.message);
+    }
+    setProcessingId(null);
+  };
+
+  const resetChatbotForm = () => {
+    setCbLabel('');
+    setCbKeywords('');
+    setCbResponse('');
+    setCbOrder(0);
+    setCbShowAsBadge(true);
+    setEditingKnowledgeId(null);
+  };
+
+  const handleEditKnowledge = (item) => {
+    setCbLabel(item.label || '');
+    setCbKeywords(item.keywords ? item.keywords.join(', ') : '');
+    setCbResponse(item.response || '');
+    setCbOrder(item.order || 0);
+    setCbShowAsBadge(item.showAsBadge !== false);
+    setEditingKnowledgeId(item.id);
+    
+    // Scroll to form
+    const formElement = document.querySelector('.chatbot-form-card');
+    if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleDeleteKnowledge = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this knowledge item?')) return;
+    try {
+      await deleteDoc(doc(db, 'chatbot_knowledge', id));
+      alert('Deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting knowledge:', error);
+      alert('Error deleting: ' + error.message);
+    }
+  };
+
+  const handleSeedDefaultKnowledge = async () => {
+    if (chatbotKnowledge.length > 0) {
+      if (!window.confirm('You already have some knowledge items. Importing defaults will add them to the list. Proceed?')) return;
+    } else {
+      if (!window.confirm('This will initialize Runie with her core knowledge base. This makes her default answers editable. Proceed?')) return;
+    }
+
+    setProcessingId('seed_chatbot');
+    try {
+      const batch = writeBatch(db);
+      
+      DEFAULT_KNOWLEDGE.forEach((item, index) => {
+        const newDocRef = doc(collection(db, 'chatbot_knowledge'));
+        batch.set(newDocRef, {
+          label: item.label || '',
+          keywords: item.keywords || [],
+          response: item.response || '',
+          order: index + 1,
+          showAsBadge: item.showAsBadge !== false,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      });
+
+      await batch.commit();
+      alert('✅ Runie core knowledge initialized successfully!');
+      
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'seed_chatbot_knowledge',
+        metadata: { count: DEFAULT_KNOWLEDGE.length }
+      });
+    } catch (error) {
+      console.error('Error seeding chatbot knowledge:', error);
+      alert('Error: ' + error.message);
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -2605,6 +2739,12 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               >
                 🌐 Website Management
               </button>
+              <button
+                className={`admin-tab ${activeTab === 'chatbot' ? 'active' : ''}`}
+                onClick={() => setActiveTab('chatbot')}
+              >
+                🤖 Runie Chatbot
+              </button>
             </div>
           </div>
           )}
@@ -3399,6 +3539,141 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'chatbot' && (
+            <div className="chatbot-management">
+              <div className="section-header">
+                <h2>🤖 Runie Chatbot Knowledge Base</h2>
+                <div className="header-actions">
+                  <p>Manage Runie's responses to quick replies and random chats using keyword matching.</p>
+                  <button 
+                    className="seed-btn" 
+                    onClick={handleSeedDefaultKnowledge}
+                    disabled={processingId === 'seed_chatbot'}
+                    style={{ marginTop: '10px' }}
+                  >
+                    {processingId === 'seed_chatbot' ? 'Initializing...' : '📥 Import Core Knowledge (Seed)'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="chatbot-form-card card">
+                <h3>{editingKnowledgeId ? 'Edit Knowledge Item' : 'Add New Knowledge Item'}</h3>
+                <div className="chatbot-form">
+                  <div className="form-row">
+                    <div className="form-group flex-2">
+                      <label>Button Label (Quick Reply)</label>
+                      <input 
+                        type="text" 
+                        value={cbLabel} 
+                        onChange={(e) => setCbLabel(e.target.value)} 
+                        placeholder="e.g. What is Aurory?"
+                      />
+                    </div>
+                    <div className="form-group flex-2">
+                      <label>Sort Order</label>
+                      <input 
+                        type="number" 
+                        value={cbOrder} 
+                        onChange={(e) => setCbOrder(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group flex-1">
+                      <label>Show as Button?</label>
+                      <div className="currency-toggle-group">
+                        <button 
+                          className={`toggle-btn ${cbShowAsBadge ? 'active' : ''}`}
+                          onClick={() => setCbShowAsBadge(true)}
+                        >YES</button>
+                        <button 
+                          className={`toggle-btn ${!cbShowAsBadge ? 'active' : ''}`}
+                          onClick={() => setCbShowAsBadge(false)}
+                        >NO</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Keywords (Comma separated for random chat matching)</label>
+                    <input 
+                      type="text" 
+                      value={cbKeywords} 
+                      onChange={(e) => setCbKeywords(e.target.value)} 
+                      placeholder="e.g. aurory, ecosystem, backend"
+                    />
+                    <p className="field-hint">If a user scrolls or types one of these words, Runie will provide this response.</p>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Runie's Response</label>
+                    <textarea 
+                      value={cbResponse} 
+                      onChange={(e) => setCbResponse(e.target.value)} 
+                      placeholder="Enter what Runie should say..."
+                      className="form-textarea"
+                      rows="4"
+                    />
+                  </div>
+
+                  <div className="form-actions">
+                    <button 
+                      className="save-btn" 
+                      onClick={handleSaveChatbotKnowledge}
+                      disabled={processingId === 'chatbot'}
+                    >
+                      {processingId === 'chatbot' ? 'Saving...' : editingKnowledgeId ? 'Update Item' : 'Add to Knowledge'}
+                    </button>
+                    {editingKnowledgeId && (
+                      <button className="cancel-btn" onClick={resetChatbotForm}>Cancel</button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="chatbot-list-card card">
+                <h3>Existing Knowledge</h3>
+                {chatbotKnowledge.length === 0 ? (
+                  <p className="empty-msg">No custom knowledge found. Runie is using her defaults.</p>
+                ) : (
+                  <div className="chatbot-knowledge-grid">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Order</th>
+                          <th>Label</th>
+                          <th>Keywords</th>
+                          <th>Response Snippet</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {chatbotKnowledge.map((item) => (
+                          <tr key={item.id}>
+                            <td className="text-center">{item.order}</td>
+                            <td className="font-bold">{item.label}</td>
+                            <td>
+                              <div className="keyword-badges">
+                                {item.keywords?.map((k, i) => (
+                                  <span key={i} className="keyword-badge">{k}</span>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="response-snippet">
+                              {item.response?.substring(0, 60)}...
+                            </td>
+                            <td className="admin-actions">
+                              <button className="edit-btn" onClick={() => handleEditKnowledge(item)}>📝</button>
+                              <button className="delete-btn" onClick={() => handleDeleteKnowledge(item.id)}>🗑️</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

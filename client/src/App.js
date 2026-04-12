@@ -16,6 +16,7 @@ import AdminPanel from './components/AdminPanel';
 import MaintenancePage from './pages/MaintenancePage';
 import MiniGamesButton from './components/minigames/MiniGamesButton';
 import GlobalWinNotifier from './components/minigames/GlobalWinNotifier';
+import RunieChatBot from './components/RunieChatBot';
 import { isStaff, isUserSuperAdmin } from './config/admins';
 import { doc, onSnapshot, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 
@@ -233,6 +234,7 @@ function App() {
         <Footer />
         <MiniGamesButton />
         <GlobalWinNotifier />
+        <RunieChatBot />
 
         {/* --- Referral Success Modal (Singleton Notification) --- */}
         {referralSuccess && (

@@ -1,8 +1,8 @@
 .viking-arcade-btn {
   position: fixed;
-  bottom: 28px;
+  bottom: 104px;
   right: 28px;
-  z-index: 1000;
+  z-index: 99;
   height: 60px;
   width: 60px;
   border-radius: 30px;
@@ -106,7 +106,7 @@
 /* Responsive */
 @media (max-width: 768px) {
   .viking-arcade-btn {
-    bottom: 20px;
+    bottom: 84px;
     right: 20px;
     width: 54px;
     height: 54px;

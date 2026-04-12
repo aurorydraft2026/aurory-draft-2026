@@ -2793,7 +2793,6 @@ function HomePage() {
 
       {/* Profile Modal (Centered Overlay - moved here to escape header backdrop-filter constraints) */}
       {showUserModal && renderUserProfileContent({ setShowAuroryModal })}
-
     </div >
   );
 }

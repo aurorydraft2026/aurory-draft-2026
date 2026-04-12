@@ -406,6 +406,17 @@ service cloud.firestore {
     }
 
     // =============================================
+    // CHATBOT KNOWLEDGE
+    // =============================================
+    match /chatbot_knowledge/{knowledgeId} {
+      // Anyone can read knowledge items (so Runie can fetch responses)
+      allow read: if true;
+      
+      // Only admins can manage knowledge base
+      allow write: if isAdmin();
+    }
+
+    // =============================================
     // NEWS
     // =============================================
     match /news/{newsId} {
