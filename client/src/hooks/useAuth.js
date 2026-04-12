@@ -402,6 +402,33 @@ export const useAuth = (navigate) => {
     };
 
 
+    const [secondsUntilReset, setSecondsUntilReset] = useState(0);
+
+    // Update countdown timer every second
+    useEffect(() => {
+        const updateTimer = () => {
+            const now = new Date();
+            const nextReset = new Date(Date.UTC(
+                now.getUTCFullYear(), 
+                now.getUTCMonth(), 
+                now.getUTCDate() + 1
+            ));
+            const diff = Math.max(0, Math.floor((nextReset - now) / 1000));
+            setSecondsUntilReset(diff);
+        };
+
+        updateTimer();
+        const interval = setInterval(updateTimer, 1000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const formatTimeRemaining = (totalSeconds) => {
+        const h = Math.floor(totalSeconds / 3600);
+        const m = Math.floor((totalSeconds % 3600) / 60);
+        const s = totalSeconds % 60;
+        return `${h}h ${m}m ${s}s`;
+    };
+
     const renderUserProfileContent = ({ setShowAuroryModal }) => {
         if (!user) return null;
 
@@ -592,6 +619,12 @@ export const useAuth = (navigate) => {
                                         </div>
                                     )}
                                 </div>
+                                {isCheckedIn && (
+                                    <div className="checkin-timer-wrapper">
+                                        <span className="timer-label">Next reward in:</span>
+                                        <span className="timer-value">{formatTimeRemaining(secondsUntilReset)}</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
