@@ -114,7 +114,7 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
             <div className="minigames-game-content">
               <GameComponent
                 user={user}
-                userPoints={userPoints}
+                userPoints={displayedPoints}
                 gameConfig={gameConfig}
                 onConfigReload={loadConfig}
                 setFrozen={setIsFrozen}

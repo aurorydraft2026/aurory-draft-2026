@@ -386,40 +386,60 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
     }
     setLocalError(null);
 
-    const amount = selectedChip;
+    const amount = selectedChip === 'MAX' ? 0 : selectedChip; 
     const currentTotal = Object.values(myBets).reduce((a, b) => a + b, 0);
     const shipBet = myBets[shipId] || 0;
     const shipPool = pools[shipId] || 0;
     
+    // ── STEP 0: Calculate Actual Amount for 'MAX' ──
+    let finalAmount = amount;
+    if (selectedChip === 'MAX') {
+      const remainingUserCap = MAX_BET_PER_USER - currentTotal - pendingBetsTotal;
+      const remainingShipCap = MAX_BET_PER_SHIP_PER_USER - shipBet;
+      const remainingPoolCap = MAX_SHIP_POOL - shipPool;
+      
+      finalAmount = Math.min(
+        userPoints,
+        remainingUserCap,
+        remainingShipCap,
+        remainingPoolCap
+      );
+    }
+
+    if (finalAmount <= 0) {
+      if (selectedChip === 'MAX') triggerLocalError("You've reached your bet limit or are out of funds.");
+      return;
+    }
+
     // Safety checks
-    if (shipPool + amount > MAX_SHIP_POOL) {
+    if (shipPool + finalAmount > MAX_SHIP_POOL) {
       triggerLocalError("This ship is full!");
       return;
     }
-    if (shipBet + amount > MAX_BET_PER_SHIP_PER_USER) {
+    if (shipBet + finalAmount > MAX_BET_PER_SHIP_PER_USER) {
       triggerLocalError(`Max bet per ship is ${MAX_BET_PER_SHIP_PER_USER}.`);
       return;
     }
-    if (currentTotal + pendingBetsTotal + amount > MAX_BET_PER_USER) {
+    if (currentTotal + pendingBetsTotal + finalAmount > MAX_BET_PER_USER) {
       triggerLocalError(`Max bet is ${MAX_BET_PER_USER} / race.`);
       return;
     }
-    if (amount > userPoints) {
+    if (finalAmount > userPoints) {
       triggerLocalError(`Insufficient Valcoins.`);
       return;
     }
 
     // ── STEP 1: HYPER-INSTANT VISUALS (Feel) ──
     setFrozen(true);
-    setMyBets(prev => ({ ...prev, [shipId]: (prev[shipId] || 0) + amount }));
-    setPendingBetsTotal(prev => prev + amount);
-    setDisplayedPoints(prev => prev - amount); // Optimistic Balance
+    setMyBets(prev => ({ ...prev, [shipId]: (prev[shipId] || 0) + finalAmount }));
+    setPendingBetsTotal(prev => prev + finalAmount);
+    setDisplayedPoints(prev => prev - finalAmount); // Optimistic Balance
     
     // Global Pool increment is now TRULY instant for everyone
-    incrementDrakkarPool(shipId, amount); 
+    incrementDrakkarPool(shipId, finalAmount); 
     
     // ── STEP 2: ADD TO BATCH ──
-    pendingBatchRef.current[shipId] = (pendingBatchRef.current[shipId] || 0) + amount;
+    pendingBatchRef.current[shipId] = (pendingBatchRef.current[shipId] || 0) + finalAmount;
     
     // ── STEP 3: DEBOUNCED FLUSH (250ms) ──
     if (batchTimerRef.current) clearTimeout(batchTimerRef.current);
@@ -656,6 +676,12 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                   ×{chip}
                 </button>
               ))}
+              <button
+                className={`dv2-chip dv2-chip-max ${selectedChip === 'MAX' ? 'active' : ''}`}
+                onClick={() => setSelectedChip('MAX')}
+              >
+                MAX
+              </button>
             </div>
 
             {/* Ship Betting Cards */}

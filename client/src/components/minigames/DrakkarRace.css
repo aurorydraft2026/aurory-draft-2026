@@ -459,6 +459,19 @@
   box-shadow: 0 0 20px var(--accent-gold-glow);
 }
 
+.dv2-chip-max {
+  color: var(--accent-gold);
+  border-color: rgba(212, 175, 55, 0.4);
+  font-size: 0.85rem;
+}
+
+.dv2-chip-max.active {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #fff;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+}
+
 /* ─── BET CARDS ─── */
 .dv2-bet-cards {
   display: grid;
