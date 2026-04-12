@@ -94,13 +94,13 @@ export const cleanupInactiveGuests = onCall(
         console.log(`🧹 Manual Cleanup Triggered by ${callerUid}`);
 
         try {
-            const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
 
             // 2. Query Firestore for inactive anonymous users
             const usersRef = admin.firestore().collection('users');
             const q = usersRef
                 .where('isAnonymous', '==', true)
-                .where('lastSeen', '<', admin.firestore.Timestamp.fromDate(oneDayAgo))
+                .where('lastSeen', '<', admin.firestore.Timestamp.fromDate(fiveMinutesAgo))
                 .limit(500); // Process in batches to avoid timeout
 
             const snapshot = await q.get();

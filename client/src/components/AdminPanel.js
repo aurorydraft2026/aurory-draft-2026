@@ -1423,7 +1423,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   // Handle cleanup of inactive guest accounts
   const handleCleanupInactiveGuests = async () => {
     if (!isSuperAdminUser || wipeAllConfirmText !== 'WIPE ALL') return;
-    if (!window.confirm('🧹 Are you sure you want to delete all anonymous Guest accounts that have been inactive for over 24 hours? This is irreversible.')) return;
+    if (!window.confirm('🧹 Are you sure you want to delete all anonymous Guest accounts that have been inactive for over 5 minutes? This is irreversible.')) return;
 
     setIsWiping(true);
     setProcessingId('cleanup_guests');
@@ -1454,6 +1454,28 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   };
 
   // Handle global notification wipe
+  const handleClearAllGlobalNotifications = async () => {
+    if (!isSuperAdminUser || wipeAllConfirmText !== 'WIPE ALL') return;
+    if (!window.confirm('💣 FINAL WARNING: This will permanently delete ALL notifications for EVERY user on the platform. Proceed?')) return;
+
+    setIsWiping(true);
+    try {
+      const clearFn = httpsCallable(functions, 'clearAllGlobalNotifications');
+      const { data: result } = await clearFn({});
+
+      if (result?.success) {
+        alert(result.message);
+        setWipeAllConfirmText('');
+      } else {
+        throw new Error(result?.message || 'Wipe failed');
+      }
+    } catch (error) {
+      console.error('Global notification wipe error:', error);
+      alert('Error wiping notifications: ' + error.message);
+    } finally {
+      setIsWiping(false);
+    }
+  };
 
   // Handle global wallet reset (Balances + History)
   const handleResetGlobalWallets = async () => {
