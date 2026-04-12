@@ -5115,6 +5115,58 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                               title="Starting valcoins injected into each ship's pool"
                             />
                           </div>
+                          
+                          <div className="admin-section-divider">Bot Management (Ghost Bots)</div>
+                          <div className="form-group">
+                            <label className="checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={miniGamesConfig[activeGameType]?.botsEnabled !== false}
+                                onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { botsEnabled: e.target.checked })}
+                              />
+                              Enable Ghost Bots
+                            </label>
+                          </div>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label>Min Bot Count</label>
+                              <input
+                                type="number"
+                                value={miniGamesConfig[activeGameType]?.minBots ?? 10}
+                                onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { minBots: parseInt(e.target.value) })}
+                                min="0"
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label>Max Bot Count</label>
+                              <input
+                                type="number"
+                                value={miniGamesConfig[activeGameType]?.maxBots ?? 20}
+                                onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { maxBots: parseInt(e.target.value) })}
+                                min="0"
+                              />
+                            </div>
+                          </div>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label>Min Bot Bet</label>
+                              <input
+                                type="number"
+                                value={miniGamesConfig[activeGameType]?.minBotBet ?? 100}
+                                onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { minBotBet: parseInt(e.target.value) })}
+                                min="1"
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label>Max Bot Bet</label>
+                              <input
+                                type="number"
+                                value={miniGamesConfig[activeGameType]?.maxBotBet ?? 500}
+                                onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { maxBotBet: parseInt(e.target.value) })}
+                                min="1"
+                              />
+                            </div>
+                          </div>
                         </>
                       ) : (
                         <>

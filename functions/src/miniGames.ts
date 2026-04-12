@@ -60,6 +60,9 @@ const DURATIONS = {
     result: 3000
 };
 
+const BOT_COLORS = ['#ff4444', '#44ff44', '#4444ff', '#ffeb3b', '#9c27b0', '#ff9800', '#00bcd4'];
+const BOT_INITIALS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
 // ═══════════════════════════════════════════════════════
 //  LEADERBOARD TRACKING (RTDB)
 // ═══════════════════════════════════════════════════════
@@ -133,6 +136,53 @@ function determineRaceResult(shipIndices: number[], weatherIndices: number[]) {
     }
 
     return { winnerIdx, finishTimes };
+}
+
+/**
+ * Generate a profile of randomized bot bets for a race.
+ */
+function generateBotProfile(ships: any[], config: any) {
+    const minBots = config.minBots ?? 10;
+    const maxBots = config.maxBots ?? 20;
+    const minBet = config.minBotBet ?? 100;
+    const maxBet = config.maxBotBet ?? 500;
+
+    const botCount = Math.floor(Math.random() * (maxBots - minBots + 1)) + minBots;
+    const botActions: any[] = [];
+    const botPools: Record<string, number> = {};
+    ships.forEach(s => { botPools[s.id] = 0; });
+
+    // Balanced distribution: Assign bots to ships in a round-robin style to minimize gaps
+    for (let i = 0; i < botCount; i++) {
+        // Round robin + slight randomness
+        const shipIdx = i % ships.length;
+        const shipId = ships[shipIdx].id;
+        const amount = Math.floor(Math.random() * (maxBet - minBet + 1)) + minBet;
+        
+        // Random cutoff between 10s and 3s before end (20s total)
+        const cutoffMs = (Math.random() * (10000 - 3000) + 3000);
+        const timeOffset = Math.floor(Math.random() * (20000 - cutoffMs));
+
+        const botAction = {
+            id: `bot-${i}-${Date.now()}`,
+            shipId,
+            amount,
+            timeOffset,
+            color: BOT_COLORS[Math.floor(Math.random() * BOT_COLORS.length)],
+            initial: BOT_INITIALS[Math.floor(Math.random() * BOT_INITIALS.length)]
+        };
+
+        botActions.push(botAction);
+        botPools[shipId] = (botPools[shipId] || 0) + amount;
+    }
+
+    // Shuffle botActions so they don't appear in round-robin order on the client
+    for (let i = botActions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [botActions[i], botActions[j]] = [botActions[j], botActions[i]];
+    }
+
+    return { botActions, botPools, botCount };
 }
 
 
@@ -548,6 +598,36 @@ export const refreshDrakkarRace = onCall(
                     updates.ships.forEach((ship: any) => {
                         updates.pools[ship.id] = houseSeed;
                     });
+
+                    // ─── GHOST BOTS GENERATION ───
+                    if (config.botsEnabled !== false) {
+                        // Persist or refresh base bot count every 20 races
+                        let botBaseCount = state.botBaseCount || 15;
+                        if (state.raceId % 20 === 0) {
+                            const minB = config.minBots ?? 10;
+                            const maxB = config.maxBots ?? 20;
+                            botBaseCount = Math.floor(Math.random() * (maxB - minB + 1)) + minB;
+                        }
+
+                        // Fluctuat slightly (+/- 2) each race within overall range
+                        const flex = Math.floor(Math.random() * 5) - 2;
+                        const targetBots = Math.max(config.minBots ?? 10, Math.min(config.maxBots ?? 20, botBaseCount + flex));
+                        
+                        const botProfile = generateBotProfile(updates.ships, { 
+                            ...config, 
+                            minBots: targetBots, 
+                            maxBots: targetBots 
+                        });
+
+                        updates.botActions = botProfile.botActions;
+                        updates.botPools = botProfile.botPools;
+                        updates.botCount = botProfile.botCount;
+                        updates.botBaseCount = botBaseCount;
+                    } else {
+                        updates.botActions = [];
+                        updates.botPools = {};
+                        updates.botCount = 0;
+                    }
                 }
 
                 const newState = {
@@ -590,7 +670,11 @@ export const refreshDrakkarRace = onCall(
                         const betsSnap = await statePath.collection('bets').get();
                         const shipIds = (newState.ships || []).map((s: any) => s.id);
                         const flushedPools: Record<string, number> = {};
-                        shipIds.forEach((id: string) => { flushedPools[id] = 0; });
+                        
+                        // FIX: Initialize with houseSeed, not 0
+                        shipIds.forEach((id: string) => { 
+                            flushedPools[id] = newState.houseSeed || 0; 
+                        });
 
                         if (!betsSnap.empty) {
                             betsSnap.docs.forEach((doc: any) => {
@@ -648,6 +732,16 @@ async function processDrakkarPayouts(raceState: any) {
     const bets = await stateRef.collection('bets').get();
     let totalPool = houseSeed * 3;
     let winnerPool = houseSeed;
+
+    // Add Bot Bets to Total Pool
+    if (raceState.botPools) {
+        Object.keys(raceState.botPools).forEach(shipId => {
+            const amount = raceState.botPools[shipId] || 0;
+            totalPool += amount;
+            // NEW: Bot bets on the winner now count towards the divisor (diluting payout)
+            if (shipId === winnerId) winnerPool += amount;
+        });
+    }
 
     if (!bets.empty) {
         const betDocs: any[] = [];

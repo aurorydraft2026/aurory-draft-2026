@@ -31,6 +31,12 @@ import './DrakkarRace.css';
 const FINISH_LINE = DOCK_WIDTH + 5 * ZONE_WIDTH; // 100%
 const DEFAULT_HOUSE_SEED = 500;
 const DEFAULT_MULTIPLIER = 0.9;
+const DURATIONS = {
+  betting: 20000,
+  reveal: 4000,
+  racing: 0,
+  result: 3000
+};
 
 const WEATHER_SVGS = {
   '☀️': <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
@@ -64,6 +70,10 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const [raceFinished, setRaceFinished] = useState(false);
   const [tickCount, setTickCount] = useState(0); // Forced repaint counter
   const prevRaceIdRef = useRef(null);
+
+  // Bot Simulation State
+  const [ghostPools, setGhostPools] = useState({});
+  const processedBotActionsRef = useRef(new Set());
 
   const pendingRequestsRef = useRef(0);
   const pendingBatchRef = useRef({}); // { shipId: amount }
@@ -164,6 +174,8 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
       setMyBets({});
       setLocalError(null);
       setRaceFinished(false);
+      setGhostPools({});
+      processedBotActionsRef.current = new Set();
       
       // Safety Reset for Sync Lock
       pendingRequestsRef.current = 0;
@@ -188,6 +200,47 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
     return () => clearInterval(interval);
   }, [state]);
+
+  // ─── 2.1 Bot Simulation Playback ───
+  useEffect(() => {
+    if (!state || state.phase !== 'betting' || !state.botActions) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now() + serverOffset;
+      const startTime = state.lastUpdate || (state.endTime - DURATIONS.betting);
+      const elapsed = now - startTime;
+
+      state.botActions.forEach(action => {
+        if (elapsed >= action.timeOffset && !processedBotActionsRef.current.has(action.id)) {
+          processedBotActionsRef.current.add(action.id);
+          
+          // 1. Update visual pool
+          setGhostPools(prev => ({
+            ...prev,
+            [action.shipId]: (prev[action.shipId] || 0) + action.amount
+          }));
+
+          // 2. Trigger reaction
+          const reactionId = `bot-react-${action.id}`;
+          setReactions(prevR => [
+            ...prevR,
+            {
+              id: reactionId,
+              shipId: action.shipId,
+              isBot: true,
+              initial: action.initial,
+              color: action.color
+            }
+          ]);
+          setTimeout(() => {
+            setReactions(prevR => prevR.filter(r => r.id !== reactionId));
+          }, 3000);
+        }
+      });
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [state, serverOffset]);
 
   // ─── 3. Stable Animation Engine ───
   useEffect(() => {
@@ -382,7 +435,9 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const highestProgress = Math.max(...shipPositions);
 
   const totalPool = raceShips.reduce((sum, s) => {
-    return sum + (pools[s.id] || 0);
+    const rtdbPool = pools[s.id] || 0;
+    const ghostPool = ghostPools[s.id] || 0;
+    return sum + rtdbPool + ghostPool;
   }, 0);
 
   const isSyncing = (state?.phase !== 'betting') && (pendingRequestsRef.current > 0);
@@ -400,7 +455,9 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   };
 
   const getEstimatedPayout = (shipId) => {
-    const shipPool = pools[shipId] || 0;
+    const rtdbPool = pools[shipId] || 0;
+    const ghostPool = ghostPools[shipId] || 0;
+    const shipPool = rtdbPool + ghostPool;
     if (shipPool === 0 || totalPool === 0) return '—';
     const multiplier = (totalPool / shipPool) * currentMultiplier;
     return multiplier.toFixed(1) + 'x';
@@ -427,7 +484,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
         <div className="dv2-status-left">
           <span className="dv2-players-count">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '4px'}}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            {Object.keys(presence).length} <span className="dv2-players-label">Players</span>
+            {(Object.keys(presence).length) + (state?.botCount || 0)} <span className="dv2-players-label">Players</span>
           </span>
           <span
             className="dv2-phase-label"
@@ -612,7 +669,9 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                   ? SPEED_MATRIX[shipGlobalIdx][revealedIdx]
                   : null;
 
-                const shipPool = pools[ship.id] || 0;
+                const rtdbPool = pools[ship.id] || 0;
+                const ghostPool = ghostPools[ship.id] || 0;
+                const shipPool = rtdbPool + ghostPool;
                 const isFull = shipPool >= MAX_SHIP_POOL;
 
                 return (
@@ -631,7 +690,16 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                     <div className="dv2-reactions-container">
                       {reactions.filter(r => r.shipId === ship.id).map(r => (
                         <div key={r.id} className="dv2-floating-reaction">
-                          <img src={r.avatar || `${process.env.PUBLIC_URL}/icons/default_avatar.png`} alt="" />
+                          {r.isBot ? (
+                            <div 
+                              className="dv2-bot-avatar" 
+                              style={{ backgroundColor: r.color }}
+                            >
+                              {r.initial}
+                            </div>
+                          ) : (
+                            <img src={r.avatar || `${process.env.PUBLIC_URL}/icons/default_avatar.png`} alt="" />
+                          )}
                           <span className="dv2-reaction-plus">+Bet</span>
                         </div>
                       ))}
@@ -664,7 +732,7 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
                         <span>Global Pool</span>
                         <span className="dv2-pool-amount">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '2px'}}><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
-                          {pools[ship.id] || 0}
+                          {Math.floor((pools[ship.id] || 0) + (ghostPools[ship.id] || 0))}
                         </span>
                       </div>
                       <div className="dv2-pool-row">

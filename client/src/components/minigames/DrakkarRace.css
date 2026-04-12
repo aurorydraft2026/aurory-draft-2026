@@ -1223,6 +1223,33 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.dv2-bot-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.admin-section-divider {
+  margin: 25px 0 15px 0;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 3px solid var(--accent-gold);
+  font-weight: 800;
+  text-transform: uppercase;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.9rem;
+  color: var(--accent-gold);
+  letter-spacing: 1px;
+}
+
 .dv2-reaction-plus {
   font-size: 0.7rem;
   font-weight: 800;
