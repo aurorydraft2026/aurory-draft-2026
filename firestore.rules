@@ -416,6 +416,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /chatbot_greetings/{greetingId} {
+      // Anyone can read floating greetings
+      allow read: if true;
+      
+      // Only admins/system staff can manage greetings
+      allow create, update, delete: if isAdmin();
+    }
+
     // =============================================
     // NEWS
     // =============================================

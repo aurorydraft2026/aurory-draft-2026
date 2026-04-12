@@ -65,6 +65,12 @@ const RunieChatBot = () => {
   ]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  
+  // Floating Greetings state
+  const [greetings, setGreetings] = useState([]);
+  const [currentGreeting, setCurrentGreeting] = useState("Welcome, how can I help you?");
+  const [showGreeting, setShowGreeting] = useState(false);
+  
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -88,6 +94,69 @@ const RunieChatBot = () => {
 
     return () => unsubscribe();
   }, []);
+
+  // Fetch Greetings
+  useEffect(() => {
+    const q = query(collection(db, 'chatbot_greetings'), orderBy('order', 'asc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const customGreetings = snapshot.docs.map(doc => doc.data().text);
+        setGreetings(customGreetings);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Bubble Logic: Show a random greeting then disappear after 3s
+  useEffect(() => {
+    if (isOpen) {
+      setShowGreeting(false);
+      return;
+    }
+
+    const triggerGreeting = (force = false) => {
+      // "Seldom" Logic: 
+      // 1. Only if forced (e.g. interval) or random chance + cooldown
+      if (!force) {
+        const lastShownStr = localStorage.getItem('runie_last_greeting_time');
+        const now = Date.now();
+        const cooldown = 10 * 60 * 1000; // 10 minutes cooldown
+        
+        // If shown recently, don't show again
+        if (lastShownStr && (now - parseInt(lastShownStr)) < cooldown) return;
+        
+        // Even if cooldown passed, add a random chance (40% to show)
+        if (Math.random() > 0.4) return;
+      }
+
+      if (greetings.length > 0) {
+        const randomIndex = Math.floor(Math.random() * greetings.length);
+        setCurrentGreeting(greetings[randomIndex]);
+      } else {
+        setCurrentGreeting("Welcome, how can I help you?");
+      }
+      
+      setShowGreeting(true);
+      localStorage.setItem('runie_last_greeting_time', Date.now().toString());
+      
+      // Automatically disappear after 3s
+      setTimeout(() => {
+        setShowGreeting(false);
+      }, 3000);
+    };
+
+    // Initial trigger on mount or closure (with seldom check)
+    triggerGreeting(false);
+
+    // Re-trigger periodically (every 2 minutes check)
+    // The interval will also respect the "seldom" logic unless I pass true
+    const interval = setInterval(() => triggerGreeting(false), 120000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [isOpen, greetings]);
 
   useEffect(() => {
     if (isOpen) {
@@ -137,8 +206,119 @@ const RunieChatBot = () => {
     setMessages([{ id: 1, type: 'bot', text: "Hail, Warrior! I am Runie, your guide through Asgard. How can I help you today?", timestamp: Date.now() }]);
   };
 
+  const renderMessageContent = (text) => {
+    if (!text) return null;
+
+    // Detect YouTube
+    const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/g;
+    // Detect Links [text](url)
+    const linkRegex = /\[(.*?)\]\((.*?)\)/g;
+    // Detect Images ![alt](url)
+    const imageRegex = /!\[(.*?)\]\((.*?)\)/g;
+    // Detect Direct Video (mp4)
+    const videoRegex = /https?:\/\/[^\s]+?\.(?:mp4|webm|ogg)/g;
+
+    const parts = [];
+    let lastIndex = 0;
+    
+    // This is a simplified parser. For more complex needs, a markdown library is better, 
+    // but this avoids adding dependencies.
+    
+    // We'll process by searching for all tokens and sorting them by index
+    const tokens = [];
+    let match;
+
+    // Direct Video matches
+    while ((match = videoRegex.exec(text)) !== null) {
+      tokens.push({ type: 'video', index: match.index, length: match[0].length, url: match[0] });
+    }
+    // YouTube matches
+    while ((match = youtubeRegex.exec(text)) !== null) {
+      tokens.push({ type: 'youtube', index: match.index, length: match[0].length, id: match[1] });
+    }
+    // Image matches
+    while ((match = imageRegex.exec(text)) !== null) {
+      tokens.push({ type: 'image', index: match.index, length: match[0].length, alt: match[1], url: match[2] });
+    }
+    // Link matches (avoid matching images)
+    while ((match = linkRegex.exec(text)) !== null) {
+      if (text[match.index - 1] !== '!') {
+        tokens.push({ type: 'link', index: match.index, length: match[0].length, text: match[1], url: match[2] });
+      }
+    }
+
+    // Sort tokens by index
+    tokens.sort((a, b) => a.index - b.index);
+
+    // Filter out overlapping tokens (if any)
+    const cleanTokens = [];
+    let currentPos = 0;
+    for (const token of tokens) {
+      if (token.index >= currentPos) {
+        cleanTokens.push(token);
+        currentPos = token.index + token.length;
+      }
+    }
+
+    lastIndex = 0;
+    cleanTokens.forEach((token, i) => {
+      // Add text before token
+      if (token.index > lastIndex) {
+        parts.push(text.substring(lastIndex, token.index));
+      }
+
+      // Add token component
+      if (token.type === 'link') {
+        parts.push(<a key={`l-${i}`} href={token.url} target="_blank" rel="noopener noreferrer" className="runie-link">{token.text}</a>);
+      } else if (token.type === 'image') {
+        parts.push(
+          <div key={`img-${i}`} className="runie-media image">
+            <img src={token.url} alt={token.alt} referrerPolicy="no-referrer" />
+          </div>
+        );
+      } else if (token.type === 'youtube') {
+        parts.push(
+          <div key={`yt-${i}`} className="runie-media youtube">
+            <iframe 
+              src={`https://www.youtube.com/embed/${token.id}`}
+              title="YouTube video player"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            ></iframe>
+          </div>
+        );
+      } else if (token.type === 'video') {
+        parts.push(
+          <div key={`vid-${i}`} className="runie-media video">
+            <video controls playsInline>
+              <source src={token.url} type={`video/${token.url.split('.').pop()}`} />
+              Your browser does not support the video tag.
+            </video>
+          </div>
+        );
+      }
+
+      lastIndex = token.index + token.length;
+    });
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : text;
+  };
+
   return (
     <div className={`runie-bot-container ${isOpen ? 'is-open' : ''}`}>
+      {/* Welcome Bubble */}
+      {!isOpen && showGreeting && (
+        <div className="runie-welcome-bubble">
+          <span>{currentGreeting}</span>
+        </div>
+      )}
+
       {/* Floating Launcher */}
       <button 
         className="runie-launcher" 
@@ -172,7 +352,7 @@ const RunieChatBot = () => {
             {messages.map((msg) => (
               <div key={msg.id} className={`runie-message ${msg.type}`}>
                 <div className="runie-message-content">
-                  {msg.text}
+                  {renderMessageContent(msg.text)}
                 </div>
                 <div className="runie-message-time">
                   {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

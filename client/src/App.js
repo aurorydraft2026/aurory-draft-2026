@@ -39,6 +39,7 @@ let activeReferralProcessing = null;
 function App() {
   const [user, setUser] = useState(null);
   const [maintenance, setMaintenance] = useState({ enabled: false });
+  const [cbConfig, setCbConfig] = useState({ enabled: true });
   const [loadingMaintenance, setLoadingMaintenance] = useState(true);
   const [referralSuccess, setReferralSuccess] = useState(null);
   const [isWarningDismissed, setIsWarningDismissed] = useState(
@@ -76,6 +77,19 @@ function App() {
     }, (error) => {
       console.error("Error fetching maintenance settings:", error);
       setLoadingMaintenance(false);
+    });
+
+    return () => unsub();
+  }, []);
+
+  // Listen for Chatbot configuration
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'chatbot'), (docSnap) => {
+      if (docSnap.exists()) {
+        setCbConfig(docSnap.data());
+      }
+    }, (error) => {
+      console.error("Error fetching chatbot settings:", error);
     });
 
     return () => unsub();
@@ -234,7 +248,7 @@ function App() {
         <Footer />
         <MiniGamesButton />
         <GlobalWinNotifier />
-        <RunieChatBot />
+        {cbConfig.enabled !== false && <RunieChatBot />}
 
         {/* --- Referral Success Modal (Singleton Notification) --- */}
         {referralSuccess && (

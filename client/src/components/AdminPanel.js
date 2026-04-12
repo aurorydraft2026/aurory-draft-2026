@@ -169,12 +169,19 @@ function AdminPanel() {
   
   // Runie Chatbot state
   const [chatbotKnowledge, setChatbotKnowledge] = useState([]);
+  const [cbGreetings, setCbGreetings] = useState([]);
   const [cbLabel, setCbLabel] = useState('');
   const [cbKeywords, setCbKeywords] = useState('');
   const [cbResponse, setCbResponse] = useState('');
   const [cbOrder, setCbOrder] = useState(0);
   const [cbShowAsBadge, setCbShowAsBadge] = useState(true);
   const [editingKnowledgeId, setEditingKnowledgeId] = useState(null);
+  
+  // Greetings state
+  const [cbGreetingText, setCbGreetingText] = useState('');
+  const [cbGreetingOrder, setCbGreetingOrder] = useState(0);
+  const [editingGreetingId, setEditingGreetingId] = useState(null);
+  const [cbEnabled, setCbEnabled] = useState(true);
   
   // Mini-Games state
   const [miniGamesConfig, setMiniGamesConfig] = useState(null);
@@ -512,6 +519,22 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     return () => unsubscribe();
   }, [activeTab, isAdminUser]);
 
+  // Fetch Greetings
+  useEffect(() => {
+    if (!isAdminUser || activeTab !== 'chatbot') return;
+
+    const q = query(collection(db, 'chatbot_greetings'), orderBy('order', 'asc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const greetings = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setCbGreetings(greetings);
+    });
+
+    return () => unsubscribe();
+  }, [activeTab, isAdminUser]);
+
   // Fetch Mini-Game Earners (User specific)
   useEffect(() => {
     if (!isAdminUser || activeTab !== 'mini_game_history' || !db) return;
@@ -545,6 +568,25 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
     return () => unsubscribe();
   }, [activeTab, isAdminUser, earnersSelectedUser]);
+
+  // Fetch Chatbot toggle configuration
+  useEffect(() => {
+    if (!isAdminUser || activeTab !== 'chatbot') return;
+
+    const unsub = onSnapshot(doc(db, 'settings', 'chatbot'), (snap) => {
+      if (snap.exists()) {
+        setCbEnabled(snap.data().enabled !== false);
+      } else {
+        // Initialize if doesn't exist
+        setDoc(doc(db, 'settings', 'chatbot'), {
+          enabled: true,
+          updatedAt: serverTimestamp()
+        });
+      }
+    });
+
+    return () => unsub();
+  }, [activeTab, isAdminUser]);
 
   // Fetch Website Maintenance config
   useEffect(() => {
@@ -1476,6 +1518,81 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       alert('Deleted successfully!');
     } catch (error) {
       console.error('Error deleting knowledge:', error);
+      alert('Error deleting: ' + error.message);
+    }
+  };
+
+  // Greeting Handlers
+  const handleSaveGreeting = async () => {
+    if (!cbGreetingText) return alert('Greeting text is required');
+
+    setProcessingId('greeting');
+    try {
+      const data = {
+        text: cbGreetingText,
+        order: parseInt(cbGreetingOrder) || 0,
+        updatedAt: serverTimestamp()
+      };
+
+      if (editingGreetingId) {
+        await updateDoc(doc(db, 'chatbot_greetings', editingGreetingId), data);
+        alert('Greeting updated!');
+      } else {
+        await addDoc(collection(db, 'chatbot_greetings'), {
+          ...data,
+          createdAt: serverTimestamp()
+        });
+        alert('Greeting added!');
+      }
+      resetGreetingForm();
+    } catch (error) {
+      console.error('Error saving greeting:', error);
+      alert('Error saving: ' + error.message);
+    }
+    setProcessingId(null);
+  };
+
+  const handleToggleChatbot = async (enabled) => {
+    try {
+      await updateDoc(doc(db, 'settings', 'chatbot'), {
+        enabled,
+        updatedAt: serverTimestamp()
+      });
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'toggle_chatbot',
+        metadata: { enabled }
+      });
+    } catch (error) {
+      console.error('Error toggling chatbot:', error);
+      alert('Error: ' + error.message);
+    }
+  };
+
+  const resetGreetingForm = () => {
+    setCbGreetingText('');
+    setCbGreetingOrder(0);
+    setEditingGreetingId(null);
+  };
+
+  const handleEditGreeting = (item) => {
+    setCbGreetingText(item.text || '');
+    setCbGreetingOrder(item.order || 0);
+    setEditingGreetingId(item.id);
+    
+    // Scroll to form
+    const formElement = document.querySelector('.greetings-form-card');
+    if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleDeleteGreeting = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this greeting?')) return;
+    try {
+      await deleteDoc(doc(db, 'chatbot_greetings', id));
+      alert('Greeting deleted!');
+    } catch (error) {
+      console.error('Error deleting greeting:', error);
       alert('Error deleting: ' + error.message);
     }
   };
@@ -3544,18 +3661,34 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
           {activeTab === 'chatbot' && (
             <div className="chatbot-management">
-              <div className="section-header">
-                <h2>🤖 Runie Chatbot Knowledge Base</h2>
-                <div className="header-actions">
-                  <p>Manage Runie's responses to quick replies and random chats using keyword matching.</p>
+              <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', paddingBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <div>
+                  <h2>🤖 Runie Chatbot Manager</h2>
+                  <p>Manage Runie's knowledge base and floating greetings.</p>
                   <button 
                     className="seed-btn" 
                     onClick={handleSeedDefaultKnowledge}
                     disabled={processingId === 'seed_chatbot'}
-                    style={{ marginTop: '10px' }}
+                    style={{ marginTop: '10px', padding: '6px 12px', fontSize: '12px' }}
                   >
-                    {processingId === 'seed_chatbot' ? 'Initializing...' : '📥 Import Core Knowledge (Seed)'}
+                    {processingId === 'seed_chatbot' ? 'Initializing...' : '📥 Seed Core Knowledge'}
                   </button>
+                </div>
+                <div className="chatbot-enable-toggle" style={{ textAlign: 'right' }}>
+                  <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>Chatbot Status</label>
+                  <div className="currency-toggle-group">
+                    <button 
+                      className={`toggle-btn ${cbEnabled ? 'active' : ''}`}
+                      onClick={() => handleToggleChatbot(true)}
+                    >ON</button>
+                    <button 
+                      className={`toggle-btn ${!cbEnabled ? 'active' : ''}`}
+                      onClick={() => handleToggleChatbot(false)}
+                    >OFF</button>
+                  </div>
+                  <p style={{ fontSize: '12px', marginTop: '5px', color: cbEnabled ? '#10b981' : '#f43f5e' }}>
+                    {cbEnabled ? '● Global System Online' : '○ Global System Offline'}
+                  </p>
                 </div>
               </div>
 
@@ -3615,6 +3748,27 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       className="form-textarea"
                       rows="4"
                     />
+                    <div className="chatbot-formatting-help">
+                      <p><strong>💡 Formatting Guide:</strong></p>
+                      <div className="help-grid">
+                        <div className="help-item">
+                          <span>🔗 Links:</span>
+                          <code>[Title](https://...)</code>
+                        </div>
+                        <div className="help-item">
+                          <span>🖼️ Images:</span>
+                          <code>![Alt](https://...)</code>
+                        </div>
+                        <div className="help-item">
+                          <span>🎥 YouTube:</span>
+                          <code>Paste YouTube URL</code>
+                        </div>
+                        <div className="help-item">
+                          <span>🎬 Video:</span>
+                          <code>Paste .mp4 link</code>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="form-actions">
@@ -3666,6 +3820,80 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             <td className="admin-actions">
                               <button className="edit-btn" onClick={() => handleEditKnowledge(item)}>📝</button>
                               <button className="delete-btn" onClick={() => handleDeleteKnowledge(item.id)}>🗑️</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Floating Greetings Section */}
+              <div className="chatbot-form-card card greetings-form-card" style={{ marginTop: '40px' }}>
+                <div className="section-header" style={{ marginBottom: '20px' }}>
+                  <h3>💭 Floating Greeting Bubbles</h3>
+                  <p>These messages pop up briefly above Runie when the chat is closed.</p>
+                </div>
+                
+                <div className="chatbot-form">
+                  <div className="form-row">
+                    <div className="form-group flex-2">
+                      <label>Greeting Text</label>
+                      <input 
+                        type="text" 
+                        value={cbGreetingText} 
+                        onChange={(e) => setCbGreetingText(e.target.value)} 
+                        placeholder="e.g. Need help with tournaments?"
+                      />
+                    </div>
+                    <div className="form-group flex-1">
+                      <label>Sort Order</label>
+                      <input 
+                        type="number" 
+                        value={cbGreetingOrder} 
+                        onChange={(e) => setCbGreetingOrder(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-actions">
+                    <button 
+                      className="save-btn" 
+                      onClick={handleSaveGreeting}
+                      disabled={processingId === 'greeting'}
+                    >
+                      {processingId === 'greeting' ? 'Saving...' : editingGreetingId ? 'Update Greeting' : 'Add Greeting'}
+                    </button>
+                    {editingGreetingId && (
+                      <button className="cancel-btn" onClick={resetGreetingForm}>Cancel</button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="chatbot-list-card card">
+                <h3>Existing Greetings</h3>
+                {cbGreetings.length === 0 ? (
+                  <p className="empty-msg">No custom greetings found. Add some above!</p>
+                ) : (
+                  <div className="chatbot-knowledge-grid">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Order</th>
+                          <th>Greeting Text</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cbGreetings.map((item) => (
+                          <tr key={item.id}>
+                            <td className="text-center">{item.order}</td>
+                            <td className="font-bold" style={{ color: 'var(--accent-gold)' }}>{item.text}</td>
+                            <td className="admin-actions">
+                              <button className="edit-btn" onClick={() => handleEditGreeting(item)}>📝</button>
+                              <button className="delete-btn" onClick={() => handleDeleteGreeting(item.id)}>🗑️</button>
                             </td>
                           </tr>
                         ))}
