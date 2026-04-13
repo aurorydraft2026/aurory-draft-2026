@@ -34,7 +34,7 @@ export const chatWithRunie = onCall({
         
         const postData = JSON.stringify({
             contents: [{ parts: [{ text: systemPrompt }] }],
-            generationConfig: { maxOutputTokens: 250, temperature: 0.7 }
+            generationConfig: { maxOutputTokens: 1024, temperature: 0.7 }
         });
 
         const options = {
