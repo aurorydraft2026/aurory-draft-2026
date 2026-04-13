@@ -132,3 +132,6 @@ export { discordInteraction };
 // ─── 11. TIER & REFERRAL SYSTEM ───
 import { upgradeTier, applyReferralCode, ensureReferralCode } from './tierAndReferral';
 export { upgradeTier, applyReferralCode, ensureReferralCode };
+// ─── 12. RUNIE AI ───
+import { chatWithRunie } from './runieAI';
+export { chatWithRunie };

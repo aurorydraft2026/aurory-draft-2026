@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db } from '../firebase';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { db, functions } from '../firebase';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import './RunieChatBot.css';
 
 const RUNIE_AVATAR = '/runie-avatar.png';
@@ -164,24 +165,71 @@ const RunieChatBot = () => {
     }
   }, [messages, isOpen, isTyping]);
 
-  const processResponse = (userText) => {
+  const processResponse = async (userText) => {
     setIsTyping(true);
     
-    setTimeout(() => {
-      setIsTyping(false);
+    const lowerText = userText.toLowerCase().trim();
+    
+    // 1. Enhanced Weighted Matching System (Manual Knowledge First)
+    let bestMatch = null;
+    let highestScore = 0;
+
+    knowledge.forEach(item => {
+      if (!item.keywords) return;
       
-      const lowerText = userText.toLowerCase();
-      const foundMatch = knowledge.find(item => 
-        item.keywords?.some(k => lowerText.includes(k.toLowerCase()))
-      );
+      item.keywords.forEach(k => {
+        const kw = k.toLowerCase().trim();
+        if (lowerText.includes(kw)) {
+          let score = kw.length;
+          if (lowerText === kw) score += 20;
+          const isStandalone = new RegExp(`\\b${kw}\\b`, 'i').test(lowerText);
+          if (isStandalone) score += 5;
 
-      const responseText = foundMatch 
-        ? foundMatch.response 
-        : "I am still learning the ways of Midgard! I can help you with Amiko Legends, Aurory, Valcoins, or the Drakkar Race. Try one of the topics below!";
+          if (score > highestScore) {
+            highestScore = score;
+            bestMatch = item;
+          }
+        }
+      });
+    });
 
-      const botMsg = { id: Date.now() + 1, type: 'bot', text: responseText, timestamp: Date.now() };
-      setMessages(prev => [...prev, botMsg]);
-    }, 1000);
+    let finalResponse = "";
+
+    // Threshold: Only use manual match if it's reasonably specific (score >= 4)
+    if (bestMatch && highestScore >= 4) {
+      // Artificial delay for manual responses to feel natural
+      await new Promise(resolve => setTimeout(resolve, 800));
+      finalResponse = bestMatch.response;
+      setIsTyping(false);
+    } else {
+      // 2. AI Fallback (Call Gemini)
+      try {
+        const chatWithRunie = httpsCallable(functions, 'chatWithRunie');
+        const result = await chatWithRunie({ message: userText });
+        finalResponse = result.data.reply;
+      } catch (error) {
+        console.error("AI Error:", error);
+        
+        // Log unanswered queries so admins can 'teach' Runie later
+        if (userText.length > 3) {
+          try {
+            addDoc(collection(db, 'chatbot_unanswered'), {
+              query: userText,
+              timestamp: serverTimestamp(),
+              count: 1
+            });
+          } catch (e) {
+            console.error("Failed to log unknown query:", e);
+          }
+        }
+        
+        finalResponse = "I am still learning the ways of Midgard! I can help you with Amiko Legends, Aurory, Valcoins, or the Drakkar Race. Try one of the topics below!";
+      }
+      setIsTyping(false);
+    }
+
+    const botMsg = { id: Date.now() + 1, type: 'bot', text: finalResponse, timestamp: Date.now() };
+    setMessages(prev => [...prev, botMsg]);
   };
 
   const handleQuickReply = (reply) => {

@@ -183,6 +183,11 @@ function AdminPanel() {
   const [editingGreetingId, setEditingGreetingId] = useState(null);
   const [cbEnabled, setCbEnabled] = useState(true);
   
+  // Chatbot Search & Unanswered
+  const [knowledgeSearchQuery, setKnowledgeSearchQuery] = useState('');
+  const [unansweredQueries, setUnansweredQueries] = useState([]);
+  const [unansweredLoading, setUnansweredLoading] = useState(false);
+  
   // Mini-Games state
   const [miniGamesConfig, setMiniGamesConfig] = useState(null);
   const [miniGamesLoading, setMiniGamesLoading] = useState(false);
@@ -515,10 +520,28 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       }));
       setChatbotKnowledge(knowledge);
     });
-
+ 
     return () => unsubscribe();
   }, [activeTab, isAdminUser]);
-
+ 
+  // Fetch Unanswered Queries
+  useEffect(() => {
+    if (!isAdminUser || activeTab !== 'chatbot') return;
+ 
+    setUnansweredLoading(true);
+    const q = query(collection(db, 'chatbot_unanswered'), orderBy('timestamp', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const queries = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setUnansweredQueries(queries);
+      setUnansweredLoading(false);
+    });
+ 
+    return () => unsubscribe();
+  }, [activeTab, isAdminUser]);
+ 
   // Fetch Greetings
   useEffect(() => {
     if (!isAdminUser || activeTab !== 'chatbot') return;
@@ -1520,6 +1543,25 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       console.error('Error deleting knowledge:', error);
       alert('Error deleting: ' + error.message);
     }
+  };
+
+  const handleDeleteUnansweredQuery = async (id) => {
+    try {
+      await deleteDoc(doc(db, 'chatbot_unanswered', id));
+    } catch (error) {
+      console.error('Error deleting unanswered query:', error);
+    }
+  };
+
+  const handleResolveUnansweredQuery = (queryItem) => {
+    setCbLabel(queryItem.query);
+    setCbKeywords(queryItem.query);
+    setCbResponse('');
+    setEditingKnowledgeId(null);
+    
+    // Jump to form
+    const formElement = document.querySelector('.chatbot-form-card');
+    if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
   };
 
   // Greeting Handlers
@@ -3786,24 +3828,85 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 </div>
               </div>
 
+              {/* UNANSWERED QUERIES (Warrior Discovery) */}
+              <div className="chatbot-discovery-card card" style={{ marginBottom: '30px', borderLeft: '4px solid #3b82f6' }}>
+                <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                  <div>
+                    <h3>⚔️ Warrior Discovery (Unanswered)</h3>
+                    <p className="text-sm opacity-70">These are things users asked that Runie didn't know yet. Teach her!</p>
+                  </div>
+                  <span className="count-badge">{unansweredQueries.length} New</span>
+                </div>
+
+                {unansweredLoading ? (
+                  <LoadingScreen message="Scanning records..." />
+                ) : unansweredQueries.length === 0 ? (
+                  <p className="empty-msg" style={{ padding: '20px', textAlign: 'center' }}>✨ All quiet! Runie appears to be handling Midgard well.</p>
+                ) : (
+                  <div className="unanswered-list scroll-container" style={{ maxHeight: '250px', overflowY: 'auto', background: 'rgba(0,0,0,0.1)', borderRadius: '8px' }}>
+                    {unansweredQueries.map((q) => (
+                      <div key={q.id} className="unanswered-item" style={{ padding: '12px 15px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div className="query-text">
+                          <code style={{ color: '#ffd700', fontSize: '1.1em' }}>"{q.query}"</code>
+                          <span style={{ fontSize: '0.75em', opacity: 0.5, marginLeft: '10px' }}>
+                            {q.timestamp?.toDate() ? q.timestamp.toDate().toLocaleString() : 'Just now'}
+                          </span>
+                        </div>
+                        <div className="query-actions" style={{ display: 'flex', gap: '8px' }}>
+                          <button 
+                            className="resolve-btn small-btn" 
+                            onClick={() => handleResolveUnansweredQuery(q)}
+                            title="Add to Knowledge"
+                          >
+                            🎓 Teach
+                          </button>
+                          <button 
+                            className="dismiss-btn small-btn negative" 
+                            onClick={() => handleDeleteUnansweredQuery(q.id)}
+                            title="Dismiss"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="chatbot-list-card card">
-                <h3>Existing Knowledge</h3>
+                <div className="list-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3>Existing Knowledge</h3>
+                  <div className="list-search">
+                    <input 
+                      type="text" 
+                      placeholder="🔍 Search labels or keywords..." 
+                      value={knowledgeSearchQuery}
+                      onChange={(e) => setKnowledgeSearchQuery(e.target.value)}
+                      className="admin-compact-input"
+                      style={{ minWidth: '250px' }}
+                    />
+                  </div>
+                </div>
                 {chatbotKnowledge.length === 0 ? (
                   <p className="empty-msg">No custom knowledge found. Runie is using her defaults.</p>
                 ) : (
-                  <div className="chatbot-knowledge-grid">
-                    <table className="admin-table">
+                  <div className="chatbot-knowledge-grid scroll-container" style={{ maxHeight: '500px', overflowY: 'auto' }}>
+                    <table className="admin-table sticky-header">
                       <thead>
                         <tr>
                           <th>Order</th>
-                          <th>Label</th>
-                          <th>Keywords</th>
+                          <th style={{ minWidth: '150px' }}>Label</th>
+                          <th style={{ minWidth: '200px' }}>Keywords</th>
                           <th>Response Snippet</th>
                           <th>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {chatbotKnowledge.map((item) => (
+                        {chatbotKnowledge.filter(item => 
+                          (item.label || '').toLowerCase().includes(knowledgeSearchQuery.toLowerCase()) ||
+                          (item.keywords || []).some(k => k.toLowerCase().includes(knowledgeSearchQuery.toLowerCase()))
+                        ).map((item) => (
                           <tr key={item.id}>
                             <td className="text-center">{item.order}</td>
                             <td className="font-bold">{item.label}</td>

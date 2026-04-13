@@ -3555,3 +3555,42 @@ input[type=number] {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Chatbot Knowledge Enhancements */
+.scroll-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scroll-container::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+.scroll-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.scroll-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.sticky-header thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #1a1b23; /* Match your card background */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.count-badge {
+  background: var(--accent-blue);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.unanswered-item:hover {
+  background: rgba(255, 255, 255, 0.02);
+}

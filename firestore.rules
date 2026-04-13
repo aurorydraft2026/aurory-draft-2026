@@ -424,6 +424,17 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /chatbot_unanswered/{queryId} {
+      // Admins manage the pool of queries
+      allow read, delete: if isAdmin();
+      
+      // Anyone can log a query they had no answer for
+      allow create: if true;
+      
+      // Logs are immutable
+      allow update: if false;
+    }
+
     // =============================================
     // NEWS
     // =============================================
