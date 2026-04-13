@@ -3,6 +3,7 @@ import { getMiniGameConfig } from '../../services/miniGameService';
 import SlotMachine from './SlotMachine';
 import TreasureChest from './TreasureChest';
 import DrakkarRace from './DrakkarRace';
+import OdinsRiddle from './OdinsRiddle';
 import { useWallet } from '../../hooks/useWallet';
 import './MiniGamesHub.css';
 
@@ -27,6 +28,13 @@ const GAME_REGISTRY = {
     icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 21h8"/><path d="M12 21V7"/><path d="M12 3c-1.5 0-3 1.5-3 4s1.5 4 3 4 3-1.5 3-4-1.5-4-3-4Z"/><path d="M21 7c0-2-2-3-2-3"/><path d="M3 7c0-2 2-3 2-3"/></svg>,
     description: 'Bet on mythical ships in a real-time global race!',
     component: DrakkarRace
+  },
+  odinsRiddle: {
+    id: 'odinsRiddle',
+    name: "Odin's Riddle",
+    icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+    description: 'Test your knowledge of Norse lore, crypto, and Aurory!',
+    component: OdinsRiddle
   }
 };
 
@@ -141,10 +149,10 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
         <p>{game.description}</p>
         <div className="minigame-card-cost">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
-          <span>{gameKey === 'drakkarRace' ? 'Bet to play' : `${gameCfg.costPerPlay} per play`}</span>
+          <span>{gameKey === 'drakkarRace' ? 'Bet to play' : gameKey === 'odinsRiddle' ? 'Free to play' : `${gameCfg.costPerPlay} per play`}</span>
         </div>
         <div className="minigame-card-prizes">
-          {gameKey === 'drakkarRace' ? 'Parimutuel payouts' : `${gameCfg.prizes?.length || 0} prizes available`}
+          {gameKey === 'drakkarRace' ? 'Parimutuel payouts' : gameKey === 'odinsRiddle' ? 'Earn 10-50 VC per riddle' : `${gameCfg.prizes?.length || 0} prizes available`}
         </div>
       </div>
     );
@@ -189,7 +197,7 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
             ) : (
               <div className="minigames-hub-sections">
                 {/* SOLO PLAY */}
-                {availableGames.filter(k => k === 'slotMachine' || k === 'treasureChest').length > 0 && (
+                {availableGames.filter(k => k === 'slotMachine' || k === 'treasureChest' || k === 'odinsRiddle').length > 0 && (
                   <div className="minigames-section">
                     <h3 className="minigames-section-title">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -197,7 +205,7 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
                     </h3>
                     <div className="minigames-grid">
                       {availableGames
-                        .filter(k => k === 'slotMachine' || k === 'treasureChest')
+                        .filter(k => k === 'slotMachine' || k === 'treasureChest' || k === 'odinsRiddle')
                         .map(gameKey => renderGameCard(gameKey))}
                     </div>
                   </div>

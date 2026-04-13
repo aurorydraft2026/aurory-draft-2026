@@ -1,5 +1,5 @@
 import { db, database } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query as fsQuery, where } from 'firebase/firestore';
 import { ref, onValue, off, query, orderByChild, limitToLast, set, onDisconnect, runTransaction } from 'firebase/database';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { createNotification } from './notifications';
@@ -328,5 +328,54 @@ export function getRecommendedIcons(rarity) {
     case 'rare': return ['rare_axe.png'];
     case 'common':
     default: return ['common_horn.png', 'common_shield.png'];
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════
+//  ODIN'S RIDDLE — SERVICE FUNCTIONS
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Fetch a random enabled riddle from Firestore
+ */
+export async function fetchRandomRiddle() {
+  try {
+    const riddlesRef = collection(db, 'riddles');
+    const q = fsQuery(riddlesRef, where('enabled', '==', true));
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) return null;
+
+    const riddles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const randomIndex = Math.floor(Math.random() * riddles.length);
+    const selected = riddles[randomIndex];
+
+    // Don't send correctIndex to client (server validates)
+    return {
+      id: selected.id,
+      question: selected.question,
+      options: selected.options,
+      category: selected.category || 'norse',
+      difficulty: selected.difficulty || 'easy',
+    };
+  } catch (error) {
+    console.error('Error fetching riddle:', error);
+    return null;
+  }
+}
+
+/**
+ * Submit an answer to the answerRiddle Cloud Function
+ */
+export async function submitRiddleAnswer(riddleId, answerIndex) {
+  try {
+    const functions = getFunctions();
+    const answerFn = httpsCallable(functions, 'answerRiddle');
+    const result = await answerFn({ riddleId, answerIndex });
+    return result.data;
+  } catch (error) {
+    console.error('Error submitting riddle answer:', error);
+    throw error;
   }
 }

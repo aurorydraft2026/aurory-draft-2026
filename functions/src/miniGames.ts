@@ -926,10 +926,149 @@ function getDefaultConfig(): any {
         drakkarRace: {
             enabled: true,
             minBet: 1,
-            maxBetPerUser: 10000, // Matching user's 10k per ship context
+            maxBetPerUser: 10000,
             maxBetPerRace: 1000000,
             description: 'Bet on legendary ships in a real-time parimutuel race!',
             multiplier: 'parimutuel'
+        },
+        odinsRiddle: {
+            enabled: true,
+            cooldownSeconds: 30,
+            rewards: { easy: 10, medium: 25, hard: 50 },
+            timeLimit: 15
         }
     };
 }
+
+
+// ═══════════════════════════════════════════════════════
+//  ODIN'S RIDDLE — ANSWER VALIDATION & REWARDS
+// ═══════════════════════════════════════════════════════
+
+const RIDDLE_REWARDS: Record<string, number> = { easy: 10, medium: 25, hard: 50 };
+const RIDDLE_COOLDOWN_MS = 30000; // 30 seconds
+
+export const answerRiddle = onCall(
+    {
+        cors: true,
+        maxInstances: 10,
+        timeoutSeconds: 15,
+        memory: '256MiB',
+    },
+    async (request) => {
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'You must be logged in to play.');
+        }
+
+        const { uid } = request.auth;
+        const { riddleId, answerIndex } = request.data;
+
+        if (!riddleId || typeof riddleId !== 'string') {
+            throw new HttpsError('invalid-argument', 'Riddle ID is required.');
+        }
+        if (typeof answerIndex !== 'number' || answerIndex < 0 || answerIndex > 3) {
+            throw new HttpsError('invalid-argument', 'Answer index must be 0-3.');
+        }
+
+        const db = admin.firestore();
+
+        try {
+            // 1. Fetch the riddle
+            const riddleRef = db.collection('riddles').doc(riddleId);
+            const riddleSnap = await riddleRef.get();
+            if (!riddleSnap.exists) {
+                throw new HttpsError('not-found', 'Riddle not found.');
+            }
+            const riddle = riddleSnap.data()!;
+            const isCorrect = answerIndex === riddle.correctIndex;
+            const difficulty = riddle.difficulty || 'easy';
+            const reward = isCorrect ? (RIDDLE_REWARDS[difficulty] || 10) : 0;
+
+            // 2. Check cooldown & award in a transaction
+            const userRef = db.collection('users').doc(uid);
+            const result = await db.runTransaction(async (transaction: any) => {
+                const userSnap = await transaction.get(userRef);
+                if (!userSnap.exists) throw new Error('User not found.');
+                const userData = userSnap.data() || {};
+
+                // Cooldown check
+                const lastRiddle = userData.lastRiddlePlay;
+                if (lastRiddle) {
+                    const lastMs = lastRiddle.toMillis?.() || 0;
+                    if (Date.now() - lastMs < RIDDLE_COOLDOWN_MS) {
+                        const remaining = Math.ceil((RIDDLE_COOLDOWN_MS - (Date.now() - lastMs)) / 1000);
+                        throw new Error(`Please wait ${remaining}s before the next riddle.`);
+                    }
+                }
+
+                // Update user stats
+                const updates: any = {
+                    lastRiddlePlay: admin.firestore.FieldValue.serverTimestamp(),
+                    [`stats.riddles.totalPlayed`]: admin.firestore.FieldValue.increment(1),
+                };
+
+                if (isCorrect) {
+                    updates[`stats.riddles.totalCorrect`] = admin.firestore.FieldValue.increment(1);
+                    updates[`stats.riddles.totalEarned`] = admin.firestore.FieldValue.increment(reward);
+                    updates[`stats.riddles.streak`] = (userData.stats?.riddles?.streak || 0) + 1;
+
+                    // Award Valcoins (clamped to tier max)
+                    const currentPoints = userData.points || 0;
+                    const userTier = userData.tier || 1;
+                    const rawNew = currentPoints + reward;
+                    const clamped = clampPointsToTierMax(rawNew, userTier);
+                    updates.points = clamped;
+                } else {
+                    updates[`stats.riddles.streak`] = 0;
+                }
+
+                transaction.update(userRef, updates);
+                return {
+                    streak: isCorrect ? (userData.stats?.riddles?.streak || 0) + 1 : 0,
+                    totalCorrect: (userData.stats?.riddles?.totalCorrect || 0) + (isCorrect ? 1 : 0),
+                    totalPlayed: (userData.stats?.riddles?.totalPlayed || 0) + 1,
+                };
+            });
+
+            // 3. Update riddle stats (outside transaction for efficiency)
+            const riddleUpdate: any = {
+                timesAsked: admin.firestore.FieldValue.increment(1),
+            };
+            if (isCorrect) {
+                riddleUpdate.timesCorrect = admin.firestore.FieldValue.increment(1);
+            }
+            await riddleRef.update(riddleUpdate);
+
+            // 4. Leaderboard update for correct answers
+            if (isCorrect && reward > 0) {
+                try {
+                    const userSnap = await userRef.get();
+                    const userData = userSnap.data() || {};
+                    await updateLeaderboardStats(
+                        uid,
+                        userData.auroryPlayerName || userData.displayName || 'Guest',
+                        userData.auroryProfilePicture || userData.photoURL || '',
+                        reward,
+                        'valcoins',
+                        'odinsRiddle'
+                    );
+                } catch (e) {
+                    console.error('Riddle leaderboard update failed', e);
+                }
+            }
+
+            return {
+                success: true,
+                correct: isCorrect,
+                correctIndex: riddle.correctIndex,
+                reward,
+                streak: result.streak,
+                totalCorrect: result.totalCorrect,
+                totalPlayed: result.totalPlayed,
+            };
+        } catch (error: any) {
+            console.error('AnswerRiddle Error:', error);
+            throw new HttpsError('internal', error.message || 'An error occurred.');
+        }
+    }
+);
