@@ -32,7 +32,7 @@ const DEFAULT_CONFIG = {
   ]
 };
 
-const OdinsRiddle = ({ user }) => {
+const OdinsRiddle = ({ user, onClose, onBack }) => {
   const [riddle, setRiddle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
@@ -127,7 +127,7 @@ const OdinsRiddle = ({ user }) => {
       setError('Failed to load riddle.');
     }
     setLoading(false);
-  }, [user?.uid, config, dailyProgress.phase, getCurrentSlot]);
+  }, [user?.uid, config, dailyProgress.phase, getCurrentSlot, isStarted]);
 
   useEffect(() => {
     loadRiddle();
@@ -163,6 +163,31 @@ const OdinsRiddle = ({ user }) => {
     setIsSubmitting(true);
     setSelectedAnswer(answerIndex);
 
+    // Explicitly handle timeout locally to ensure pop-up shows immediately
+    if (answerIndex < 0) {
+      setResult({
+        correct: false,
+        correctIndex: -1,
+        reward: 0,
+        streak: 0,
+        isTimeout: true
+      });
+      
+      // Update local daily progress for timeout
+      setDailyProgress(prev => {
+        const newWrong = prev.wrongAnswers + 1;
+        const maxWrong = config.maxWrongPerDay || 3;
+        return {
+          ...prev,
+          totalAnswered: prev.totalAnswered + 1,
+          wrongAnswers: newWrong,
+          phase: newWrong >= maxWrong ? 'locked' : prev.phase
+        };
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const res = await submitRiddleAnswer(riddle.id, Math.max(0, answerIndex));
       setResult({
@@ -170,6 +195,7 @@ const OdinsRiddle = ({ user }) => {
         correctIndex: res.correctIndex,
         reward: res.reward || 0,
         streak: res.streak || 0,
+        isTimeout: false
       });
       setStats({
         streak: res.streak || 0,
@@ -193,22 +219,7 @@ const OdinsRiddle = ({ user }) => {
         console.error("Non-critical: Failed to clear riddle session:", e);
       }
     } catch (err) {
-      if (answerIndex < 0) {
-        setResult({ correct: false, correctIndex: -1, reward: 0, streak: 0 });
-        // Manually increment wrong answers on timeout
-        setDailyProgress(prev => {
-          const newWrong = prev.wrongAnswers + 1;
-          const maxWrong = config.maxWrongPerDay || 3;
-          return {
-            ...prev,
-            totalAnswered: prev.totalAnswered + 1,
-            wrongAnswers: newWrong,
-            phase: newWrong >= maxWrong ? 'locked' : prev.phase
-          };
-        });
-      } else {
-        setError(err.message || 'Failed to submit answer.');
-      }
+      setError(err.message || 'Failed to submit answer.');
     }
     setIsSubmitting(false);
   };
@@ -263,7 +274,7 @@ const OdinsRiddle = ({ user }) => {
   if (dailyProgress.phase === 'locked') {
     return (
       <div className="riddle-container">
-        <DailyProgressBar progress={dailyProgress} baseCount={baseCount} streakCount={streakCount} maxWrong={maxWrong} />
+        <DailyProgressGauge progress={dailyProgress} baseCount={baseCount} totalRiddles={baseCount + streakCount} maxWrong={maxWrong} />
         <div className="riddle-locked-overlay">
           <div className="riddle-terminal-card locked">
             <div className="terminal-icon">🔒</div>
@@ -274,7 +285,7 @@ const OdinsRiddle = ({ user }) => {
                 <span>⏳</span> The runes will reset at midnight UTC.
               </div>
             </div>
-            <button className="riddle-terminal-btn" onClick={() => window.dispatchEvent(new CustomEvent('close-minigame'))}>
+            <button className="riddle-terminal-btn" onClick={onClose}>
               Accept Fate
             </button>
           </div>
@@ -288,7 +299,7 @@ const OdinsRiddle = ({ user }) => {
   if (dailyProgress.phase === 'completed') {
     return (
       <div className="riddle-container">
-        <DailyProgressBar progress={dailyProgress} baseCount={baseCount} streakCount={streakCount} maxWrong={maxWrong} />
+        <DailyProgressGauge progress={dailyProgress} baseCount={baseCount} totalRiddles={baseCount + streakCount} maxWrong={maxWrong} />
         <div className="riddle-completed-overlay">
           <div className="riddle-terminal-card completed">
             <div className="terminal-icon">{dailyProgress.streakUnlocked ? '🏆' : '✅'}</div>
@@ -305,7 +316,7 @@ const OdinsRiddle = ({ user }) => {
               )}
               <p className="comeback-text">Return tomorrow for your next audience with Odin.</p>
             </div>
-            <button className="riddle-terminal-btn completed" onClick={() => window.dispatchEvent(new CustomEvent('close-minigame'))}>
+            <button className="riddle-terminal-btn completed" onClick={onClose}>
               Return to Halls
             </button>
           </div>
@@ -343,8 +354,8 @@ const OdinsRiddle = ({ user }) => {
 
   return (
     <div className="riddle-container" style={{ position: 'relative' }}>
-      {/* Daily Progress Bar */}
-      <DailyProgressBar progress={dailyProgress} baseCount={baseCount} streakCount={streakCount} maxWrong={maxWrong} />
+      {/* Daily Progress Gauge */}
+      <DailyProgressGauge progress={dailyProgress} baseCount={baseCount} totalRiddles={baseCount + streakCount} maxWrong={maxWrong} />
 
       {/* Phase Badge */}
       {dailyProgress.phase === 'streak' && (
@@ -418,7 +429,7 @@ const OdinsRiddle = ({ user }) => {
               {result.correct ? '✨' : '❌'}
             </div>
             <h2 className="feedback-status">
-              {result.correct ? 'EXCELLENT!' : 'WRONG ANSWER'}
+              {result.isTimeout ? "TIME'S UP" : result.correct ? 'EXCELLENT!' : 'WRONG ANSWER'}
             </h2>
             
             <div className="feedback-details">
@@ -430,7 +441,9 @@ const OdinsRiddle = ({ user }) => {
               ) : (
                 <div className="penalty-info">
                   <div className="wrong-count">{dailyProgress.wrongAnswers}/{maxWrong} WRONG</div>
-                  <p className="penalty-text">Careful! 3 mistakes will lock you out for the day.</p>
+                  <p className="penalty-text">
+                    {result.isTimeout ? "You ran out of time!" : "Careful! 3 mistakes will lock you out for the day."}
+                  </p>
                 </div>
               )}
             </div>
@@ -459,53 +472,46 @@ const OdinsRiddle = ({ user }) => {
   );
 };
 
-// ── Daily Progress Bar Sub-component ──
-const DailyProgressBar = ({ progress, baseCount, streakCount, maxWrong }) => {
-  const totalRiddles = baseCount + streakCount;
+// ── Daily Progress Gauge Sub-component ──
+const DailyProgressGauge = ({ progress, baseCount, totalRiddles, maxWrong }) => {
   const answered = progress.totalAnswered || 0;
-  const correct = progress.totalCorrect || 0;
   const wrong = progress.wrongAnswers || 0;
-  const isStreak = progress.phase === 'streak' || progress.streakUnlocked;
+  
+  // Calculate stroke dash array for a 100px radius circle (Circumference ≈ 314)
+  const R = 45;
+  const C = 2 * Math.PI * R;
+  const percentage = (answered / totalRiddles) * 100;
+  const offset = C - (percentage / 100) * C;
 
   return (
-    <div className="riddle-daily-progress">
-      <div className="riddle-progress-header">
-        <span className="riddle-progress-label">
-          {isStreak ? '🔥 Streak Bonus' : '📖 Daily Riddles'}
-        </span>
-        <span className="riddle-progress-count">
-          {answered}/{isStreak ? totalRiddles : baseCount}
-        </span>
+    <div className="riddle-gauge-container">
+      <div className="riddle-gauge-inner">
+        <svg viewBox="0 0 100 100" className="gauge-svg">
+          {/* Base Track */}
+          <circle cx="50" cy="50" r={R} className="gauge-track" />
+          {/* Progress Segment */}
+          <circle 
+            cx="50" cy="50" r={R} 
+            className="gauge-progress" 
+            strokeDasharray={C}
+            strokeDashoffset={offset}
+            transform="rotate(-90 50 50)"
+          />
+        </svg>
+        <div className="gauge-text">
+          <span className="current">{answered}</span>
+          <span className="divider">/</span>
+          <span className="total">{totalRiddles}</span>
+        </div>
       </div>
-      <div className="riddle-progress-bar-track">
-        {Array.from({ length: totalRiddles }).map((_, i) => {
-          let dotClass = 'riddle-progress-dot';
-          if (i < answered) {
-            // Already answered
-            if (i < correct + wrong) {
-              // We need to figure out if this specific dot was correct or wrong
-              // Simplified: show correct dots first, then wrong
-              dotClass += i < answered - wrong ? ' correct' : ' wrong';
-            }
-          } else if (i === answered) {
-            dotClass += ' current';
-          } else {
-            dotClass += ' upcoming';
-          }
-          // Mark the streak boundary
-          if (i === baseCount) {
-            dotClass += ' streak-start';
-          }
-          return <div key={i} className={dotClass} />;
-        })}
-      </div>
-      <div className="riddle-progress-footer">
-        <span className="riddle-wrong-counter">❌ {wrong}/{maxWrong} wrong</span>
-        <span className="riddle-correct-counter">✅ {correct} correct</span>
+      <div className="gauge-labels">
+        <div className="gauge-label correct">✅ {progress.totalCorrect} Correct</div>
+        <div className="gauge-label wrong">❌ {wrong}/{maxWrong} Wrong</div>
       </div>
     </div>
   );
 };
+
 
 // ── Stats Bar Sub-component ──
 const StatsBar = ({ stats }) => {

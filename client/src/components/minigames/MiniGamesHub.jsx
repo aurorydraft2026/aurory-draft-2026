@@ -127,6 +127,8 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
                 onConfigReload={loadConfig}
                 setFrozen={setIsFrozen}
                 setDisplayedPoints={setDisplayedPoints}
+                onClose={onClose}
+                onBack={handleBackToHub}
               />
             </div>
           </div>
