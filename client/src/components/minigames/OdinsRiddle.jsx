@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchRandomRiddle, submitRiddleAnswer } from '../../services/miniGameService';
+import { fetchRandomRiddle, submitRiddleAnswer, getMiniGameConfig, fetchDailyRiddleProgress } from '../../services/miniGameService';
 import './OdinsRiddle.css';
 
 const CATEGORY_META = {
@@ -10,64 +10,142 @@ const CATEGORY_META = {
   asgard: { icon: '🏰', label: 'Asgard Duels' },
 };
 
-const DIFFICULTY_REWARDS = { easy: 10, medium: 25, hard: 50 };
 const OPTION_LETTERS = ['A', 'B', 'C', 'D'];
-const TIME_LIMIT = 15;
-const COOLDOWN_SECONDS = 30;
 const CIRCUMFERENCE = 2 * Math.PI * 26;
+
+const DEFAULT_CONFIG = {
+  timerLimit: 15,
+  maxWrongPerDay: 3,
+  baseRiddles: [
+    { difficulty: 'easy', reward: 20 },
+    { difficulty: 'easy', reward: 20 },
+    { difficulty: 'medium', reward: 30 },
+    { difficulty: 'medium', reward: 30 },
+    { difficulty: 'hard', reward: 50 },
+  ],
+  streakRiddles: [
+    { difficulty: 'easy', reward: 50 },
+    { difficulty: 'easy', reward: 50 },
+    { difficulty: 'easy', reward: 50 },
+    { difficulty: 'medium', reward: 50 },
+    { difficulty: 'hard', reward: 50 },
+  ]
+};
 
 const OdinsRiddle = ({ user }) => {
   const [riddle, setRiddle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
-  const [result, setResult] = useState(null); // { correct, reward, streak, correctIndex }
-  const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
+  const [result, setResult] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(15);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [cooldown, setCooldown] = useState(0);
+  const [config, setConfig] = useState(DEFAULT_CONFIG);
+  const [dailyProgress, setDailyProgress] = useState({
+    date: '',
+    totalAnswered: 0,
+    totalCorrect: 0,
+    wrongAnswers: 0,
+    streakUnlocked: false,
+    phase: 'base'
+  });
   const [stats, setStats] = useState({ streak: 0, totalCorrect: 0, totalPlayed: 0 });
+  const [isStarted, setIsStarted] = useState(false);
   const timerRef = useRef(null);
-  const cooldownRef = useRef(null);
 
-  // ── Load a random riddle ──
+  // Get the current riddle slot info based on daily progress
+  const getCurrentSlot = useCallback(() => {
+    const idx = dailyProgress.totalAnswered;
+    const baseRiddles = config.baseRiddles || DEFAULT_CONFIG.baseRiddles;
+    const streakRiddles = config.streakRiddles || DEFAULT_CONFIG.streakRiddles;
+
+    if (idx < baseRiddles.length) {
+      return { ...baseRiddles[idx], phase: 'base', number: idx + 1, totalInPhase: baseRiddles.length };
+    }
+    const streakIdx = idx - baseRiddles.length;
+    if (streakIdx < streakRiddles.length) {
+      return { ...streakRiddles[streakIdx], phase: 'streak', number: streakIdx + 1, totalInPhase: streakRiddles.length };
+    }
+    return null;
+  }, [dailyProgress.totalAnswered, config]);
+
+  // ── Load config and daily progress on mount ──
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const gameConfig = await getMiniGameConfig();
+        if (gameConfig?.odinsRiddle) {
+          setConfig(gameConfig.odinsRiddle);
+        }
+        const progress = await fetchDailyRiddleProgress(user?.uid);
+        if (progress) {
+          setDailyProgress(progress);
+        }
+      } catch (err) {
+        console.error('Failed to load config/progress:', err);
+      }
+    };
+    init();
+  }, [user?.uid]);
+
+  // ── Load a riddle ──
   const loadRiddle = useCallback(async () => {
+    if (!isStarted) return; // Wait for start button
+
     setLoading(true);
     setResult(null);
     setSelectedAnswer(null);
-    setTimeLeft(TIME_LIMIT);
+    setTimeLeft(config.timerLimit || 15);
     setError('');
 
+    // Check if player is locked or completed
+    if (dailyProgress.phase === 'locked' || dailyProgress.phase === 'completed') {
+      setLoading(false);
+      return;
+    }
+
+    const slot = getCurrentSlot();
+    if (!slot) {
+      setDailyProgress(prev => ({ ...prev, phase: 'completed' }));
+      setLoading(false);
+      return;
+    }
+
     try {
-      const data = await fetchRandomRiddle();
+      const data = await fetchRandomRiddle(user?.uid, slot.difficulty);
       if (data) {
         setRiddle(data);
+        if (data.initialTimeLeft !== undefined) {
+          setTimeLeft(data.initialTimeLeft);
+        } else {
+          setTimeLeft(config.timerLimit || 15);
+        }
       } else {
-        setError('No riddles available. Ask your admin to add some!');
+        setError('No riddles available for this difficulty. Ask your admin to add some!');
       }
     } catch (err) {
       setError('Failed to load riddle.');
     }
     setLoading(false);
-  }, []);
+  }, [user?.uid, config, dailyProgress.phase, getCurrentSlot]);
 
   useEffect(() => {
     loadRiddle();
-    return () => {
-      clearInterval(timerRef.current);
-      clearInterval(cooldownRef.current);
-    };
+    return () => clearInterval(timerRef.current);
   }, [loadRiddle]);
 
   // ── Timer countdown ──
   useEffect(() => {
-    if (!riddle || result || loading) return;
+    if (!riddle || result || loading || dailyProgress.phase === 'locked' || dailyProgress.phase === 'completed') {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
 
     clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(timerRef.current);
-          // Time's up — auto-submit with wrong answer
           handleSubmit(-1);
           return 0;
         }
@@ -77,22 +155,6 @@ const OdinsRiddle = ({ user }) => {
 
     return () => clearInterval(timerRef.current);
   }, [riddle, result, loading]); // eslint-disable-line
-
-  // ── Cooldown timer ──
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    clearInterval(cooldownRef.current);
-    cooldownRef.current = setInterval(() => {
-      setCooldown(prev => {
-        if (prev <= 1) {
-          clearInterval(cooldownRef.current);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(cooldownRef.current);
-  }, [cooldown]);
 
   // ── Submit answer ──
   const handleSubmit = async (answerIndex) => {
@@ -114,10 +176,36 @@ const OdinsRiddle = ({ user }) => {
         totalCorrect: res.totalCorrect || 0,
         totalPlayed: res.totalPlayed || 0,
       });
+
+      // Update daily progress from server response
+      if (res.dailyProgress) {
+        setDailyProgress(res.dailyProgress);
+      }
+
+      // Clear session after submission
+      try {
+        const { db } = await import('../../firebase');
+        const { doc, updateDoc } = await import('firebase/firestore');
+        await updateDoc(doc(db, 'users', user.uid, 'activeSessions', 'odinsRiddle'), {
+          status: 'completed'
+        });
+      } catch (e) {
+        console.error("Non-critical: Failed to clear riddle session:", e);
+      }
     } catch (err) {
-      // If it was a timeout answer (index -1), show as wrong
       if (answerIndex < 0) {
         setResult({ correct: false, correctIndex: -1, reward: 0, streak: 0 });
+        // Manually increment wrong answers on timeout
+        setDailyProgress(prev => {
+          const newWrong = prev.wrongAnswers + 1;
+          const maxWrong = config.maxWrongPerDay || 3;
+          return {
+            ...prev,
+            totalAnswered: prev.totalAnswered + 1,
+            wrongAnswers: newWrong,
+            phase: newWrong >= maxWrong ? 'locked' : prev.phase
+          };
+        });
       } else {
         setError(err.message || 'Failed to submit answer.');
       }
@@ -127,7 +215,6 @@ const OdinsRiddle = ({ user }) => {
 
   // ── Next riddle ──
   const handleNext = () => {
-    setCooldown(COOLDOWN_SECONDS);
     loadRiddle();
   };
 
@@ -143,15 +230,85 @@ const OdinsRiddle = ({ user }) => {
     );
   };
 
-  const timerProgress = (timeLeft / TIME_LIMIT) * CIRCUMFERENCE;
+  const timerProgress = (timeLeft / (config.timerLimit || 15)) * CIRCUMFERENCE;
+  const currentSlot = getCurrentSlot();
+  const baseCount = (config.baseRiddles || DEFAULT_CONFIG.baseRiddles).length;
+  const streakCount = (config.streakRiddles || DEFAULT_CONFIG.streakRiddles).length;
+  const maxWrong = config.maxWrongPerDay || 3;
 
-  // ── Cooldown screen ──
-  if (cooldown > 0 && !riddle) {
+  // ── Intro State ──
+  if (!isStarted && dailyProgress.phase !== 'locked' && dailyProgress.phase !== 'completed') {
     return (
       <div className="riddle-container">
-        <div className="riddle-cooldown-overlay">
-          <div className="riddle-cooldown-timer">{cooldown}s</div>
-          <div className="riddle-cooldown-label">Odin is preparing the next riddle...</div>
+        <div className="riddle-intro-card">
+          <div className="riddle-intro-icon">🗡️</div>
+          <h2 className="riddle-intro-title">Odin's Riddle</h2>
+          <p className="riddle-intro-text">
+            Odin commands your presence. Answer his riddles and prove your wisdom to earn Valcoins.
+          </p>
+          <div className="riddle-intro-perks">
+            <div className="perk"><span>🏆</span> Daily Prizes</div>
+            <div className="perk"><span>🔥</span> Streak Bonuses</div>
+            <div className="perk"><span>⚡</span> 15s Per Riddle</div>
+          </div>
+          <button className="riddle-start-btn" onClick={() => setIsStarted(true)}>
+            Accept Riddle
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Locked state (too many wrong answers) ──
+  if (dailyProgress.phase === 'locked') {
+    return (
+      <div className="riddle-container">
+        <DailyProgressBar progress={dailyProgress} baseCount={baseCount} streakCount={streakCount} maxWrong={maxWrong} />
+        <div className="riddle-locked-overlay">
+          <div className="riddle-terminal-card locked">
+            <div className="terminal-icon">🔒</div>
+            <h2 className="terminal-title">Odin's Judgement</h2>
+            <div className="terminal-body">
+              <p>You have used all <strong>{maxWrong}</strong> wrong answers for today.</p>
+              <div className="reset-hint">
+                <span>⏳</span> The runes will reset at midnight UTC.
+              </div>
+            </div>
+            <button className="riddle-terminal-btn" onClick={() => window.dispatchEvent(new CustomEvent('close-minigame'))}>
+              Accept Fate
+            </button>
+          </div>
+        </div>
+        <StatsBar stats={stats} />
+      </div>
+    );
+  }
+
+  // ── Completed state (all riddles done) ──
+  if (dailyProgress.phase === 'completed') {
+    return (
+      <div className="riddle-container">
+        <DailyProgressBar progress={dailyProgress} baseCount={baseCount} streakCount={streakCount} maxWrong={maxWrong} />
+        <div className="riddle-completed-overlay">
+          <div className="riddle-terminal-card completed">
+            <div className="terminal-icon">{dailyProgress.streakUnlocked ? '🏆' : '✅'}</div>
+            <h2 className="terminal-title">
+              {dailyProgress.streakUnlocked ? 'Grand Master!' : 'Daily Quest Done'}
+            </h2>
+            <div className="terminal-body">
+              <div className="summary-stat">
+                <span className="label">Total Correct</span>
+                <span className="value">{dailyProgress.totalCorrect}/{dailyProgress.streakUnlocked ? (baseCount + streakCount) : baseCount}</span>
+              </div>
+              {!dailyProgress.streakUnlocked && dailyProgress.totalAnswered >= baseCount && (
+                <p className="streak-hint">💡 Answer all {baseCount} base riddles correctly next time to unlock Streak Rewards!</p>
+              )}
+              <p className="comeback-text">Return tomorrow for your next audience with Odin.</p>
+            </div>
+            <button className="riddle-terminal-btn completed" onClick={() => window.dispatchEvent(new CustomEvent('close-minigame'))}>
+              Return to Halls
+            </button>
+          </div>
         </div>
         <StatsBar stats={stats} />
       </div>
@@ -183,10 +340,17 @@ const OdinsRiddle = ({ user }) => {
   }
 
   const category = CATEGORY_META[riddle.category] || CATEGORY_META.norse;
-  const reward = DIFFICULTY_REWARDS[riddle.difficulty] || 10;
 
   return (
     <div className="riddle-container" style={{ position: 'relative' }}>
+      {/* Daily Progress Bar */}
+      <DailyProgressBar progress={dailyProgress} baseCount={baseCount} streakCount={streakCount} maxWrong={maxWrong} />
+
+      {/* Phase Badge */}
+      {dailyProgress.phase === 'streak' && (
+        <div className="riddle-streak-banner">🔥 STREAK BONUS ACTIVE</div>
+      )}
+
       {/* Header: Category + Difficulty + Timer */}
       <div className="riddle-header-row">
         <span className={`riddle-category-badge ${riddle.category}`}>
@@ -194,8 +358,8 @@ const OdinsRiddle = ({ user }) => {
         </span>
 
         <div className="riddle-difficulty">
-          {getDifficultyStars(riddle.difficulty)}
-          <span className="riddle-reward-tag">+{reward} VC</span>
+          {getDifficultyStars(currentSlot?.difficulty || riddle.difficulty)}
+          <span className="riddle-reward-tag">+{currentSlot?.reward || 0} Valcoins</span>
         </div>
 
         <div className="riddle-timer-ring">
@@ -246,30 +410,99 @@ const OdinsRiddle = ({ user }) => {
       {/* Stats Bar */}
       <StatsBar stats={stats} />
 
-      {/* Result Overlay */}
+      {/* Feedback Alert Overlay */}
       {result && (
-        <div className="riddle-result-overlay">
-          <div className="riddle-result-card">
-            <div className="riddle-result-icon">
-              {result.correct ? '🏆' : timeLeft <= 0 ? '⏰' : '💀'}
+        <div className="riddle-feedback-overlay">
+          <div className={`riddle-feedback-card ${result.correct ? 'correct' : 'wrong'}`}>
+            <div className="feedback-anim-icon">
+              {result.correct ? '✨' : '❌'}
             </div>
-            <h3 className={`riddle-result-title ${result.correct ? 'correct' : 'wrong'}`}>
-              {result.correct ? 'Correct!' : timeLeft <= 0 ? "Time's Up!" : 'Wrong!'}
-            </h3>
-            {result.correct && (
-              <p className="riddle-result-reward">+{result.reward} Valcoins</p>
-            )}
-            <p className="riddle-result-streak">
-              {result.correct
-                ? `🔥 ${result.streak} streak`
-                : 'Streak reset. Try again!'}
-            </p>
-            <button className="riddle-next-btn" onClick={handleNext}>
-              Next Riddle
+            <h2 className="feedback-status">
+              {result.correct ? 'EXCELLENT!' : 'WRONG ANSWER'}
+            </h2>
+            
+            <div className="feedback-details">
+              {result.correct ? (
+                <div className="reward-info">
+                  <span className="reward-label">REWARD</span>
+                  <div className="reward-value">+{result.reward} Valcoins</div>
+                </div>
+              ) : (
+                <div className="penalty-info">
+                  <div className="wrong-count">{dailyProgress.wrongAnswers}/{maxWrong} WRONG</div>
+                  <p className="penalty-text">Careful! 3 mistakes will lock you out for the day.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="feedback-stats">
+              <div className="stat-item">
+                <span className="stat-label">🔥 Streak</span>
+                <span className="stat-val">{result.streak}</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label">🎯 Correct</span>
+                <span className="stat-val">{stats.totalCorrect}</span>
+              </div>
+            </div>
+
+            <button 
+              className={`feedback-continue-btn ${result.correct ? 'correct' : 'wrong'}`}
+              onClick={handleNext}
+            >
+              {dailyProgress.phase === 'locked' || dailyProgress.phase === 'completed' ? 'Finish' : 'Next Riddle'}
             </button>
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+// ── Daily Progress Bar Sub-component ──
+const DailyProgressBar = ({ progress, baseCount, streakCount, maxWrong }) => {
+  const totalRiddles = baseCount + streakCount;
+  const answered = progress.totalAnswered || 0;
+  const correct = progress.totalCorrect || 0;
+  const wrong = progress.wrongAnswers || 0;
+  const isStreak = progress.phase === 'streak' || progress.streakUnlocked;
+
+  return (
+    <div className="riddle-daily-progress">
+      <div className="riddle-progress-header">
+        <span className="riddle-progress-label">
+          {isStreak ? '🔥 Streak Bonus' : '📖 Daily Riddles'}
+        </span>
+        <span className="riddle-progress-count">
+          {answered}/{isStreak ? totalRiddles : baseCount}
+        </span>
+      </div>
+      <div className="riddle-progress-bar-track">
+        {Array.from({ length: totalRiddles }).map((_, i) => {
+          let dotClass = 'riddle-progress-dot';
+          if (i < answered) {
+            // Already answered
+            if (i < correct + wrong) {
+              // We need to figure out if this specific dot was correct or wrong
+              // Simplified: show correct dots first, then wrong
+              dotClass += i < answered - wrong ? ' correct' : ' wrong';
+            }
+          } else if (i === answered) {
+            dotClass += ' current';
+          } else {
+            dotClass += ' upcoming';
+          }
+          // Mark the streak boundary
+          if (i === baseCount) {
+            dotClass += ' streak-start';
+          }
+          return <div key={i} className={dotClass} />;
+        })}
+      </div>
+      <div className="riddle-progress-footer">
+        <span className="riddle-wrong-counter">❌ {wrong}/{maxWrong} wrong</span>
+        <span className="riddle-correct-counter">✅ {correct} correct</span>
+      </div>
     </div>
   );
 };

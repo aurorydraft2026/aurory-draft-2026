@@ -296,6 +296,11 @@ service cloud.firestore {
         allow update, delete: if isAdmin();
       }
       
+      // Subcollection: Active Mini-Game Session Persistence
+      match /activeSessions/{sessionId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
       // Only Super Admins can delete users
       allow delete: if isSuperAdmin();
     }
@@ -550,6 +555,17 @@ service cloud.firestore {
         allow delete: if isAdmin();
       }
     }
+    // =============================================
+    // ODIN'S RIDDLE
+    // =============================================
+    match /riddles/{riddleId} {
+      // Anyone can read riddles (for the minigame)
+      allow read: if true;
+      
+      // Only admins can modify riddles
+      allow write: if isAdmin();
+    }
+
     // =============================================
     // COLLECTION GROUP RULES
     // =============================================

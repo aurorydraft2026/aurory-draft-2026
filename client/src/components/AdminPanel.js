@@ -201,6 +201,19 @@ function AdminPanel() {
     rarity: 'common',
     icon: 'common_horn.png'
   });
+  
+  // Odin's Riddle Specific State
+  const [newRiddle, setNewRiddle] = useState({
+    id: '',
+    question: '',
+    options: ['', '', '', ''],
+    correctIndex: 0,
+    category: 'norse',
+    difficulty: 'easy',
+    enabled: true
+  });
+  const [allRiddles, setAllRiddles] = useState([]);
+  const [riddlesLoading, setRiddlesLoading] = useState(false);
   const [editingPrizeId, setEditingPrizeId] = useState(null);
   const [earnersHistory, setEarnersHistory] = useState([]);
   const [earnersSearchQuery, setEarnersSearchQuery] = useState('');
@@ -655,10 +668,81 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         action: 'update_mini_game_config',
         metadata: { gameType, updates }
       });
+      setMiniGamesConfig(prev => ({ ...prev, [gameType]: { ...prev[gameType], ...updates } }));
     } catch (error) {
       console.error('Error updating mini-game config:', error);
       alert('Error updating config: ' + error.message);
     }
+  };
+
+  // Odin's Riddle Management
+  const handleSaveRiddle = async () => {
+    if (!newRiddle.question || newRiddle.options.some(opt => !opt)) {
+      return alert('Question and all 4 options are required.');
+    }
+
+    setProcessingId('save_riddle');
+    try {
+      const riddleData = {
+        ...newRiddle,
+        updatedAt: serverTimestamp()
+      };
+
+      if (newRiddle.id) {
+        // Update existing
+        const riddleRef = doc(db, 'riddles', newRiddle.id);
+        const { id, ...dataToUpdate } = riddleData;
+        await updateDoc(riddleRef, dataToUpdate);
+        alert('Riddle updated successfully!');
+      } else {
+        // Create new
+        await addDoc(collection(db, 'riddles'), {
+          ...riddleData,
+          createdAt: serverTimestamp()
+        });
+        alert('Riddle added successfully!');
+      }
+
+      // Reset form and refresh list
+      setNewRiddle({
+        id: '',
+        question: '',
+        options: ['', '', '', ''],
+        correctIndex: 0,
+        category: 'norse',
+        difficulty: 'easy',
+        enabled: true
+      });
+      
+      // Trigger refresh
+      const snapshot = await getDocs(collection(db, 'riddles'));
+      const riddles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      riddles.sort((a, b) => a.category.localeCompare(b.category) || a.difficulty.localeCompare(b.difficulty));
+      setAllRiddles(riddles);
+
+    } catch (error) {
+      console.error('Error saving riddle:', error);
+      alert('Error saving riddle: ' + error.message);
+    }
+    setProcessingId(null);
+  };
+
+  const handleDeleteRiddle = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this riddle?')) return;
+    try {
+      await deleteDoc(doc(db, 'riddles', id));
+      setAllRiddles(prev => prev.filter(r => r.id !== id));
+      alert('Riddle deleted.');
+    } catch (error) {
+      console.error('Error deleting riddle:', error);
+      alert('Error: ' + error.message);
+    }
+  };
+
+  const handleEditRiddle = (riddle) => {
+    setNewRiddle({ ...riddle });
+    const formElement = document.querySelector('.riddle-form-card');
+    if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleAutoAssignIcons = async (gameType) => {
@@ -1028,6 +1112,27 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
     return () => unsubscribe();
   }, [activeTab]);
+
+  // Fetch all riddles for management
+  useEffect(() => {
+    if (activeTab === 'mini_games' && activeGameType === 'odinsRiddle') {
+      const fetchRiddles = async () => {
+        setRiddlesLoading(true);
+        try {
+          const riddlesRef = collection(db, 'riddles');
+          const snapshot = await getDocs(riddlesRef);
+          const riddles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          // Sort by category then difficulty
+          riddles.sort((a, b) => a.category.localeCompare(b.category) || a.difficulty.localeCompare(b.difficulty));
+          setAllRiddles(riddles);
+        } catch (error) {
+          console.error("Error fetching riddles:", error);
+        }
+        setRiddlesLoading(false);
+      };
+      fetchRiddles();
+    }
+  }, [activeTab, activeGameType]);
 
   const handleSaveAnnouncement = async () => {
     setProcessingId('save_announcement');
@@ -5599,12 +5704,18 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     >
                       Drakkar Race
                     </button>
+                    <button 
+                      className={`selector-btn ${activeGameType === 'odinsRiddle' ? 'active' : ''}`}
+                      onClick={() => setActiveGameType('odinsRiddle')}
+                    >
+                      Odin's Riddle
+                    </button>
                   </div>
                 </div>
               </div>
 
 
-              {activeGameType !== 'drakkarRace' && (
+              {activeGameType !== 'drakkarRace' && activeGameType !== 'odinsRiddle' && (
                 <div className="config-card probability-guide-card">
                   <div className="guide-header">
                     <h3>⚖️ Probability Balance Guide</h3>
@@ -5697,10 +5808,47 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         </label>
                       </div>
 
-                      {activeGameType === 'drakkarRace' ? (
+                      {activeGameType === 'odinsRiddle' ? (
                         <>
                           <div className="form-group">
-                            <label>House Multiplier Factor (Default 0.9)</label>
+                            <label>Timer Limit (Seconds)</label>
+                            <input
+                              type="number"
+                              value={miniGamesConfig[activeGameType]?.timerLimit ?? 15}
+                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { timerLimit: parseInt(e.target.value) })}
+                              min="5"
+                              max="60"
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Max Wrong Answers / Day</label>
+                            <input
+                              type="number"
+                              value={miniGamesConfig[activeGameType]?.maxWrongPerDay ?? 3}
+                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { maxWrongPerDay: parseInt(e.target.value) })}
+                              min="1"
+                              max="10"
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="form-group">
+                          <label>Cost Per Play (Valcoins)</label>
+                          <input
+                            type="number"
+                            value={miniGamesConfig[activeGameType]?.costPerPlay ?? 50}
+                            onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { costPerPlay: parseInt(e.target.value) })}
+                            min="0"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {activeGameType === 'drakkarRace' && (
+                      <>
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label>House Factor (0.9 = 10% Cut)</label>
                             <input
                               type="number"
                               step="0.01"
@@ -5708,69 +5856,165 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                               onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { multiplierFactor: parseFloat(e.target.value) })}
                               min="0"
                               max="2"
-                              title="The final pool multiplier. 0.9 = 10% House Cut"
                             />
                           </div>
                           <div className="form-group">
-                            <label>House Seed Amount (Default 500)</label>
+                            <label>House Seed Amount</label>
                             <input
                               type="number"
                               value={miniGamesConfig[activeGameType]?.houseSeed ?? 500}
                               onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { houseSeed: parseInt(e.target.value) })}
                               min="0"
-                              title="Starting valcoins injected into each ship's pool"
                             />
                           </div>
-                          
-                          <div className="admin-section-divider">Bot Management (Ghost Bots)</div>
+                        </div>
+
+                        <div className="admin-section-divider">Bot Management (Ghost Bots)</div>
+                        <div className="form-group">
+                          <label className="checkbox-label">
+                            <input
+                              type="checkbox"
+                              checked={miniGamesConfig[activeGameType]?.botsEnabled !== false}
+                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { botsEnabled: e.target.checked })}
+                            />
+                            Enable Ghost Bots
+                          </label>
+                        </div>
+                        <div className="form-row">
                           <div className="form-group">
-                            <label className="checkbox-label">
-                              <input
-                                type="checkbox"
-                                checked={miniGamesConfig[activeGameType]?.botsEnabled !== false}
-                                onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { botsEnabled: e.target.checked })}
-                              />
-                              Enable Ghost Bots
-                            </label>
+                            <label>Min Bot Count</label>
+                            <input
+                              type="number"
+                              value={miniGamesConfig[activeGameType]?.minBots ?? 10}
+                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { minBots: parseInt(e.target.value) })}
+                              min="0"
+                            />
                           </div>
-                          <div className="form-row">
-                            <div className="form-group">
-                              <label>Min Bot Count</label>
-                              <input
-                                type="number"
-                                value={miniGamesConfig[activeGameType]?.minBots ?? 10}
-                                onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { minBots: parseInt(e.target.value) })}
-                                min="0"
-                              />
-                            </div>
-                            <div className="form-group">
-                              <label>Max Bot Count</label>
-                              <input
-                                type="number"
-                                value={miniGamesConfig[activeGameType]?.maxBots ?? 20}
-                                onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { maxBots: parseInt(e.target.value) })}
-                                min="0"
-                              />
+                          <div className="form-group">
+                            <label>Max Bot Count</label>
+                            <input
+                              type="number"
+                              value={miniGamesConfig[activeGameType]?.maxBots ?? 20}
+                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { maxBots: parseInt(e.target.value) })}
+                              min="0"
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {activeGameType === 'odinsRiddle' ? (
+                        <>
+                          <div style={{ marginTop: '20px' }}>
+                            <h4 style={{ color: '#e2e8f0', marginBottom: '10px' }}>📖 Base Riddles (must answer all correctly to unlock streak)</h4>
+                            <div className="admin-table-container">
+                              <table className="admin-table" style={{ fontSize: '0.9em' }}>
+                                <thead>
+                                  <tr>
+                                    <th>#</th>
+                                    <th>Difficulty</th>
+                                    <th>Reward (Valcoins)</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {(miniGamesConfig[activeGameType]?.baseRiddles || [
+                                    { difficulty: 'easy', reward: 20 },
+                                    { difficulty: 'easy', reward: 20 },
+                                    { difficulty: 'medium', reward: 30 },
+                                    { difficulty: 'medium', reward: 30 },
+                                    { difficulty: 'hard', reward: 50 },
+                                  ]).map((slot, idx) => (
+                                    <tr key={`base-${idx}`}>
+                                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{idx + 1}</td>
+                                      <td>
+                                        <select
+                                          value={slot.difficulty}
+                                          onChange={(e) => {
+                                            const arr = [...(miniGamesConfig[activeGameType]?.baseRiddles || [])];
+                                            arr[idx] = { ...arr[idx], difficulty: e.target.value };
+                                            handleUpdateMiniGameConfig(activeGameType, { baseRiddles: arr });
+                                          }}
+                                          style={{ width: '100%' }}
+                                        >
+                                          <option value="easy">Easy</option>
+                                          <option value="medium">Medium</option>
+                                          <option value="hard">Hard</option>
+                                        </select>
+                                      </td>
+                                      <td>
+                                        <input
+                                          type="number"
+                                          value={slot.reward}
+                                          onChange={(e) => {
+                                            const arr = [...(miniGamesConfig[activeGameType]?.baseRiddles || [])];
+                                            arr[idx] = { ...arr[idx], reward: parseInt(e.target.value) || 0 };
+                                            handleUpdateMiniGameConfig(activeGameType, { baseRiddles: arr });
+                                          }}
+                                          min="0"
+                                          style={{ width: '80px' }}
+                                        />
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
                             </div>
                           </div>
-                          <div className="form-row">
-                            <div className="form-group">
-                              <label>Min Bot Bet</label>
-                              <input
-                                type="number"
-                                value={miniGamesConfig[activeGameType]?.minBotBet ?? 100}
-                                onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { minBotBet: parseInt(e.target.value) })}
-                                min="1"
-                              />
-                            </div>
-                            <div className="form-group">
-                              <label>Max Bot Bet</label>
-                              <input
-                                type="number"
-                                value={miniGamesConfig[activeGameType]?.maxBotBet ?? 500}
-                                onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { maxBotBet: parseInt(e.target.value) })}
-                                min="1"
-                              />
+
+                          <div style={{ marginTop: '20px' }}>
+                            <h4 style={{ color: '#fbbf24', marginBottom: '10px' }}>🔥 Streak Bonus Riddles (unlocked after perfect base round)</h4>
+                            <div className="admin-table-container">
+                              <table className="admin-table" style={{ fontSize: '0.9em' }}>
+                                <thead>
+                                  <tr>
+                                    <th>#</th>
+                                    <th>Difficulty</th>
+                                    <th>Reward (Valcoins)</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {(miniGamesConfig[activeGameType]?.streakRiddles || [
+                                    { difficulty: 'easy', reward: 50 },
+                                    { difficulty: 'easy', reward: 50 },
+                                    { difficulty: 'easy', reward: 50 },
+                                    { difficulty: 'medium', reward: 50 },
+                                    { difficulty: 'hard', reward: 50 },
+                                  ]).map((slot, idx) => (
+                                    <tr key={`streak-${idx}`}>
+                                      <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#fbbf24' }}>{idx + 6}</td>
+                                      <td>
+                                        <select
+                                          value={slot.difficulty}
+                                          onChange={(e) => {
+                                            const arr = [...(miniGamesConfig[activeGameType]?.streakRiddles || [])];
+                                            arr[idx] = { ...arr[idx], difficulty: e.target.value };
+                                            handleUpdateMiniGameConfig(activeGameType, { streakRiddles: arr });
+                                          }}
+                                          style={{ width: '100%' }}
+                                        >
+                                          <option value="easy">Easy</option>
+                                          <option value="medium">Medium</option>
+                                          <option value="hard">Hard</option>
+                                        </select>
+                                      </td>
+                                      <td>
+                                        <input
+                                          type="number"
+                                          value={slot.reward}
+                                          onChange={(e) => {
+                                            const arr = [...(miniGamesConfig[activeGameType]?.streakRiddles || [])];
+                                            arr[idx] = { ...arr[idx], reward: parseInt(e.target.value) || 0 };
+                                            handleUpdateMiniGameConfig(activeGameType, { streakRiddles: arr });
+                                          }}
+                                          min="0"
+                                          style={{ width: '80px' }}
+                                        />
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
                             </div>
                           </div>
                         </>
@@ -5797,154 +6041,282 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           </div>
                         </>
                       )}
-                    </div>
-                  </div>
 
 
                   {activeGameType !== 'drakkarRace' && (
                     <div className="prizes-management-card card">
-                      <h3>Prize Pool</h3>
-                      <div className="new-prize-form">
-                        <div className="form-row">
-                          <div className="form-group">
-                            <label>Prize Name</label>
-                            <input
-                              type="text"
-                              value={newPrize.name}
-                              onChange={(e) => setNewPrize({ ...newPrize, name: e.target.value })}
-                              placeholder="e.g. 100 Valcoins"
-                            />
-                          </div>
-                          <div className="form-group">
-                            <label>Type</label>
-                            <select
-                              value={newPrize.type}
-                              onChange={(e) => setNewPrize({ ...newPrize, type: e.target.value })}
-                            >
-                              <option value="valcoins">Valcoins</option>
-                              <option value="AURY">AURY</option>
-                              <option value="USDC">USDC</option>
-                              <option value="item">Custom Item</option>
-                            </select>
-                          </div>
-                          <div className="form-group">
-                            <label>Amount</label>
-                            <input
-                              type="number"
-                              value={newPrize.amount}
-                              onChange={(e) => setNewPrize({ ...newPrize, amount: parseFloat(e.target.value) })}
-                            />
-                          </div>
-                        </div>
-                        <div className="form-row">
-                          <div className="form-group">
-                            <label>Rarity</label>
-                            <select
-                              value={newPrize.rarity}
-                              onChange={(e) => setNewPrize({ ...newPrize, rarity: e.target.value })}
-                            >
-                              <option value="common">Common</option>
-                              <option value="rare">Rare</option>
-                              <option value="epic">Epic</option>
-                              <option value="legendary">Legendary</option>
-                            </select>
-                          </div>
-                          <div className="form-group">
-                            <label>Weight (Probability)</label>
-                            <input
-                              type="number"
-                              value={newPrize.weight}
-                              onChange={(e) => setNewPrize({ ...newPrize, weight: parseInt(e.target.value) })}
-                              title="Higher weight = more common"
-                            />
-                          </div>
-                          <div className="form-group icon-picker-group">
-                          <label>Icon</label>
-                          <div className="icon-quick-picker">
-                            {getRecommendedIcons(newPrize.rarity).map(emoji => (
-                              <button 
-                                key={emoji} 
-                                type="button"
-                                className={`icon-emoji-btn ${newPrize.icon === emoji ? 'active' : ''}`}
-                                onClick={() => setNewPrize({ ...newPrize, icon: emoji })}
-                              >
-                                {emoji && emoji.endsWith('.png') ? (
-                                  <img src={`${process.env.PUBLIC_URL}/icons/minigames/${emoji}`} alt="" className="admin-icon-btn-img" />
-                                ) : (
-                                  emoji
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                          <input
-                            type="text"
-                            value={newPrize.icon}
-                            onChange={(e) => setNewPrize({ ...newPrize, icon: e.target.value })}
-                            placeholder="Emoji or icon reference"
-                          />
-                        </div>
-                        <div className="form-actions-mini">
-                          <button 
-                            className={editingPrizeId ? "update-prize-btn" : "add-prize-btn"} 
-                            onClick={() => handleAddPrize(activeGameType)}
-                          >
-                            {editingPrizeId ? 'Update Prize' : 'Add Prize'}
-                          </button>
-                          {editingPrizeId && (
-                            <button className="cancel-edit-btn" onClick={handleCancelEditPrize}>
-                              Cancel
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="prizes-list">
-                      <h4>Existing Prizes</h4>
-                      {(!miniGamesConfig[activeGameType]?.prizes || miniGamesConfig[activeGameType].prizes.length === 0) ? (
-                        <p className="empty-mini">No prizes configured for this game.</p>
-                      ) : (
-                        <div className="prizes-grid-admin">
-                          {miniGamesConfig[activeGameType].prizes.map((prize) => (
-                            <div key={prize.id} className={`prize-item-admin rarity-${prize.rarity} ${editingPrizeId === prize.id ? 'being-edited' : ''}`}>
-                              <div className="prize-icon-admin">
-                                {prize.icon && prize.icon.endsWith('.png') ? (
-                                  <img src={`${process.env.PUBLIC_URL}/icons/minigames/${prize.icon}`} alt="" className="admin-prize-img" />
-                                ) : (
-                                  prize.icon || '🎁'
-                                )}
+                      {activeGameType === 'odinsRiddle' ? (
+                        <div className="riddle-management-section">
+                          <h3>{newRiddle.id ? '📝 Edit Riddle' : '➕ Add New Riddle'}</h3>
+                          <div className="riddle-form-card">
+                            <div className="form-group">
+                              <label>Question</label>
+                              <textarea
+                                value={newRiddle.question}
+                                onChange={(e) => setNewRiddle({ ...newRiddle, question: e.target.value })}
+                                placeholder="Enter the riddle question..."
+                                rows="3"
+                              />
+                            </div>
+                            <div className="form-row">
+                              <div className="form-group">
+                                <label>Option A (Correct? <input type="radio" checked={newRiddle.correctIndex === 0} onChange={() => setNewRiddle({ ...newRiddle, correctIndex: 0 })} />)</label>
+                                <input type="text" value={newRiddle.options[0]} onChange={(e) => {
+                                  const opts = [...newRiddle.options];
+                                  opts[0] = e.target.value;
+                                  setNewRiddle({ ...newRiddle, options: opts });
+                                }} />
                               </div>
-                              <div className="prize-info-admin">
-                                <span className="prize-name-admin">{prize.name}</span>
-                                <span className="prize-details-admin">
-                                  {prize.type.toUpperCase()}: {prize.amount} | Weight: {prize.weight}
-                                </span>
-                              </div>
-                              <div className="prize-actions-admin">
-                                <button 
-                                  className="edit-prize-btn"
-                                  onClick={() => handleStartEditPrize(prize)}
-                                  title="Edit Prize"
-                                >
-                                  📝
-                                </button>
-                                <button 
-                                  className="delete-prize-btn" 
-                                  onClick={() => handleDeletePrize(activeGameType, prize.id)}
-                                  title="Delete Prize"
-                                >
-                                  ×
-                                </button>
+                              <div className="form-group">
+                                <label>Option B (Correct? <input type="radio" checked={newRiddle.correctIndex === 1} onChange={() => setNewRiddle({ ...newRiddle, correctIndex: 1 })} />)</label>
+                                <input type="text" value={newRiddle.options[1]} onChange={(e) => {
+                                  const opts = [...newRiddle.options];
+                                  opts[1] = e.target.value;
+                                  setNewRiddle({ ...newRiddle, options: opts });
+                                }} />
                               </div>
                             </div>
-                          ))}
+                            <div className="form-row">
+                              <div className="form-group">
+                                <label>Option C (Correct? <input type="radio" checked={newRiddle.correctIndex === 2} onChange={() => setNewRiddle({ ...newRiddle, correctIndex: 2 })} />)</label>
+                                <input type="text" value={newRiddle.options[2]} onChange={(e) => {
+                                  const opts = [...newRiddle.options];
+                                  opts[2] = e.target.value;
+                                  setNewRiddle({ ...newRiddle, options: opts });
+                                }} />
+                              </div>
+                              <div className="form-group">
+                                <label>Option D (Correct? <input type="radio" checked={newRiddle.correctIndex === 3} onChange={() => setNewRiddle({ ...newRiddle, correctIndex: 3 })} />)</label>
+                                <input type="text" value={newRiddle.options[3]} onChange={(e) => {
+                                  const opts = [...newRiddle.options];
+                                  opts[3] = e.target.value;
+                                  setNewRiddle({ ...newRiddle, options: opts });
+                                }} />
+                              </div>
+                            </div>
+                            <div className="form-row">
+                              <div className="form-group">
+                                <label>Category</label>
+                                <select value={newRiddle.category} onChange={(e) => setNewRiddle({ ...newRiddle, category: e.target.value })}>
+                                  <option value="norse">Norse Mythology</option>
+                                  <option value="crypto">Crypto & Blockchain</option>
+                                  <option value="aurory">Aurory</option>
+                                  <option value="gaming">Gaming</option>
+                                  <option value="asgard">Asgard Duels</option>
+                                </select>
+                              </div>
+                              <div className="form-group">
+                                <label>Difficulty</label>
+                                <select value={newRiddle.difficulty} onChange={(e) => setNewRiddle({ ...newRiddle, difficulty: e.target.value })}>
+                                  <option value="easy">Easy</option>
+                                  <option value="medium">Medium</option>
+                                  <option value="hard">Hard</option>
+                                </select>
+                              </div>
+                              <div className="form-group toggle-group">
+                                <label className="toggle-label">
+                                  <span>Enabled</span>
+                                  <input type="checkbox" checked={newRiddle.enabled} onChange={(e) => setNewRiddle({ ...newRiddle, enabled: e.target.checked })} />
+                                </label>
+                              </div>
+                            </div>
+                            <div className="form-actions-admin" style={{ marginTop: '20px' }}>
+                              <button 
+                                className="admin-primary-btn" 
+                                onClick={handleSaveRiddle}
+                                disabled={processingId === 'save_riddle'}
+                              >
+                                {processingId === 'save_riddle' ? 'Saving...' : newRiddle.id ? 'Update Riddle' : 'Add Riddle to Database'}
+                              </button>
+                              {newRiddle.id && (
+                                <button className="admin-secondary-btn" onClick={() => setNewRiddle({ id: '', question: '', options: ['', '', '', ''], correctIndex: 0, category: 'norse', difficulty: 'easy', enabled: true })}>
+                                  Cancel Edit
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="riddles-list-section" style={{ marginTop: '40px' }}>
+                            <h4>📚 Registered Riddles ({allRiddles.length})</h4>
+                            {riddlesLoading ? (
+                              <p>Loading riddles...</p>
+                            ) : (
+                              <div className="admin-table-container">
+                                <table className="admin-table">
+                                  <thead>
+                                    <tr>
+                                      <th>Category</th>
+                                      <th>Difficulty</th>
+                                      <th>Question Snippet</th>
+                                      <th>Actions</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {allRiddles.map(r => (
+                                      <tr key={r.id}>
+                                        <td><span className={`category-tag ${r.category}`}>{r.category}</span></td>
+                                        <td><span className={`difficulty-tag ${r.difficulty}`}>{r.difficulty}</span></td>
+                                        <td className="question-cell">{r.question.substring(0, 60)}...</td>
+                                        <td>
+                                          <div className="action-btns">
+                                            <button className="edit-btn" onClick={() => handleEditRiddle(r)}>📝</button>
+                                            <button className="delete-btn" onClick={() => handleDeleteRiddle(r.id)}>🗑️</button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
                         </div>
+                      ) : (
+                        <>
+                          <h3>Prize Pool</h3>
+                          <div className="new-prize-form">
+                            <div className="form-row">
+                              <div className="form-group">
+                                <label>Prize Name</label>
+                                <input
+                                  type="text"
+                                  value={newPrize.name}
+                                  onChange={(e) => setNewPrize({ ...newPrize, name: e.target.value })}
+                                  placeholder="e.g. 100 Valcoins"
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label>Type</label>
+                                <select
+                                  value={newPrize.type}
+                                  onChange={(e) => setNewPrize({ ...newPrize, type: e.target.value })}
+                                >
+                                  <option value="valcoins">Valcoins</option>
+                                  <option value="AURY">AURY</option>
+                                  <option value="USDC">USDC</option>
+                                  <option value="item">Custom Item</option>
+                                </select>
+                              </div>
+                              <div className="form-group">
+                                <label>Amount</label>
+                                <input
+                                  type="number"
+                                  value={newPrize.amount}
+                                  onChange={(e) => setNewPrize({ ...newPrize, amount: parseFloat(e.target.value) })}
+                                />
+                              </div>
+                            </div>
+                            <div className="form-row">
+                              <div className="form-group">
+                                <label>Rarity</label>
+                                <select
+                                  value={newPrize.rarity}
+                                  onChange={(e) => setNewPrize({ ...newPrize, rarity: e.target.value })}
+                                >
+                                  <option value="common">Common</option>
+                                  <option value="rare">Rare</option>
+                                  <option value="epic">Epic</option>
+                                  <option value="legendary">Legendary</option>
+                                </select>
+                              </div>
+                              <div className="form-group">
+                                <label>Weight (Probability)</label>
+                                <input
+                                  type="number"
+                                  value={newPrize.weight}
+                                  onChange={(e) => setNewPrize({ ...newPrize, weight: parseInt(e.target.value) })}
+                                  title="Higher weight = more common"
+                                />
+                              </div>
+                              <div className="form-group icon-picker-group">
+                                <label>Icon</label>
+                                <div className="icon-quick-picker">
+                                  {getRecommendedIcons(newPrize.rarity).map(emoji => (
+                                    <button 
+                                      key={emoji} 
+                                      type="button"
+                                      className={`icon-emoji-btn ${newPrize.icon === emoji ? 'active' : ''}`}
+                                      onClick={() => setNewPrize({ ...newPrize, icon: emoji })}
+                                    >
+                                      {emoji && emoji.endsWith('.png') ? (
+                                        <img src={`${process.env.PUBLIC_URL}/icons/minigames/${emoji}`} alt="" className="admin-icon-btn-img" />
+                                      ) : (
+                                        emoji
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                                <input
+                                  type="text"
+                                  value={newPrize.icon}
+                                  onChange={(e) => setNewPrize({ ...newPrize, icon: e.target.value })}
+                                  placeholder="Emoji or icon reference"
+                                />
+                              </div>
+                              <div className="form-actions-mini">
+                                <button 
+                                  className={editingPrizeId ? "update-prize-btn" : "add-prize-btn"} 
+                                  onClick={() => handleAddPrize(activeGameType)}
+                                >
+                                  {editingPrizeId ? 'Update Prize' : 'Add Prize'}
+                                </button>
+                                {editingPrizeId && (
+                                  <button className="cancel-edit-btn" onClick={handleCancelEditPrize}>
+                                    Cancel
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="prizes-list">
+                            <h4>Existing Prizes</h4>
+                            {(!miniGamesConfig[activeGameType]?.prizes || miniGamesConfig[activeGameType].prizes.length === 0) ? (
+                              <p className="empty-mini">No prizes configured for this game.</p>
+                            ) : (
+                              <div className="prizes-grid-admin">
+                                {miniGamesConfig[activeGameType].prizes.map((prize) => (
+                                  <div key={prize.id} className={`prize-item-admin rarity-${prize.rarity} ${editingPrizeId === prize.id ? 'being-edited' : ''}`}>
+                                    <div className="prize-icon-admin">
+                                      {prize.icon && prize.icon.endsWith('.png') ? (
+                                        <img src={`${process.env.PUBLIC_URL}/icons/minigames/${prize.icon}`} alt="" className="admin-prize-img" />
+                                      ) : (
+                                        prize.icon || '🎁'
+                                      )}
+                                    </div>
+                                    <div className="prize-info-admin">
+                                      <span className="prize-name-admin">{prize.name}</span>
+                                      <span className="prize-details-admin">
+                                        {prize.type.toUpperCase()}: {prize.amount} | Weight: {prize.weight}
+                                      </span>
+                                    </div>
+                                    <div className="prize-actions-admin">
+                                      <button 
+                                        className="edit-prize-btn"
+                                        onClick={() => handleStartEditPrize(prize)}
+                                        title="Edit Prize"
+                                      >
+                                        📝
+                                      </button>
+                                      <button 
+                                        className="delete-prize-btn" 
+                                        onClick={() => handleDeletePrize(activeGameType, prize.id)}
+                                        title="Delete Prize"
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </>
                       )}
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
             </div>
           )}
 

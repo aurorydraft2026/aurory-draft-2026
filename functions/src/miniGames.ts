@@ -933,20 +933,65 @@ function getDefaultConfig(): any {
         },
         odinsRiddle: {
             enabled: true,
-            cooldownSeconds: 30,
-            rewards: { easy: 10, medium: 25, hard: 50 },
-            timeLimit: 15
+            timerLimit: 15,
+            maxWrongPerDay: 3,
+            baseRiddles: [
+                { difficulty: 'easy', reward: 20 },
+                { difficulty: 'easy', reward: 20 },
+                { difficulty: 'medium', reward: 30 },
+                { difficulty: 'medium', reward: 30 },
+                { difficulty: 'hard', reward: 50 },
+            ],
+            streakRiddles: [
+                { difficulty: 'easy', reward: 50 },
+                { difficulty: 'easy', reward: 50 },
+                { difficulty: 'easy', reward: 50 },
+                { difficulty: 'medium', reward: 50 },
+                { difficulty: 'hard', reward: 50 },
+            ]
         }
     };
 }
 
 
 // ═══════════════════════════════════════════════════════
-//  ODIN'S RIDDLE — ANSWER VALIDATION & REWARDS
+//  ODIN'S RIDDLE — DAILY PROGRESSION SYSTEM
 // ═══════════════════════════════════════════════════════
 
-const RIDDLE_REWARDS: Record<string, number> = { easy: 10, medium: 25, hard: 50 };
-const RIDDLE_COOLDOWN_MS = 30000; // 30 seconds
+/** Get today's date as a string (UTC) for daily reset tracking */
+function getTodayDateString(): string {
+    const now = new Date();
+    return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
+}
+
+/** Look up the difficulty and reward for a given riddle position */
+function getRiddleSlot(riddleIndex: number, config: any): { difficulty: string; reward: number; phase: string } | null {
+    const baseRiddles = (config.baseRiddles && config.baseRiddles.length > 0) ? config.baseRiddles : [
+        { difficulty: 'easy', reward: 20 },
+        { difficulty: 'easy', reward: 20 },
+        { difficulty: 'medium', reward: 30 },
+        { difficulty: 'medium', reward: 30 },
+        { difficulty: 'hard', reward: 50 },
+    ];
+    const streakRiddles = (config.streakRiddles && config.streakRiddles.length > 0) ? config.streakRiddles : [
+        { difficulty: 'easy', reward: 50 },
+        { difficulty: 'easy', reward: 50 },
+        { difficulty: 'easy', reward: 50 },
+        { difficulty: 'medium', reward: 50 },
+        { difficulty: 'hard', reward: 50 },
+    ];
+
+    if (riddleIndex < baseRiddles.length) {
+        return { ...baseRiddles[riddleIndex], phase: 'base' };
+    }
+
+    const streakIdx = riddleIndex - baseRiddles.length;
+    if (streakIdx < streakRiddles.length) {
+        return { ...streakRiddles[streakIdx], phase: 'streak' };
+    }
+
+    return null; // All riddles completed
+}
 
 export const answerRiddle = onCall(
     {
@@ -973,37 +1018,129 @@ export const answerRiddle = onCall(
         const db = admin.firestore();
 
         try {
-            // 1. Fetch the riddle
+            // 1. Fetch riddle and config
             const riddleRef = db.collection('riddles').doc(riddleId);
-            const riddleSnap = await riddleRef.get();
+            const configRef = db.collection('settings').doc('mini_games');
+            const [riddleSnap, configSnap] = await Promise.all([
+                riddleRef.get(),
+                configRef.get()
+            ]);
+
             if (!riddleSnap.exists) {
                 throw new HttpsError('not-found', 'Riddle not found.');
             }
+
             const riddle = riddleSnap.data()!;
             const isCorrect = answerIndex === riddle.correctIndex;
-            const difficulty = riddle.difficulty || 'easy';
-            const reward = isCorrect ? (RIDDLE_REWARDS[difficulty] || 10) : 0;
 
-            // 2. Check cooldown & award in a transaction
+            // Get config (admin-editable)
+            let riddleConfig: any;
+            if (configSnap.exists) {
+                riddleConfig = configSnap.data()?.odinsRiddle || getDefaultConfig().odinsRiddle;
+            } else {
+                riddleConfig = getDefaultConfig().odinsRiddle;
+            }
+
+            const maxWrong = riddleConfig.maxWrongPerDay || 3;
+            const today = getTodayDateString();
+
+            // 2. Run transaction for daily progress + reward
             const userRef = db.collection('users').doc(uid);
             const result = await db.runTransaction(async (transaction: any) => {
                 const userSnap = await transaction.get(userRef);
                 if (!userSnap.exists) throw new Error('User not found.');
                 const userData = userSnap.data() || {};
 
-                // Cooldown check
-                const lastRiddle = userData.lastRiddlePlay;
-                if (lastRiddle) {
-                    const lastMs = lastRiddle.toMillis?.() || 0;
-                    if (Date.now() - lastMs < RIDDLE_COOLDOWN_MS) {
-                        const remaining = Math.ceil((RIDDLE_COOLDOWN_MS - (Date.now() - lastMs)) / 1000);
-                        throw new Error(`Please wait ${remaining}s before the next riddle.`);
+                // Get or reset daily progress
+                let daily = userData.dailyRiddle || {};
+                if (daily.date !== today) {
+                    // New day — reset everything
+                    daily = {
+                        date: today,
+                        totalAnswered: 0,
+                        totalCorrect: 0,
+                        wrongAnswers: 0,
+                        streakUnlocked: false,
+                        phase: 'base'
+                    };
+                }
+
+                // Check if already locked out or completed
+                if (daily.phase === 'locked' || daily.phase === 'completed') {
+                    return {
+                        success: false,
+                        message: daily.phase === 'locked' ? 'Locked' : 'Completed',
+                        dailyProgress: daily,
+                        stats: userData.stats?.riddles || {}
+                    };
+                }
+
+                // Determine current riddle slot
+                const currentSlot = getRiddleSlot(daily.totalAnswered, riddleConfig);
+                if (!currentSlot) {
+                    daily.phase = 'completed';
+                    transaction.update(userRef, { dailyRiddle: daily });
+                    return {
+                        success: false,
+                        message: 'Completed',
+                        dailyProgress: daily,
+                        stats: userData.stats?.riddles || {}
+                    };
+                }
+
+                // Check if streak is required but not unlocked
+                if (currentSlot.phase === 'streak' && !daily.streakUnlocked) {
+                    daily.phase = 'completed';
+                    transaction.update(userRef, { dailyRiddle: daily });
+                    return {
+                        success: false,
+                        message: 'Completed (Streak Locked)',
+                        dailyProgress: daily,
+                        stats: userData.stats?.riddles || {}
+                    };
+                }
+
+                const reward = isCorrect ? currentSlot.reward : 0;
+
+                // Update daily progress
+                daily.totalAnswered += 1;
+                if (isCorrect) {
+                    daily.totalCorrect += 1;
+                } else {
+                    daily.wrongAnswers += 1;
+                }
+
+                // Check if base round is complete → unlock streak?
+                const baseCount = (riddleConfig.baseRiddles && riddleConfig.baseRiddles.length > 0) ? riddleConfig.baseRiddles.length : 5;
+                if (daily.totalAnswered === baseCount) {
+                    if (daily.totalCorrect === baseCount) {
+                        daily.streakUnlocked = true;
+                        daily.phase = 'streak';
+                    } else {
+                        // Base round done but not perfect — check if locked
+                        if (daily.wrongAnswers >= maxWrong) {
+                            daily.phase = 'locked';
+                        } else {
+                            daily.phase = 'completed';
+                        }
                     }
                 }
 
-                // Update user stats
+                // Check wrong answer limit
+                if (daily.wrongAnswers >= maxWrong) {
+                    daily.phase = 'locked';
+                }
+
+                // Check if all riddles are done
+                const streakCount = (riddleConfig.streakRiddles && riddleConfig.streakRiddles.length > 0) ? riddleConfig.streakRiddles.length : 5;
+                const totalRiddles = baseCount + streakCount;
+                if (daily.totalAnswered >= totalRiddles) {
+                    daily.phase = 'completed';
+                }
+
+                // Build user updates
                 const updates: any = {
-                    lastRiddlePlay: admin.firestore.FieldValue.serverTimestamp(),
+                    dailyRiddle: daily,
                     [`stats.riddles.totalPlayed`]: admin.firestore.FieldValue.increment(1),
                 };
 
@@ -1023,14 +1160,33 @@ export const answerRiddle = onCall(
                 }
 
                 transaction.update(userRef, updates);
+
                 return {
+                    success: true,
+                    correct: isCorrect,
+                    correctIndex: riddle.correctIndex,
+                    reward,
                     streak: isCorrect ? (userData.stats?.riddles?.streak || 0) + 1 : 0,
                     totalCorrect: (userData.stats?.riddles?.totalCorrect || 0) + (isCorrect ? 1 : 0),
                     totalPlayed: (userData.stats?.riddles?.totalPlayed || 0) + 1,
+                    dailyProgress: daily,
                 };
             });
 
-            // 3. Update riddle stats (outside transaction for efficiency)
+            // 3. Graceful handle for rejection early exit
+            if (result.success === false) {
+                return {
+                    success: false,
+                    correct: false,
+                    message: result.message,
+                    dailyProgress: result.dailyProgress,
+                    streak: result.stats.streak || 0,
+                    totalCorrect: result.stats.totalCorrect || 0,
+                    totalPlayed: result.stats.totalPlayed || 0
+                };
+            }
+
+            // 3. Update riddle stats (outside transaction)
             const riddleUpdate: any = {
                 timesAsked: admin.firestore.FieldValue.increment(1),
             };
@@ -1040,7 +1196,8 @@ export const answerRiddle = onCall(
             await riddleRef.update(riddleUpdate);
 
             // 4. Leaderboard update for correct answers
-            if (isCorrect && reward > 0) {
+            const finalReward = result.reward || 0;
+            if (isCorrect && finalReward > 0) {
                 try {
                     const userSnap = await userRef.get();
                     const userData = userSnap.data() || {};
@@ -1048,7 +1205,7 @@ export const answerRiddle = onCall(
                         uid,
                         userData.auroryPlayerName || userData.displayName || 'Guest',
                         userData.auroryProfilePicture || userData.photoURL || '',
-                        reward,
+                        finalReward,
                         'valcoins',
                         'odinsRiddle'
                     );
@@ -1059,12 +1216,13 @@ export const answerRiddle = onCall(
 
             return {
                 success: true,
-                correct: isCorrect,
-                correctIndex: riddle.correctIndex,
-                reward,
+                correct: result.correct,
+                correctIndex: result.correctIndex,
+                reward: result.reward,
                 streak: result.streak,
                 totalCorrect: result.totalCorrect,
                 totalPlayed: result.totalPlayed,
+                dailyProgress: result.dailyProgress,
             };
         } catch (error: any) {
             console.error('AnswerRiddle Error:', error);

@@ -1,5 +1,5 @@
 import { db, database } from '../firebase';
-import { doc, getDoc, collection, getDocs, query as fsQuery, where } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs, query as fsQuery, where } from 'firebase/firestore';
 import { ref, onValue, off, query, orderByChild, limitToLast, set, onDisconnect, runTransaction } from 'firebase/database';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { createNotification } from './notifications';
@@ -110,8 +110,20 @@ export async function getMiniGameConfig() {
   try {
     const configRef = doc(db, 'settings', 'mini_games');
     const configSnap = await getDoc(configRef);
-    if (!configSnap.exists()) return getDefaultConfig();
-    return configSnap.data();
+    const defaultConfig = getDefaultConfig();
+    
+    if (!configSnap.exists()) return defaultConfig;
+    
+    const remoteData = configSnap.data();
+    const mergedConfig = {};
+    
+    // Merge default config with remote config so new games show up
+    const allKeys = new Set([...Object.keys(defaultConfig), ...Object.keys(remoteData)]);
+    for (const key of allKeys) {
+      mergedConfig[key] = { ...(defaultConfig[key] || {}), ...(remoteData[key] || {}) };
+    }
+    
+    return mergedConfig;
   } catch (error) {
     console.error('Error fetching mini-game config:', error);
     return getDefaultConfig();
@@ -157,6 +169,25 @@ function getDefaultConfig() {
       maxBetPerRace: 1000000,
       description: 'Bet on legendary ships in a real-time parimutuel race!',
       multiplier: 'parimutuel'
+    },
+    odinsRiddle: {
+      enabled: true,
+      timerLimit: 15,
+      maxWrongPerDay: 3,
+      baseRiddles: [
+        { difficulty: 'easy', reward: 20 },
+        { difficulty: 'easy', reward: 20 },
+        { difficulty: 'medium', reward: 30 },
+        { difficulty: 'medium', reward: 30 },
+        { difficulty: 'hard', reward: 50 },
+      ],
+      streakRiddles: [
+        { difficulty: 'easy', reward: 50 },
+        { difficulty: 'easy', reward: 50 },
+        { difficulty: 'easy', reward: 50 },
+        { difficulty: 'medium', reward: 50 },
+        { difficulty: 'hard', reward: 50 },
+      ]
     }
   };
 }
@@ -337,30 +368,128 @@ export function getRecommendedIcons(rarity) {
 // ═══════════════════════════════════════════════════════
 
 /**
- * Fetch a random enabled riddle from Firestore
+ * Fetch a random enabled riddle from Firestore, filtered by required difficulty.
+ * Uses session persistence to prevent refresh exploits.
  */
-export async function fetchRandomRiddle() {
+export async function fetchRandomRiddle(uid, requiredDifficulty = null) {
   try {
+    if (!uid) {
+      console.warn("fetchRandomRiddle: No UID provided.");
+    } else {
+      // 1. Check for active session to prevent refresh/farming exploit
+      const sessionRef = doc(db, 'users', uid, 'activeSessions', 'odinsRiddle');
+      const sessionSnap = await getDoc(sessionRef);
+      
+      if (sessionSnap.exists()) {
+        const session = sessionSnap.data();
+        const startTime = session.startTime?.toMillis?.() || session.startTime || Date.now();
+        const elapsed = (Date.now() - startTime) / 1000;
+        
+        // If session started less than 20 seconds ago (15s limit + buffer), resume it
+        if (elapsed < 20 && session.status === 'active') {
+          const riddleDoc = await getDoc(doc(db, 'riddles', session.riddleId));
+          if (riddleDoc.exists()) {
+            const selected = riddleDoc.data();
+            console.log("Resuming active riddle session:", session.riddleId);
+            return {
+              id: riddleDoc.id,
+              question: selected.question,
+              options: selected.options,
+              category: selected.category || 'norse',
+              difficulty: selected.difficulty || 'easy',
+              initialTimeLeft: Math.max(0, 15 - Math.floor(elapsed))
+            };
+          }
+        }
+      }
+    }
+
+    // 2. Fetch riddles filtered by difficulty (if specified) and enabled status
     const riddlesRef = collection(db, 'riddles');
-    const q = fsQuery(riddlesRef, where('enabled', '==', true));
+    let q;
+    if (requiredDifficulty) {
+      q = fsQuery(riddlesRef, where('enabled', '==', true), where('difficulty', '==', requiredDifficulty));
+    } else {
+      q = fsQuery(riddlesRef, where('enabled', '==', true));
+    }
     const snapshot = await getDocs(q);
 
-    if (snapshot.empty) return null;
+    if (snapshot.empty) {
+      // Fallback: try without difficulty filter
+      if (requiredDifficulty) {
+        const fallbackQ = fsQuery(riddlesRef, where('enabled', '==', true));
+        const fallbackSnap = await getDocs(fallbackQ);
+        if (fallbackSnap.empty) return null;
+        const riddles = fallbackSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const selected = riddles[Math.floor(Math.random() * riddles.length)];
+        if (uid) {
+          await setDoc(doc(db, 'users', uid, 'activeSessions', 'odinsRiddle'), {
+            riddleId: selected.id, startTime: serverTimestamp(), status: 'active'
+          });
+        }
+        return { id: selected.id, question: selected.question, options: selected.options, category: selected.category || 'norse', difficulty: selected.difficulty || 'easy', initialTimeLeft: 15 };
+      }
+      return null;
+    }
 
-    const riddles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    const randomIndex = Math.floor(Math.random() * riddles.length);
-    const selected = riddles[randomIndex];
+    const riddles = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    const selected = riddles[Math.floor(Math.random() * riddles.length)];
 
-    // Don't send correctIndex to client (server validates)
+    // 3. Save new session
+    if (uid) {
+      const sessionRef = doc(db, 'users', uid, 'activeSessions', 'odinsRiddle');
+      await setDoc(sessionRef, {
+        riddleId: selected.id,
+        startTime: serverTimestamp(),
+        status: 'active'
+      });
+    }
+
     return {
       id: selected.id,
       question: selected.question,
       options: selected.options,
       category: selected.category || 'norse',
       difficulty: selected.difficulty || 'easy',
+      initialTimeLeft: 15
     };
   } catch (error) {
     console.error('Error fetching riddle:', error);
+    return null;
+  }
+}
+
+/**
+ * Fetch the player's daily riddle progress from Firestore.
+ * Returns the dailyRiddle object or a fresh default if none/expired.
+ */
+export async function fetchDailyRiddleProgress(uid) {
+  if (!uid) return null;
+  try {
+    const userRef = doc(db, 'users', uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) return null;
+
+    const userData = userSnap.data();
+    const daily = userData.dailyRiddle || {};
+    const now = new Date();
+    const today = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
+
+    if (daily.date === today) {
+      return daily;
+    }
+
+    // Not today — return a fresh state
+    return {
+      date: today,
+      totalAnswered: 0,
+      totalCorrect: 0,
+      wrongAnswers: 0,
+      streakUnlocked: false,
+      phase: 'base'
+    };
+  } catch (error) {
+    console.error('Error fetching daily riddle progress:', error);
     return null;
   }
 }
