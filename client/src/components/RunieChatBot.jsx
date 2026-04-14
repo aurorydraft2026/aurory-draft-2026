@@ -87,6 +87,9 @@ const RunieChatBot = () => {
   const [calcState, setCalcState] = useState(null); // 'STATS', 'ATTACKER', 'DEFENDER'
   const [calcData, setCalcData] = useState({ sbd: 0, atk: 0, def: 0, attackerElement: '', defenderElement: '' });
   
+  // Full Screen State
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -484,7 +487,7 @@ const RunieChatBot = () => {
   };
 
   return (
-    <div className={`runie-bot-container ${isOpen ? 'is-open' : ''}`}>
+    <div className={`runie-bot-container ${isOpen ? 'is-open' : ''} ${isFullScreen ? 'fullscreen-mode' : ''}`}>
       {/* Welcome Bubble */}
       {!isOpen && showGreeting && (
         <div className="runie-welcome-bubble">
@@ -504,7 +507,7 @@ const RunieChatBot = () => {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="runie-window">
+        <div className={`runie-window ${isFullScreen ? 'fullscreen' : ''}`}>
           <div className="runie-header">
             <div className="runie-header-info">
               <img src={RUNIE_AVATAR} alt="Runie" className="runie-header-img" />
@@ -514,6 +517,17 @@ const RunieChatBot = () => {
               </div>
             </div>
             <div className="runie-header-actions">
+              <button 
+                className="runie-fullscreen-btn" 
+                onClick={() => setIsFullScreen(!isFullScreen)} 
+                title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
+              >
+                {isFullScreen ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                )}
+              </button>
               <button className="runie-reset-btn" onClick={handleReset} title="Reset Chat">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
               </button>
