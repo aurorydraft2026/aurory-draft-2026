@@ -58,6 +58,17 @@ export const DEFAULT_KNOWLEDGE = [
   }
 ];
 
+const ELEMENTS = ['Fire', 'Water', 'Wind', 'Lightning', 'Plant', 'Earth'];
+
+const ELEMENTAL_CHART = {
+  Fire: { Fire: 1, Water: 0.8, Wind: 1.2, Lightning: 1, Plant: 1.4, Earth: 0.9 },
+  Water: { Fire: 1.4, Water: 1, Wind: 1, Lightning: 0.9, Plant: 0.8, Earth: 1.2 },
+  Wind: { Fire: 0.9, Water: 1, Wind: 1, Lightning: 0.8, Plant: 1.2, Earth: 1.4 },
+  Lightning: { Fire: 1, Water: 1.2, Wind: 1.4, Lightning: 1, Plant: 0.9, Earth: 0.8 },
+  Plant: { Fire: 0.8, Water: 1.4, Wind: 0.9, Lightning: 1.2, Plant: 1, Earth: 1 },
+  Earth: { Fire: 1.2, Water: 0.9, Wind: 0.8, Lightning: 1.4, Plant: 1, Earth: 1 }
+};
+
 const RunieChatBot = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [knowledge, setKnowledge] = useState(DEFAULT_KNOWLEDGE);
@@ -71,6 +82,10 @@ const RunieChatBot = () => {
   const [greetings, setGreetings] = useState([]);
   const [currentGreeting, setCurrentGreeting] = useState("Welcome, how can I help you?");
   const [showGreeting, setShowGreeting] = useState(false);
+  
+  // Damage Calculation Flow State
+  const [calcState, setCalcState] = useState(null); // 'STATS', 'ATTACKER', 'DEFENDER'
+  const [calcData, setCalcData] = useState({ sbd: 0, atk: 0, def: 0, attackerElement: '', defenderElement: '' });
   
   const messagesEndRef = useRef(null);
 
@@ -170,6 +185,82 @@ const RunieChatBot = () => {
     
     const lowerText = userText.toLowerCase().trim();
     
+    // ── DAMAGE CALCULATION FLOW HANDLER ──
+    if (calcState) {
+      if (calcState === 'STATS') {
+        const parts = lowerText.split(/\s+/).filter(Boolean);
+        if (parts.length === 3) {
+          const [sbd, atk, def] = parts.map(Number);
+          if (!isNaN(sbd) && !isNaN(atk) && !isNaN(def)) {
+            setCalcData(prev => ({ ...prev, sbd, atk, def }));
+            setCalcState('ATTACKER');
+            const botMsg = { 
+              id: Date.now() + 1, 
+              type: 'bot', 
+              text: "Got it! Now, please choose the **Attacker Element**:", 
+              timestamp: Date.now() 
+            };
+            setMessages(prev => [...prev, botMsg]);
+            setIsTyping(false);
+            return;
+          }
+        }
+        // Fallback if numbers are invalid
+        const botMsg = { id: Date.now() + 1, type: 'bot', text: "Hmm, those don't look like three numbers. Please input:\nSkill Base Damage\nE/Atk Stat of Attacker\nE/Def Stat of Defender\n(Example: 60 152 115)", timestamp: Date.now() };
+        setMessages(prev => [...prev, botMsg]);
+        setIsTyping(false);
+        return;
+      }
+      
+      if (calcState === 'ATTACKER') {
+        const element = ELEMENTS.find(e => e.toLowerCase() === lowerText);
+        if (element) {
+          setCalcData(prev => ({ ...prev, attackerElement: element }));
+          setCalcState('DEFENDER');
+          const botMsg = { 
+            id: Date.now() + 1, 
+            type: 'bot', 
+            text: `Attacker is **${element}**! Now, choose the **Defender Element**:`, 
+            timestamp: Date.now() 
+          };
+          setMessages(prev => [...prev, botMsg]);
+          setIsTyping(false);
+          return;
+        }
+      }
+
+      if (calcState === 'DEFENDER') {
+        const element = ELEMENTS.find(e => e.toLowerCase() === lowerText);
+        if (element) {
+          const defElem = element;
+          const attElem = calcData.attackerElement;
+          const { sbd, atk, def } = calcData;
+          
+          // Calculation Logic
+          const em = ELEMENTAL_CHART[attElem][defElem] || 1;
+          const statRatio = atk / def;
+          const baseDamage = ((sbd * em) * statRatio) * 0.42;
+          
+          const estDamage = Math.round(baseDamage);
+          const unlucky = Math.round(baseDamage * 0.95);
+          const lucky = Math.round(baseDamage * 1.05);
+
+          const responseText = `**Amiko Damage Results:**\n\n🎯 **Estimated Damage:** ${estDamage}\n📉 **Unlucky Hit:** ${unlucky}\n📈 **Lucky Hit:** ${lucky}\n\n*Applied Multiplier (${attElem} vs ${defElem}): x${em}*`;
+          
+          const botMsg = { id: Date.now() + 1, type: 'bot', text: responseText, timestamp: Date.now() };
+          setMessages(prev => [...prev, botMsg]);
+          setCalcState(null); // Reset flow
+          setIsTyping(false);
+          return;
+        }
+      }
+      // If we are in elements state but user typed something else
+      const botMsg = { id: Date.now() + 1, type: 'bot', text: "Please select an element from the buttons below or reset the chat.", timestamp: Date.now() };
+      setMessages(prev => [...prev, botMsg]);
+      setIsTyping(false);
+      return;
+    }
+
     // 1. Enhanced Weighted Matching System (Manual Knowledge First)
     let bestMatch = null;
     let highestScore = 0;
@@ -235,23 +326,38 @@ const RunieChatBot = () => {
   const handleQuickReply = (reply) => {
     const userMsg = { id: Date.now(), type: 'user', text: reply.label, timestamp: Date.now() };
     setMessages(prev => [...prev, userMsg]);
+    
+    if (reply.label === "Amiko Legends Damage Calculation") {
+      setCalcState('STATS');
+      const botMsg = { 
+        id: Date.now() + 1, 
+        type: 'bot', 
+        text: "Please input:\nSkill Base Damage\nE/Atk Stat of Attacker\nE/Def Stat of Defender", 
+        timestamp: Date.now() 
+      };
+      setMessages(prev => [...prev, botMsg]);
+      return;
+    }
+    
     processResponse(reply.label);
   };
 
-  const handleSendMessage = (e) => {
-    if (e) e.preventDefault();
-    if (!inputText.trim() || isTyping) return;
+  const handleSendMessage = (e, overrideText) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const textToUse = overrideText || inputText;
+    if (!textToUse.trim() || isTyping) return;
 
-    const userMsg = { id: Date.now(), type: 'user', text: inputText, timestamp: Date.now() };
+    const userMsg = { id: Date.now(), type: 'user', text: textToUse, timestamp: Date.now() };
     setMessages(prev => [...prev, userMsg]);
-    const textToProcess = inputText;
     setInputText('');
     
-    processResponse(textToProcess);
+    processResponse(textToUse);
   };
 
   const handleReset = () => {
     setMessages([{ id: 1, type: 'bot', text: "Hail, Warrior! I am Runie, your guide through Asgard. How can I help you today?", timestamp: Date.now() }]);
+    setCalcState(null);
+    setCalcData({ sbd: 0, atk: 0, def: 0, attackerElement: '', defenderElement: '' });
   };
 
   const renderMessageContent = (text) => {
@@ -419,18 +525,30 @@ const RunieChatBot = () => {
 
           <div className="runie-footer">
             <div className="runie-quick-replies">
-              {knowledge
+              {calcState === 'ATTACKER' || calcState === 'DEFENDER' ? (
+                ELEMENTS.map(elem => (
+                  <button 
+                    key={elem} 
+                    className="quick-reply-btn"
+                    onClick={() => handleSendMessage({ preventDefault: () => {}, target: { value: elem } }, elem)}
+                  >
+                    {elem}
+                  </button>
+                ))
+              ) : (
+                [...knowledge, { id: 'calc', label: 'Amiko Legends Damage Calculation', showAsBadge: true }]
                 .filter(item => item.label && item.showAsBadge !== false)
-                .slice(0, 8)
+                .slice(0, 9)
                 .map((reply) => (
-                <button 
-                  key={reply.id} 
-                  className="quick-reply-btn"
-                  onClick={() => handleQuickReply(reply)}
-                >
-                  {reply.label}
-                </button>
-              ))}
+                  <button 
+                    key={reply.id} 
+                    className="quick-reply-btn"
+                    onClick={() => handleQuickReply(reply)}
+                  >
+                    {reply.label}
+                  </button>
+                ))
+              )}
             </div>
             
             <form className="runie-input-area" onSubmit={handleSendMessage}>
