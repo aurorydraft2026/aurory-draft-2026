@@ -2,18 +2,36 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 
 // ─── TIER CONFIGURATION (mirrors backend) ───
 export const TIER_CONFIG = {
-  1: { name: 'Tier I', max: 30000, upgradeCost: 0, roman: 'I', badge: '/Tiers/tier1_loki.png' },
-  2: { name: 'Tier II', max: 50000, upgradeCost: 30000, roman: 'II', badge: '/Tiers/tier2_thor.png' },
-  3: { name: 'Tier III', max: 100000, upgradeCost: 50000, roman: 'III', badge: '/Tiers/tier3_odin.png' },
+  1: { name: 'Tier I', max: 30000, upgradeCost: 0, roman: 'I', badge: '/Tiers/tier1_loki.png', gaugeMax: 50000 },
+  2: { name: 'Tier II', max: 50000, upgradeCost: 30000, roman: 'II', badge: '/Tiers/tier2_thor.png', gaugeMax: 100000 },
+  3: { name: 'Tier III', max: 100000, upgradeCost: 50000, roman: 'III', badge: '/Tiers/tier3_odin.png', gaugeMax: 250000 },
+};
+
+export const getTierExp = (user) => {
+  if (!user) return 0;
+  const tier = user.tier || 1;
+  const currentPoints = user.points || 0;
+  // Estimate total EXP if not explicitly tracked
+  let spent = 0;
+  if (tier > 1) spent += 30000;
+  if (tier > 2) spent += 50000;
+  return user.exp !== undefined ? user.exp : (currentPoints + spent);
 };
 
 /**
- * Get the tier progress as a percentage (0-100) for the gauge.
+ * Get the tier progress as a percentage (0-100) for the gauge based on total earned.
  */
-export const getTierProgress = (points, tier) => {
+export const getTierProgress = (user) => {
+  if (!user || typeof user === 'number') return 0; // Guard against legacy calls
+  
+  const tier = user.tier || 1;
+  const totalEarned = getTierExp(user);
+
   const config = TIER_CONFIG[tier] || TIER_CONFIG[1];
-  if (config.max === 0) return 100;
-  return Math.min(100, Math.round((points / config.max) * 100));
+  const target = config.gaugeMax || config.max;
+  
+  if (target === 0) return 100;
+  return Math.min(100, Math.round((totalEarned / target) * 100));
 };
 
 /**

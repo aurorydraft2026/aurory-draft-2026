@@ -6,7 +6,7 @@ import { isSuperAdmin } from '../config/admins';
 import { logActivity } from '../services/activityService';
 import { dailyCheckIn } from '../services/pointsService';
 import { syncAuroryName } from '../services/auroryProfileService';
-import { TIER_CONFIG, getTierProgress, getNextTier, upgradeTier as upgradeTierCall, applyReferralCode as applyReferralCodeCall, generateReferralLink } from '../services/tierService';
+import { TIER_CONFIG, getTierProgress, getTierExp, getNextTier, upgradeTier as upgradeTierCall, applyReferralCode as applyReferralCodeCall, generateReferralLink } from '../services/tierService';
 import './CheckInBonus.css';
 
 export const useAuth = (navigate) => {
@@ -435,8 +435,10 @@ export const useAuth = (navigate) => {
         const userTier = user.tier || 1;
         const userPoints = user.points || 0;
         const tierConfig = TIER_CONFIG[userTier] || TIER_CONFIG[1];
-        const tierProgress = getTierProgress(userPoints, userTier);
+        const tierProgress = getTierProgress(user);
+        const currentExp = getTierExp(user);
         const nextTier = getNextTier(userTier);
+        const isExpFull = currentExp >= tierConfig.gaugeMax;
         const isCheckedIn = user.lastDailyCheckIn === new Date().toISOString().split('T')[0];
 
         const handleUpgradeTier = async () => {
@@ -638,8 +640,8 @@ export const useAuth = (navigate) => {
                             <div className="valcoins-display">
                                 <img src="/valcoin-icon.jpg" alt="V" className="valcoin-profile-icon" />
                                 <div className="valcoins-info">
-                                    <span className="valcoins-amount">{userPoints.toLocaleString()}</span>
-                                    <span className="valcoins-label">Valcoins</span>
+                                    <span className="valcoins-amount">{userPoints.toLocaleString()} <span style={{fontSize: '16px', opacity: 0.7, fontWeight: 500}}>/ {tierConfig.max.toLocaleString()}</span></span>
+                                    <span className="valcoins-label">Valcoins (Wallet)</span>
                                 </div>
                             </div>
                         </div>
@@ -648,7 +650,7 @@ export const useAuth = (navigate) => {
                         <div className="tier-gauge-section">
                             <div className="tier-gauge-header">
                                 <span className={`tier-badge tier-${userTier}`}>{tierConfig.name}</span>
-                                <span className="tier-limit">{userPoints.toLocaleString()} / {tierConfig.max.toLocaleString()}</span>
+                                <span className="tier-limit">{currentExp.toLocaleString()} / {tierConfig.gaugeMax.toLocaleString()} EXP</span>
                             </div>
                             <div className="tier-gauge-bar">
                                 <div
@@ -677,8 +679,8 @@ export const useAuth = (navigate) => {
                                     <button
                                         className="tier-upgrade-btn"
                                         onClick={handleUpgradeTier}
-                                        disabled={isUpgradingTier || userPoints < nextTier.upgradeCost}
-                                        title={userPoints < nextTier.upgradeCost ? `Need ${nextTier.upgradeCost.toLocaleString()} Valcoins` : `Upgrade for ${nextTier.upgradeCost.toLocaleString()} Valcoins`}
+                                        disabled={isUpgradingTier || userPoints < nextTier.upgradeCost || !isExpFull}
+                                        title={userPoints < nextTier.upgradeCost ? `Need ${nextTier.upgradeCost.toLocaleString()} Valcoins limit fee` : !isExpFull ? `Need ${tierConfig.gaugeMax.toLocaleString()} EXP to unlock` : `Upgrade for ${nextTier.upgradeCost.toLocaleString()} Valcoins`}
                                     >
                                         {isUpgradingTier ? (
                                             <svg className="sync-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>

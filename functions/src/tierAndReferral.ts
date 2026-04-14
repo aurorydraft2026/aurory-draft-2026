@@ -2,10 +2,10 @@ import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 
 // ─── TIER CONFIGURATION ───
-const TIER_CONFIG: Record<number, { max: number; upgradeCost: number | null }> = {
-  1: { max: 30000, upgradeCost: null },      // Tier I: 30k cap
-  2: { max: 50000, upgradeCost: 30000 },     // Tier II: 50k cap
-  3: { max: 100000, upgradeCost: 50000 },    // Tier III: 100k cap
+const TIER_CONFIG: Record<number, { max: number; upgradeCost: number | null; gaugeMax: number }> = {
+  1: { max: 30000, upgradeCost: null, gaugeMax: 50000 },      // Tier I: 30k cap, 50k exp to upgrade
+  2: { max: 50000, upgradeCost: 30000, gaugeMax: 100000 },     // Tier II: 50k cap, 100k exp to upgrade
+  3: { max: 100000, upgradeCost: 50000, gaugeMax: 250000 },    // Tier III: 100k cap, 250k exp max
 };
 
 const UPGRADE_BONUS = 1000;
@@ -107,6 +107,20 @@ export const upgradeTier = onCall(
 
       const upgradeCost = TIER_CONFIG[nextTier].upgradeCost!;
       const currentPoints = userData.points || 0;
+      
+      const requiredExp = TIER_CONFIG[currentTier].gaugeMax;
+      // Fallback approximation for old users who haven't earned raw exp since the update
+      let spentApproximation = 0;
+      if (currentTier > 1) spentApproximation += 30000;
+      if (currentTier > 2) spentApproximation += 50000;
+      const currentExp = userData.exp !== undefined ? userData.exp : (currentPoints + spentApproximation);
+
+      if (currentExp < requiredExp) {
+        throw new HttpsError(
+          'failed-precondition',
+          `Not enough EXP to upgrade. Need ${requiredExp} EXP, have ${currentExp} EXP.`
+        );
+      }
 
       if (currentPoints < upgradeCost) {
         throw new HttpsError(
@@ -122,6 +136,7 @@ export const upgradeTier = onCall(
       transaction.update(userRef, {
         tier: nextTier,
         points: admin.firestore.FieldValue.increment(netChange),
+        exp: admin.firestore.FieldValue.increment(UPGRADE_BONUS),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
@@ -311,6 +326,7 @@ async function checkAndAwardReferralBonus(
     if (referredBonus > 0) {
       transaction.update(userRef, {
         points: admin.firestore.FieldValue.increment(referredBonus),
+        exp: admin.firestore.FieldValue.increment(referredBonus),
         referralBonusClaimed: true,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
@@ -333,6 +349,7 @@ async function checkAndAwardReferralBonus(
     if (referrerBonus > 0) {
       transaction.update(referrerRef, {
         points: admin.firestore.FieldValue.increment(referrerBonus),
+        exp: admin.firestore.FieldValue.increment(referrerBonus),
         validReferralCount: admin.firestore.FieldValue.increment(1),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });

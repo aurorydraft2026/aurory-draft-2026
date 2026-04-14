@@ -282,7 +282,8 @@ export const playMiniGame = onCall(
                         const clampedPoints = clampPointsToTierMax(rawNewPoints, userTier);
                         
                         transaction.update(userRef, {
-                            points: clampedPoints
+                            points: clampedPoints,
+                            exp: admin.firestore.FieldValue.increment(finalPrize.amount)
                         });
                     } else if (finalPrize.type.toLowerCase() === 'aury' && finalPrize.amount > 0) {
                         const amountSmallest = Math.floor(finalPrize.amount * 1e9);
@@ -776,6 +777,7 @@ async function processDrakkarPayouts(raceState: any) {
 
                     t.update(userRef, {
                         points: clampedPoints,
+                        exp: admin.firestore.FieldValue.increment(winAmount),
                         updatedAt: admin.firestore.FieldValue.serverTimestamp()
                     });
 

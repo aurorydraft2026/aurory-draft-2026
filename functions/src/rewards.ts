@@ -71,6 +71,7 @@ export const collectDailyReward = onCall(
 
                 transaction.update(userRef, {
                     points: clampedPoints,
+                    exp: admin.firestore.FieldValue.increment(totalAmount),
                     lastDailyCheckIn: todayStr,
                     checkInStreak: newStreak,
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()

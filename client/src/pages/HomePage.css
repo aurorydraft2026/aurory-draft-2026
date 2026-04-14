@@ -7649,6 +7649,7 @@ input[type="file"] {
   border-radius: 5px;
   transition: width 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
   position: relative;
+  overflow: hidden;
 }
 
 .tier-gauge-fill::after {
@@ -7658,13 +7659,14 @@ input[type="file"] {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  animation: gaugeShimmer 2s infinite;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.3) 50%, rgba(255, 255, 255, 0) 100%);
+  animation: gaugeShimmer 2s linear infinite;
+  transform: skewX(-20deg);
 }
 
 @keyframes gaugeShimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+  0% { transform: translateX(-150%) skewX(-20deg); }
+  100% { transform: translateX(150%) skewX(-20deg); }
 }
 
 .tier-1-fill {

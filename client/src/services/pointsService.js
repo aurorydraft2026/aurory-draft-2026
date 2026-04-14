@@ -4,7 +4,8 @@ import {
     collection, 
     addDoc, 
     serverTimestamp, 
-    runTransaction
+    runTransaction,
+    increment
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { createNotification } from './notifications';
@@ -42,16 +43,21 @@ export const awardPoints = async (userId, amount, type, description) => {
             }
             
             const actualIncrement = newPoints - currentPoints;
-            if (actualIncrement === 0 && amount > 0) {
-                 return 0; // Already at cap
-            }
-
-            transaction.update(userRef, {
+            
+            const updateData = {
                 points: newPoints,
                 updatedAt: serverTimestamp()
-            });
+            };
+            
+            if (amount > 0) {
+                updateData.exp = increment(amount);
+            } else if (actualIncrement === 0) {
+                return 0; // Negative amount and already at 0 cap, or similar
+            }
 
-            return actualIncrement;
+            transaction.update(userRef, updateData);
+
+            return amount > 0 ? amount : actualIncrement;
         });
 
         // If something was awarded or deducted, add history and notification
