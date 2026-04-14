@@ -234,6 +234,7 @@
   border-radius: 12px;
   font-size: 0.9rem;
   line-height: 1.4;
+  white-space: pre-wrap;
 }
 
 .bot .runie-message-content {
@@ -248,6 +249,11 @@
   color: #000;
   border-bottom-right-radius: 2px;
   font-weight: 500;
+}
+
+.bot .runie-message-content strong {
+  color: var(--accent-gold, #d4af37);
+  font-weight: 700;
 }
 
 .runie-message-time {

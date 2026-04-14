@@ -242,10 +242,10 @@ const RunieChatBot = () => {
           const baseDamage = ((sbd * em) * statRatio) * 0.42;
           
           const estDamage = Math.round(baseDamage);
-          const unlucky = Math.round(baseDamage * 0.95);
           const lucky = Math.round(baseDamage * 1.05);
+          const unlucky = Math.round(baseDamage * 0.95);
 
-          const responseText = `**Amiko Damage Results:**\n\n🎯 **Estimated Damage:** ${estDamage}\n📉 **Unlucky Hit:** ${unlucky}\n📈 **Lucky Hit:** ${lucky}\n\n*Applied Multiplier (${attElem} vs ${defElem}): x${em}*`;
+          const responseText = `Results:\n\nEstimated Damage - **${estDamage}**\nLucky Hit - **${lucky}**\nUnlucky Hit - **${unlucky}**`;
           
           const botMsg = { id: Date.now() + 1, type: 'bot', text: responseText, timestamp: Date.now() };
           setMessages(prev => [...prev, botMsg]);
@@ -338,6 +338,17 @@ const RunieChatBot = () => {
       setMessages(prev => [...prev, botMsg]);
       return;
     }
+
+    if (reply.label === "Calc Tutorial") {
+      const botMsg = { 
+        id: Date.now() + 1, 
+        type: 'bot', 
+        text: "To use the Damage Calculator, input the **Skill Base Damage**, **Attacker Stat**, and **Defender Stat** separated by spaces.\n\nExample: `60 152 115`", 
+        timestamp: Date.now() 
+      };
+      setMessages(prev => [...prev, botMsg]);
+      return;
+    }
     
     processResponse(reply.label);
   };
@@ -371,6 +382,8 @@ const RunieChatBot = () => {
     const imageRegex = /!\[(.*?)\]\((.*?)\)/g;
     // Detect Direct Video (mp4)
     const videoRegex = /https?:\/\/[^\s]+?\.(?:mp4|webm|ogg)/g;
+    // Detect Bold **text**
+    const boldRegex = /\*\*(.*?)\*\*/g;
 
     const parts = [];
     let lastIndex = 0;
@@ -399,6 +412,10 @@ const RunieChatBot = () => {
       if (text[match.index - 1] !== '!') {
         tokens.push({ type: 'link', index: match.index, length: match[0].length, text: match[1], url: match[2] });
       }
+    }
+    // Bold matches
+    while ((match = boldRegex.exec(text)) !== null) {
+      tokens.push({ type: 'bold', index: match.index, length: match[0].length, text: match[1] });
     }
 
     // Sort tokens by index
@@ -451,6 +468,8 @@ const RunieChatBot = () => {
             </video>
           </div>
         );
+      } else if (token.type === 'bold') {
+        parts.push(<strong key={`b-${i}`}>{token.text}</strong>);
       }
 
       lastIndex = token.index + token.length;
@@ -536,9 +555,9 @@ const RunieChatBot = () => {
                   </button>
                 ))
               ) : (
-                [...knowledge, { id: 'calc', label: 'Amiko Legends Damage Calculation', showAsBadge: true }]
+                [...knowledge, { id: 'calc', label: 'Amiko Legends Damage Calculation', showAsBadge: true }, { id: 'calc-tut', label: 'Calc Tutorial', showAsBadge: true }]
                 .filter(item => item.label && item.showAsBadge !== false)
-                .slice(0, 9)
+                .slice(0, 10)
                 .map((reply) => (
                   <button 
                     key={reply.id} 
