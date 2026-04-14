@@ -182,6 +182,7 @@ function AdminPanel() {
   const [cbGreetingOrder, setCbGreetingOrder] = useState(0);
   const [editingGreetingId, setEditingGreetingId] = useState(null);
   const [cbEnabled, setCbEnabled] = useState(true);
+  const [calcEnabled, setCalcEnabled] = useState(true);
   
   // Chatbot Search & Unanswered
   const [knowledgeSearchQuery, setKnowledgeSearchQuery] = useState('');
@@ -612,10 +613,12 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     const unsub = onSnapshot(doc(db, 'settings', 'chatbot'), (snap) => {
       if (snap.exists()) {
         setCbEnabled(snap.data().enabled !== false);
+        setCalcEnabled(snap.data().damageCalcEnabled !== false);
       } else {
         // Initialize if doesn't exist
         setDoc(doc(db, 'settings', 'chatbot'), {
           enabled: true,
+          damageCalcEnabled: true,
           updatedAt: serverTimestamp()
         });
       }
@@ -1713,6 +1716,24 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       });
     } catch (error) {
       console.error('Error toggling chatbot:', error);
+      alert('Error: ' + error.message);
+    }
+  };
+
+  const handleToggleDamageCalc = async (enabled) => {
+    try {
+      await updateDoc(doc(db, 'settings', 'chatbot'), {
+        damageCalcEnabled: enabled,
+        updatedAt: serverTimestamp()
+      });
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'toggle_damage_calc',
+        metadata: { enabled }
+      });
+    } catch (error) {
+      console.error('Error toggling damage calculator:', error);
       alert('Error: ' + error.message);
     }
   };
@@ -3821,21 +3842,40 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     {processingId === 'seed_chatbot' ? 'Initializing...' : '📥 Seed Core Knowledge'}
                   </button>
                 </div>
-                <div className="chatbot-enable-toggle" style={{ textAlign: 'right' }}>
-                  <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>Chatbot Status</label>
-                  <div className="currency-toggle-group">
-                    <button 
-                      className={`toggle-btn ${cbEnabled ? 'active' : ''}`}
-                      onClick={() => handleToggleChatbot(true)}
-                    >ON</button>
-                    <button 
-                      className={`toggle-btn ${!cbEnabled ? 'active' : ''}`}
-                      onClick={() => handleToggleChatbot(false)}
-                    >OFF</button>
+                <div style={{ display: 'flex', gap: '30px' }}>
+                  <div className="chatbot-enable-toggle" style={{ textAlign: 'right' }}>
+                    <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>Chatbot Status</label>
+                    <div className="currency-toggle-group">
+                      <button 
+                        className={`toggle-btn ${cbEnabled ? 'active' : ''}`}
+                        onClick={() => handleToggleChatbot(true)}
+                      >ON</button>
+                      <button 
+                        className={`toggle-btn ${!cbEnabled ? 'active' : ''}`}
+                        onClick={() => handleToggleChatbot(false)}
+                      >OFF</button>
+                    </div>
+                    <p style={{ fontSize: '12px', marginTop: '5px', color: cbEnabled ? '#10b981' : '#f43f5e' }}>
+                      {cbEnabled ? '● Global System Online' : '○ Global System Offline'}
+                    </p>
                   </div>
-                  <p style={{ fontSize: '12px', marginTop: '5px', color: cbEnabled ? '#10b981' : '#f43f5e' }}>
-                    {cbEnabled ? '● Global System Online' : '○ Global System Offline'}
-                  </p>
+
+                  <div className="chatbot-enable-toggle" style={{ textAlign: 'right' }}>
+                    <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>Damage Calculator</label>
+                    <div className="currency-toggle-group">
+                      <button 
+                        className={`toggle-btn ${calcEnabled ? 'active' : ''}`}
+                        onClick={() => handleToggleDamageCalc(true)}
+                      >ON</button>
+                      <button 
+                        className={`toggle-btn ${!calcEnabled ? 'active' : ''}`}
+                        onClick={() => handleToggleDamageCalc(false)}
+                      >OFF</button>
+                    </div>
+                    <p style={{ fontSize: '12px', marginTop: '5px', color: calcEnabled ? '#10b981' : '#f43f5e' }}>
+                      {calcEnabled ? '● Calculator Online' : '○ Calculator Offline'}
+                    </p>
+                  </div>
                 </div>
               </div>
 

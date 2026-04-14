@@ -1,60 +1,60 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db, functions } from '../firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import './RunieChatBot.css';
 
 const RUNIE_AVATAR = '/runie-avatar.png';
 
 export const DEFAULT_KNOWLEDGE = [
-  { 
-    id: 'about', 
-    label: 'What is Asgard?', 
+  {
+    id: 'about',
+    label: 'What is Asgard?',
     keywords: ['about', 'asgard', 'what is', 'purpose'],
     showAsBadge: true,
-    response: "Asgard is the premier platform for Amiko Legends enthusiasts! You can join tournaments, play epic mini-games like the Drakkar Race, and earn Valcoins to climb the ranks of Midgard." 
+    response: "Asgard is the premier platform for Amiko Legends enthusiasts! You can join tournaments, play epic mini-games like the Drakkar Race, and earn Valcoins to climb the ranks of Midgard."
   },
-  { 
-    id: 'amiko_legends', 
-    label: 'What is Amiko Legends?', 
+  {
+    id: 'amiko_legends',
+    label: 'What is Amiko Legends?',
     keywords: ['amiko legends', 'legends', 'amiko'],
     showAsBadge: true,
-    response: "Amiko Legends is a strategic world of mythic creatures and epic battles. Here in Asgard, you can collect Amikos, enter tournaments, and compete for glory with your team!" 
+    response: "Amiko Legends is a strategic world of mythic creatures and epic battles. Here in Asgard, you can collect Amikos, enter tournaments, and compete for glory with your team!"
   },
-  { 
-    id: 'valcoins', 
-    label: 'How to get Valcoins?', 
+  {
+    id: 'valcoins',
+    label: 'How to get Valcoins?',
     keywords: ['valcoins', 'coins', 'earn', 'get points', 'money'],
     showAsBadge: true,
-    response: "You can earn Valcoins by participating in mini-games, claiming rewards, or winning tournaments. Check out the Asgard Trials (Arcade) to get started!" 
+    response: "You can earn Valcoins by participating in mini-games, claiming rewards, or winning tournaments. Check out the Asgard Trials (Arcade) to get started!"
   },
-  { 
-    id: 'drakkar', 
-    label: 'Drakkar Race?', 
+  {
+    id: 'drakkar',
+    label: 'Drakkar Race?',
     keywords: ['drakkar', 'race', 'bet', 'ship'],
     showAsBadge: true,
-    response: "The Drakkar Race is a real-time parimutuel betting game. Choose your ship, place your bet, and if your ship wins, you split the total pool with other winners!" 
+    response: "The Drakkar Race is a real-time parimutuel betting game. Choose your ship, place your bet, and if your ship wins, you split the total pool with other winners!"
   },
-  { 
-    id: 'aurory_link', 
-    label: 'Linking Aurory?', 
+  {
+    id: 'aurory_link',
+    label: 'Linking Aurory?',
     keywords: ['link', 'connect', 'sync'],
     showAsBadge: true,
-    response: "Linking your Aurory account allows you to enter official tournaments. You can find the linking option in your Profile menu at the top right." 
+    response: "Linking your Aurory account allows you to enter official tournaments. You can find the linking option in your Profile menu at the top right."
   },
-  { 
-    id: 'discord', 
-    label: 'Is there a Discord?', 
+  {
+    id: 'discord',
+    label: 'Is there a Discord?',
     keywords: ['discord', 'guild', 'community', 'social'],
     showAsBadge: true,
-    response: "Yes! Our community is active on Discord. You can find the link in the footer at the bottom of the page or in the welcome section above. Come say hi!" 
+    response: "Yes! Our community is active on Discord. You can find the link in the footer at the bottom of the page or in the welcome section above. Come say hi!"
   },
-  { 
-    id: 'hidden_knowledge', 
+  {
+    id: 'hidden_knowledge',
     label: '',
     keywords: ['hidden', 'without badges', 'invisible', 'secret'],
     showAsBadge: false,
-    response: "Yes! I just updated the system for you. You can now leave the 'Button Label' empty in the Admin Panel or toggle the 'Show as Button' switch to NO. Runie will still learn the keywords and answer those questions when typed in the chat, but no button will appear." 
+    response: "Yes! I just updated the system for you. You can now leave the 'Button Label' empty in the Admin Panel or toggle the 'Show as Button' switch to NO. Runie will still learn the keywords and answer those questions when typed in the chat, but no button will appear."
   }
 ];
 
@@ -77,19 +77,22 @@ const RunieChatBot = () => {
   ]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  
+
   // Floating Greetings state
   const [greetings, setGreetings] = useState([]);
   const [currentGreeting, setCurrentGreeting] = useState("Welcome, how can I help you?");
   const [showGreeting, setShowGreeting] = useState(false);
-  
+
   // Damage Calculation Flow State
   const [calcState, setCalcState] = useState(null); // 'STATS', 'ATTACKER', 'DEFENDER'
   const [calcData, setCalcData] = useState({ sbd: 0, atk: 0, def: 0, attackerElement: '', defenderElement: '' });
-  
+
   // Full Screen State
   const [isFullScreen, setIsFullScreen] = useState(false);
-  
+
+  // Settings
+  const [isCalcEnabled, setIsCalcEnabled] = useState(true);
+
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -127,6 +130,16 @@ const RunieChatBot = () => {
     return () => unsubscribe();
   }, []);
 
+  // Fetch Settings
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'chatbot'), (snap) => {
+      if (snap.exists()) {
+        setIsCalcEnabled(snap.data().damageCalcEnabled !== false);
+      }
+    });
+    return () => unsub();
+  }, []);
+
   // Bubble Logic: Show a random greeting then disappear after 3s
   useEffect(() => {
     if (isOpen) {
@@ -141,10 +154,10 @@ const RunieChatBot = () => {
         const lastShownStr = localStorage.getItem('runie_last_greeting_time');
         const now = Date.now();
         const cooldown = 10 * 60 * 1000; // 10 minutes cooldown
-        
+
         // If shown recently, don't show again
         if (lastShownStr && (now - parseInt(lastShownStr)) < cooldown) return;
-        
+
         // Even if cooldown passed, add a random chance (40% to show)
         if (Math.random() > 0.4) return;
       }
@@ -155,10 +168,10 @@ const RunieChatBot = () => {
       } else {
         setCurrentGreeting("Welcome, how can I help you?");
       }
-      
+
       setShowGreeting(true);
       localStorage.setItem('runie_last_greeting_time', Date.now().toString());
-      
+
       // Automatically disappear after 3s
       setTimeout(() => {
         setShowGreeting(false);
@@ -185,9 +198,9 @@ const RunieChatBot = () => {
 
   const processResponse = async (userText) => {
     setIsTyping(true);
-    
+
     const lowerText = userText.toLowerCase().trim();
-    
+
     // ── DAMAGE CALCULATION FLOW HANDLER ──
     if (calcState) {
       if (calcState === 'STATS') {
@@ -197,11 +210,11 @@ const RunieChatBot = () => {
           if (!isNaN(sbd) && !isNaN(atk) && !isNaN(def)) {
             setCalcData(prev => ({ ...prev, sbd, atk, def }));
             setCalcState('ATTACKER');
-            const botMsg = { 
-              id: Date.now() + 1, 
-              type: 'bot', 
-              text: "Got it! Now, please choose the **Attacker Element**:", 
-              timestamp: Date.now() 
+            const botMsg = {
+              id: Date.now() + 1,
+              type: 'bot',
+              text: "Got it! Now, please choose the **Attacker Element**:",
+              timestamp: Date.now()
             };
             setMessages(prev => [...prev, botMsg]);
             setIsTyping(false);
@@ -214,17 +227,17 @@ const RunieChatBot = () => {
         setIsTyping(false);
         return;
       }
-      
+
       if (calcState === 'ATTACKER') {
         const element = ELEMENTS.find(e => e.toLowerCase() === lowerText);
         if (element) {
           setCalcData(prev => ({ ...prev, attackerElement: element }));
           setCalcState('DEFENDER');
-          const botMsg = { 
-            id: Date.now() + 1, 
-            type: 'bot', 
-            text: `Attacker is **${element}**! Now, choose the **Defender Element**:`, 
-            timestamp: Date.now() 
+          const botMsg = {
+            id: Date.now() + 1,
+            type: 'bot',
+            text: `Attacker is **${element}**! Now, choose the **Defender Element**:`,
+            timestamp: Date.now()
           };
           setMessages(prev => [...prev, botMsg]);
           setIsTyping(false);
@@ -238,18 +251,18 @@ const RunieChatBot = () => {
           const defElem = element;
           const attElem = calcData.attackerElement;
           const { sbd, atk, def } = calcData;
-          
+
           // Calculation Logic
           const em = ELEMENTAL_CHART[attElem][defElem] || 1;
           const statRatio = atk / def;
           const baseDamage = ((sbd * em) * statRatio) * 0.42;
-          
+
           const estDamage = Math.round(baseDamage);
           const lucky = Math.round(baseDamage * 1.05);
           const unlucky = Math.round(baseDamage * 0.95);
 
-          const responseText = `Results:\n\nEstimated Damage - **${estDamage}**\nLucky Hit - **${lucky}**\nUnlucky Hit - **${unlucky}**`;
-          
+          const responseText = `Results:\n\nEstimated Damage is **${estDamage}**\nLucky Hit is **${lucky}**\nUnlucky Hit is **${unlucky}**`;
+
           const botMsg = { id: Date.now() + 1, type: 'bot', text: responseText, timestamp: Date.now() };
           setMessages(prev => [...prev, botMsg]);
           setCalcState(null); // Reset flow
@@ -270,7 +283,7 @@ const RunieChatBot = () => {
 
     knowledge.forEach(item => {
       if (!item.keywords) return;
-      
+
       item.keywords.forEach(k => {
         const kw = k.toLowerCase().trim();
         if (lowerText.includes(kw)) {
@@ -303,7 +316,7 @@ const RunieChatBot = () => {
         finalResponse = result.data.reply;
       } catch (error) {
         console.error("AI Error:", error);
-        
+
         // Log unanswered queries so admins can 'teach' Runie later
         if (userText.length > 3) {
           try {
@@ -316,7 +329,7 @@ const RunieChatBot = () => {
             console.error("Failed to log unknown query:", e);
           }
         }
-        
+
         finalResponse = "I am still learning the ways of Midgard! I can help you with Amiko Legends, Aurory, Valcoins, or the Drakkar Race. Try one of the topics below!";
       }
       setIsTyping(false);
@@ -329,30 +342,30 @@ const RunieChatBot = () => {
   const handleQuickReply = (reply) => {
     const userMsg = { id: Date.now(), type: 'user', text: reply.label, timestamp: Date.now() };
     setMessages(prev => [...prev, userMsg]);
-    
-    if (reply.label === "Amiko Legends Damage Calculation") {
+
+    if (reply.label === "Amiko Legends Damage Calculation" && isCalcEnabled) {
       setCalcState('STATS');
-      const botMsg = { 
-        id: Date.now() + 1, 
-        type: 'bot', 
-        text: "Please input:\nSkill Base Damage\nE/Atk Stat of Attacker\nE/Def Stat of Defender", 
-        timestamp: Date.now() 
+      const botMsg = {
+        id: Date.now() + 1,
+        type: 'bot',
+        text: "Please input:\nSkill Base Damage\nE/Atk Stat of Attacker\nE/Def Stat of Defender",
+        timestamp: Date.now()
       };
       setMessages(prev => [...prev, botMsg]);
       return;
     }
 
-    if (reply.label === "Calc Tutorial") {
-      const botMsg = { 
-        id: Date.now() + 1, 
-        type: 'bot', 
-        text: "To use the Damage Calculator, input the **Skill Base Damage**, **Attacker Stat**, and **Defender Stat** separated by spaces.\n\nExample: `60 152 115`", 
-        timestamp: Date.now() 
+    if (reply.label === "Calc Tutorial" && isCalcEnabled) {
+      const botMsg = {
+        id: Date.now() + 1,
+        type: 'bot',
+        text: `To use the Damage Calculator, input the **Skill Base Damage (written on the skill description)**, the **Attacker's Stat**, and the **Defender's Stat** separated by spaces.\n\nExample: \`70 90 80\`\n\n**Which stats should you use?**\n• Use **Atk Stat** if the Attacker uses Physical Attack.\n• Use **E/Atk Stat** if the Attacker uses Ether Attack.\n• Use the Defender's **Def Stat** if the Attacker uses Physical Attack.\n• Use the Defender's **E/Def Stat** if the Attacker uses Ether Attack.`,
+        timestamp: Date.now()
       };
       setMessages(prev => [...prev, botMsg]);
       return;
     }
-    
+
     processResponse(reply.label);
   };
 
@@ -364,7 +377,7 @@ const RunieChatBot = () => {
     const userMsg = { id: Date.now(), type: 'user', text: textToUse, timestamp: Date.now() };
     setMessages(prev => [...prev, userMsg]);
     setInputText('');
-    
+
     processResponse(textToUse);
   };
 
@@ -390,10 +403,10 @@ const RunieChatBot = () => {
 
     const parts = [];
     let lastIndex = 0;
-    
+
     // This is a simplified parser. For more complex needs, a markdown library is better, 
     // but this avoids adding dependencies.
-    
+
     // We'll process by searching for all tokens and sorting them by index
     const tokens = [];
     let match;
@@ -453,7 +466,7 @@ const RunieChatBot = () => {
       } else if (token.type === 'youtube') {
         parts.push(
           <div key={`yt-${i}`} className="runie-media youtube">
-            <iframe 
+            <iframe
               src={`https://www.youtube.com/embed/${token.id}`}
               title="YouTube video player"
               frameBorder="0"
@@ -496,8 +509,8 @@ const RunieChatBot = () => {
       )}
 
       {/* Floating Launcher */}
-      <button 
-        className="runie-launcher" 
+      <button
+        className="runie-launcher"
         onClick={() => setIsOpen(!isOpen)}
         title="Chat with Runie"
       >
@@ -517,19 +530,19 @@ const RunieChatBot = () => {
               </div>
             </div>
             <div className="runie-header-actions">
-              <button 
-                className="runie-fullscreen-btn" 
-                onClick={() => setIsFullScreen(!isFullScreen)} 
+              <button
+                className="runie-fullscreen-btn"
+                onClick={() => setIsFullScreen(!isFullScreen)}
                 title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
               >
                 {isFullScreen ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" /></svg>
                 ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg>
                 )}
               </button>
               <button className="runie-reset-btn" onClick={handleReset} title="Reset Chat">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></svg>
               </button>
               <button className="runie-close-btn" onClick={() => setIsOpen(false)}>✕</button>
             </div>
@@ -560,40 +573,41 @@ const RunieChatBot = () => {
             <div className="runie-quick-replies">
               {calcState === 'ATTACKER' || calcState === 'DEFENDER' ? (
                 ELEMENTS.map(elem => (
-                  <button 
-                    key={elem} 
+                  <button
+                    key={elem}
                     className="quick-reply-btn"
-                    onClick={() => handleSendMessage({ preventDefault: () => {}, target: { value: elem } }, elem)}
+                    onClick={() => handleSendMessage({ preventDefault: () => { }, target: { value: elem } }, elem)}
                   >
                     {elem}
                   </button>
                 ))
               ) : (
-                [...knowledge, { id: 'calc', label: 'Amiko Legends Damage Calculation', showAsBadge: true }, { id: 'calc-tut', label: 'Calc Tutorial', showAsBadge: true }]
-                .filter(item => item.label && item.showAsBadge !== false)
-                .slice(0, 10)
-                .map((reply) => (
-                  <button 
-                    key={reply.id} 
-                    className="quick-reply-btn"
-                    onClick={() => handleQuickReply(reply)}
-                  >
-                    {reply.label}
-                  </button>
-                ))
+                [...knowledge]
+                  .concat(isCalcEnabled ? [{ id: 'calc', label: 'Amiko Legends Damage Calculation', showAsBadge: true }, { id: 'calc-tut', label: 'Calc Tutorial', showAsBadge: true }] : [])
+                  .filter(item => item.label && item.showAsBadge !== false)
+                  .slice(0, 10)
+                  .map((reply) => (
+                    <button
+                      key={reply.id}
+                      className="quick-reply-btn"
+                      onClick={() => handleQuickReply(reply)}
+                    >
+                      {reply.label}
+                    </button>
+                  ))
               )}
             </div>
-            
+
             <form className="runie-input-area" onSubmit={handleSendMessage}>
-              <input 
-                type="text" 
-                placeholder="Ask Runie anything..." 
+              <input
+                type="text"
+                placeholder="Ask Runie anything..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 autoFocus
               />
               <button type="submit" className="runie-send-btn" disabled={!inputText.trim() || isTyping}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polyline points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polyline points="22 2 15 22 11 13 2 9 22 2" /></svg>
               </button>
             </form>
           </div>

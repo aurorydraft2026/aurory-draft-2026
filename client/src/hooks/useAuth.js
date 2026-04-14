@@ -625,6 +625,11 @@ export const useAuth = (navigate) => {
                                         <span className="timer-value">{formatTimeRemaining(secondsUntilReset)}</span>
                                     </div>
                                 )}
+                                {!user.auroryPlayerId && (
+                                    <div className="checkin-unlinked-warning" style={{ fontSize: '11px', color: '#f43f5e', marginTop: '8px', textAlign: 'center', lineHeight: '1.2' }}>
+                                        Link Aurory account<br/>to claim daily reward.
+                                    </div>
+                                )}
                             </div>
                         </div>
 
