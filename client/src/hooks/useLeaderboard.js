@@ -367,12 +367,15 @@ export const useLeaderboard = (registeredUsers) => {
             }
 
             const list = Object.entries(data)
-                .map(([uid, val]) => ({
-                    uid,
-                    displayName: val.displayName || 'Guest',
-                    photoURL: val.photoURL || '',
-                    earnedValue: val.score || 0
-                }))
+                .map(([uid, val]) => {
+                    const userData = registeredUsers.find(u => u.id === uid);
+                    return {
+                        uid,
+                        displayName: userData?.auroryPlayerName || val.displayName || 'Guest',
+                        photoURL: userData?.auroryProfilePicture || val.photoURL || '',
+                        earnedValue: val.score || 0
+                    };
+                })
                 .sort((a, b) => b.earnedValue - a.earnedValue);
 
             setTopEarners(list);

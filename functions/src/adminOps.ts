@@ -2,6 +2,7 @@ import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { processPayouts } from './verifyMatches';
 import { scanPvpWins } from './pvpRewards';
+import { updateLeaderboardStats } from './leaderboardUtils';
 
 // Super Admin UID (hardcoded for now, same as in verifyMatches.ts)
 const SUPER_ADMIN_UID = 'wgPwCyYGuYUAokSklV1LNsjCrGA3';
@@ -669,6 +670,100 @@ export const triggerPvpScan = onCall(
         } catch (error: any) {
             console.error('Manual PvP scan failed:', error);
             throw new HttpsError('internal', error.message || 'Unknown error during scan.');
+        }
+    }
+);
+
+/**
+ * Repairs PvP leaderboards by synchronizing each user's stats with correct name priority.
+ * Populates both Valcoins and Win Count leaderboards for All-Time.
+ */
+export const repairPvpLeaderboards = onCall(
+    {
+        region: 'us-central1',
+        timeoutSeconds: 540,
+        memory: '512MiB',
+        maxInstances: 5
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError('unauthenticated', 'Login required');
+        if (request.auth.uid !== SUPER_ADMIN_UID) throw new HttpsError('permission-denied', 'Super Admin only');
+
+        const db = admin.firestore();
+        const rtdb = admin.database();
+        console.log('🛠 Starting PvP Leaderboard Repair/Migration...');
+
+        try {
+            // 1. Fetch all users with Aurory links
+            const usersSnap = await db.collection('users').get();
+            let repairedCount = 0;
+
+            for (const doc of usersSnap.docs) {
+                const ud = doc.data();
+                const uid = doc.id;
+                
+                // Prioritize Aurory Details
+                const dName = ud.auroryPlayerName || ud.displayName || ud.username || 'Guest';
+                const avatar = ud.auroryProfilePicture || ud.avatar || ud.photoURL || '';
+                
+                // 2. Resolve PvP Wins (All-Time)
+                const pvpWins = ud.lastLeaderboardWins || 0;
+                
+                // 3. Resolve historical PvP Earnings from pointsHistory (Optional but let's try to find total earnings)
+                // Actually, let's look at their current Firestore 'exp' or 'stats' if they have it
+                // Most users already have entries in Valcoins/pvp_wins. This repair will mainly fix their names.
+                // For 'wins/pvp', this is a NEW path, so we populate it using 'pvpWins'.
+                
+                if (pvpWins > 0) {
+                    // Update Wins Count (Count leaderboard)
+                    // We only update 'all_time' to avoid spamming historical monthly/weekly with old data
+                    const winsPath = `leaderboards/earnings/wins/pvp/all_time/${uid}`;
+                    const globalWinsPath = `leaderboards/earnings/wins/all/all_time/${uid}`;
+                    
+                    const updateData = {
+                        score: pvpWins,
+                        displayName: dName,
+                        photoURL: avatar
+                    };
+                    
+                    await rtdb.ref(winsPath).set(updateData);
+                    await rtdb.ref(globalWinsPath).set(updateData);
+                    
+                    // Also update pvp_wins (Valcoins leaderboard) to fix names/profiles
+                    // This is harder because we don't know the exact historical Valcoin earnings without scanning.
+                    // But we can update the metadata if the entry exists.
+                    const valcoinsPath = `leaderboards/earnings/valcoins/pvp_wins/all_time/${uid}`;
+                    const valSnap = await rtdb.ref(valcoinsPath).once('value');
+                    if (valSnap.exists()) {
+                        await rtdb.ref(valcoinsPath).update({
+                            displayName: dName,
+                            photoURL: avatar
+                        });
+                    }
+
+                    repairedCount++;
+                } else {
+                    // Even if they have 0 wins, if they have an entry in valcoins leaderboard, we should fix their name
+                    const valcoinsPath = `leaderboards/earnings/valcoins/pvp_wins/all_time/${uid}`;
+                    const valSnap = await rtdb.ref(valcoinsPath).once('value');
+                    if (valSnap.exists()) {
+                        await rtdb.ref(valcoinsPath).update({
+                            displayName: dName,
+                            photoURL: avatar
+                        });
+                        repairedCount++;
+                    }
+                }
+            }
+
+            return {
+                success: true,
+                count: repairedCount,
+                message: `Repaired/Migrated ${repairedCount} user leaderboard profiles.`
+            };
+        } catch (error: any) {
+            console.error('Repair failed:', error);
+            throw new HttpsError('internal', error.message);
         }
     }
 );

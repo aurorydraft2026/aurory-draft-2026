@@ -30,9 +30,10 @@ interface PvpMatch {
   event: string;
   data?: {
     end_game_reason?: string;
-    duration?: number; // The correct property name
-    battle_duration_in_seconds?: number; // Legacy/fallback
+    duration?: number;
+    battle_duration_in_seconds?: number;
     players_match_data?: any[];
+    battle_code?: string;
   };
 }
 
@@ -231,9 +232,9 @@ async function processUser(
     // Must not be a private match (handled by Tournament system)
     if (m.event === 'private') { statsPrivate++; return false; }
 
-    // Must be after last check
+    // Must be after last check (with a 5-minute safety buffer for API latency)
     const matchTime = new Date(m.created_at).getTime();
-    if (matchTime <= lastCheckMs) { statsOld++; return false; }
+    if (matchTime <= (lastCheckMs - 300000)) { statsOld++; return false; }
 
     // Must meet minimum duration
     const duration = m.data?.duration ?? m.data?.battle_duration_in_seconds ?? 0;
@@ -289,6 +290,40 @@ async function processUser(
     return t > max ? t : max;
   }, newestWinTime);
 
+  // ─── METADATA EXTRACTION for Logging ───
+  // Find the newest qualifying match for metadata (opponent, duration, etc.)
+  let recentWin = qualifyingWins.length > 0 
+    ? qualifyingWins.reduce((latest, current) => 
+        new Date(current.created_at).getTime() > new Date(latest.created_at).getTime() ? current : latest
+      , qualifyingWins[0])
+    : null;
+
+  // FALLBACK: If no qualifying wins found in this window but rewarding via Leaderboard,
+  // pick the absolute most recent win from the player's history to populate metadata/amikos.
+  if (!recentWin && totalWinsToReward > 0 && matches.length > 0) {
+    recentWin = matches.find(m => m.result === 'win' && m.opponent?.id !== 'CPU') || null;
+  }
+
+  const amikosSet = new Set<string>();
+  
+  // Collect amikos from all qualifying wins in this batch
+  qualifyingWins.forEach(win => {
+    const me = win.data?.players_match_data?.find((p: any) => p.player_id === playerId);
+    me?.nefties?.forEach((n: any) => {
+      if (n.collection_id) amikosSet.add(n.collection_id);
+    });
+  });
+
+  // Fallback: if no qualifying wins detected amikos, use from the recent fallback win
+  if (amikosSet.size === 0 && recentWin) {
+    const me = recentWin.data?.players_match_data?.find((p: any) => p.player_id === playerId);
+    me?.nefties?.forEach((n: any) => {
+      if (n.collection_id) amikosSet.add(n.collection_id);
+    });
+  }
+
+  const amikosUsed = Array.from(amikosSet).join(', ');
+
   try {
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(userRef);
@@ -314,7 +349,8 @@ async function processUser(
       tx.set(histRef, {
         amount: totalReward,
         type: 'pvp_win',
-        description: `${qualifyingWins.length} PvP win${qualifyingWins.length > 1 ? 's' : ''} in Aurory (+${settings.rewardPerWin} each)`,
+        description: `${totalWinsToReward} PvP win${totalWinsToReward > 1 ? 's' : ''} in Aurory (+${settings.rewardPerWin} each)`,
+        amikos: amikosUsed || null,
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
       });
 
@@ -322,21 +358,30 @@ async function processUser(
       const globalLogRef = db.collection('reward_logs').doc();
       tx.set(globalLogRef, {
         userId: uid,
-        displayName: userData.displayName || userData.username || 'Unknown',
+        displayName: userData.auroryPlayerName || userData.displayName || userData.username || 'Unknown',
         amount: totalReward,
         type: 'pvp_win',
-        matchCount: qualifyingWins.length,
-        description: `${qualifyingWins.length} PvP wins for ${playerId}`,
+        matchCount: totalWinsToReward,
+        description: `${totalWinsToReward} PvP wins for ${playerId}`,
+        amikos: amikosUsed || null,
+        metadata: {
+          playerId,
+          opponent: recentWin?.opponent?.player_name || 'Leaderboard Fallback',
+          duration: recentWin?.data?.duration || null,
+          battleCode: recentWin?.data?.battle_code || null,
+          endGameReason: recentWin?.data?.end_game_reason || null
+        },
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
       });
     });
 
     // Leaderboard update (outside transaction for RTDB)
-    const displayName = userData.displayName || userData.username || 'Unknown';
-    const avatar = userData.avatar || userData.photoURL || '';
-    await updateLeaderboardStats(uid, displayName, avatar, totalReward, 'valcoins', 'pvp_wins');
+    const dName = userData.auroryPlayerName || userData.displayName || userData.username || 'Unknown';
+    const avatar = userData.auroryProfilePicture || userData.avatar || userData.photoURL || '';
+    await updateLeaderboardStats(uid, dName, avatar, totalReward, 'valcoins', 'pvp_wins');
+    await updateLeaderboardStats(uid, dName, avatar, totalWinsToReward, 'wins', 'pvp');
 
-    console.log(`  🏆 ${displayName}: +${totalReward} Valcoins (${qualifyingWins.length} PvP win${qualifyingWins.length > 1 ? 's' : ''})`);
+    console.log(`  🏆 ${dName}: +${totalReward} Valcoins (${totalWinsToReward} PvP win(s)${amikosUsed ? ` using ${amikosUsed}` : ''})`);
     return qualifyingWins.length;
   } catch (err: any) {
     console.error(`  ❌ Error awarding PvP for ${uid}:`, err.message);

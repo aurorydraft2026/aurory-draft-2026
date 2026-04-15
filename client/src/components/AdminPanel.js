@@ -230,6 +230,7 @@ function AdminPanel() {
   const [pvpRewardLogs, setPvpRewardLogs] = useState([]);
   const [rewardLogsLoading, setRewardLogsLoading] = useState(false);
   const [isScanningPvp, setIsScanningPvp] = useState(false);
+  const [isRepairingPvp, setIsRepairingPvp] = useState(false);
 
   // Major Announcement Campaign state
   const [announcementEnabled, setAnnouncementEnabled] = useState(false);
@@ -2126,6 +2127,35 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       alert('Error: ' + error.message);
     } finally {
       setIsWiping(false);
+      setProcessingId(null);
+    }
+  };
+
+  const handleRepairPvpLeaderboards = async () => {
+    if (!window.confirm('🛠 This will scan all users and synchronize PvP wins/earnings with correct name priority. Proceed?')) return;
+
+    setIsRepairingPvp(true);
+    setProcessingId('repair_pvp_leaderboards');
+    try {
+      const repairFn = httpsCallable(functions, 'repairPvpLeaderboards');
+      const { data: result } = await repairFn({});
+      
+      if (result?.success) {
+        alert(result.message);
+        logActivity({
+          user,
+          type: 'ADMIN',
+          action: 'repair_pvp_leaderboards',
+          metadata: { repairedCount: result.count }
+        });
+      } else {
+        throw new Error(result?.message || 'Repair failed');
+      }
+    } catch (error) {
+      console.error('Repair error:', error);
+      alert('Error: ' + error.message);
+    } finally {
+      setIsRepairingPvp(false);
       setProcessingId(null);
     }
   };
@@ -6518,6 +6548,15 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       >
                         {isResettingStats ? 'Resetting...' : resetStatsWipeHistory ? '🔥 Wipe All Records' : '🚨 Reset Leaderboard Stats'}
                       </button>
+
+                      <button 
+                        className="admin-secondary-btn" 
+                        onClick={handleRepairPvpLeaderboards}
+                        disabled={isRepairingPvp || processingId === 'repair_pvp_leaderboards'}
+                        style={{ marginLeft: '10px', background: '#3b82f6', color: 'white', borderColor: '#2563eb' }}
+                      >
+                        {isRepairingPvp ? 'Repairing...' : '🛠 Repair PvP Leaderboards'}
+                      </button>
                     </div>
                   )}
                   {earnersSelectedUser && (
@@ -6855,30 +6894,56 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             <tr>
                               <th>Time</th>
                               <th>User</th>
-                              <th>Matches</th>
+                              <th>Matches & Amikos</th>
+                              <th>Battle Details</th>
                               <th>Reward</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {pvpRewardLogs.map(log => (
-                              <tr key={log.id}>
-                                <td className="log-time">{formatTime(log.timestamp)}</td>
-                                <td className="log-action">
-                                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                    <span style={{ fontWeight: 600 }}>{log.displayName}</span>
-                                    <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>{log.userId}</span>
-                                  </div>
-                                </td>
-                                <td>
-                                  <span className="badge-mini" style={{ background: 'rgba(168, 85, 247, 0.15)', color: 'var(--accent-purple)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>
-                                    {log.matchCount} Win{log.matchCount > 1 ? 's' : ''}
-                                  </span>
-                                </td>
-                                <td>
-                                  <span className="log-amount positive">+{log.amount} VAL</span>
-                                </td>
-                              </tr>
-                            ))}
+                            {pvpRewardLogs.map(log => {
+                              const userObj = allUsers.find(u => u.id === log.userId);
+                              const displayName = userObj ? resolveDisplayName(userObj) : log.displayName;
+                              
+                              return (
+                                <tr key={log.id}>
+                                  <td className="log-time">{formatTime(log.timestamp)}</td>
+                                  <td className="log-action">
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                      <span style={{ fontWeight: 600 }}>{displayName}</span>
+                                      <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>{log.userId}</span>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                      <span className="badge-mini" style={{ background: 'rgba(168, 85, 247, 0.15)', color: 'var(--accent-purple)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, alignSelf: 'flex-start' }}>
+                                        {log.matchCount} Win{log.matchCount > 1 ? 's' : ''}
+                                      </span>
+                                      {log.amikos && (
+                                        <div style={{ fontSize: '0.7rem', opacity: 0.8, color: 'var(--accent-teal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' }} title={log.amikos}>
+                                          🐾 {log.amikos}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td style={{ fontSize: '0.75rem', opacity: 0.8 }}>
+                                    {log.metadata ? (
+                                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontWeight: 500 }}>vs {log.metadata.opponent}</span>
+                                        <div style={{ display: 'flex', gap: '8px', opacity: 0.7 }}>
+                                          {log.metadata.duration && <span>⏱️ {log.metadata.duration}s</span>}
+                                          {log.metadata.battleCode && <span title={log.metadata.battleCode}>🔗 {log.metadata.battleCode.substring(0,6)}...</span>}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <span style={{ opacity: 0.5 }}>—</span>
+                                    )}
+                                  </td>
+                                  <td>
+                                    <span className="log-amount positive">+{log.amount} VAL</span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>

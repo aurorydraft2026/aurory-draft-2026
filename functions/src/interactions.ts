@@ -295,6 +295,27 @@ async function handleLeaderboard(interaction: any, res: any) {
             }
             title = '🏆 Top Valcoin Earners — All Time';
 
+        } else if (category === 'pvp_wins') {
+            console.log('[Interaction] Fetching pvp_wins from RTDB...');
+            const snapshot = await rtdb.ref('leaderboards/earnings/wins/pvp/all_time').orderByChild('score').limitToLast(10).once('value');
+            console.log(`[Interaction] pvp_wins snapshot exists: ${snapshot.exists()}`);
+            
+            if (!snapshot.exists()) {
+                leaderboardText = '📊 No PvP wins recorded yet.';
+            } else {
+                const entries: { name: string; score: number }[] = [];
+                snapshot.forEach((child: any) => { 
+                    entries.push({ 
+                        name: child.val().displayName || 'Unknown', 
+                        score: child.val().score || 0 
+                    }); 
+                });
+                entries.sort((a, b) => b.score - a.score);
+                leaderboardText = entries.map((e, i) => `${i < 3 ? medals[i] : `\`${i + 1}.\``} **${e.name}** — ${e.score} Wins`).join('\n');
+            }
+            title = '⚔️ Top PvP Warriors — All Time Wins';
+            color = 0xE67E22;
+
         } else if (category === 'aury' || category === 'usdc') {
             const field = category === 'aury' ? 'balance' : 'usdcBalance';
             const divisor = category === 'aury' ? 1e9 : 1e6;
