@@ -48,10 +48,12 @@ interface PvpSettings {
 async function loadSettings(): Promise<PvpSettings> {
   try {
     const snap = await admin.firestore().doc('settings/pvp_rewards').get();
-    if (snap.exists) {
+      if (snap.exists) {
       const d = snap.data()!;
+      // Ensure we don't accidentally use 0 or negative rewards from misconfigured settings
+      const reward = (typeof d.rewardPerWin === 'number' && d.rewardPerWin > 0) ? d.rewardPerWin : DEFAULT_REWARD;
       return {
-        rewardPerWin:     d.rewardPerWin     ?? DEFAULT_REWARD,
+        rewardPerWin:     reward,
         minMatchDuration: d.minMatchDuration ?? DEFAULT_MIN_SECS,
         enabled:          d.enabled          ?? true,
       };
@@ -69,44 +71,101 @@ async function loadSettings(): Promise<PvpSettings> {
  * Fetch recent matches for a player from the Aurory API, paginating until
  * we hit the last known processed match timestamp.
  */
+/**
+ * Fetch recent matches for a player from the Aurory API.
+ * Handles both DESC (newest first) and ASC (oldest first) sorting inconsistencies.
+ */
 async function fetchPlayerMatches(playerId: string, lastCheckMs: number): Promise<PvpMatch[]> {
   const allMatches: PvpMatch[] = [];
-  let currentPage = 1;
-  const MAX_PAGES = 20; // Scan up to 500 matches (20 pages × 25) per cycle
-
+  const MAX_PAGES_TO_SCAN = 10;
+  
   try {
-    while (currentPage <= MAX_PAGES) {
+    // 1. Initial Page Fetch (detect sort order)
+    const url0 = `${AURORY_API}/v1/player-matches?player_id_or_name=${encodeURIComponent(playerId)}&page=0&limit=25`;
+    const res0 = await fetch(url0, { headers: { 'accept': 'application/json' }, timeout: 10000 });
+    if (!res0.ok) return [];
+
+    const json0 = (await res0.json()) as any;
+    const matches0 = (json0?.matches?.data || []) as PvpMatch[];
+    const totalPages = json0?.matches?.total_pages || 0;
+
+    if (matches0.length === 0) return [];
+
+    const time0 = matches0.length > 0 ? new Date(matches0[0].created_at).getTime() : 0;
+    const timeLast = matches0.length > 0 ? new Date(matches0[matches0.length - 1].created_at).getTime() : 0;
+
+    console.log(`  📊 ${playerId}: Page 0 fetched: 25 slots, ${matches0.length} matches. Time0: ${new Date(time0).toISOString()}, TimeLast: ${new Date(timeLast).toISOString()}`);
+
+    // Determine sort order: if the last element in the array is newer than the first, it's ASC.
+    const isAscending = timeLast > time0;
+    const newestInBatch = isAscending ? timeLast : time0;
+    const oldestInBatch = isAscending ? time0 : timeLast;
+
+    console.log(`  📐 ${playerId}: Detected order: ${isAscending ? 'ASC (Oldest First)' : 'DESC (Newest First)'}. Newest in batch: ${new Date(newestInBatch).toISOString()}`);
+
+    // IF ASCENDING OR Page 0 is all "OLD" matches but there are many pages,
+    // we should check the END of the list.
+    if (isAscending || (newestInBatch < lastCheckMs && totalPages > 1)) {
+      console.log(`  🔄 ${playerId}: Index is ASC or current page is stale. Checking last page (${totalPages-1}). lastCheckMs=${new Date(lastCheckMs).toISOString()}`);
+      
+      // Fetch the last page
+      const lastPageIdx = totalPages - 1;
+      const urlLast = `${AURORY_API}/v1/player-matches?player_id_or_name=${encodeURIComponent(playerId)}&page=${lastPageIdx}&limit=25`;
+      const resLast = await fetch(urlLast, { headers: { 'accept': 'application/json' }, timeout: 10000 });
+      
+      if (resLast.ok) {
+        const jsonLast = await resLast.json() as any;
+        const matchesLast = (jsonLast?.matches?.data || []) as PvpMatch[];
+        
+        // If the last page has new matches, scan backwards
+        if (matchesLast.length > 0) {
+          const newestOnLastPage = matchesLast.reduce((max: number, m: any) => {
+            const t = new Date(m.created_at).getTime();
+            return t > max ? t : max;
+          }, 0);
+
+          if (newestOnLastPage > lastCheckMs) {
+            allMatches.push(...matchesLast);
+            // Scan one more page back if needed
+            if (lastPageIdx > 0 && matchesLast[0] && new Date(matchesLast[0].created_at).getTime() > lastCheckMs) {
+              const urlPrev = `${AURORY_API}/v1/player-matches?player_id_or_name=${encodeURIComponent(playerId)}&page=${lastPageIdx - 1}&limit=25`;
+              const resPrev = await fetch(urlPrev);
+              if (resPrev.ok) {
+                const jPrev = await resPrev.json() as any;
+                allMatches.push(...(jPrev?.matches?.data || []));
+              }
+            }
+            return allMatches;
+          }
+        }
+      }
+    }
+
+    // Standard DESC scanning (Newest First)
+    allMatches.push(...matches0);
+    if (timeLast <= lastCheckMs) return allMatches;
+
+    let currentPage = 1;
+    while (currentPage < MAX_PAGES_TO_SCAN) {
       const url = `${AURORY_API}/v1/player-matches?player_id_or_name=${encodeURIComponent(playerId)}&page=${currentPage}&limit=25`;
-      const res = await fetch(url, {
-        headers: { 'accept': 'application/json' },
-        timeout: 10000,
-      });
+      const res = await fetch(url, { headers: { 'accept': 'application/json' }, timeout: 10000 });
+      if (!res.ok) break;
 
-      if (!res.ok) {
-        console.warn(`⚠️ Aurory API ${res.status} for ${playerId} on page ${currentPage}`);
-        break;
-      }
+      const j = await res.json() as any;
+      const mArr = (j?.matches?.data || []) as PvpMatch[];
+      if (mArr.length === 0) break;
 
-      const json = (await res.json()) as any;
-      const matches = (json?.matches?.data || []) as PvpMatch[];
-
-      if (matches.length === 0) break;
-
-      allMatches.push(...matches);
-
-      // If the oldest match on this page is already before our checkpoint, 
-      // we have all the new matches we need.
-      const oldestOnPage = new Date(matches[matches.length - 1].created_at).getTime();
-      if (oldestOnPage <= lastCheckMs) {
-        break;
-      }
-
+      allMatches.push(...mArr);
+      const oldestOnPage = new Date(mArr[mArr.length - 1].created_at).getTime();
+      if (oldestOnPage <= lastCheckMs) break;
+      
       currentPage++;
     }
+
     return allMatches;
   } catch (err: any) {
     console.error(`❌ Fetch error for ${playerId}:`, err.message);
-    return allMatches; // Return what we have so far
+    return allMatches;
   }
 }
 
@@ -116,7 +175,8 @@ async function fetchPlayerMatches(playerId: string, lastCheckMs: number): Promis
 async function processUser(
   uid: string,
   userData: any,
-  settings: PvpSettings
+  settings: PvpSettings,
+  leaderboardMap: Map<string, number>
 ): Promise<number> {
   const playerId = userData.auroryPlayerId;
   const displayName = userData.displayName || userData.username || uid;
@@ -138,11 +198,12 @@ async function processUser(
 
   const matches = await fetchPlayerMatches(playerId, lastCheckMs);
   
-  // LEADERBOARD FALLBACK: Some players (like GADxWann) have stale match history in the API 
-  // but fresh wins on the leaderboard.
+  // LEADERBOARD FALLBACK: Caching the leaderboard once per scan (Top 1000)
   let leaderboardDelta = 0;
-  const currentLeaderboardWins = await fetchLeaderboardWins(playerId);
+  const currentLeaderboardWins = leaderboardMap.get(playerId) || 0;
   const lastLeaderboardWins = userData.lastLeaderboardWins || 0;
+
+  console.log(`  🏆 ${displayName}: Leaderboard check: Current=${currentLeaderboardWins}, LastProcessed=${lastLeaderboardWins}`);
 
   if (currentLeaderboardWins > lastLeaderboardWins) {
     leaderboardDelta = currentLeaderboardWins - lastLeaderboardWins;
@@ -296,7 +357,7 @@ export async function scanPvpWins(): Promise<number> {
   // Query only users who have linked their Aurory account
   const snapshot = await admin.firestore().collection('users')
     .where('auroryPlayerId', '!=', '')
-    .limit(200)
+    .limit(1000)
     .get();
 
   if (snapshot.empty) {
@@ -304,7 +365,16 @@ export async function scanPvpWins(): Promise<number> {
     return 0;
   }
 
-  console.log(`🔍 Scanning ${snapshot.size} linked user(s) for PvP wins...`);
+  if (snapshot.size >= 1000) {
+    console.warn('⚠️ WARNING: PvP scanner reached the 1000-user limit. Some users may have been skipped!');
+  }
+
+  console.log(`🔍 Scanning ${snapshot.size} linked user(s) for PvP wins... Current Time: ${new Date().toISOString()}`);
+  
+  // Fetch leaderboard once per scan to avoid rate limits
+  const leaderboardMap = await fetchLeaderboardMap();
+  console.log(`  📊 Leaderboard cache populated: ${leaderboardMap.size} players indexed in Top 1000.`);
+
   let totalWins = 0;
 
   // Process in batches of 5 to respect Aurory API rate limits
@@ -312,7 +382,7 @@ export async function scanPvpWins(): Promise<number> {
   for (let i = 0; i < docs.length; i += 5) {
     const batch = docs.slice(i, i + 5);
     const results = await Promise.all(
-      batch.map((d) => processUser(d.id, d.data(), settings))
+      batch.map((d) => processUser(d.id, d.data(), settings, leaderboardMap))
     );
     totalWins += results.reduce((a, b) => a + b, 0);
 
@@ -329,21 +399,30 @@ export async function scanPvpWins(): Promise<number> {
 }
 
 /**
- * Fetch a player's total wins for the current season from the official Aurory Leaderboard.
+ * Fetch the official Aurory Leaderboard (Top 1000) and return a map of PlayerID -> WinCount.
  */
-async function fetchLeaderboardWins(playerId: string): Promise<number> {
-  const url = `${AURORY_API}/v1/leaderboards?mode=pvp&event=${CURRENT_EVENT}&limit=100`;
+async function fetchLeaderboardMap(): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  const url = `${AURORY_API}/v1/leaderboards?mode=pvp&event=${CURRENT_EVENT}&limit=1000`;
+  
   try {
-    const res = await fetch(url, { headers: { 'accept': 'application/json' }, timeout: 10000 });
-    if (!res.ok) return 0;
+    const res = await fetch(url, { headers: { 'accept': 'application/json' }, timeout: 15000 });
+    if (!res.ok) {
+      console.warn(`⚠️ Aurory Leaderboard API returned ${res.status}`);
+      return map;
+    }
 
     const json = await res.json() as any;
     const players = json?.players || [];
-    const playerEntry = players.find((p: any) => p.player?.player_id === playerId);
     
-    return playerEntry?.match_stats?.num_wins || 0;
+    players.forEach((p: any) => {
+      if (p.player?.player_id) {
+        map.set(p.player.player_id, p.match_stats?.num_wins || 0);
+      }
+    });
   } catch (err: any) {
-    console.error(`❌ Leaderboard fetch error for ${playerId}:`, err.message);
-    return 0;
+    console.error(`❌ Leaderboard cache fetch error:`, err.message);
   }
+  
+  return map;
 }
