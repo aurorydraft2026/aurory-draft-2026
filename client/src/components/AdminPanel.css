@@ -3594,3 +3594,249 @@ input[type=number] {
 .unanswered-item:hover {
   background: rgba(255, 255, 255, 0.02);
 }
+
+/* =============================================
+   PVP REWARDS CONFIGURATION
+   ============================================= */
+
+.pvp-rewards-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.pvp-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.pvp-toggle-row label.pvp-label {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  min-width: 80px;
+}
+
+/* iOS-style toggle */
+.pvp-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.pvp-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.pvp-switch .pvp-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: #475569;
+  border-radius: 28px;
+  transition: background 0.3s ease;
+}
+
+.pvp-switch .pvp-slider::before {
+  content: '';
+  position: absolute;
+  height: 22px;
+  width: 22px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.pvp-switch input:checked + .pvp-slider {
+  background: #22c55e;
+}
+
+.pvp-switch input:checked + .pvp-slider::before {
+  transform: translateX(22px);
+}
+
+.pvp-status-text {
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.pvp-status-text.active { color: #4ade80; }
+.pvp-status-text.paused { color: #94a3b8; }
+
+.pvp-field-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 20px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.pvp-field-row label {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  min-width: 180px;
+}
+
+.pvp-field-input {
+  width: 100px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 1.05rem;
+  text-align: center;
+  transition: border-color 0.2s;
+}
+
+.pvp-field-input:focus {
+  outline: none;
+  border-color: var(--accent-purple);
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.2);
+}
+
+.pvp-field-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.pvp-info-box {
+  padding: 16px 20px;
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.pvp-info-box strong {
+  color: #60a5fa;
+}
+
+.pvp-timer-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.06), rgba(59, 130, 246, 0.06));
+  border: 1px solid rgba(168, 85, 247, 0.15);
+  border-radius: var(--radius-md);
+}
+
+.pvp-timer-icon {
+  font-size: 1.2rem;
+}
+
+.pvp-timer-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.pvp-timer-countdown {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #a78bfa;
+  letter-spacing: 1px;
+}
+
+/* Logs Table Generic Styling */
+.logs-table-container {
+  width: 100%;
+  overflow-x: auto;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  margin-top: 10px;
+}
+
+.logs-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.logs-table th {
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 2px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.logs-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.logs-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.logs-table tr:last-child td {
+  border-bottom: none;
+}
+
+.log-time {
+  color: #94a3b8;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.log-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.log-amount.positive {
+  color: #4ade80;
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .logs-table th, .logs-table td {
+    padding: 10px 12px;
+  }
+  .pvp-field-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .pvp-field-row label {
+    min-width: unset;
+  }
+  .pvp-toggle-row {
+    flex-wrap: wrap;
+  }
+}

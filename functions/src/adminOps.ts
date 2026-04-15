@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { processPayouts } from './verifyMatches';
+import { scanPvpWins } from './pvpRewards';
 
 // Super Admin UID (hardcoded for now, same as in verifyMatches.ts)
 const SUPER_ADMIN_UID = 'wgPwCyYGuYUAokSklV1LNsjCrGA3';
@@ -607,6 +608,67 @@ export const migrateMinigameLeaderboards = onCall(
         } catch (error: any) {
             console.error('Migration failed:', error);
             throw new HttpsError('internal', error.message);
+        }
+    }
+);
+
+/**
+ * Manually trigger the PvP Win Rewards scan.
+ * Restricted to Super Admin.
+ * Accepts optional { resetCheckpoints: true } to rewind all users' lastPvpMatchCheck
+ * so missed wins from past buggy scans can be recovered.
+ */
+export const triggerPvpScan = onCall(
+    {
+        region: 'us-central1',
+        timeoutSeconds: 300,
+        memory: '512MiB',
+        maxInstances: 5
+    },
+    async (request) => {
+        // 1. Auth Check
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User must be logged in.');
+        }
+
+        const callerUid = request.auth.uid;
+        if (callerUid !== SUPER_ADMIN_UID) {
+            throw new HttpsError('permission-denied', 'Only Super Admin can trigger manual PvP scans.');
+        }
+
+        const resetCheckpoints = request.data?.resetCheckpoints === true;
+        const rewindDays = request.data?.rewindDays || 7;
+
+        console.log(`⚔️ Manual PvP Scan Triggered by ${callerUid} (reset=${resetCheckpoints}, rewindDays=${rewindDays})`);
+
+        try {
+            // If reset requested, rewind all linked users' checkpoints
+            if (resetCheckpoints) {
+                const db = admin.firestore();
+                const usersSnap = await db.collection('users')
+                    .where('auroryPlayerId', '!=', '')
+                    .get();
+
+                const rewindTo = Date.now() - (rewindDays * 24 * 60 * 60 * 1000);
+                const rewindTimestamp = admin.firestore.Timestamp.fromMillis(rewindTo);
+
+                const batch = db.batch();
+                usersSnap.forEach((doc) => {
+                    batch.update(doc.ref, { lastPvpMatchCheck: rewindTimestamp });
+                });
+                await batch.commit();
+                console.log(`🔄 Reset ${usersSnap.size} users' checkpoints to ${new Date(rewindTo).toISOString()}`);
+            }
+
+            const count = await scanPvpWins();
+            return {
+                success: true,
+                count,
+                message: `Successfully processed ${count} win(s).${resetCheckpoints ? ` (Checkpoints rewound ${rewindDays} days)` : ''}`
+            };
+        } catch (error: any) {
+            console.error('Manual PvP scan failed:', error);
+            throw new HttpsError('internal', error.message || 'Unknown error during scan.');
         }
     }
 );

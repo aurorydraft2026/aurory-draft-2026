@@ -91,8 +91,8 @@ export const verifyMatches = onSchedule(
 );
 // ─── 4. ADMIN OPERATIONS ───
 // Manual triggers for admins (e.g. payout retry)
-import { manualPayout, cleanupInactiveGuests, resetMiniGameStats, clearAllGlobalNotifications, resetGlobalWallets, migrateMinigameLeaderboards, resetAllValcoinBalances } from './adminOps';
-export { manualPayout, cleanupInactiveGuests, resetMiniGameStats, clearAllGlobalNotifications, resetGlobalWallets, migrateMinigameLeaderboards, resetAllValcoinBalances };
+import { manualPayout, cleanupInactiveGuests, resetMiniGameStats, clearAllGlobalNotifications, resetGlobalWallets, migrateMinigameLeaderboards, resetAllValcoinBalances, triggerPvpScan } from './adminOps';
+export { manualPayout, cleanupInactiveGuests, resetMiniGameStats, clearAllGlobalNotifications, resetGlobalWallets, migrateMinigameLeaderboards, resetAllValcoinBalances, triggerPvpScan };
 
 // ─── 5. REFUNDS ───
 // Refund creator when a paid 1v1 tournament is deleted or updated
@@ -135,3 +135,26 @@ export { upgradeTier, applyReferralCode, ensureReferralCode };
 // ─── 12. RUNIE AI ───
 import { chatWithRunie } from './runieAI';
 export { chatWithRunie };
+
+// ─── 13. PVP WIN REWARDS (every 10 minutes) ───
+// Scans linked Aurory accounts for new PvP wins and awards Valcoins
+import { scanPvpWins } from './pvpRewards';
+
+export const pvpWinRewards = onSchedule(
+    {
+        schedule: 'every 10 minutes',
+        timeoutSeconds: 120,
+        memory: '256MiB',
+        region: 'us-central1'
+    },
+    async () => {
+        try {
+            const count = await scanPvpWins();
+            if (count > 0) {
+                console.log(`PvP rewards: ${count} win(s) rewarded this cycle`);
+            }
+        } catch (err) {
+            console.error('PvP rewards error:', err);
+        }
+    }
+);

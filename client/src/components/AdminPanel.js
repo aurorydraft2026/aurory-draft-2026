@@ -222,6 +222,15 @@ function AdminPanel() {
   const [isSelectingEarnersUser, setIsSelectingEarnersUser] = useState(false);
   const [earnersLoading, setEarnersLoading] = useState(false);
 
+  // PvP Rewards state
+  const [pvpRewardsConfig, setPvpRewardsConfig] = useState(null);
+  const [pvpRewardsLoading, setPvpRewardsLoading] = useState(false);
+  const [pvpSaving, setPvpSaving] = useState(false);
+  const [pvpCountdown, setPvpCountdown] = useState("");
+  const [pvpRewardLogs, setPvpRewardLogs] = useState([]);
+  const [rewardLogsLoading, setRewardLogsLoading] = useState(false);
+  const [isScanningPvp, setIsScanningPvp] = useState(false);
+
   // Major Announcement Campaign state
   const [announcementEnabled, setAnnouncementEnabled] = useState(false);
   const [announcementTitle, setAnnouncementTitle] = useState('🎮 Triad Tourney Season 1');
@@ -522,6 +531,71 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     return () => unsub();
   }, [activeTab, isAdminUser, isAdmin]);
 
+  // Fetch PvP rewards config
+  useEffect(() => {
+    if (!isAdminUser || activeTab !== 'pvp_rewards') return;
+
+    setPvpRewardsLoading(true);
+    const unsub = onSnapshot(doc(db, 'settings', 'pvp_rewards'), (snap) => {
+      if (snap.exists()) {
+        setPvpRewardsConfig(snap.data());
+      } else {
+        const defaults = { enabled: true, rewardPerWin: 20, minMatchDuration: 120 };
+        setDoc(doc(db, 'settings', 'pvp_rewards'), defaults);
+        setPvpRewardsConfig(defaults);
+      }
+      setPvpRewardsLoading(false);
+    });
+    return () => unsub();
+  }, [activeTab, isAdminUser]);
+
+  // PvP Next Scan Timer
+  useEffect(() => {
+    if (activeTab !== 'pvp_rewards') return;
+
+    const updateTimer = () => {
+      const now = new Date();
+      const totalSecondsInInterval = 10 * 60; // 10 minutes
+      const secondsInCurrentInterval = (now.getMinutes() % 10) * 60 + now.getSeconds();
+      const secondsRemaining = totalSecondsInInterval - secondsInCurrentInterval;
+      
+      const m = Math.floor(secondsRemaining / 60);
+      const s = secondsRemaining % 60;
+      setPvpCountdown(`${m}m ${String(s).padStart(2, '0')}s`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [activeTab]);
+
+  // Fetch PvP reward logs
+  useEffect(() => {
+    if (!isAdminUser || activeTab !== 'pvp_rewards') return;
+
+    setRewardLogsLoading(true);
+    const q = query(
+      collection(db, 'reward_logs'),
+      where('type', '==', 'pvp_win'),
+      orderBy('timestamp', 'desc'),
+      limit(20)
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      const logs = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setPvpRewardLogs(logs);
+      setRewardLogsLoading(false);
+    }, (error) => {
+      console.error("Error fetching reward logs:", error);
+      setRewardLogsLoading(false);
+    });
+
+    return () => unsub();
+  }, [activeTab, isAdminUser]);
+
   // Fetch chatbot knowledge
   useEffect(() => {
     if (!isAdminUser || activeTab !== 'chatbot') return;
@@ -726,9 +800,54 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     } catch (error) {
       console.error('Error saving riddle:', error);
       alert('Error saving riddle: ' + error.message);
+    } finally {
+      setProcessingId(null);
     }
-    setProcessingId(null);
   };
+
+  const handleTriggerPvpScan = async (resetCheckpoints = false) => {
+    if (!isSuperAdminUser) return;
+    
+    if (resetCheckpoints && !window.confirm('⚠️ This will rewind ALL player checkpoints by 7 days and re-scan their entire match history. Any already-rewarded wins will NOT be double-counted (they will be filtered as "old"). Continue?')) {
+      return;
+    }
+
+    setIsScanningPvp(true);
+    try {
+      const triggerPvpScan = httpsCallable(functions, 'triggerPvpScan');
+      const result = await triggerPvpScan({ resetCheckpoints, rewindDays: 7 });
+      
+      if (result.data.success) {
+        alert(`✅ ${result.data.message}`);
+        
+        // Refresh logs immediately
+        setRewardLogsLoading(true);
+        const q = query(
+          collection(db, 'reward_logs'),
+          where('type', '==', 'pvp_win'),
+          orderBy('timestamp', 'desc'),
+          limit(20)
+        );
+        const snap = await getDocs(q);
+        const logs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setPvpRewardLogs(logs);
+        setRewardLogsLoading(false);
+        
+        logActivity({
+          user,
+          type: 'ADMIN',
+          action: resetCheckpoints ? 'manual_pvp_reset_scan' : 'manual_pvp_scan',
+          metadata: { count: result.data.count, resetCheckpoints }
+        });
+      }
+    } catch (error) {
+      console.error('Error triggering PvP scan:', error);
+      alert('❌ Scan failed: ' + error.message);
+    } finally {
+      setIsScanningPvp(false);
+    }
+  };
+
 
   const handleDeleteRiddle = async (id) => {
     if (!window.confirm('Are you sure you want to delete this riddle?')) return;
@@ -878,7 +997,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             balance: balances.balance,
             usdcBalance: balances.usdcBalance
           };
-        }).filter(u => u.email && !u.isGuest);
+        }).filter(u => (u.email || u.displayName || u.username || u.auroryPlayerId) && (!u.isGuest || u.auroryPlayerId));
 
         setAllUsers(users);
       } catch (error) {
@@ -3000,6 +3119,12 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   onClick={() => setActiveTab('mini_game_history')}
                 >
                   🏆 Earners & Plays
+                </button>
+                <button
+                  className={`admin-tab ${activeTab === 'pvp_rewards' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('pvp_rewards')}
+                >
+                  ⚔️ PvP Rewards
                 </button>
               </div>
             </div>
@@ -5434,10 +5559,12 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     {allUsers
                       .filter(u => {
                         const query = walletHistoryUserSearch.toLowerCase();
-                        const name = resolveDisplayName(u).toLowerCase();
+                        const name = (resolveDisplayName(u) || '').toLowerCase();
                         const email = (u.email || '').toLowerCase();
-                        return name.includes(query) || email.includes(query);
+                        const auroryId = (u.auroryPlayerId || '').toLowerCase();
+                        return name.includes(query) || email.includes(query) || auroryId.includes(query);
                       })
+                      .filter(u => !u.isGuest || u.auroryPlayerId) // Show guests if they have linked Aurory
                       .slice(0, 10)
                       .map(u => (
                         <div
@@ -6554,6 +6681,211 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {activeTab === 'pvp_rewards' && (
+            <div className="mini-games-section">
+              <div className="section-header">
+                <h2>⚔️ PvP Win Rewards</h2>
+                <div className="header-actions">
+                  <p className="text-sm">Manage Valcoins earned from real PvP matches in Aurory.</p>
+                </div>
+              </div>
+
+              {pvpRewardsLoading ? (
+                <LoadingScreen message="Loading PvP config..." />
+              ) : !pvpRewardsConfig ? (
+                <div className="empty-state card"><p>No config found. Admin settings may be missing.</p></div>
+              ) : (
+                <div className="pvp-rewards-card">
+                  {/* Timer Bar */}
+                  <div className="pvp-timer-bar" style={{ position: 'relative' }}>
+                    <span className="pvp-timer-icon">🕒</span>
+                    <span className="pvp-timer-label">NEXT REWARDS SCAN:</span>
+                    <span className="pvp-timer-countdown">{pvpCountdown}</span>
+                    
+                    {isSuperAdminUser && (
+                      <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                        <button 
+                          className="admin-secondary-btn"
+                          onClick={() => handleTriggerPvpScan(false)}
+                          disabled={isScanningPvp}
+                          style={{ 
+                            padding: '6px 14px', 
+                            fontSize: '0.8rem',
+                            background: 'rgba(168, 85, 247, 0.2)',
+                            borderColor: 'var(--accent-purple)',
+                            color: 'var(--accent-purple)'
+                          }}
+                        >
+                          {isScanningPvp ? '⌛ Scanning...' : '🚀 Quick Scan'}
+                        </button>
+                        <button 
+                          className="admin-secondary-btn"
+                          onClick={() => handleTriggerPvpScan(true)}
+                          disabled={isScanningPvp}
+                          style={{ 
+                            padding: '6px 14px', 
+                            fontSize: '0.8rem',
+                            background: 'rgba(239, 68, 68, 0.15)',
+                            borderColor: '#ef4444',
+                            color: '#ef4444'
+                          }}
+                        >
+                          {isScanningPvp ? '⌛ Scanning...' : '🔄 Reset & Full Scan'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Enable/Disable Toggle */}
+                  <div className="pvp-toggle-row">
+                    <label className="pvp-label">Enabled</label>
+                    <label className="pvp-switch">
+                      <input
+                        type="checkbox"
+                        checked={pvpRewardsConfig.enabled ?? true}
+                        onChange={async (e) => {
+                          const val = e.target.checked;
+                          setPvpRewardsConfig(prev => ({ ...prev, enabled: val }));
+                          try {
+                            await updateDoc(doc(db, 'settings', 'pvp_rewards'), { enabled: val });
+                          } catch (err) {
+                            alert('Error: ' + err.message);
+                          }
+                        }}
+                      />
+                      <span className="pvp-slider" />
+                    </label>
+                    <span className={`pvp-status-text ${pvpRewardsConfig.enabled ? 'active' : 'paused'}`}>
+                      {pvpRewardsConfig.enabled ? '🟢 Active — system is awarding wins' : '🔘 Paused — rewards are currently disabled'}
+                    </span>
+                  </div>
+
+                  {/* Reward Per Win */}
+                  <div className="pvp-field-row">
+                    <label>Valcoins per Win</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={1000}
+                      className="pvp-field-input"
+                      value={pvpRewardsConfig.rewardPerWin ?? 20}
+                      onChange={(e) => {
+                        const val = Math.max(1, parseInt(e.target.value) || 1);
+                        setPvpRewardsConfig(prev => ({ ...prev, rewardPerWin: val }));
+                      }}
+                    />
+                    <span className="pvp-field-hint">(EXP matches this amount)</span>
+                  </div>
+
+                  {/* Minimum Match Duration */}
+                  <div className="pvp-field-row">
+                    <label>Min Match Duration</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={3600}
+                      className="pvp-field-input"
+                      value={pvpRewardsConfig.minMatchDuration ?? 120}
+                      onChange={(e) => {
+                        const val = Math.max(0, parseInt(e.target.value) || 0);
+                        setPvpRewardsConfig(prev => ({ ...prev, minMatchDuration: val }));
+                      }}
+                    />
+                    <span className="pvp-field-hint">seconds (skip short disconnected games)</span>
+                  </div>
+
+                  {/* Save Button */}
+                  <button
+                    className="save-banner-btn"
+                    disabled={pvpSaving}
+                    onClick={async () => {
+                      setPvpSaving(true);
+                      try {
+                        await updateDoc(doc(db, 'settings', 'pvp_rewards'), {
+                          rewardPerWin: pvpRewardsConfig.rewardPerWin,
+                          minMatchDuration: pvpRewardsConfig.minMatchDuration,
+                          enabled: pvpRewardsConfig.enabled,
+                        });
+                        logActivity({
+                          user,
+                          type: 'ADMIN',
+                          action: 'update_pvp_rewards',
+                          metadata: { ...pvpRewardsConfig }
+                        });
+                        alert('✅ PvP Rewards settings saved!');
+                      } catch (err) {
+                        alert('❌ Error saving: ' + err.message);
+                      } finally {
+                        setPvpSaving(false);
+                      }
+                    }}
+                  >
+                    {pvpSaving ? 'Saving...' : '💾 Save Overall Settings'}
+                  </button>
+
+                  {/* Info box */}
+                  <div className="pvp-info-box">
+                    <strong>⚔️ PvP System Logic:</strong><br/>
+                    • Scans linked Aurory players every 10 minutes.<br/>
+                    • Skips private matches (handled by Tournament system).<br/>
+                    • Skips <strong>CPU/Bot</strong> matches automatically.<br/>
+                    • Only awards wins that meet the duration requirement.
+                  </div>
+
+                  {/* Activity Log Section */}
+                  <div className="pvp-activity-section" style={{ marginTop: '32px' }}>
+                    <div className="section-header" style={{ marginBottom: '16px' }}>
+                      <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--accent-purple)' }}>📜 Recent Reward Activity</h3>
+                      <p className="pvp-field-hint">The most recent reward distributions across all users.</p>
+                    </div>
+
+                    {rewardLogsLoading ? (
+                      <div className="empty-state"><p>Loading recent logs...</p></div>
+                    ) : pvpRewardLogs.length === 0 ? (
+                      <div className="empty-state card" style={{ padding: '20px' }}>
+                        <p>📭 No reward activity recorded yet.</p>
+                      </div>
+                    ) : (
+                      <div className="logs-table-container">
+                        <table className="logs-table">
+                          <thead>
+                            <tr>
+                              <th>Time</th>
+                              <th>User</th>
+                              <th>Matches</th>
+                              <th>Reward</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pvpRewardLogs.map(log => (
+                              <tr key={log.id}>
+                                <td className="log-time">{formatTime(log.timestamp)}</td>
+                                <td className="log-action">
+                                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span style={{ fontWeight: 600 }}>{log.displayName}</span>
+                                    <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>{log.userId}</span>
+                                  </div>
+                                </td>
+                                <td>
+                                  <span className="badge-mini" style={{ background: 'rgba(168, 85, 247, 0.15)', color: 'var(--accent-purple)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>
+                                    {log.matchCount} Win{log.matchCount > 1 ? 's' : ''}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span className="log-amount positive">+{log.amount} VAL</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

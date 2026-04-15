@@ -460,6 +460,20 @@ service cloud.firestore {
     }
 
     // =============================================
+    // REWARD LOGS
+    // =============================================
+    match /reward_logs/{logId} {
+      // Admins can read all reward logs
+      allow read: if isAdmin();
+      
+      // Only super admins can delete/clear logs
+      allow delete: if isSuperAdmin();
+      
+      // Logs are immutable from the client
+      allow write: if false;
+    }
+
+    // =============================================
     // ACTIVITY LOGS
     // =============================================
     match /activity_logs/{logId} {
