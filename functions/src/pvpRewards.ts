@@ -16,12 +16,25 @@ import { clampPointsToTierMax } from './tierAndReferral';
 import { updateLeaderboardStats } from './leaderboardUtils';
 
 const AURORY_API = 'https://aggregator-api.live.aurory.io';
-const CURRENT_EVENT = 'APRIL_2026';
-
 
 // ─── DEFAULTS (overridable via settings/pvp_rewards) ───
 const DEFAULT_REWARD   = 20;   // Valcoins per PvP win
 const DEFAULT_MIN_SECS = 120;  // Minimum battle duration in seconds
+
+/**
+ * Automatically calculates the Aurory event name based on the current date,
+ * e.g., "APRIL_2026", "MAY_2026", etc.
+ */
+function getCurrentEventName(): string {
+  const date = new Date();
+  const monthNames = [
+    "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+    "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"
+  ];
+  const month = monthNames[date.getMonth()];
+  const year = date.getFullYear();
+  return `${month}_${year}`;
+}
 
 interface PvpMatch {
   created_at: string;
@@ -41,6 +54,7 @@ interface PvpSettings {
   rewardPerWin: number;
   minMatchDuration: number;
   enabled: boolean;
+  currentEvent: string;
 }
 
 /**
@@ -57,6 +71,7 @@ async function loadSettings(): Promise<PvpSettings> {
         rewardPerWin:     reward,
         minMatchDuration: d.minMatchDuration ?? DEFAULT_MIN_SECS,
         enabled:          d.enabled          ?? true,
+        currentEvent:     d.currentEvent     ?? getCurrentEventName(),
       };
     }
   } catch { /* fall through */ }
@@ -65,6 +80,7 @@ async function loadSettings(): Promise<PvpSettings> {
     rewardPerWin: DEFAULT_REWARD,
     minMatchDuration: DEFAULT_MIN_SECS,
     enabled: true,
+    currentEvent: getCurrentEventName(),
   };
 }
 
@@ -417,7 +433,7 @@ export async function scanPvpWins(): Promise<number> {
   console.log(`🔍 Scanning ${snapshot.size} linked user(s) for PvP wins... Current Time: ${new Date().toISOString()}`);
   
   // Fetch leaderboard once per scan to avoid rate limits
-  const leaderboardMap = await fetchLeaderboardMap();
+  const leaderboardMap = await fetchLeaderboardMap(settings.currentEvent);
   console.log(`  📊 Leaderboard cache populated: ${leaderboardMap.size} players indexed in Top 1000.`);
 
   let totalWins = 0;
@@ -446,9 +462,9 @@ export async function scanPvpWins(): Promise<number> {
 /**
  * Fetch the official Aurory Leaderboard (Top 1000) and return a map of PlayerID -> WinCount.
  */
-async function fetchLeaderboardMap(): Promise<Map<string, number>> {
+async function fetchLeaderboardMap(currentEvent: string): Promise<Map<string, number>> {
   const map = new Map<string, number>();
-  const url = `${AURORY_API}/v1/leaderboards?mode=pvp&event=${CURRENT_EVENT}&limit=1000`;
+  const url = `${AURORY_API}/v1/leaderboards?mode=pvp&event=${currentEvent}&limit=1000`;
   
   try {
     const res = await fetch(url, { headers: { 'accept': 'application/json' }, timeout: 15000 });

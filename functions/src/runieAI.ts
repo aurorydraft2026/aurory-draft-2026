@@ -44,7 +44,7 @@ export const chatWithRunie = onCall({
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Content-Length': postData.length
+                'Content-Length': Buffer.byteLength(postData)
             }
         };
 

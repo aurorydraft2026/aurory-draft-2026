@@ -273,35 +273,61 @@ async function handleWealth(interaction: any, res: any) {
 async function handleLeaderboard(interaction: any, res: any) {
     const options = interaction.data?.options || [];
     const category = options.find((opt: any) => opt.name === 'category')?.value || 'valcoins';
+    const timeframe = (options.find((opt: any) => opt.name === 'timeframe')?.value || 'all_time').toString().toLowerCase();
+    
+    console.log(`[Interaction] /leaderboard category: ${category}, timeframe: ${timeframe}`);
 
     try {
         let leaderboardText = '';
-        let title = '';
+        let title = '📊 Asgard Leaderboard';
         let color = 0xF1C40F;
 
         const db = admin.firestore();
         const rtdb = admin.database();
         const medals = ['🥇', '🥈', '🥉'];
 
+        // ─── 1. Calculate Timeframe Path ───
+        let timeframePath = 'all_time';
+        let timeframeTitle = 'All Time';
+        
+        if (timeframe !== 'all_time') {
+            const now = new Date();
+            if (timeframe === 'daily') {
+                timeframePath = `daily/${now.toISOString().split('T')[0]}`;
+                timeframeTitle = 'Daily';
+            } else if (timeframe === 'monthly') {
+                const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                timeframePath = `monthly/${monthKey}`;
+                timeframeTitle = 'Monthly';
+            } else if (timeframe === 'weekly') {
+                const sunday = new Date(now);
+                sunday.setDate(now.getDate() - now.getDay());
+                const weekKey = sunday.toISOString().split('T')[0];
+                timeframePath = `weekly/${weekKey}`;
+                timeframeTitle = 'Weekly';
+            }
+        }
+
         if (category === 'valcoins') {
-            const snapshot = await rtdb.ref('leaderboards/earnings/valcoins/all/all_time').orderByChild('score').limitToLast(10).once('value');
+            const snapshot = await rtdb.ref(`leaderboards/earnings/valcoins/all/${timeframePath}`).orderByChild('score').limitToLast(10).once('value');
             if (!snapshot.exists()) {
-                leaderboardText = '📊 No leaderboard data yet.';
+                leaderboardText = `📊 No ${timeframeTitle.toLowerCase()} data yet.`;
             } else {
                 const entries: { name: string; score: number }[] = [];
                 snapshot.forEach((child: any) => { entries.push({ name: child.val().displayName || 'Unknown', score: child.val().score || 0 }); });
                 entries.sort((a, b) => b.score - a.score);
                 leaderboardText = entries.map((e, i) => `${i < 3 ? medals[i] : `\`${i + 1}.\``} **${e.name}** — ${e.score.toLocaleString()} Valcoins`).join('\n');
             }
-            title = '🏆 Top Valcoin Earners — All Time';
+            title = `🏆 Top Valcoin Earners — ${timeframeTitle}`;
+            color = 0xF1C40F;
 
         } else if (category === 'pvp_wins') {
-            console.log('[Interaction] Fetching pvp_wins from RTDB...');
-            const snapshot = await rtdb.ref('leaderboards/earnings/wins/pvp/all_time').orderByChild('score').limitToLast(10).once('value');
+            console.log(`[Interaction] Fetching pvp_wins from ${timeframePath}...`);
+            const snapshot = await rtdb.ref(`leaderboards/earnings/wins/pvp/${timeframePath}`).orderByChild('score').limitToLast(10).once('value');
             console.log(`[Interaction] pvp_wins snapshot exists: ${snapshot.exists()}`);
             
             if (!snapshot.exists()) {
-                leaderboardText = '📊 No PvP wins recorded yet.';
+                leaderboardText = `📊 No PvP wins recorded ${timeframe === 'all_time' ? 'yet' : `for this ${timeframe.replace('ly', '')}`}.`;
             } else {
                 const entries: { name: string; score: number }[] = [];
                 snapshot.forEach((child: any) => { 
@@ -313,7 +339,7 @@ async function handleLeaderboard(interaction: any, res: any) {
                 entries.sort((a, b) => b.score - a.score);
                 leaderboardText = entries.map((e, i) => `${i < 3 ? medals[i] : `\`${i + 1}.\``} **${e.name}** — ${e.score} Wins`).join('\n');
             }
-            title = '⚔️ Top PvP Warriors — All Time Wins';
+            title = `⚔️ Top PvP Warriors — ${timeframeTitle} Wins`;
             color = 0xE67E22;
 
         } else if (category === 'aury' || category === 'usdc') {
@@ -379,16 +405,16 @@ async function handleLeaderboard(interaction: any, res: any) {
                 treasureChest: '📦 Loot Box',
                 drakkarRace: '⛵ Drakkar Race'
             };
-            const snapshot = await rtdb.ref(`leaderboards/earnings/valcoins/${category}/all_time`).orderByChild('score').limitToLast(10).once('value');
+            const snapshot = await rtdb.ref(`leaderboards/earnings/valcoins/${category}/${timeframePath}`).orderByChild('score').limitToLast(10).once('value');
             if (!snapshot.exists()) {
-                leaderboardText = `📊 No ${gameNames[category]} data yet.`;
+                leaderboardText = `📊 No ${gameNames[category]} ${timeframeTitle.toLowerCase()} data yet.`;
             } else {
                 const entries: { name: string; score: number }[] = [];
                 snapshot.forEach((child: any) => { entries.push({ name: child.val().displayName || 'Unknown', score: child.val().score || 0 }); });
                 entries.sort((a, b) => b.score - a.score);
                 leaderboardText = entries.map((e, i) => `${i < 3 ? medals[i] : `\`${i + 1}.\``} **${e.name}** — ${e.score.toLocaleString()} Valcoins`).join('\n');
             }
-            title = `🏆 Top ${gameNames[category]} Earners`;
+            title = `🏆 Top ${gameNames[category]} Earners — ${timeframeTitle}`;
             color = 0xF1C40F;
         } else if (category === 'referral') {
             const snap = await db.collection('users').orderBy('referralCount', 'desc').limit(10).get();

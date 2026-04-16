@@ -59,6 +59,18 @@ const commands = [
           { name: '⚔️ PvP Wins', value: 'pvp_wins' },
           { name: '🤝 Top Recruiters', value: 'referral' }
         ]
+      },
+      {
+        name: 'timeframe',
+        description: 'Select the timeframe for the rankings',
+        type: 3, // STRING type
+        required: false,
+        choices: [
+          { name: '📅 Daily', value: 'daily' },
+          { name: '📅 Weekly', value: 'weekly' },
+          { name: '📅 Monthly', value: 'monthly' },
+          { name: '📅 All Time', value: 'all_time' }
+        ]
       }
     ]
   }
