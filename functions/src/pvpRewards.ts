@@ -248,9 +248,9 @@ async function processUser(
     // Must not be a private match (handled by Tournament system)
     if (m.event === 'private') { statsPrivate++; return false; }
 
-    // Must be after last check (with a 5-minute safety buffer for API latency)
+    // Must be after last check
     const matchTime = new Date(m.created_at).getTime();
-    if (matchTime <= (lastCheckMs - 300000)) { statsOld++; return false; }
+    if (matchTime <= lastCheckMs) { statsOld++; return false; }
 
     // Must meet minimum duration
     const duration = m.data?.duration ?? m.data?.battle_duration_in_seconds ?? 0;
@@ -314,10 +314,15 @@ async function processUser(
       , qualifyingWins[0])
     : null;
 
-  // FALLBACK: If no qualifying wins found in this window but rewarding via Leaderboard,
-  // pick the absolute most recent win from the player's history to populate metadata/amikos.
-  if (!recentWin && totalWinsToReward > 0 && matches.length > 0) {
-    recentWin = matches.find(m => m.result === 'win' && m.opponent?.id !== 'CPU') || null;
+  // FALLBACK Metadata Handling:
+  // If we are rewarding via Leaderboard but no new matches were found in history,
+  // we do NOT want to show an old opponent.
+  let opponentName = recentWin?.opponent?.player_name;
+  let isFallback = false;
+
+  if (!recentWin && totalWinsToReward > 0) {
+    opponentName = "Leaderboard Sync (API Lag)";
+    isFallback = true;
   }
 
   const amikosSet = new Set<string>();
@@ -352,10 +357,16 @@ async function processUser(
       const rawNew = currentPoints + totalReward;
       const clampedPoints = clampPointsToTierMax(rawNew, userTier);
 
+      // If we used a leaderboard fallback, we MUST advance the timestamp to "now"
+      // to prevent these wins from being double-counted when they finally show up in history.
+      const finalCheckpointTime = isFallback 
+        ? Math.max(newestOverallTime, Date.now() - 60000) // Now minus 1m safety
+        : newestOverallTime;
+
       tx.update(userRef, {
         points: clampedPoints,
         exp: admin.firestore.FieldValue.increment(totalReward),
-        lastPvpMatchCheck: admin.firestore.Timestamp.fromMillis(newestOverallTime),
+        lastPvpMatchCheck: admin.firestore.Timestamp.fromMillis(finalCheckpointTime),
         lastLeaderboardWins: currentLeaderboardWins > 0 ? currentLeaderboardWins : (ud.lastLeaderboardWins || 0),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
@@ -382,9 +393,9 @@ async function processUser(
         amikos: amikosUsed || null,
         metadata: {
           playerId,
-          opponent: recentWin?.opponent?.player_name || 'Leaderboard Fallback',
+          opponent: opponentName || 'Unknown',
           duration: recentWin?.data?.duration || null,
-          battleCode: recentWin?.data?.battle_code || null,
+          battleCode: recentWin?.data?.battle_code || (isFallback ? 'LEADERBOARD_SYNC' : null),
           endGameReason: recentWin?.data?.end_game_reason || null
         },
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
