@@ -31,7 +31,7 @@ export const chatWithRunie = onCall({
 
         // 3. Direct REST Call to v1 (Bypassing SDK v1beta issues)
         const https = require('https');
-        
+
         const postData = JSON.stringify({
             contents: [{ parts: [{ text: systemPrompt }] }],
             generationConfig: { maxOutputTokens: 1024, temperature: 0.7 }

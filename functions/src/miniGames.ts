@@ -565,8 +565,55 @@ export const refreshDrakkarRace = onCall(
                     duration = DURATIONS.betting;
 
                     const shipIndices = pickUnique(3);
-                    const weatherIndices = pick5Weathers();
-                    const revealedIndex = Math.floor(Math.random() * 5); // Pick one of 5 to reveal
+                    
+                    // --- THE TABLE FLIP ALGORITHM ---
+                    // 1. Pick a "bait" weather
+                    const baitWeather = Math.floor(Math.random() * 7);
+
+                    // 2. Rank the 3 ships in this bait weather
+                    const shipRankings = shipIndices.map(sIdx => ({
+                        idx: sIdx,
+                        speed: SPEED_MATRIX[sIdx][baitWeather]
+                    }));
+                    shipRankings.sort((a, b) => b.speed - a.speed); // [0]=Favorite, [1]=Medium, [2]=Underdog
+                    
+                    // 3. Determine which ship gets the boost based on requested odds
+                    const roll = Math.random();
+                    let chosenShipIdx: number;
+                    if (roll < 0.34) {
+                        chosenShipIdx = shipRankings[2].idx; // 34% Underdog
+                    } else if (roll < 0.67) {
+                        chosenShipIdx = shipRankings[1].idx; // 33% Medium
+                    } else {
+                        chosenShipIdx = shipRankings[0].idx; // 33% Favorite
+                    }
+
+                    // 4. Find the chosen ship's absolute best weathers
+                    const allWeathers = [0, 1, 2, 3, 4, 5, 6];
+                    allWeathers.sort((a, b) => SPEED_MATRIX[chosenShipIdx][b] - SPEED_MATRIX[chosenShipIdx][a]);
+
+                    // 5. Build the final 5 weathers, ensuring chosen ship guarantees a win
+                    let weatherIndices: number[] = [];
+                    let revealedIndex: number = 0;
+                    let safetyCounter = 0;
+                    const numTopWeathers = Math.random() < 0.5 ? 1 : 2;
+
+                    while (safetyCounter < 50) {
+                        safetyCounter++;
+                        const unshuffled = [baitWeather, ...allWeathers.slice(0, numTopWeathers)];
+                        while (unshuffled.length < 5) {
+                            unshuffled.push(Math.floor(Math.random() * 7));
+                        }
+                        
+                        weatherIndices = shuffleArray(unshuffled);
+                        revealedIndex = weatherIndices.indexOf(baitWeather);
+                        
+                        const result = determineRaceResult(shipIndices, weatherIndices);
+                        if (shipIndices[result.winnerIdx] === chosenShipIdx) {
+                            break; // Winning combination found!
+                        }
+                    }
+                    // ---------------------------------
 
                     const ships = shipIndices.map((i: number) => ALL_SHIPS[i]);
                     const weathers = weatherIndices.map((i: number) => ALL_WEATHERS[i]);
