@@ -17,6 +17,7 @@ import {
     calculateFinalsStandings
 } from '../utils/tournamentUtils';
 import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
+import AvatarWithAura from '../components/AvatarWithAura';
 import { useAuth } from '../hooks/useAuth';
 import { awardPoints } from '../services/pointsService';
 import './MatchupPage.css';
@@ -2397,7 +2398,7 @@ const MatchupPage = () => {
                                                     return (
                                                         <div key={uid} className="player-score-row">
                                                             <div className="p-score-avatar">
-                                                                <img src={resolveAvatar(pUser)} alt="" />
+                                                                <AvatarWithAura user={pUser} size={32} />
                                                             </div>
                                                             <span className="p-score-name">{resolveDisplayName(pUser)}</span>
                                                             <div className="p-score-input-wrapper">
@@ -2452,7 +2453,7 @@ const MatchupPage = () => {
                                                 <div key={item.uid} className={`leader-row rank-${index + 1}`}>
                                                     <div className="rank-badge">{index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}</div>
                                                     <div className="leader-avatar">
-                                                        <img src={resolveAvatar(pUser)} alt="" />
+                                                        <AvatarWithAura user={pUser} size={32} />
                                                     </div>
                                                     <div className="leader-info">
                                                         <span className="leader-name">{resolveDisplayName(pUser)}</span>
@@ -2564,7 +2565,7 @@ const MatchupPage = () => {
                                                             const mUser = getUserById(mid);
                                                             return (
                                                                 <div key={mid} className="roster-item-mini" title={resolveDisplayName(mUser)}>
-                                                                    <img src={resolveAvatar(mUser)} alt="" />
+                                                                    <AvatarWithAura user={mUser} size={24} />
                                                                 </div>
                                                             );
                                                         })}
@@ -2579,7 +2580,7 @@ const MatchupPage = () => {
                                             <div key={targetUser.uid} className={`participant-row ${targetUser.uid === user?.uid ? 'is-me' : ''} ${targetUser.isMock ? 'is-mock' : ''}`}>
                                                 <div className="p-rank">{index + 1}</div>
                                                 <div className="p-avatar-wrapper">
-                                                    <img src={resolveAvatar(targetUser)} alt={resolveDisplayName(targetUser)} className="p-avatar" />
+                                                    <AvatarWithAura user={targetUser} size={36} className="p-avatar" />
                                                     {targetUser?.isAurorian && <span className="p-aurorian-logo" title="Aurorian NFT Holder">🛡️</span>}
                                                 </div>
                                                 <div className="p-info">

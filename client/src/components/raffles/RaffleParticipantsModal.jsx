@@ -1,5 +1,5 @@
-import React from 'react';
 import ReactDOM from 'react-dom';
+import AvatarWithAura from '../AvatarWithAura';
 import './RaffleParticipantsModal.css';
 
 const RaffleParticipantsModal = ({ participants = [], onClose, isAdmin, onRemoveParticipant }) => {
@@ -34,6 +34,9 @@ const RaffleParticipantsModal = ({ participants = [], onClose, isAdmin, onRemove
               participants.map((p, i) => (
                 <div key={p.uid || i} className={`viking-participant-row ${isAdmin ? 'has-admin' : ''}`}>
                   <span className="p-rank">#{i + 1}</span>
+                  <div className="p-avatar-mini">
+                    <AvatarWithAura user={p} size={24} />
+                  </div>
                   <span className="p-name">{p.playerName}</span>
                   <span className="p-id">{p.auroryPlayerId || 'N/A'}</span>
                   <span className="p-date">

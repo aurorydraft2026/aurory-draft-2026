@@ -8,6 +8,8 @@ import { dailyCheckIn } from '../services/pointsService';
 import { syncAuroryName } from '../services/auroryProfileService';
 import { TIER_CONFIG, getTierProgress, getTierExp, getNextTier, upgradeTier as upgradeTierCall, applyReferralCode as applyReferralCodeCall, generateReferralLink } from '../services/tierService';
 import './CheckInBonus.css';
+import AvatarWithAura from '../components/AvatarWithAura';
+import { getEquippedBannerStyle } from '../services/cosmeticsService';
 
 export const useAuth = (navigate) => {
     const [user, setUser] = useState(null);
@@ -536,14 +538,9 @@ export const useAuth = (navigate) => {
 
                     <div className="user-modal-content">
                         {/* ── PROFILE HEADER ROW ── */}
-                        <div className="user-header-info">
+                        <div className="user-header-info" style={getEquippedBannerStyle(user)}>
                             <div className="profile-pic-wrapper">
-                                <img
-                                    src={user.auroryProfilePicture || user.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
-                                    alt="Profile"
-                                    className="modal-profile-pic"
-                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                                />
+                                <AvatarWithAura user={user} size={80} className="modal-profile-pic-aura" />
                                 {tierConfig.badge && (
                                     <img 
                                         src={tierConfig.badge} 
@@ -582,11 +579,20 @@ export const useAuth = (navigate) => {
                                 <span className="modal-email">{user.email}</span>
                                 <div className="modal-badges-row">
                                     {isSuperAdminUser ? (
-                                        <span className="modal-admin-badge">⭐Super Admin</span>
+                                        <span className="modal-admin-badge">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '4px'}}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                            Super Admin
+                                        </span>
                                     ) : user.role === 'admin' ? (
-                                        <span className="modal-admin-badge admin-staff">⭐Admin</span>
+                                        <span className="modal-admin-badge admin-staff">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '4px'}}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                            Admin
+                                        </span>
                                     ) : isGamesManagerUser ? (
-                                        <span className="modal-admin-badge games-manager-badge">🎮Games Manager</span>
+                                        <span className="modal-admin-badge games-manager-badge">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '4px'}}><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h.01"/><path d="M9 12h.01"/><path d="M15 12h.01"/><path d="M18 12h.01"/></svg>
+                                            Games Manager
+                                        </span>
                                     ) : null}
                                     {user.isAurorian && <span className="aurorian-tag">Aurorian Holder</span>}
                                 </div>

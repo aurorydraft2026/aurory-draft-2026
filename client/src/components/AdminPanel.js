@@ -27,6 +27,7 @@ import { createNotification } from '../services/notifications';
 import { logActivity } from '../services/activityService';
 import LoadingScreen from './LoadingScreen';
 import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
+import AvatarWithAura from './AvatarWithAura';
 import { awardPoints } from '../services/pointsService';
 import { getRecommendedIcons } from '../services/miniGameService';
 import './AdminPanel.css';
@@ -4431,19 +4432,26 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   <div className="selected-users-list">
                     {selectedCreditUsers.map(u => (
                       <div key={u.id} className="selected-user-tag">
-                        <img src={resolveAvatar(u)} alt="" />
+                        <AvatarWithAura user={u} size={24} />
                         <span>{resolveDisplayName(u)}</span>
                         <button
                           onClick={() => setSelectedCreditUsers(prev => prev.filter(user => user.id !== u.id))}
                           className="remove-tag"
-                        >✕</button>
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
                       </div>
                     ))}
                     <button
                       className="add-user-btn"
                       onClick={() => setIsSelectingCreditUser(!isSelectingCreditUser)}
                     >
-                      {isSelectingCreditUser ? '✕ Close' : '+ Add User'}
+                      {isSelectingCreditUser ? (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                      ) : (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                      )}
+                      {isSelectingCreditUser ? ' Close' : ' Add User'}
                     </button>
                   </div>
 
@@ -4474,7 +4482,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 setCreditUserSearch('');
                               }}
                             >
-                              <img src={resolveAvatar(u)} alt="" />
+                              <AvatarWithAura user={u} size={32} />
                               <div className="participant-info">
                                 <span className="participant-name">{resolveDisplayName(u)}</span>
                                 <span className="participant-email">{u.email}</span>
@@ -4560,19 +4568,26 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   <div className="selected-users-list">
                     {selectedDeductUsers.map(u => (
                       <div key={u.id} className="selected-user-tag">
-                        <img src={resolveAvatar(u)} alt="" />
+                        <AvatarWithAura user={u} size={24} />
                         <span>{resolveDisplayName(u)}</span>
                         <button
                           onClick={() => setSelectedDeductUsers(prev => prev.filter(user => user.id !== u.id))}
                           className="remove-tag"
-                        >✕</button>
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
                       </div>
                     ))}
                     <button
                       className="add-user-btn"
                       onClick={() => setIsSelectingDeductUser(!isSelectingDeductUser)}
                     >
-                      {isSelectingDeductUser ? '✕ Close' : '+ Add User'}
+                      {isSelectingDeductUser ? (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                      ) : (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                      )}
+                      {isSelectingDeductUser ? ' Close' : ' Add User'}
                     </button>
                   </div>
 
@@ -4603,7 +4618,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 setDeductUserSearch('');
                               }}
                             >
-                              <img src={resolveAvatar(u)} alt="" />
+                              <AvatarWithAura user={u} size={32} />
                               <div className="participant-info">
                                 <span className="participant-name">{resolveDisplayName(u)}</span>
                                 <span className="participant-email">{u.email}</span>

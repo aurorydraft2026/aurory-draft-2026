@@ -23,6 +23,8 @@ import { useAppContent } from '../hooks/useAppContent';
 import MatchupsSection from '../components/MatchupsSection';
 import RafflesSection from '../components/raffles/RafflesSection';
 import MajorAnnouncementModal from '../components/MajorAnnouncementModal';
+import CosmeticsShop from '../components/CosmeticsShop';
+import AvatarWithAura from '../components/AvatarWithAura';
 import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
 import './HomePage.css';
 
@@ -644,12 +646,7 @@ function HomePage() {
                   onClick={() => setShowUserModal(!showUserModal)}
                   title="User Menu"
                 >
-                  <img
-                    src={resolveAvatar(user)}
-                    alt="Profile"
-                    className="profile-pic"
-                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                  />
+                  <AvatarWithAura user={user} size={34} className="profile-pic-aura" />
                   <div className="profile-names">
                     <span className="username">
                       {resolveDisplayName(user)}
@@ -1229,6 +1226,16 @@ function HomePage() {
                 </>
               )}
             </div>
+
+            {/* Valhalla Vault (Cosmetics Shop) */}
+            <div className="viking-section-header">
+              <h2 className="viking-section-title">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /><path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" /></svg>
+                Valhalla Vault
+              </h2>
+              <div className="viking-title-line"></div>
+            </div>
+            <CosmeticsShop user={user} />
           </div>{/* end main-column */}
 
           {/* Right Column: News + Match History + Top Players */}
@@ -1420,11 +1427,10 @@ function HomePage() {
                           {idx === 0 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rank-icon gold"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : idx === 1 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rank-icon silver"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : idx === 2 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rank-icon bronze"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : `#${idx + 1}`}
                         </span>
 
-                        <img
-                          src={resolveAvatar(item)}
-                          alt=""
+                        <AvatarWithAura
+                          user={item}
+                          size={32}
                           className="top-player-avatar"
-                          onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                         />
 
                         <div className="top-player-info">

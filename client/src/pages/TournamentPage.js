@@ -42,6 +42,7 @@ import { logActivity } from '../services/activityService';
 import LoadingScreen from '../components/LoadingScreen';
 import DraftRulesModal from '../components/DraftRulesModal';
 import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
+import AvatarWithAura from '../components/AvatarWithAura';
 import './TournamentPage.css';
 
 const DEFAULT_AVATAR = 'https://cdn.discordapp.com/embed/avatars/0.png';
@@ -6328,11 +6329,7 @@ function TournamentPage() {
                           <span className="slot-label">{(editTournament.draftType === 'mode3' || editTournament.draftType === 'mode4') ? '👤 Player' : '👑 Leader'}</span>
                           {editTeam1.leader ? (
                             <div className="assigned-user">
-                              <img
-                                src={resolveAvatar(editGetUserById(editTeam1.leader))}
-                                alt=""
-                                onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                              />
+                              <AvatarWithAura user={editGetUserById(editTeam1.leader)} size={32} />
                               <span>{resolveDisplayName(editGetUserById(editTeam1.leader))}</span>
                               <button className="remove-btn" onClick={() => editRemoveFromSlot(1, 'leader')}>✖</button>
                             </div>
@@ -6352,19 +6349,11 @@ function TournamentPage() {
                             {editTeam1.member1 && editTeam1.member2 ? (
                               <div className="assigned-members-group">
                                 <div className="assigned-user mini">
-                                  <img
-                                    src={resolveAvatar(editGetUserById(editTeam1.member1))}
-                                    alt=""
-                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                                  />
+                                  <AvatarWithAura user={editGetUserById(editTeam1.member1)} size={24} />
                                   <span className="mini-name">{resolveDisplayName(editGetUserById(editTeam1.member1))}</span>
                                 </div>
                                 <div className="assigned-user mini">
-                                  <img
-                                    src={resolveAvatar(editGetUserById(editTeam1.member2))}
-                                    alt=""
-                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                                  />
+                                  <AvatarWithAura user={editGetUserById(editTeam1.member2)} size={24} />
                                   <span className="mini-name">{resolveDisplayName(editGetUserById(editTeam1.member2))}</span>
                                   <button className="remove-btn" onClick={() => { editRemoveFromSlot(1, 'member1'); editRemoveFromSlot(1, 'member2'); }}>✖</button>
                                 </div>
@@ -6395,11 +6384,7 @@ function TournamentPage() {
                           <span className="slot-label">{(editTournament.draftType === 'mode3' || editTournament.draftType === 'mode4') ? '👤 Player' : '👑 Leader'}</span>
                           {editTeam2.leader ? (
                             <div className="assigned-user">
-                              <img
-                                src={resolveAvatar(editGetUserById(editTeam2.leader))}
-                                alt=""
-                                onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                              />
+                              <AvatarWithAura user={editGetUserById(editTeam2.leader)} size={32} />
                               <span>{resolveDisplayName(editGetUserById(editTeam2.leader))}</span>
                               <button className="remove-btn" onClick={() => editRemoveFromSlot(2, 'leader')}>✖</button>
                             </div>
@@ -6419,19 +6404,11 @@ function TournamentPage() {
                             {editTeam2.member1 && editTeam2.member2 ? (
                               <div className="assigned-members-group">
                                 <div className="assigned-user mini">
-                                  <img
-                                    src={resolveAvatar(editGetUserById(editTeam2.member1))}
-                                    alt=""
-                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                                  />
+                                  <AvatarWithAura user={editGetUserById(editTeam2.member1)} size={24} />
                                   <span className="mini-name">{resolveDisplayName(editGetUserById(editTeam2.member1))}</span>
                                 </div>
                                 <div className="assigned-user mini">
-                                  <img
-                                    src={resolveAvatar(editGetUserById(editTeam2.member2))}
-                                    alt=""
-                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                                  />
+                                  <AvatarWithAura user={editGetUserById(editTeam2.member2)} size={24} />
                                   <span className="mini-name">{resolveDisplayName(editGetUserById(editTeam2.member2))}</span>
                                   <button className="remove-btn" onClick={() => { editRemoveFromSlot(2, 'member1'); editRemoveFromSlot(2, 'member2'); }}>✖</button>
                                 </div>
@@ -6483,12 +6460,7 @@ function TournamentPage() {
                                 if (!u) return null;
                                 return (
                                   <div key={role} className="participant-item selection-active sticky-selection">
-                                    <img
-                                      src={resolveAvatar(u)}
-                                      alt=""
-                                      className="participant-avatar"
-                                      onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                                    />
+                                    <AvatarWithAura user={u} size={32} className="participant-avatar" />
                                     <div className="participant-info">
                                       <span className="participant-name">{resolveDisplayName(u)}</span>
                                       <span className="participant-email">
@@ -6516,11 +6488,10 @@ function TournamentPage() {
                                     className={`participant-item hoverable ${!u.auroryPlayerId ? 'unlinked-warning' : ''}`}
                                     onClick={() => editAssignParticipant(u.id)}
                                   >
-                                    <img
-                                      src={resolveAvatar(u)}
-                                      alt={resolveDisplayName(u)}
+                                    <AvatarWithAura
+                                      user={u}
+                                      size={32}
                                       className="participant-avatar"
-                                      onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                                     />
                                     <div className="participant-info">
                                       <span className="participant-name">{resolveDisplayName(u)}</span>

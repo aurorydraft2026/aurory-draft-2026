@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
+import { resolveDisplayName } from '../utils/userUtils';
+import AvatarWithAura from './AvatarWithAura';
 import './JoinTeamModal.css';
 
 const JoinTeamModal = ({ isOpen, onClose, onJoin, registeredUsers, currentUser }) => {
@@ -178,10 +179,7 @@ const JoinTeamModal = ({ isOpen, onClose, onJoin, registeredUsers, currentUser }
                             <span className="slot-label">👑 Leader</span>
                             {leader ? (
                                 <div className="assigned-user">
-                                    <img
-                                        src={resolveAvatar(getUserById(leader))}
-                                        alt=""
-                                    />
+                                    <AvatarWithAura user={getUserById(leader)} size={32} />
                                     <span>{resolveDisplayName(getUserById(leader))}</span>
                                     {leader !== currentUser.uid && (
                                         <button className="remove-btn" onClick={() => setLeader(null)}>✖</button>
@@ -200,7 +198,7 @@ const JoinTeamModal = ({ isOpen, onClose, onJoin, registeredUsers, currentUser }
                                 <span className="slot-label">👤 Member 1</span>
                                 {member1 ? (
                                     <div className="assigned-user mini">
-                                        <img src={resolveAvatar(getUserById(member1))} alt="" />
+                                        <AvatarWithAura user={getUserById(member1)} size={24} />
                                         <span className="mini-name">{resolveDisplayName(getUserById(member1))}</span>
                                         <button className="remove-btn" onClick={() => setMember1(null)}>✖</button>
                                     </div>
@@ -215,7 +213,7 @@ const JoinTeamModal = ({ isOpen, onClose, onJoin, registeredUsers, currentUser }
                                 <span className="slot-label">👤 Member 2</span>
                                 {member2 ? (
                                     <div className="assigned-user mini">
-                                        <img src={resolveAvatar(getUserById(member2))} alt="" />
+                                        <AvatarWithAura user={getUserById(member2)} size={24} />
                                         <span className="mini-name">{resolveDisplayName(getUserById(member2))}</span>
                                         <button className="remove-btn" onClick={() => setMember2(null)}>✖</button>
                                     </div>
@@ -267,9 +265,9 @@ const JoinTeamModal = ({ isOpen, onClose, onJoin, registeredUsers, currentUser }
                                                 className={`participant-item hoverable ${!u.auroryPlayerId ? 'unlinked-warning' : ''}`}
                                                 onClick={() => handleAssign(u.id)}
                                             >
-                                                <img
-                                                    src={resolveAvatar(u)}
-                                                    alt=""
+                                                <AvatarWithAura
+                                                    user={u}
+                                                    size={36}
                                                     className="participant-avatar"
                                                 />
                                                 <div className="participant-info">
