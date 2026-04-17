@@ -178,6 +178,7 @@ export const useLeaderboard = (registeredUsers) => {
                                 uid: uidA,
                                 displayName: userData?.auroryPlayerName || pA?.auroryPlayerName || pA?.displayName || userData?.displayName || 'Player',
                                 photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
+                                equippedCosmetics: userData?.equippedCosmetics || null,
                                 wins: 0,
                                 losses: 0
                             };
@@ -194,6 +195,7 @@ export const useLeaderboard = (registeredUsers) => {
                                 uid: uidB,
                                 displayName: userData?.auroryPlayerName || pB?.auroryPlayerName || pB?.displayName || userData?.displayName || 'Player',
                                 photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
+                                equippedCosmetics: userData?.equippedCosmetics || null,
                                 wins: 0,
                                 losses: 0
                             };
@@ -220,6 +222,7 @@ export const useLeaderboard = (registeredUsers) => {
                                     uid: uidA,
                                     displayName: userData?.auroryPlayerName || pA?.displayName || userData?.displayName || 'Player',
                                     photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
+                                    equippedCosmetics: userData?.equippedCosmetics || null,
                                     wins: 0,
                                     losses: 0
                                 };
@@ -242,6 +245,7 @@ export const useLeaderboard = (registeredUsers) => {
                                     uid: uidB,
                                     displayName: userData?.auroryPlayerName || pB?.displayName || userData?.displayName || 'Player',
                                     photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
+                                    equippedCosmetics: userData?.equippedCosmetics || null,
                                     wins: 0,
                                     losses: 0
                                 };
@@ -302,6 +306,7 @@ export const useLeaderboard = (registeredUsers) => {
                                 ...data,
                                 displayName: data.auroryPlayerName || data.displayName || 'Guest',
                                 photoURL: data.auroryProfilePicture || data.photoURL || '',
+                                equippedCosmetics: data.equippedCosmetics || null,
                                 earnedValue: data.points || 0
                             };
                         });
@@ -321,9 +326,10 @@ export const useLeaderboard = (registeredUsers) => {
                             
                             // Fallback: If not found in memory, we could fetch, but for now just use data if it exists
                             return {
-                                uid: wDoc.id,
+                        uid: wDoc.id,
                                 displayName: u?.auroryPlayerName || u?.displayName || 'Guest',
                                 photoURL: u?.auroryProfilePicture || u?.photoURL || '',
+                                equippedCosmetics: u?.equippedCosmetics || null,
                                 earnedValue: val
                             };
                         }));
@@ -373,6 +379,7 @@ export const useLeaderboard = (registeredUsers) => {
                         uid,
                         displayName: userData?.auroryPlayerName || val.displayName || 'Guest',
                         photoURL: userData?.auroryProfilePicture || val.photoURL || '',
+                        equippedCosmetics: userData?.equippedCosmetics || val.equippedCosmetics || null,
                         earnedValue: val.score || 0
                     };
                 })

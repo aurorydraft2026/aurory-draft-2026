@@ -9,12 +9,18 @@
   justify-content: center;
   width: var(--avatar-size, 40px);
   height: var(--avatar-size, 40px);
-  flex-shrink: 0;
+  min-width: var(--avatar-size, 40px);
+  max-width: var(--avatar-size, 40px);
+  min-height: var(--avatar-size, 40px);
+  max-height: var(--avatar-size, 40px);
+  aspect-ratio: 1 / 1;
+  flex: 0 0 var(--avatar-size, 40px);
+  border-radius: 50%;
 }
 
 .avatar-aura-img {
-  width: var(--avatar-size, 40px);
-  height: var(--avatar-size, 40px);
+  width: 100% !important;
+  height: 100% !important;
   border-radius: 50%;
   object-fit: cover;
   position: relative;

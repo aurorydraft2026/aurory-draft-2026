@@ -9,7 +9,6 @@ import {
   getLinkedAuroryAccount,
   syncAuroryName
 } from '../services/auroryProfileService';
-import InventoryModal from './InventoryModal';
 
 // ============================================================================
 // MAIN COMPONENT
@@ -21,7 +20,6 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
   const [linking, setLinking] = useState(false);
   const [error, setError] = useState(null);
   const [searchInput, setSearchInput] = useState('');
-  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
   const loadLinkedAccount = useCallback(async () => {
@@ -177,12 +175,7 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
                 <span>Account linked permanent</span>
               </div>
 
-              <button
-                className="view-inventory-btn"
-                onClick={() => setIsInventoryOpen(true)}
-              >
-                🎒 View Inventory
-              </button>
+
 
               <button
                 className={`sync-btn ${isSyncing ? 'syncing' : ''}`}
@@ -222,11 +215,7 @@ export default function AuroryAccountLink({ user, isOpen, onClose }) {
 
         <style>{auroryModalStyles}</style>
 
-        <InventoryModal
-          isOpen={isInventoryOpen}
-          onClose={() => setIsInventoryOpen(false)}
-          user={user}
-        />
+
       </div>
     </div>
   );
@@ -491,31 +480,7 @@ const auroryModalStyles = `
   font-weight: 700;
 }
 
-.view-inventory-btn {
-  margin-top: 8px;
-  width: 100%;
-  padding: 14px;
-  background: rgba(102, 126, 234, 0.1);
-  border: 1px solid rgba(102, 126, 234, 0.3);
-  border-radius: 12px;
-  color: #a5b4fc;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-}
 
-.view-inventory-btn:hover {
-  background: rgba(102, 126, 234, 0.2);
-  border-color: #667eea;
-  color: white;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
-}
 
 .sync-btn {
   width: 100%;

@@ -10,6 +10,7 @@ import { TIER_CONFIG, getTierProgress, getTierExp, getNextTier, upgradeTier as u
 import './CheckInBonus.css';
 import AvatarWithAura from '../components/AvatarWithAura';
 import { getEquippedBannerStyle } from '../services/cosmeticsService';
+import ArmoryModal from '../components/ArmoryModal';
 
 export const useAuth = (navigate) => {
     const [user, setUser] = useState(null);
@@ -18,6 +19,7 @@ export const useAuth = (navigate) => {
     const [showLoginSuccessModal, setShowLoginSuccessModal] = useState(false);
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const [showLogoutSuccessModal, setShowLogoutSuccessModal] = useState(false);
+    const [showArmoryModal, setShowArmoryModal] = useState(false);
     const [isAuthenticating, setIsAuthenticating] = useState(false);
     const [registeredUsers, setRegisteredUsers] = useState([]);
     const [bonusEffect, setBonusEffect] = useState(null);
@@ -780,6 +782,22 @@ export const useAuth = (navigate) => {
                                 </div>
                             </button>
 
+                            <button
+                                className="modal-action-btn armory"
+                                onClick={() => {
+                                    setShowUserModal(false);
+                                    setShowArmoryModal(true);
+                                }}
+                            >
+                                <span className="btn-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                                </span>
+                                <div className="btn-text">
+                                    <span className="btn-title">Warrior's Armory</span>
+                                    <span className="btn-desc">Equip your legendary cosmetics</span>
+                                </div>
+                            </button>
+
                             {isAdminUser && (
                                 <button
                                     className="modal-action-btn admin"
@@ -819,6 +837,16 @@ export const useAuth = (navigate) => {
                     </div>
                 </div>
             </div>
+        );
+    };
+
+    const renderArmoryModal = () => {
+        return (
+            <ArmoryModal
+                user={user}
+                isOpen={showArmoryModal}
+                onClose={() => setShowArmoryModal(false)}
+            />
         );
     };
 
@@ -941,6 +969,7 @@ export const useAuth = (navigate) => {
         showLoginSuccessModal, setShowLoginSuccessModal,
         showLogoutConfirm, setShowLogoutConfirm,
         showLogoutSuccessModal, setShowLogoutSuccessModal,
+        showArmoryModal, setShowArmoryModal,
         registeredUsers,
         handleDiscordLogin,
         handleGoogleLogin,
@@ -952,6 +981,7 @@ export const useAuth = (navigate) => {
         isGamesManagerUser,
         isGeneralAdmin,
         renderUserProfileContent,
+        renderArmoryModal,
         renderLoginModalContent,
         renderLoginSuccessModal,
         renderLogoutSuccessModal,
