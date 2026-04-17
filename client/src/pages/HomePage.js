@@ -644,8 +644,9 @@ function HomePage() {
               {/* Clickable Profile Section */}
               <div className="profile-menu-container" ref={profileMenuRef}>
                 <div
-                  className="profile-trigger"
+                  className={`profile-trigger ${getEquippedBannerStyle(user) ? 'has-banner' : ''}`}
                   onClick={() => setShowUserModal(!showUserModal)}
+                  style={getEquippedBannerStyle(user)}
                   title="User Menu"
                 >
                   <AvatarWithAura user={user} size={34} className="profile-pic-aura" />

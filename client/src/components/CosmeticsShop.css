@@ -107,11 +107,13 @@
 .preview-label {
   font-family: 'Outfit', sans-serif;
   font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  letter-spacing: 0.5px;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: 1px;
   text-transform: uppercase;
   margin-top: 2px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  opacity: 0.9;
 }
 
 .profile-sample-card {
@@ -128,7 +130,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.6) 20%, transparent 80%);
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.4) 40%, transparent 100%);
   z-index: 1;
 }
 
@@ -168,30 +170,43 @@
   letter-spacing: 1px;
 }
 
+.cosmetics-preview-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
 .preview-balance {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-family: 'Rajdhani', sans-serif;
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--accent-gold);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #ffd700;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
 }
 
 .valcoin-shop-icon {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
 }
 
 .preview-owned {
   font-family: 'Outfit', sans-serif;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  padding: 4px 10px;
-  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.85rem;
+  color: #ffffff;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-weight: 700;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  letter-spacing: 0.5px;
 }
 
 /* ── Rarity Filter Tabs ── */
@@ -350,14 +365,16 @@
 
 .cosmetic-card-desc {
   font-family: 'Outfit', sans-serif;
-  font-size: 0.75rem;
-  color: var(--text-muted);
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.85);
   margin: 0;
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 /* Card Action Buttons */
