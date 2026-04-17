@@ -118,8 +118,8 @@ export const runieWelcome = onNewUserWelcome;
 
 // ─── 8. MINI-GAMES ───
 // Secure prize selection and payouts
-import { playMiniGame, refreshDrakkarRace, placeDrakkarBet, answerRiddle } from './miniGames';
-export { playMiniGame, refreshDrakkarRace, placeDrakkarBet, answerRiddle };
+import { playMiniGame, refreshDrakkarRace, placeDrakkarBet, answerRiddle, refreshNornsFate, placeNornsFateBet } from './miniGames';
+export { playMiniGame, refreshDrakkarRace, placeDrakkarBet, answerRiddle, refreshNornsFate, placeNornsFateBet };
 
 // ─── 9. REWARDS ───
 import { collectDailyReward } from './rewards';

@@ -291,7 +291,7 @@ export async function startRaffle(raffleId, user) {
       if (!raffleSnap.exists()) throw new Error('Raffle not found');
 
       const raffle = raffleSnap.data();
-      if (raffle.status !== 'active') throw new Error('Raffle is not active');
+      if (raffle.status !== 'active' && raffle.status !== 'entries_closed') throw new Error('Raffle is not active');
       if (raffle.participantsCount < (raffle.minParticipants || 1)) {
         throw new Error(`Minimum participants (${raffle.minParticipants}) not reached`);
       }

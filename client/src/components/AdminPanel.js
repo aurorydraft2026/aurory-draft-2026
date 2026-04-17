@@ -125,7 +125,7 @@ function AdminPanel() {
   const [selectedUserForLogs, setSelectedUserForLogs] = useState(null);
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsError, setLogsError] = useState(null);
-  
+
   // User Notifications state
   const [selectedUserForNotifications, setSelectedUserForNotifications] = useState(null);
   const [userNotifications, setUserNotifications] = useState([]);
@@ -147,7 +147,7 @@ function AdminPanel() {
   // Manual Payout state
   const [payoutDraftId, setPayoutDraftId] = useState('');
   const [payoutLoading, setPayoutLoading] = useState(false);
-  
+
   // Custom Global Wipes
   const [wipeAllConfirmText, setWipeAllConfirmText] = useState('');
   const [isWiping, setIsWiping] = useState(false);
@@ -167,7 +167,7 @@ function AdminPanel() {
   const [newsBanner, setNewsBanner] = useState('');
   const [newsVideoUrl, setNewsVideoUrl] = useState(''); // Added for news video support
   const [editingNewsId, setEditingNewsId] = useState(null);
-  
+
   // Runie Chatbot state
   const [chatbotKnowledge, setChatbotKnowledge] = useState([]);
   const [cbGreetings, setCbGreetings] = useState([]);
@@ -177,19 +177,19 @@ function AdminPanel() {
   const [cbOrder, setCbOrder] = useState(0);
   const [cbShowAsBadge, setCbShowAsBadge] = useState(true);
   const [editingKnowledgeId, setEditingKnowledgeId] = useState(null);
-  
+
   // Greetings state
   const [cbGreetingText, setCbGreetingText] = useState('');
   const [cbGreetingOrder, setCbGreetingOrder] = useState(0);
   const [editingGreetingId, setEditingGreetingId] = useState(null);
   const [cbEnabled, setCbEnabled] = useState(true);
   const [calcEnabled, setCalcEnabled] = useState(true);
-  
+
   // Chatbot Search & Unanswered
   const [knowledgeSearchQuery, setKnowledgeSearchQuery] = useState('');
   const [unansweredQueries, setUnansweredQueries] = useState([]);
   const [unansweredLoading, setUnansweredLoading] = useState(false);
-  
+
   // Mini-Games state
   const [miniGamesConfig, setMiniGamesConfig] = useState(null);
   const [miniGamesLoading, setMiniGamesLoading] = useState(false);
@@ -203,7 +203,7 @@ function AdminPanel() {
     rarity: 'common',
     icon: 'common_horn.png'
   });
-  
+
   // Odin's Riddle Specific State
   const [newRiddle, setNewRiddle] = useState({
     id: '',
@@ -320,10 +320,14 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
   const [maintenanceDate, setMaintenanceDate] = useState('TBD');
   const [maintenanceAnnouncement, setMaintenanceAnnouncement] = useState('We are currently performing scheduled maintenance to improve your experience. Please check back soon!');
-  
+
   // Maintenance Warning state
   const [maintenanceWarningEnabled, setMaintenanceWarningEnabled] = useState(false);
   const [maintenanceWarningText, setMaintenanceWarningText] = useState('⚠️ Website Maintenance is scheduled for today. Please save your work!');
+
+  // Valhalla's Vault (Shop) Management state
+  const [websiteSubTab, setWebsiteSubTab] = useState('maintenance');
+  const [shopEnabled, setShopEnabled] = useState(true);
 
   // Handle image upload to Base64
   const handleImageUpload = (e) => {
@@ -390,10 +394,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   // Force Games Manager to appropriate initial tab
   useEffect(() => {
     if (isGamesManagerUser && !isGeneralAdmin) {
-        if (activeTab !== 'mini_games' && activeTab !== 'mini_game_history') {
-            setActiveTab('mini_games');
-            setExpandedCategory('games');
-        }
+      if (activeTab !== 'mini_games' && activeTab !== 'mini_game_history') {
+        setActiveTab('mini_games');
+        setExpandedCategory('games');
+      }
     }
   }, [isGamesManagerUser, isGeneralAdmin, activeTab]);
 
@@ -401,7 +405,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   // Fetch pending withdrawals
   useEffect(() => {
     if (!isAdminUser) return;
-    
+
     // If not a general admin, they don't have access to withdrawals, so we stop loading
     if (!isGeneralAdmin) {
       setLoading(false);
@@ -437,7 +441,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   // Fetch pending deposit notifications
   useEffect(() => {
     if (!isAdminUser) return;
-    
+
     if (!isGeneralAdmin) return;
 
     console.log('Setting up deposit notifications listener...');
@@ -560,7 +564,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       const totalSecondsInInterval = 10 * 60; // 10 minutes
       const secondsInCurrentInterval = (now.getMinutes() % 10) * 60 + now.getSeconds();
       const secondsRemaining = totalSecondsInInterval - secondsInCurrentInterval;
-      
+
       const m = Math.floor(secondsRemaining / 60);
       const s = secondsRemaining % 60;
       setPvpCountdown(`${m}m ${String(s).padStart(2, '0')}s`);
@@ -610,14 +614,14 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       }));
       setChatbotKnowledge(knowledge);
     });
- 
+
     return () => unsubscribe();
   }, [activeTab, isAdminUser]);
- 
+
   // Fetch Unanswered Queries
   useEffect(() => {
     if (!isAdminUser || activeTab !== 'chatbot') return;
- 
+
     setUnansweredLoading(true);
     const q = query(collection(db, 'chatbot_unanswered'), orderBy('timestamp', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -628,10 +632,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       setUnansweredQueries(queries);
       setUnansweredLoading(false);
     });
- 
+
     return () => unsubscribe();
   }, [activeTab, isAdminUser]);
- 
+
   // Fetch Greetings
   useEffect(() => {
     if (!isAdminUser || activeTab !== 'chatbot') return;
@@ -729,18 +733,61 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     return () => unsub();
   }, [activeTab, isAdmin, isAdminUser]);
 
+  // Fetch Shop config
+  useEffect(() => {
+    if (!isAdmin || activeTab !== 'website_mgmt') return;
+
+    const unsub = onSnapshot(doc(db, 'settings', 'shop'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setShopEnabled(data.enabled ?? true);
+      } else {
+        // Initialize if doesn't exist
+        setDoc(doc(db, 'settings', 'shop'), {
+          enabled: true,
+          updatedAt: serverTimestamp()
+        });
+        setShopEnabled(true);
+      }
+    });
+
+    return () => unsub();
+  }, [activeTab, isAdmin]);
+
+  const handleSaveShopSettings = async () => {
+    setProcessingId('save_shop');
+    try {
+      await setDoc(doc(db, 'settings', 'shop'), {
+        enabled: shopEnabled,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'update_shop_settings',
+        metadata: { enabled: shopEnabled }
+      });
+      alert('Shop settings saved successfully!');
+    } catch (error) {
+      console.error('Error saving shop settings:', error);
+      alert('Failed to save shop settings. Check console.');
+    }
+    setProcessingId(null);
+  };
+
   const handleUpdateMiniGameConfig = async (gameType, updates) => {
     try {
       const configRef = doc(db, 'settings', 'mini_games');
       const updateData = {};
-      
+
       // Use Firestore nested field paths (e.g., 'slotMachine.enabled')
       Object.keys(updates).forEach(key => {
         updateData[`${gameType}.${key}`] = updates[key];
       });
-      
+
       await updateDoc(configRef, updateData);
-      
+
       logActivity({
         user,
         type: 'ADMIN',
@@ -792,7 +839,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         difficulty: 'easy',
         enabled: true
       });
-      
+
       // Trigger refresh
       const snapshot = await getDocs(collection(db, 'riddles'));
       const riddles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -809,7 +856,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
   const handleTriggerPvpScan = async (resetCheckpoints = false) => {
     if (!isSuperAdminUser) return;
-    
+
     if (resetCheckpoints && !window.confirm('⚠️ This will rewind ALL player checkpoints by 7 days and re-scan their entire match history. Any already-rewarded wins will NOT be double-counted (they will be filtered as "old"). Continue?')) {
       return;
     }
@@ -818,10 +865,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     try {
       const triggerPvpScan = httpsCallable(functions, 'triggerPvpScan');
       const result = await triggerPvpScan({ resetCheckpoints, rewindDays: 7 });
-      
+
       if (result.data.success) {
         alert(`✅ ${result.data.message}`);
-        
+
         // Refresh logs immediately
         setRewardLogsLoading(true);
         const q = query(
@@ -834,7 +881,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         const logs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setPvpRewardLogs(logs);
         setRewardLogsLoading(false);
-        
+
         logActivity({
           user,
           type: 'ADMIN',
@@ -871,7 +918,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
   const handleAutoAssignIcons = async (gameType) => {
     if (!window.confirm(`This will overwrite all current prize icons for ${gameType} with themed classic symbols based on rarity. Continue?`)) return;
-    
+
     setIsAutoAssigning(true);
     try {
       const configRef = doc(db, 'settings', 'mini_games');
@@ -883,15 +930,15 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         // Map common icons specifically for slot machine if possible
         let icon = icons[0];
         if (gameType === 'slotMachine') {
-            if (prize.rarity === 'common' && prize.name.includes('25')) icon = 'common_horn.png';
-            else if (prize.rarity === 'common' && prize.name.includes('50')) icon = 'common_shield.png';
-            else if (prize.rarity === 'rare') icon = 'rare_axe.png';
-            else if (prize.rarity === 'epic') icon = 'epic_helmet.png';
-            else if (prize.rarity === 'legendary') icon = 'legendary_ship.png';
+          if (prize.rarity === 'common' && prize.name.includes('25')) icon = 'common_horn.png';
+          else if (prize.rarity === 'common' && prize.name.includes('50')) icon = 'common_shield.png';
+          else if (prize.rarity === 'rare') icon = 'rare_axe.png';
+          else if (prize.rarity === 'epic') icon = 'epic_helmet.png';
+          else if (prize.rarity === 'legendary') icon = 'legendary_ship.png';
         }
         return { ...prize, icon };
       });
-      
+
       const updateData = {};
       updateData[`${gameType}.prizes`] = updatedPrizes;
       await updateDoc(configRef, updateData);
@@ -907,12 +954,12 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
   const handleAddPrize = async (gameType) => {
     if (!newPrize.name || newPrize.amount < 0) {
-        alert('Please enter a valid prize name and amount');
-        return;
+      alert('Please enter a valid prize name and amount');
+      return;
     }
-    
+
     const prizes = [...(miniGamesConfig[gameType]?.prizes || [])];
-    
+
     if (editingPrizeId) {
       // Update Mode
       const updatedPrizes = prizes.map(p => p.id === editingPrizeId ? { ...newPrize, id: editingPrizeId } : p);
@@ -924,7 +971,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       prizes.push(newPrizeObj);
       await handleUpdateMiniGameConfig(gameType, { prizes });
     }
-    
+
     setNewPrize({
       name: '',
       type: 'valcoins',
@@ -1298,7 +1345,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       }, { merge: true });
 
       alert('Valcoin configuration saved successfully!');
-      
+
       logActivity({
         user,
         type: 'ADMIN',
@@ -1644,7 +1691,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     }
   };
 
-   // Mini-game reset stats
+  // Mini-game reset stats
   const [resetStatsConfirmText, setResetStatsConfirmText] = useState('');
   const [resetStatsWipeHistory, setResetStatsWipeHistory] = useState(false);
   const [isResettingStats, setIsResettingStats] = useState(false);
@@ -1666,10 +1713,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     try {
       const resetFn = httpsCallable(functions, 'resetMiniGameStats');
       const { data: result } = await resetFn({ wipeHistory: resetStatsWipeHistory });
-      
+
       alert(`✅ ${result.message}`);
       setResetStatsConfirmText('');
-      
+
       logActivity({
         user,
         type: 'ADMIN',
@@ -1757,7 +1804,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     setCbOrder(item.order || 0);
     setCbShowAsBadge(item.showAsBadge !== false);
     setEditingKnowledgeId(item.id);
-    
+
     // Scroll to form
     const formElement = document.querySelector('.chatbot-form-card');
     if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
@@ -1787,7 +1834,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     setCbKeywords(queryItem.query);
     setCbResponse('');
     setEditingKnowledgeId(null);
-    
+
     // Jump to form
     const formElement = document.querySelector('.chatbot-form-card');
     if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
@@ -1869,7 +1916,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     setCbGreetingText(item.text || '');
     setCbGreetingOrder(item.order || 0);
     setEditingGreetingId(item.id);
-    
+
     // Scroll to form
     const formElement = document.querySelector('.greetings-form-card');
     if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
@@ -1896,7 +1943,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     setProcessingId('seed_chatbot');
     try {
       const batch = writeBatch(db);
-      
+
       DEFAULT_KNOWLEDGE.forEach((item, index) => {
         const newDocRef = doc(collection(db, 'chatbot_knowledge'));
         batch.set(newDocRef, {
@@ -1912,7 +1959,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
       await batch.commit();
       alert('✅ Runie core knowledge initialized successfully!');
-      
+
       logActivity({
         user,
         type: 'ADMIN',
@@ -1974,7 +2021,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       if (result?.success) {
         alert(result.message);
         setWipeAllConfirmText('');
-        
+
         logActivity({
           user,
           type: 'ADMIN',
@@ -2055,7 +2102,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       if (result?.success) {
         alert(result.message);
         setWipeAllConfirmText('');
-        
+
         logActivity({
           user,
           type: 'ADMIN',
@@ -2101,7 +2148,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     if (!isSuperAdminUser || wipeAllConfirmText !== 'WIPE ALL') {
       return alert('Please type "WIPE ALL" in the confirmation box to run the migration.');
     }
-    
+
     if (!window.confirm('🚀 This will scan ALL users and populate the RTDB All-Time leaderboards. Proceed?')) return;
 
     setIsWiping(true);
@@ -2109,11 +2156,11 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     try {
       const migrateFn = httpsCallable(functions, 'migrateMinigameLeaderboards');
       const { data: result } = await migrateFn({});
-      
+
       if (result?.success) {
         alert(result.message);
         setWipeAllConfirmText('');
-        
+
         logActivity({
           user,
           type: 'ADMIN',
@@ -2140,7 +2187,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     try {
       const repairFn = httpsCallable(functions, 'repairPvpLeaderboards');
       const { data: result } = await repairFn({});
-      
+
       if (result?.success) {
         alert(result.message);
         logActivity({
@@ -2268,8 +2315,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             throw new Error('User wallet not found');
           }
 
-          const currentBalance = withdrawal.currency === 'USDC' 
-            ? (walletDoc.data().usdcBalance || 0) 
+          const currentBalance = withdrawal.currency === 'USDC'
+            ? (walletDoc.data().usdcBalance || 0)
             : (walletDoc.data().balance || 0);
 
           // Refund the withdrawal amount
@@ -2352,8 +2399,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
         let currentBalance = 0;
         if (walletDoc.exists()) {
-          currentBalance = currency === 'USDC' 
-            ? (walletDoc.data().usdcBalance || 0) 
+          currentBalance = currency === 'USDC'
+            ? (walletDoc.data().usdcBalance || 0)
             : (walletDoc.data().balance || 0);
         }
 
@@ -2481,15 +2528,15 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
           let currentBalance = 0;
           if (walletDoc.exists()) {
-            currentBalance = selectedCreditCurrency === 'USDC' 
-              ? (walletDoc.data().usdcBalance || 0) 
+            currentBalance = selectedCreditCurrency === 'USDC'
+              ? (walletDoc.data().usdcBalance || 0)
               : (walletDoc.data().balance || 0);
           }
 
           const updateData = {
             updatedAt: serverTimestamp()
           };
-          
+
           if (isValcoins) {
             updateData.points = increment(amountInSmallestUnit);
             transaction.update(userRef, updateData);
@@ -2593,29 +2640,29 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
       // PRE-CHECK: Fetch all user data first to check for potential negative balances
       const preCheckResults = await Promise.all(selectedDeductUsers.map(async (selectedUser) => {
-          const walletSnap = await getDoc(doc(db, 'wallets', selectedUser.id));
-          const userSnap = await getDoc(doc(db, 'users', selectedUser.id));
-          
-          let currentBalance = 0;
-          if (isValcoins) {
-              currentBalance = userSnap.exists() ? (userSnap.data().points || 0) : 0;
-          } else {
-              if (!walletSnap.exists()) return { user: selectedUser, error: 'Wallet not found' };
-              currentBalance = selectedDeductCurrency === 'USDC' 
-                  ? (walletSnap.data().usdcBalance || 0) 
-                  : (walletSnap.data().balance || 0);
-          }
-          
-          return { user: selectedUser, insufficient: currentBalance < amountInSmallestUnit, currentBalance };
+        const walletSnap = await getDoc(doc(db, 'wallets', selectedUser.id));
+        const userSnap = await getDoc(doc(db, 'users', selectedUser.id));
+
+        let currentBalance = 0;
+        if (isValcoins) {
+          currentBalance = userSnap.exists() ? (userSnap.data().points || 0) : 0;
+        } else {
+          if (!walletSnap.exists()) return { user: selectedUser, error: 'Wallet not found' };
+          currentBalance = selectedDeductCurrency === 'USDC'
+            ? (walletSnap.data().usdcBalance || 0)
+            : (walletSnap.data().balance || 0);
+        }
+
+        return { user: selectedUser, insufficient: currentBalance < amountInSmallestUnit, currentBalance };
       }));
 
       const insufficientUsers = preCheckResults.filter(r => r.insufficient);
       if (insufficientUsers.length > 0) {
-          const names = insufficientUsers.map(r => r.user.displayName || r.user.email).join(', ');
-          if (!window.confirm(`The following users have insufficient balance for this deduction: ${names}.\n\nProceeding will result in negative balances. Continue?`)) {
-              setProcessingId(null);
-              return;
-          }
+        const names = insufficientUsers.map(r => r.user.displayName || r.user.email).join(', ');
+        if (!window.confirm(`The following users have insufficient balance for this deduction: ${names}.\n\nProceeding will result in negative balances. Continue?`)) {
+          setProcessingId(null);
+          return;
+        }
       }
 
       // Process each user
@@ -2625,7 +2672,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
         await runTransaction(db, async (transaction) => {
           const userDoc = await transaction.get(userRef);
-          
+
           // Only get wallet if not Valcoins
           let currentBalance = 0;
           if (isValcoins) {
@@ -2640,7 +2687,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           const updateData = {
             updatedAt: serverTimestamp()
           };
-          
+
           if (isValcoins) {
             updateData.points = currentBalance - amountInSmallestUnit;
             transaction.set(userRef, updateData, { merge: true });
@@ -2899,8 +2946,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       // 3. Adjustment Logs (subset of activity logs)
       const logsRef = collection(db, 'activity_logs');
       const lSnap = await getDocs(query(
-        logsRef, 
-        where('type', '==', 'ADMIN'), 
+        logsRef,
+        where('type', '==', 'ADMIN'),
         where('action', 'in', ['manual_credit', 'manual_deduct'])
       ));
       lSnap.forEach(doc => {
@@ -2917,7 +2964,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       setProcessedWithdrawals([]);
       setProcessedDeposits([]);
       setManualAdjustmentLogs([]);
-      
+
       alert(`✅ Successfully cleared ${totalDeleted} history records.`);
 
       logActivity({
@@ -2989,141 +3036,141 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         <div className="admin-sidebar">
           {/* Balance Category */}
           {isGeneralAdmin && (
-          <div className={`admin-category ${expandedCategory === 'balance' ? 'expanded' : ''}`}>
-            <div
-              className="category-title"
-              onClick={() => {
-                console.log('Toggling balance. Current:', expandedCategory);
-                setExpandedCategory(expandedCategory === 'balance' ? '' : 'balance');
-              }}
-              role="button"
-              tabIndex={0}
-            >
-              <h3>Balance</h3>
-              <span className="category-arrow">▼</span>
-            </div>
-            <div className="category-tabs">
-              {isSuperAdminUser && (
-                <>
-                  <button
-                    className={`admin-tab ${activeTab === 'credit' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('credit')}
-                  >
-                    💰 Manual Credit
-                  </button>
-                  <button
-                    className={`admin-tab ${activeTab === 'deduct' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('deduct')}
-                  >
-                    📉 Deductions
-                  </button>
-                </>
-              )}
-              <button
-                className={`admin-tab ${activeTab === 'manage_valcoins' ? 'active' : ''}`}
-                onClick={() => setActiveTab('manage_valcoins')}
+            <div className={`admin-category ${expandedCategory === 'balance' ? 'expanded' : ''}`}>
+              <div
+                className="category-title"
+                onClick={() => {
+                  console.log('Toggling balance. Current:', expandedCategory);
+                  setExpandedCategory(expandedCategory === 'balance' ? '' : 'balance');
+                }}
+                role="button"
+                tabIndex={0}
               >
-                🛡️ Manage Valcoins
-              </button>
+                <h3>Balance</h3>
+                <span className="category-arrow">▼</span>
+              </div>
+              <div className="category-tabs">
+                {isSuperAdminUser && (
+                  <>
+                    <button
+                      className={`admin-tab ${activeTab === 'credit' ? 'active' : ''}`}
+                      onClick={() => setActiveTab('credit')}
+                    >
+                      💰 Manual Credit
+                    </button>
+                    <button
+                      className={`admin-tab ${activeTab === 'deduct' ? 'active' : ''}`}
+                      onClick={() => setActiveTab('deduct')}
+                    >
+                      📉 Deductions
+                    </button>
+                  </>
+                )}
+                <button
+                  className={`admin-tab ${activeTab === 'manage_valcoins' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('manage_valcoins')}
+                >
+                  🛡️ Manage Valcoins
+                </button>
+              </div>
             </div>
-          </div>
           )}
 
           {/* Transactions Category */}
           {isGeneralAdmin && (
-          <div className={`admin-category ${expandedCategory === 'transactions' ? 'expanded' : ''}`}>
-            <div
-              className="category-title"
-              onClick={() => setExpandedCategory(expandedCategory === 'transactions' ? '' : 'transactions')}
-              role="button"
-              tabIndex={0}
-            >
-              <h3>
-                Transactions
-                {(depositNotifications.length + pendingWithdrawals.length) > 0 && (
-                  <span className="category-badge">
-                    {depositNotifications.length + pendingWithdrawals.length}
-                  </span>
-                )}
-              </h3>
-              <span className="category-arrow">▼</span>
-            </div>
-            <div className="category-tabs">
-              <button
-                className={`admin-tab ${activeTab === 'deposits' ? 'active' : ''}`}
-                onClick={() => setActiveTab('deposits')}
+            <div className={`admin-category ${expandedCategory === 'transactions' ? 'expanded' : ''}`}>
+              <div
+                className="category-title"
+                onClick={() => setExpandedCategory(expandedCategory === 'transactions' ? '' : 'transactions')}
+                role="button"
+                tabIndex={0}
               >
-                📬 Deposits {depositNotifications.length > 0 && <span className="tab-badge">{depositNotifications.length}</span>}
-              </button>
-              <button
-                className={`admin-tab ${activeTab === 'withdrawals' ? 'active' : ''}`}
-                onClick={() => setActiveTab('withdrawals')}
-              >
-                📤 Withdrawals {pendingWithdrawals.length > 0 && <span className="tab-badge">{pendingWithdrawals.length}</span>}
-              </button>
-              <button
-                className={`admin-tab ${activeTab === 'history' ? 'active' : ''}`}
-                onClick={() => setActiveTab('history')}
-              >
-                📜 History
-              </button>
-              {isSuperAdminUser && (
+                <h3>
+                  Transactions
+                  {(depositNotifications.length + pendingWithdrawals.length) > 0 && (
+                    <span className="category-badge">
+                      {depositNotifications.length + pendingWithdrawals.length}
+                    </span>
+                  )}
+                </h3>
+                <span className="category-arrow">▼</span>
+              </div>
+              <div className="category-tabs">
                 <button
-                  className={`admin-tab ${activeTab === 'payouts' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('payouts')}
+                  className={`admin-tab ${activeTab === 'deposits' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('deposits')}
                 >
-                  💰 Manual Payouts
+                  📬 Deposits {depositNotifications.length > 0 && <span className="tab-badge">{depositNotifications.length}</span>}
                 </button>
-              )}
+                <button
+                  className={`admin-tab ${activeTab === 'withdrawals' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('withdrawals')}
+                >
+                  📤 Withdrawals {pendingWithdrawals.length > 0 && <span className="tab-badge">{pendingWithdrawals.length}</span>}
+                </button>
+                <button
+                  className={`admin-tab ${activeTab === 'history' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('history')}
+                >
+                  📜 History
+                </button>
+                {isSuperAdminUser && (
+                  <button
+                    className={`admin-tab ${activeTab === 'payouts' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('payouts')}
+                  >
+                    💰 Manual Payouts
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
           )}
 
           {/* Campaigns Category */}
           {isGeneralAdmin && (
-          <div className={`admin-category ${expandedCategory === 'campaigns' ? 'expanded' : ''}`}>
-            <div
-              className="category-title"
-              onClick={() => setExpandedCategory(expandedCategory === 'campaigns' ? '' : 'campaigns')}
-              role="button"
-              tabIndex={0}
-            >
-              <h3>Campaigns</h3>
-              <span className="category-arrow">▼</span>
+            <div className={`admin-category ${expandedCategory === 'campaigns' ? 'expanded' : ''}`}>
+              <div
+                className="category-title"
+                onClick={() => setExpandedCategory(expandedCategory === 'campaigns' ? '' : 'campaigns')}
+                role="button"
+                tabIndex={0}
+              >
+                <h3>Campaigns</h3>
+                <span className="category-arrow">▼</span>
+              </div>
+              <div className="category-tabs">
+                <button
+                  className={`admin-tab ${activeTab === 'banners' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('banners')}
+                >
+                  🖼️ Homepage Banners
+                </button>
+                <button
+                  className={`admin-tab ${activeTab === 'notify' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('notify')}
+                >
+                  📢 Notifications
+                </button>
+                <button
+                  className={`admin-tab ${activeTab === 'ticker' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('ticker')}
+                >
+                  🎊 Ticker Announcements
+                </button>
+                <button
+                  className={`admin-tab ${activeTab === 'campaigns' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('campaigns')}
+                >
+                  📣 Major Announcement
+                </button>
+                <button
+                  className={`admin-tab ${activeTab === 'news' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('news')}
+                >
+                  📰 News
+                </button>
+              </div>
             </div>
-            <div className="category-tabs">
-              <button
-                className={`admin-tab ${activeTab === 'banners' ? 'active' : ''}`}
-                onClick={() => setActiveTab('banners')}
-              >
-                🖼️ Homepage Banners
-              </button>
-              <button
-                className={`admin-tab ${activeTab === 'notify' ? 'active' : ''}`}
-                onClick={() => setActiveTab('notify')}
-              >
-                📢 Notifications
-              </button>
-              <button
-                className={`admin-tab ${activeTab === 'ticker' ? 'active' : ''}`}
-                onClick={() => setActiveTab('ticker')}
-              >
-                🎊 Ticker Announcements
-              </button>
-              <button
-                className={`admin-tab ${activeTab === 'campaigns' ? 'active' : ''}`}
-                onClick={() => setActiveTab('campaigns')}
-              >
-                📣 Major Announcement
-              </button>
-              <button
-                className={`admin-tab ${activeTab === 'news' ? 'active' : ''}`}
-                onClick={() => setActiveTab('news')}
-              >
-                📰 News
-              </button>
-            </div>
-          </div>
           )}
 
           {/* Games Category (Super Admin & Games Manager) */}
@@ -3163,83 +3210,83 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
           {/* Website Management Category */}
           {isGeneralAdmin && (
-          <div className={`admin-category ${expandedCategory === 'website' ? 'expanded' : ''}`}>
-            <div
-              className="category-title"
-              onClick={() => setExpandedCategory(expandedCategory === 'website' ? '' : 'website')}
-              role="button"
-              tabIndex={0}
-            >
-              <h3>Website</h3>
-              <span className="category-arrow">▼</span>
-            </div>
-            <div className="category-tabs">
-              <button
-                className={`admin-tab ${activeTab === 'website_mgmt' ? 'active' : ''}`}
-                onClick={() => setActiveTab('website_mgmt')}
+            <div className={`admin-category ${expandedCategory === 'website' ? 'expanded' : ''}`}>
+              <div
+                className="category-title"
+                onClick={() => setExpandedCategory(expandedCategory === 'website' ? '' : 'website')}
+                role="button"
+                tabIndex={0}
               >
-                🌐 Website Management
-              </button>
-              <button
-                className={`admin-tab ${activeTab === 'chatbot' ? 'active' : ''}`}
-                onClick={() => setActiveTab('chatbot')}
-              >
-                🤖 Runie Chatbot
-              </button>
+                <h3>Website</h3>
+                <span className="category-arrow">▼</span>
+              </div>
+              <div className="category-tabs">
+                <button
+                  className={`admin-tab ${activeTab === 'website_mgmt' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('website_mgmt')}
+                >
+                  🌐 Website Management
+                </button>
+                <button
+                  className={`admin-tab ${activeTab === 'chatbot' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('chatbot')}
+                >
+                  🤖 Runie Chatbot
+                </button>
+              </div>
             </div>
-          </div>
           )}
 
           {/* User Management Category */}
           {isGeneralAdmin && (
-          <div className={`admin-category ${expandedCategory === 'users' ? 'expanded' : ''}`}>
-            <div
-              className="category-title"
-              onClick={() => setExpandedCategory(expandedCategory === 'users' ? '' : 'users')}
-              role="button"
-              tabIndex={0}
-            >
-              <h3>User Management</h3>
-              <span className="category-arrow">▼</span>
+            <div className={`admin-category ${expandedCategory === 'users' ? 'expanded' : ''}`}>
+              <div
+                className="category-title"
+                onClick={() => setExpandedCategory(expandedCategory === 'users' ? '' : 'users')}
+                role="button"
+                tabIndex={0}
+              >
+                <h3>User Management</h3>
+                <span className="category-arrow">▼</span>
+              </div>
+              <div className="category-tabs">
+                {isAdminUser && (
+                  <button
+                    className={`admin-tab ${activeTab === 'users' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('users')}
+                  >
+                    👥 Users
+                  </button>
+                )}
+                {isAdminUser && (
+                  <button
+                    className={`admin-tab ${activeTab === 'visitors' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('visitors')}
+                  >
+                    🌐 Visitors {onlineVisitors.length > 0 && <span className="tab-badge inline">{onlineVisitors.length}</span>}
+                  </button>
+                )}
+                {isSuperAdminUser && (
+                  <button
+                    className={`admin-tab ${activeTab === 'activity' ? 'active' : ''}`}
+                    onClick={() => {
+                      setActiveTab('activity');
+                      fetchGlobalLogs();
+                    }}
+                  >
+                    📊 Activity Logs
+                  </button>
+                )}
+                {isSuperAdminUser && (
+                  <button
+                    className={`admin-tab ${activeTab === 'walletHistory' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('walletHistory')}
+                  >
+                    💼 Wallet History
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="category-tabs">
-              {isAdminUser && (
-                <button
-                  className={`admin-tab ${activeTab === 'users' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('users')}
-                >
-                  👥 Users
-                </button>
-              )}
-              {isAdminUser && (
-                <button
-                  className={`admin-tab ${activeTab === 'visitors' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('visitors')}
-                >
-                  🌐 Visitors {onlineVisitors.length > 0 && <span className="tab-badge inline">{onlineVisitors.length}</span>}
-                </button>
-              )}
-              {isSuperAdminUser && (
-                <button
-                  className={`admin-tab ${activeTab === 'activity' ? 'active' : ''}`}
-                  onClick={() => {
-                    setActiveTab('activity');
-                    fetchGlobalLogs();
-                  }}
-                >
-                  📊 Activity Logs
-                </button>
-              )}
-              {isSuperAdminUser && (
-                <button
-                  className={`admin-tab ${activeTab === 'walletHistory' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('walletHistory')}
-                >
-                  💼 Wallet History
-                </button>
-              )}
-            </div>
-          </div>
           )}
         </div>
 
@@ -3989,8 +4036,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 <div>
                   <h2>🤖 Runie Chatbot Manager</h2>
                   <p>Manage Runie's knowledge base and floating greetings.</p>
-                  <button 
-                    className="seed-btn" 
+                  <button
+                    className="seed-btn"
                     onClick={handleSeedDefaultKnowledge}
                     disabled={processingId === 'seed_chatbot'}
                     style={{ marginTop: '10px', padding: '6px 12px', fontSize: '12px' }}
@@ -4002,11 +4049,11 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   <div className="chatbot-enable-toggle" style={{ textAlign: 'right' }}>
                     <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>Chatbot Status</label>
                     <div className="currency-toggle-group">
-                      <button 
+                      <button
                         className={`toggle-btn ${cbEnabled ? 'active' : ''}`}
                         onClick={() => handleToggleChatbot(true)}
                       >ON</button>
-                      <button 
+                      <button
                         className={`toggle-btn ${!cbEnabled ? 'active' : ''}`}
                         onClick={() => handleToggleChatbot(false)}
                       >OFF</button>
@@ -4019,11 +4066,11 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   <div className="chatbot-enable-toggle" style={{ textAlign: 'right' }}>
                     <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>Damage Calculator</label>
                     <div className="currency-toggle-group">
-                      <button 
+                      <button
                         className={`toggle-btn ${calcEnabled ? 'active' : ''}`}
                         onClick={() => handleToggleDamageCalc(true)}
                       >ON</button>
-                      <button 
+                      <button
                         className={`toggle-btn ${!calcEnabled ? 'active' : ''}`}
                         onClick={() => handleToggleDamageCalc(false)}
                       >OFF</button>
@@ -4041,29 +4088,29 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   <div className="form-row">
                     <div className="form-group flex-2">
                       <label>Button Label (Quick Reply)</label>
-                      <input 
-                        type="text" 
-                        value={cbLabel} 
-                        onChange={(e) => setCbLabel(e.target.value)} 
+                      <input
+                        type="text"
+                        value={cbLabel}
+                        onChange={(e) => setCbLabel(e.target.value)}
                         placeholder="e.g. What is Aurory?"
                       />
                     </div>
                     <div className="form-group flex-2">
                       <label>Sort Order</label>
-                      <input 
-                        type="number" 
-                        value={cbOrder} 
+                      <input
+                        type="number"
+                        value={cbOrder}
                         onChange={(e) => setCbOrder(e.target.value)}
                       />
                     </div>
                     <div className="form-group flex-1">
                       <label>Show as Button?</label>
                       <div className="currency-toggle-group">
-                        <button 
+                        <button
                           className={`toggle-btn ${cbShowAsBadge ? 'active' : ''}`}
                           onClick={() => setCbShowAsBadge(true)}
                         >YES</button>
-                        <button 
+                        <button
                           className={`toggle-btn ${!cbShowAsBadge ? 'active' : ''}`}
                           onClick={() => setCbShowAsBadge(false)}
                         >NO</button>
@@ -4073,10 +4120,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
                   <div className="form-group">
                     <label>Keywords (Comma separated for random chat matching)</label>
-                    <input 
-                      type="text" 
-                      value={cbKeywords} 
-                      onChange={(e) => setCbKeywords(e.target.value)} 
+                    <input
+                      type="text"
+                      value={cbKeywords}
+                      onChange={(e) => setCbKeywords(e.target.value)}
                       placeholder="e.g. aurory, ecosystem, backend"
                     />
                     <p className="field-hint">If a user scrolls or types one of these words, Runie will provide this response.</p>
@@ -4084,9 +4131,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
                   <div className="form-group">
                     <label>Runie's Response</label>
-                    <textarea 
-                      value={cbResponse} 
-                      onChange={(e) => setCbResponse(e.target.value)} 
+                    <textarea
+                      value={cbResponse}
+                      onChange={(e) => setCbResponse(e.target.value)}
                       placeholder="Enter what Runie should say..."
                       className="form-textarea"
                       rows="4"
@@ -4115,8 +4162,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   </div>
 
                   <div className="form-actions">
-                    <button 
-                      className="save-btn" 
+                    <button
+                      className="save-btn"
                       onClick={handleSaveChatbotKnowledge}
                       disabled={processingId === 'chatbot'}
                     >
@@ -4154,15 +4201,15 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           </span>
                         </div>
                         <div className="query-actions" style={{ display: 'flex', gap: '8px' }}>
-                          <button 
-                            className="resolve-btn small-btn" 
+                          <button
+                            className="resolve-btn small-btn"
                             onClick={() => handleResolveUnansweredQuery(q)}
                             title="Add to Knowledge"
                           >
                             🎓 Teach
                           </button>
-                          <button 
-                            className="dismiss-btn small-btn negative" 
+                          <button
+                            className="dismiss-btn small-btn negative"
                             onClick={() => handleDeleteUnansweredQuery(q.id)}
                             title="Dismiss"
                           >
@@ -4179,9 +4226,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 <div className="list-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                   <h3>Existing Knowledge</h3>
                   <div className="list-search">
-                    <input 
-                      type="text" 
-                      placeholder="🔍 Search labels or keywords..." 
+                    <input
+                      type="text"
+                      placeholder="🔍 Search labels or keywords..."
                       value={knowledgeSearchQuery}
                       onChange={(e) => setKnowledgeSearchQuery(e.target.value)}
                       className="admin-compact-input"
@@ -4204,7 +4251,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         </tr>
                       </thead>
                       <tbody>
-                        {chatbotKnowledge.filter(item => 
+                        {chatbotKnowledge.filter(item =>
                           (item.label || '').toLowerCase().includes(knowledgeSearchQuery.toLowerCase()) ||
                           (item.keywords || []).some(k => k.toLowerCase().includes(knowledgeSearchQuery.toLowerCase()))
                         ).map((item) => (
@@ -4239,31 +4286,31 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   <h3>💭 Floating Greeting Bubbles</h3>
                   <p>These messages pop up briefly above Runie when the chat is closed.</p>
                 </div>
-                
+
                 <div className="chatbot-form">
                   <div className="form-row">
                     <div className="form-group flex-2">
                       <label>Greeting Text</label>
-                      <input 
-                        type="text" 
-                        value={cbGreetingText} 
-                        onChange={(e) => setCbGreetingText(e.target.value)} 
+                      <input
+                        type="text"
+                        value={cbGreetingText}
+                        onChange={(e) => setCbGreetingText(e.target.value)}
                         placeholder="e.g. Need help with tournaments?"
                       />
                     </div>
                     <div className="form-group flex-1">
                       <label>Sort Order</label>
-                      <input 
-                        type="number" 
-                        value={cbGreetingOrder} 
+                      <input
+                        type="number"
+                        value={cbGreetingOrder}
                         onChange={(e) => setCbGreetingOrder(e.target.value)}
                       />
                     </div>
                   </div>
 
                   <div className="form-actions">
-                    <button 
-                      className="save-btn" 
+                    <button
+                      className="save-btn"
                       onClick={handleSaveGreeting}
                       disabled={processingId === 'greeting'}
                     >
@@ -4312,93 +4359,145 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           {activeTab === 'website_mgmt' && (
             <div className="credit-section website-mgmt-section">
               <div className="section-info">
-                <p>🌐 Manage global website settings, including maintenance mode and scheduled downtime.</p>
+                <p>🌐 Manage global website settings, including maintenance mode and the Cosmetics Shop.</p>
               </div>
 
-              <div className="credit-form">
-                <div className="form-group">
-                  <label>Maintenance Mode</label>
-                  <div className="currency-toggle-group">
-                    <button 
-                      className={`toggle-btn ${maintenanceEnabled ? 'active' : ''}`}
-                      onClick={() => setMaintenanceEnabled(true)}
-                    >ON</button>
-                    <button 
-                      className={`toggle-btn ${!maintenanceEnabled ? 'active' : ''}`}
-                      onClick={() => setMaintenanceEnabled(false)}
-                    >OFF</button>
-                  </div>
-                  <p className="helper-text" style={{ marginTop: '8px', fontSize: '13px', color: maintenanceEnabled ? '#ef4444' : '#10b981' }}>
-                    {maintenanceEnabled 
-                      ? "⚠️ Maintenance mode is ACTIVE. Non-admin users are being redirected to the maintenance page." 
-                      : "✅ Website is live for all users."}
-                  </p>
+              {/* Sub-tab Pill Selector */}
+              <div className="config-card" style={{ marginBottom: '20px', padding: '15px', background: 'rgba(10, 10, 15, 0.4)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+                <div className="game-type-selector">
+                  <button
+                    className={`selector-btn ${websiteSubTab === 'maintenance' ? 'active' : ''}`}
+                    onClick={() => setWebsiteSubTab('maintenance')}
+                  >
+                    Maintenance
+                  </button>
+                  <button
+                    className={`selector-btn ${websiteSubTab === 'shop' ? 'active' : ''}`}
+                    onClick={() => setWebsiteSubTab('shop')}
+                  >
+                    Valhalla's Vault (Shop)
+                  </button>
                 </div>
-
-                <div className="form-group">
-                  <label>Scheduled Completion (UTC)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Oct 24, 2026 - 14:00 UTC"
-                    value={maintenanceDate}
-                    onChange={(e) => setMaintenanceDate(e.target.value)}
-                    className="credit-input"
-                    style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
-                  />
-                  <p className="helper-text" style={{ marginTop: '4px', fontSize: '12px', color: '#94a3b8' }}>Enter the estimated time when maintenance will conclude. This will be shown to users.</p>
-                </div>
-
-                <div className="form-group">
-                  <label>Announcement Message</label>
-                  <textarea
-                    placeholder="Enter the message to display on the maintenance page..."
-                    value={maintenanceAnnouncement}
-                    onChange={(e) => setMaintenanceAnnouncement(e.target.value)}
-                    style={{ minHeight: '120px', resize: 'vertical', width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
-                  />
-                  <p className="helper-text" style={{ marginTop: '4px', fontSize: '12px', color: '#94a3b8' }}>This message will be shown on the maintenance screen. Use it to provide details about the update.</p>
-                </div>
-
-                <div className="form-group" style={{ marginTop: '30px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px' }}>
-                  <label>Maintenance Warning Banner</label>
-                  <p className="helper-text" style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '15px' }}>
-                    Show a pulsing red indicator at the top of all screens to warn players of upcoming maintenance.
-                  </p>
-                  
-                  <div className="currency-toggle-group">
-                    <button 
-                      className={`toggle-btn ${maintenanceWarningEnabled ? 'active' : ''}`}
-                      onClick={() => setMaintenanceWarningEnabled(true)}
-                    >SHOW WARNING</button>
-                    <button 
-                      className={`toggle-btn ${!maintenanceWarningEnabled ? 'active' : ''}`}
-                      onClick={() => setMaintenanceWarningEnabled(false)}
-                    >HIDE WARNING</button>
-                  </div>
-                </div>
-
-                <div className="form-group" style={{ display: maintenanceWarningEnabled ? 'block' : 'none' }}>
-                  <label>Warning Message</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., ⚠️ Scheduled maintenance in 15 minutes. Save your games!"
-                    value={maintenanceWarningText}
-                    onChange={(e) => setMaintenanceWarningText(e.target.value)}
-                    className="credit-input"
-                    style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
-                  />
-                  <p className="helper-text" style={{ marginTop: '4px', fontSize: '12px', color: '#94a3b8' }}>This banner will pulse red at the top of every screen when enabled.</p>
-                </div>
-
-                <button
-                  className="approve-btn"
-                  onClick={handleSaveMaintenance}
-                  disabled={processingId === 'save_maintenance'}
-                  style={{ marginTop: '30px', width: '100%' }}
-                >
-                  {processingId === 'save_maintenance' ? 'Saving...' : '💾 Save Website Settings'}
-                </button>
               </div>
+
+              {websiteSubTab === 'maintenance' && (
+                <div className="credit-form">
+                  <div className="form-group">
+                    <label>Maintenance Mode</label>
+                    <div className="currency-toggle-group">
+                      <button
+                        className={`toggle-btn ${maintenanceEnabled ? 'active' : ''}`}
+                        onClick={() => setMaintenanceEnabled(true)}
+                      >ON</button>
+                      <button
+                        className={`toggle-btn ${!maintenanceEnabled ? 'active' : ''}`}
+                        onClick={() => setMaintenanceEnabled(false)}
+                      >OFF</button>
+                    </div>
+                    <p className="helper-text" style={{ marginTop: '8px', fontSize: '13px', color: maintenanceEnabled ? '#ef4444' : '#10b981' }}>
+                      {maintenanceEnabled
+                        ? "⚠️ Maintenance mode is ACTIVE. Non-admin users are being redirected to the maintenance page."
+                        : "✅ Website is live for all users."}
+                    </p>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Scheduled Completion (UTC)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Oct 24, 2026 - 14:00 UTC"
+                      value={maintenanceDate}
+                      onChange={(e) => setMaintenanceDate(e.target.value)}
+                      className="credit-input"
+                      style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
+                    />
+                    <p className="helper-text" style={{ marginTop: '4px', fontSize: '12px', color: '#94a3b8' }}>Enter the estimated time when maintenance will conclude. This will be shown to users.</p>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Announcement Message</label>
+                    <textarea
+                      placeholder="Enter the message to display on the maintenance page..."
+                      value={maintenanceAnnouncement}
+                      onChange={(e) => setMaintenanceAnnouncement(e.target.value)}
+                      style={{ minHeight: '120px', resize: 'vertical', width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
+                    />
+                    <p className="helper-text" style={{ marginTop: '4px', fontSize: '12px', color: '#94a3b8' }}>This message will be shown on the maintenance screen. Use it to provide details about the update.</p>
+                  </div>
+
+                  <div className="form-group" style={{ marginTop: '30px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px' }}>
+                    <label>Maintenance Warning Banner</label>
+                    <p className="helper-text" style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '15px' }}>
+                      Show a pulsing red indicator at the top of all screens to warn players of upcoming maintenance.
+                    </p>
+
+                    <div className="currency-toggle-group">
+                      <button
+                        className={`toggle-btn ${maintenanceWarningEnabled ? 'active' : ''}`}
+                        onClick={() => setMaintenanceWarningEnabled(true)}
+                      >SHOW WARNING</button>
+                      <button
+                        className={`toggle-btn ${!maintenanceWarningEnabled ? 'active' : ''}`}
+                        onClick={() => setMaintenanceWarningEnabled(false)}
+                      >HIDE WARNING</button>
+                    </div>
+                  </div>
+
+                  <div className="form-group" style={{ display: maintenanceWarningEnabled ? 'block' : 'none' }}>
+                    <label>Warning Message</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., ⚠️ Scheduled maintenance in 15 minutes. Save your games!"
+                      value={maintenanceWarningText}
+                      onChange={(e) => setMaintenanceWarningText(e.target.value)}
+                      className="credit-input"
+                      style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
+                    />
+                    <p className="helper-text" style={{ marginTop: '4px', fontSize: '12px', color: '#94a3b8' }}>This banner will pulse red at the top of every screen when enabled.</p>
+                  </div>
+
+                  <button
+                    className="approve-btn"
+                    onClick={handleSaveMaintenance}
+                    disabled={processingId === 'save_maintenance'}
+                    style={{ marginTop: '30px', width: '100%' }}
+                  >
+                    {processingId === 'save_maintenance' ? 'Saving...' : '💾 Save Website Settings'}
+                  </button>
+                </div>
+              )}
+
+              {websiteSubTab === 'shop' && (
+                <div className="credit-form">
+                  <div className="form-group">
+                    <label>Valhalla's Vault Status</label>
+                    <div className="currency-toggle-group">
+                      <button
+                        className={`toggle-btn ${shopEnabled ? 'active' : ''}`}
+                        onClick={() => setShopEnabled(true)}
+                      >ON</button>
+                      <button
+                        className={`toggle-btn ${!shopEnabled ? 'active' : ''}`}
+                        onClick={() => setShopEnabled(false)}
+                      >OFF</button>
+                    </div>
+                    <p className="helper-text" style={{ marginTop: '8px', fontSize: '13px', color: shopEnabled ? '#10b981' : '#ef4444' }}>
+                      {shopEnabled
+                        ? "✅ Shop is visible to all users."
+                        : "⚠️ Shop is HIDDEN from the homepage. (Super Admins can still see it for testing)."}
+                    </p>
+                  </div>
+
+                  <button
+                    className="approve-btn"
+                    onClick={handleSaveShopSettings}
+                    disabled={processingId === 'save_shop'}
+                    style={{ marginTop: '30px', width: '100%' }}
+                  >
+                    {processingId === 'save_shop' ? 'Saving...' : '💾 Save Shop Settings'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -4411,15 +4510,15 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               <div className="form-group">
                 <label>Currency</label>
                 <div className="currency-toggle-group">
-                  <button 
+                  <button
                     className={`toggle-btn ${selectedCreditCurrency === 'AURY' ? 'active' : ''}`}
                     onClick={() => setSelectedCreditCurrency('AURY')}
                   >AURY</button>
-                  <button 
+                  <button
                     className={`toggle-btn ${selectedCreditCurrency === 'USDC' ? 'active' : ''}`}
                     onClick={() => setSelectedCreditCurrency('USDC')}
                   >USDC</button>
-                  <button 
+                  <button
                     className={`toggle-btn ${selectedCreditCurrency === 'Valcoins' ? 'active' : ''}`}
                     onClick={() => setSelectedCreditCurrency('Valcoins')}
                   >Valcoins</button>
@@ -4490,10 +4589,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                               <div className="participant-balance">
                                 {selectedCreditCurrency === 'Valcoins'
                                   ? `${u.points || 0} Valcoins`
-                                  : (selectedCreditCurrency === 'USDC' 
-                                      ? formatAmount(u.usdcBalance || 0, 'USDC') 
-                                      : formatAmount(u.balance || 0, 'AURY')
-                                    ) + ' ' + selectedCreditCurrency
+                                  : (selectedCreditCurrency === 'USDC'
+                                    ? formatAmount(u.usdcBalance || 0, 'USDC')
+                                    : formatAmount(u.balance || 0, 'AURY')
+                                  ) + ' ' + selectedCreditCurrency
                                 }
                               </div>
                             </div>
@@ -4547,15 +4646,15 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               <div className="form-group">
                 <label>Currency</label>
                 <div className="currency-toggle-group">
-                  <button 
+                  <button
                     className={`toggle-btn ${selectedDeductCurrency === 'AURY' ? 'active' : ''}`}
                     onClick={() => setSelectedDeductCurrency('AURY')}
                   >AURY</button>
-                  <button 
+                  <button
                     className={`toggle-btn ${selectedDeductCurrency === 'USDC' ? 'active' : ''}`}
                     onClick={() => setSelectedDeductCurrency('USDC')}
                   >USDC</button>
-                  <button 
+                  <button
                     className={`toggle-btn ${selectedDeductCurrency === 'Valcoins' ? 'active' : ''}`}
                     onClick={() => setSelectedDeductCurrency('Valcoins')}
                   >Valcoins</button>
@@ -4626,10 +4725,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                               <div className="participant-balance">
                                 {selectedDeductCurrency === 'Valcoins'
                                   ? `${u.points || 0} Valcoins`
-                                  : (selectedDeductCurrency === 'USDC' 
-                                      ? formatAmount(u.usdcBalance || 0, 'USDC') 
-                                      : formatAmount(u.balance || 0, 'AURY')
-                                    ) + ' ' + selectedDeductCurrency
+                                  : (selectedDeductCurrency === 'USDC'
+                                    ? formatAmount(u.usdcBalance || 0, 'USDC')
+                                    : formatAmount(u.balance || 0, 'AURY')
+                                  ) + ' ' + selectedDeductCurrency
                                 }
                               </div>
                             </div>
@@ -4685,7 +4784,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               ) : (
                 <div className="credit-form">
                   <h3><img src="/valcoin-icon.jpg" alt="" className="valcoin-icon" /> Valcoin Rewards Matrix</h3>
-                  
+
                   <div className="form-group" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '15px' }}>
                     <div className="input-group">
                       <label>Daily Check-In Default</label>
@@ -4694,7 +4793,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         min="0"
                         className="credit-input"
                         value={valcoinConfig.dailyCheckIn}
-                        onChange={(e) => setValcoinConfig({...valcoinConfig, dailyCheckIn: parseInt(e.target.value) || 0})}
+                        onChange={(e) => setValcoinConfig({ ...valcoinConfig, dailyCheckIn: parseInt(e.target.value) || 0 })}
                       />
                     </div>
 
@@ -4705,7 +4804,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         min="0"
                         className="credit-input"
                         value={valcoinConfig.linkAurory}
-                        onChange={(e) => setValcoinConfig({...valcoinConfig, linkAurory: parseInt(e.target.value) || 0})}
+                        onChange={(e) => setValcoinConfig({ ...valcoinConfig, linkAurory: parseInt(e.target.value) || 0 })}
                       />
                     </div>
 
@@ -4716,7 +4815,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         min="0"
                         className="credit-input"
                         value={valcoinConfig.joinRaffle}
-                        onChange={(e) => setValcoinConfig({...valcoinConfig, joinRaffle: parseInt(e.target.value) || 0})}
+                        onChange={(e) => setValcoinConfig({ ...valcoinConfig, joinRaffle: parseInt(e.target.value) || 0 })}
                       />
                     </div>
 
@@ -4727,20 +4826,20 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         min="0"
                         className="credit-input"
                         value={valcoinConfig.joinTournament}
-                        onChange={(e) => setValcoinConfig({...valcoinConfig, joinTournament: parseInt(e.target.value) || 0})}
+                        onChange={(e) => setValcoinConfig({ ...valcoinConfig, joinTournament: parseInt(e.target.value) || 0 })}
                       />
                     </div>
                   </div>
 
                   <div className="action-buttons" style={{ marginTop: '30px' }}>
-                    <button 
-                      className="approve-btn" 
+                    <button
+                      className="approve-btn"
                       onClick={handleSaveValcoinConfig}
                       disabled={processingId === 'save_valcoins'}
                     >
                       {processingId === 'save_valcoins' ? 'Saving...' : '💾 Save Configuration'}
                     </button>
-                    <button 
+                    <button
                       className="reject-btn"
                       onClick={handleRestoreValcoinDefaults}
                       disabled={processingId === 'save_valcoins'}
@@ -4879,31 +4978,31 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           {activeTab === 'users' && isAdminUser && (
             <div className="users-assignment-section">
               {(() => {
-                  const registeredUsers = allUsers.filter(u => !u.isAnonymous);
-                  const totalCount = registeredUsers.length;
-                  const linkedCount = registeredUsers.filter(u => u.auroryPlayerId).length;
-                  const notLinkedCount = totalCount - linkedCount;
+                const registeredUsers = allUsers.filter(u => !u.isAnonymous);
+                const totalCount = registeredUsers.length;
+                const linkedCount = registeredUsers.filter(u => u.auroryPlayerId).length;
+                const notLinkedCount = totalCount - linkedCount;
 
-                  return (
-                    <div className="section-info users-stats-header">
-                      <div className="stats-grid">
-                        <div className="stat-item">
-                          <span className="label">Total Users</span>
-                          <span className="value">{totalCount}</span>
+                return (
+                  <div className="section-info users-stats-header">
+                    <div className="stats-grid">
+                      <div className="stat-item">
+                        <span className="label">Total Users</span>
+                        <span className="value">{totalCount}</span>
+                      </div>
+                      <div className="stat-item split">
+                        <div className="sub-stat linked">
+                          <span className="label">🔗 Linked</span>
+                          <span className="value">{linkedCount}</span>
                         </div>
-                        <div className="stat-item split">
-                          <div className="sub-stat linked">
-                            <span className="label">🔗 Linked</span>
-                            <span className="value">{linkedCount}</span>
-                          </div>
-                          <div className="sub-stat not-linked">
-                            <span className="label">🚫 Not Linked</span>
-                            <span className="value">{notLinkedCount}</span>
-                          </div>
+                        <div className="sub-stat not-linked">
+                          <span className="label">🚫 Not Linked</span>
+                          <span className="value">{notLinkedCount}</span>
                         </div>
                       </div>
                     </div>
-                  );
+                  </div>
+                );
               })()}
 
               {/* Search Bar */}
@@ -4926,65 +5025,65 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               </div>
 
               {isSuperAdminUser && (
-                <div className="global-maintenance-row" style={{ 
-                  display: 'flex', alignItems: 'center', gap: '10px', 
-                  marginBottom: '20px', padding: '15px', background: 'rgba(239, 68, 68, 0.05)', 
-                  borderRadius: '12px', border: '1px dashed rgba(239, 68, 68, 0.2)' 
+                <div className="global-maintenance-row" style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  marginBottom: '20px', padding: '15px', background: 'rgba(239, 68, 68, 0.05)',
+                  borderRadius: '12px', border: '1px dashed rgba(239, 68, 68, 0.2)'
                 }}>
                   <div style={{ marginRight: '10px' }}>
                     <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '0.85em', display: 'block' }}>🚨 Global Maintenance</span>
                     <span style={{ fontSize: '0.75em', opacity: 0.6 }}>Irreversible Platform-wide Actions</span>
                   </div>
-                  <input 
-                    type="text" 
-                    placeholder="Type WIPE ALL to confirm" 
+                  <input
+                    type="text"
+                    placeholder="Type WIPE ALL to confirm"
                     value={wipeAllConfirmText}
                     onChange={(e) => setWipeAllConfirmText(e.target.value)}
                     className="admin-compact-input"
                     style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(239,68,68,0.3)', width: '180px' }}
                   />
-                  <button 
-                    className="clear-btn-admin risky" 
+                  <button
+                    className="clear-btn-admin risky"
                     onClick={clearActivityLogs}
                     disabled={isWiping || wipeAllConfirmText !== 'WIPE ALL'}
                     style={{ padding: '8px 15px', fontSize: '0.85em' }}
                   >
                     🗑️ Clear All Activity Logs
                   </button>
-                  <button 
-                    className="clear-btn-admin risky" 
+                  <button
+                    className="clear-btn-admin risky"
                     onClick={handleCleanupInactiveGuests}
                     disabled={isWiping || wipeAllConfirmText !== 'WIPE ALL'}
                     style={{ padding: '8px 15px', fontSize: '0.85em', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
                   >
                     🧹 Clear Inactive Guest Accounts
                   </button>
-                  <button 
-                    className="clear-btn-admin risky" 
+                  <button
+                    className="clear-btn-admin risky"
                     onClick={handleClearAllGlobalNotifications}
                     disabled={isWiping || wipeAllConfirmText !== 'WIPE ALL'}
                     style={{ padding: '8px 15px', fontSize: '0.85em' }}
                   >
                     🔔 Clear All Notifications
                   </button>
-                  <button 
-                    className="clear-btn-admin risky" 
+                  <button
+                    className="clear-btn-admin risky"
                     onClick={handleResetAllValcoinBalances}
                     disabled={isWiping || wipeAllConfirmText !== 'WIPE ALL'}
                     style={{ padding: '8px 15px', fontSize: '0.85em', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}
                   >
                     💰 Reset All Valcoin Balances
                   </button>
-                  <button 
-                    className="clear-btn-admin risky" 
+                  <button
+                    className="clear-btn-admin risky"
                     onClick={handleResetGlobalWallets}
                     disabled={isWiping || wipeAllConfirmText !== 'WIPE ALL'}
                     style={{ padding: '8px 15px', fontSize: '0.85em', background: 'linear-gradient(135deg, #ef4444 0%, #991b1b 100%)' }}
                   >
                     💰 Wipe All Wallet Balances
                   </button>
-                  <button 
-                    className="clear-btn-admin risky" 
+                  <button
+                    className="clear-btn-admin risky"
                     onClick={() => {
                       setResetStatsWipeHistory(true);
                       setResetStatsConfirmText('RESET ALL STATS');
@@ -4995,8 +5094,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   >
                     🎮 Wipe All Mini-Game Histories
                   </button>
-                  <button 
-                    className="clear-btn-admin risky" 
+                  <button
+                    className="clear-btn-admin risky"
                     onClick={handleMigrateLeaderboards}
                     disabled={isWiping || wipeAllConfirmText !== 'WIPE ALL'}
                     style={{ padding: '8px 15px', fontSize: '0.85em', background: 'linear-gradient(135deg, #10b981 0%, #047857 100%)' }}
@@ -5013,8 +5112,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   <div className="col-linked">Linked</div>
                   <div className="col-holder">Holder</div>
                   <div className="col-balance">
-                    <select 
-                      value={userBalanceType} 
+                    <select
+                      value={userBalanceType}
                       onChange={(e) => setUserBalanceType(e.target.value)}
                       className="balance-type-select"
                     >
@@ -5070,7 +5169,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             )}
                             {userBalanceType === 'Valcoins' && (
                               <span className="balance-valcoins">
-                                <img src="/valcoin-icon.jpg" alt="" className="valcoin-icon-mini" /> 
+                                <img src="/valcoin-icon.jpg" alt="" className="valcoin-icon-mini" />
                                 {u.points || 0}
                               </span>
                             )}
@@ -5097,7 +5196,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                         lastDailyCheckIn: newDate || null,
                                         updatedAt: serverTimestamp()
                                       });
-                                      setAllUsers(prev => prev.map(user => 
+                                      setAllUsers(prev => prev.map(user =>
                                         user.id === u.id ? { ...user, lastDailyCheckIn: newDate || null } : user
                                       ));
                                     } catch (err) {
@@ -5114,14 +5213,14 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                     const yesterday = new Date();
                                     yesterday.setUTCDate(yesterday.getUTCDate() - 1);
                                     const yesterdayStr = yesterday.toISOString().split('T')[0];
-                                    
+
                                     try {
                                       setProcessingId(`date-${u.id}`);
                                       await updateDoc(doc(db, 'users', u.id), {
                                         lastDailyCheckIn: yesterdayStr,
                                         updatedAt: serverTimestamp()
                                       });
-                                      setAllUsers(prev => prev.map(user => 
+                                      setAllUsers(prev => prev.map(user =>
                                         user.id === u.id ? { ...user, lastDailyCheckIn: yesterdayStr } : user
                                       ));
                                       alert(`✅ Last Check-in set to ${yesterdayStr}`);
@@ -5162,7 +5261,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                       updatedAt: serverTimestamp()
                                     });
                                     // Update local state
-                                    setAllUsers(prev => prev.map(user => 
+                                    setAllUsers(prev => prev.map(user =>
                                       user.id === u.id ? { ...user, checkInStreak: newStreak } : user
                                     ));
                                     console.log(`✅ Streak updated for ${u.id} to ${newStreak}`);
@@ -5192,7 +5291,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                     try {
                                       if (newRole === 'delete') {
                                         if (!window.confirm(`⚠️ WARNING: Are you SURE you want to permanently delete user ${resolveDisplayName(u)}? This will remove their platform profile data.`)) {
-                                          e.target.value = u.role || 'user'; 
+                                          e.target.value = u.role || 'user';
                                           return;
                                         }
                                         setProcessingId(`role-${u.id}`);
@@ -5383,7 +5482,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                               const amount = log.metadata?.amount;
                               const currency = log.metadata?.currency || (log.action.includes('deduct') ? 'Valcoins' : 'AURY');
                               const isPointAction = currency === 'Valcoins';
-                              
+
                               return (
                                 <tr key={log.id}>
                                   <td>
@@ -5889,8 +5988,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               <div className="section-header">
                 <h2>🎮 Mini-Games Configuration</h2>
                 <div className="header-actions">
-                  <button 
-                    className="admin-secondary-btn" 
+                  <button
+                    className="admin-secondary-btn"
                     onClick={() => handleAutoAssignIcons(activeGameType)}
                     disabled={isAutoAssigning || miniGamesLoading}
                     title="Automatically assigns classic slot/chest icons to all prizes"
@@ -5898,25 +5997,31 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     {isAutoAssigning ? 'Updating...' : '✨ Auto-Refresh Icons'}
                   </button>
                   <div className="game-type-selector">
-                    <button 
+                    <button
                       className={`selector-btn ${activeGameType === 'slotMachine' ? 'active' : ''}`}
                       onClick={() => setActiveGameType('slotMachine')}
                     >
                       Slot Machine
                     </button>
-                    <button 
+                    <button
                       className={`selector-btn ${activeGameType === 'treasureChest' ? 'active' : ''}`}
                       onClick={() => setActiveGameType('treasureChest')}
                     >
                       Treasure Chest
                     </button>
-                    <button 
+                    <button
                       className={`selector-btn ${activeGameType === 'drakkarRace' ? 'active' : ''}`}
                       onClick={() => setActiveGameType('drakkarRace')}
                     >
                       Drakkar Race
                     </button>
-                    <button 
+                    <button
+                      className={`selector-btn ${activeGameType === 'nornsFate' ? 'active' : ''}`}
+                      onClick={() => setActiveGameType('nornsFate')}
+                    >
+                      Norns' Fate
+                    </button>
+                    <button
                       className={`selector-btn ${activeGameType === 'odinsRiddle' ? 'active' : ''}`}
                       onClick={() => setActiveGameType('odinsRiddle')}
                     >
@@ -5927,7 +6032,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               </div>
 
 
-              {activeGameType !== 'drakkarRace' && activeGameType !== 'odinsRiddle' && (
+              {activeGameType !== 'drakkarRace' && activeGameType !== 'odinsRiddle' && activeGameType !== 'nornsFate' && (
                 <div className="config-card probability-guide-card">
                   <div className="guide-header">
                     <h3>⚖️ Probability Balance Guide</h3>
@@ -6056,7 +6161,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       )}
                     </div>
 
-                    {activeGameType === 'drakkarRace' && (
+                    {(activeGameType === 'drakkarRace' || activeGameType === 'nornsFate') && (
                       <>
                         <div className="form-row">
                           <div className="form-group">
@@ -6117,142 +6222,142 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   </div>
 
                   {activeGameType === 'odinsRiddle' ? (
-                        <>
-                          <div style={{ marginTop: '20px' }}>
-                            <h4 style={{ color: '#e2e8f0', marginBottom: '10px' }}>📖 Base Riddles (must answer all correctly to unlock streak)</h4>
-                            <div className="admin-table-container">
-                              <table className="admin-table" style={{ fontSize: '0.9em' }}>
-                                <thead>
-                                  <tr>
-                                    <th>#</th>
-                                    <th>Difficulty</th>
-                                    <th>Reward (Valcoins)</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {(miniGamesConfig[activeGameType]?.baseRiddles || [
-                                    { difficulty: 'easy', reward: 20 },
-                                    { difficulty: 'easy', reward: 20 },
-                                    { difficulty: 'medium', reward: 30 },
-                                    { difficulty: 'medium', reward: 30 },
-                                    { difficulty: 'hard', reward: 50 },
-                                  ]).map((slot, idx) => (
-                                    <tr key={`base-${idx}`}>
-                                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{idx + 1}</td>
-                                      <td>
-                                        <select
-                                          value={slot.difficulty}
-                                          onChange={(e) => {
-                                            const arr = [...(miniGamesConfig[activeGameType]?.baseRiddles || [])];
-                                            arr[idx] = { ...arr[idx], difficulty: e.target.value };
-                                            handleUpdateMiniGameConfig(activeGameType, { baseRiddles: arr });
-                                          }}
-                                          style={{ width: '100%' }}
-                                        >
-                                          <option value="easy">Easy</option>
-                                          <option value="medium">Medium</option>
-                                          <option value="hard">Hard</option>
-                                        </select>
-                                      </td>
-                                      <td>
-                                        <input
-                                          type="number"
-                                          value={slot.reward}
-                                          onChange={(e) => {
-                                            const arr = [...(miniGamesConfig[activeGameType]?.baseRiddles || [])];
-                                            arr[idx] = { ...arr[idx], reward: parseInt(e.target.value) || 0 };
-                                            handleUpdateMiniGameConfig(activeGameType, { baseRiddles: arr });
-                                          }}
-                                          min="0"
-                                          style={{ width: '80px' }}
-                                        />
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
+                    <>
+                      <div style={{ marginTop: '20px' }}>
+                        <h4 style={{ color: '#e2e8f0', marginBottom: '10px' }}>📖 Base Riddles (must answer all correctly to unlock streak)</h4>
+                        <div className="admin-table-container">
+                          <table className="admin-table" style={{ fontSize: '0.9em' }}>
+                            <thead>
+                              <tr>
+                                <th>#</th>
+                                <th>Difficulty</th>
+                                <th>Reward (Valcoins)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(miniGamesConfig[activeGameType]?.baseRiddles || [
+                                { difficulty: 'easy', reward: 20 },
+                                { difficulty: 'easy', reward: 20 },
+                                { difficulty: 'medium', reward: 30 },
+                                { difficulty: 'medium', reward: 30 },
+                                { difficulty: 'hard', reward: 50 },
+                              ]).map((slot, idx) => (
+                                <tr key={`base-${idx}`}>
+                                  <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{idx + 1}</td>
+                                  <td>
+                                    <select
+                                      value={slot.difficulty}
+                                      onChange={(e) => {
+                                        const arr = [...(miniGamesConfig[activeGameType]?.baseRiddles || [])];
+                                        arr[idx] = { ...arr[idx], difficulty: e.target.value };
+                                        handleUpdateMiniGameConfig(activeGameType, { baseRiddles: arr });
+                                      }}
+                                      style={{ width: '100%' }}
+                                    >
+                                      <option value="easy">Easy</option>
+                                      <option value="medium">Medium</option>
+                                      <option value="hard">Hard</option>
+                                    </select>
+                                  </td>
+                                  <td>
+                                    <input
+                                      type="number"
+                                      value={slot.reward}
+                                      onChange={(e) => {
+                                        const arr = [...(miniGamesConfig[activeGameType]?.baseRiddles || [])];
+                                        arr[idx] = { ...arr[idx], reward: parseInt(e.target.value) || 0 };
+                                        handleUpdateMiniGameConfig(activeGameType, { baseRiddles: arr });
+                                      }}
+                                      min="0"
+                                      style={{ width: '80px' }}
+                                    />
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
 
-                          <div style={{ marginTop: '20px' }}>
-                            <h4 style={{ color: '#fbbf24', marginBottom: '10px' }}>🔥 Streak Bonus Riddles (unlocked after perfect base round)</h4>
-                            <div className="admin-table-container">
-                              <table className="admin-table" style={{ fontSize: '0.9em' }}>
-                                <thead>
-                                  <tr>
-                                    <th>#</th>
-                                    <th>Difficulty</th>
-                                    <th>Reward (Valcoins)</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {(miniGamesConfig[activeGameType]?.streakRiddles || [
-                                    { difficulty: 'easy', reward: 50 },
-                                    { difficulty: 'easy', reward: 50 },
-                                    { difficulty: 'easy', reward: 50 },
-                                    { difficulty: 'medium', reward: 50 },
-                                    { difficulty: 'hard', reward: 50 },
-                                  ]).map((slot, idx) => (
-                                    <tr key={`streak-${idx}`}>
-                                      <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#fbbf24' }}>{idx + 6}</td>
-                                      <td>
-                                        <select
-                                          value={slot.difficulty}
-                                          onChange={(e) => {
-                                            const arr = [...(miniGamesConfig[activeGameType]?.streakRiddles || [])];
-                                            arr[idx] = { ...arr[idx], difficulty: e.target.value };
-                                            handleUpdateMiniGameConfig(activeGameType, { streakRiddles: arr });
-                                          }}
-                                          style={{ width: '100%' }}
-                                        >
-                                          <option value="easy">Easy</option>
-                                          <option value="medium">Medium</option>
-                                          <option value="hard">Hard</option>
-                                        </select>
-                                      </td>
-                                      <td>
-                                        <input
-                                          type="number"
-                                          value={slot.reward}
-                                          onChange={(e) => {
-                                            const arr = [...(miniGamesConfig[activeGameType]?.streakRiddles || [])];
-                                            arr[idx] = { ...arr[idx], reward: parseInt(e.target.value) || 0 };
-                                            handleUpdateMiniGameConfig(activeGameType, { streakRiddles: arr });
-                                          }}
-                                          min="0"
-                                          style={{ width: '80px' }}
-                                        />
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="form-group">
-                            <label>Cost Per Play (Valcoins)</label>
-                            <input
-                              type="number"
-                              value={miniGamesConfig[activeGameType]?.costPerPlay ?? 50}
-                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { costPerPlay: parseInt(e.target.value) })}
-                              min="0"
-                            />
-                          </div>
-                          <div className="form-group">
-                            <label>No-Win Weight (Dead Weight)</label>
-                            <input
-                              type="number"
-                              value={miniGamesConfig[activeGameType]?.noWinWeight ?? 0}
-                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { noWinWeight: parseInt(e.target.value) })}
-                              min="0"
-                              title="Higher weight = more chance of losing"
-                            />
-                          </div>
-                        </>
-                      )}
+                      <div style={{ marginTop: '20px' }}>
+                        <h4 style={{ color: '#fbbf24', marginBottom: '10px' }}>🔥 Streak Bonus Riddles (unlocked after perfect base round)</h4>
+                        <div className="admin-table-container">
+                          <table className="admin-table" style={{ fontSize: '0.9em' }}>
+                            <thead>
+                              <tr>
+                                <th>#</th>
+                                <th>Difficulty</th>
+                                <th>Reward (Valcoins)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(miniGamesConfig[activeGameType]?.streakRiddles || [
+                                { difficulty: 'easy', reward: 50 },
+                                { difficulty: 'easy', reward: 50 },
+                                { difficulty: 'easy', reward: 50 },
+                                { difficulty: 'medium', reward: 50 },
+                                { difficulty: 'hard', reward: 50 },
+                              ]).map((slot, idx) => (
+                                <tr key={`streak-${idx}`}>
+                                  <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#fbbf24' }}>{idx + 6}</td>
+                                  <td>
+                                    <select
+                                      value={slot.difficulty}
+                                      onChange={(e) => {
+                                        const arr = [...(miniGamesConfig[activeGameType]?.streakRiddles || [])];
+                                        arr[idx] = { ...arr[idx], difficulty: e.target.value };
+                                        handleUpdateMiniGameConfig(activeGameType, { streakRiddles: arr });
+                                      }}
+                                      style={{ width: '100%' }}
+                                    >
+                                      <option value="easy">Easy</option>
+                                      <option value="medium">Medium</option>
+                                      <option value="hard">Hard</option>
+                                    </select>
+                                  </td>
+                                  <td>
+                                    <input
+                                      type="number"
+                                      value={slot.reward}
+                                      onChange={(e) => {
+                                        const arr = [...(miniGamesConfig[activeGameType]?.streakRiddles || [])];
+                                        arr[idx] = { ...arr[idx], reward: parseInt(e.target.value) || 0 };
+                                        handleUpdateMiniGameConfig(activeGameType, { streakRiddles: arr });
+                                      }}
+                                      min="0"
+                                      style={{ width: '80px' }}
+                                    />
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="form-group">
+                        <label>Cost Per Play (Valcoins)</label>
+                        <input
+                          type="number"
+                          value={miniGamesConfig[activeGameType]?.costPerPlay ?? 50}
+                          onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { costPerPlay: parseInt(e.target.value) })}
+                          min="0"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>No-Win Weight (Dead Weight)</label>
+                        <input
+                          type="number"
+                          value={miniGamesConfig[activeGameType]?.noWinWeight ?? 0}
+                          onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { noWinWeight: parseInt(e.target.value) })}
+                          min="0"
+                          title="Higher weight = more chance of losing"
+                        />
+                      </div>
+                    </>
+                  )}
 
 
                   {activeGameType !== 'drakkarRace' && (
@@ -6333,8 +6438,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                               </div>
                             </div>
                             <div className="form-actions-admin" style={{ marginTop: '20px' }}>
-                              <button 
-                                className="admin-primary-btn" 
+                              <button
+                                className="admin-primary-btn"
                                 onClick={handleSaveRiddle}
                                 disabled={processingId === 'save_riddle'}
                               >
@@ -6444,8 +6549,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 <label>Icon</label>
                                 <div className="icon-quick-picker">
                                   {getRecommendedIcons(newPrize.rarity).map(emoji => (
-                                    <button 
-                                      key={emoji} 
+                                    <button
+                                      key={emoji}
                                       type="button"
                                       className={`icon-emoji-btn ${newPrize.icon === emoji ? 'active' : ''}`}
                                       onClick={() => setNewPrize({ ...newPrize, icon: emoji })}
@@ -6466,8 +6571,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 />
                               </div>
                               <div className="form-actions-mini">
-                                <button 
-                                  className={editingPrizeId ? "update-prize-btn" : "add-prize-btn"} 
+                                <button
+                                  className={editingPrizeId ? "update-prize-btn" : "add-prize-btn"}
                                   onClick={() => handleAddPrize(activeGameType)}
                                 >
                                   {editingPrizeId ? 'Update Prize' : 'Add Prize'}
@@ -6503,15 +6608,15 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                       </span>
                                     </div>
                                     <div className="prize-actions-admin">
-                                      <button 
+                                      <button
                                         className="edit-prize-btn"
                                         onClick={() => handleStartEditPrize(prize)}
                                         title="Edit Prize"
                                       >
                                         📝
                                       </button>
-                                      <button 
-                                        className="delete-prize-btn" 
+                                      <button
+                                        className="delete-prize-btn"
                                         onClick={() => handleDeletePrize(activeGameType, prize.id)}
                                         title="Delete Prize"
                                       >
@@ -6540,32 +6645,32 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   {isSuperAdminUser && (
                     <div className="global-reset-control">
                       <div className="wipe-option" style={{ display: 'flex', alignItems: 'center', marginRight: '15px', color: '#94a3b8', fontSize: '0.8em', cursor: 'pointer' }} onClick={() => setResetStatsWipeHistory(!resetStatsWipeHistory)}>
-                        <input 
-                          type="checkbox" 
+                        <input
+                          type="checkbox"
                           checked={resetStatsWipeHistory}
                           onChange={(e) => setResetStatsWipeHistory(e.target.checked)}
                           style={{ marginRight: '6px' }}
                         />
                         <span>Wipe History Logs</span>
                       </div>
-                      <input 
-                        type="text" 
-                        placeholder="Type RESET ALL STATS to confirm" 
+                      <input
+                        type="text"
+                        placeholder="Type RESET ALL STATS to confirm"
                         value={resetStatsConfirmText}
                         onChange={(e) => setResetStatsConfirmText(e.target.value)}
                         className="admin-compact-input"
                         style={{ marginRight: '8px', fontSize: '0.8em' }}
                       />
-                      <button 
-                        className="clear-btn-admin risky" 
+                      <button
+                        className="clear-btn-admin risky"
                         onClick={handleResetLeaderboardStats}
                         disabled={isResettingStats || resetStatsConfirmText !== 'RESET ALL STATS'}
                       >
                         {isResettingStats ? 'Resetting...' : resetStatsWipeHistory ? '🔥 Wipe All Records' : '🚨 Reset Leaderboard Stats'}
                       </button>
 
-                      <button 
-                        className="admin-secondary-btn" 
+                      <button
+                        className="admin-secondary-btn"
                         onClick={handleRepairPvpLeaderboards}
                         disabled={isRepairingPvp || processingId === 'repair_pvp_leaderboards'}
                         style={{ marginLeft: '10px', background: '#3b82f6', color: 'white', borderColor: '#2563eb' }}
@@ -6575,8 +6680,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     </div>
                   )}
                   {earnersSelectedUser && (
-                    <button 
-                      className="secondary-btn small" 
+                    <button
+                      className="secondary-btn small"
                       onClick={() => {
                         setEarnersSelectedUser(null);
                         setEarnersSearchQuery('');
@@ -6626,20 +6731,20 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         }}
                       />
                       {isSelectingEarnersUser && earnersSearchQuery.length >= 2 && (
-                        <div className="user-search-dropdown" style={{ 
-                          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, 
-                          background: '#1a1b23', border: '1px solid rgba(255,255,255,0.1)', 
-                          borderRadius: '8px', marginTop: '5px', maxHeight: '300px', overflowY: 'auto' 
+                        <div className="user-search-dropdown" style={{
+                          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                          background: '#1a1b23', border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: '8px', marginTop: '5px', maxHeight: '300px', overflowY: 'auto'
                         }}>
                           {allUsers
-                            .filter(u => 
-                              u.email?.toLowerCase().includes(earnersSearchQuery.toLowerCase()) || 
+                            .filter(u =>
+                              u.email?.toLowerCase().includes(earnersSearchQuery.toLowerCase()) ||
                               resolveDisplayName(u).toLowerCase().includes(earnersSearchQuery.toLowerCase())
                             )
                             .slice(0, 10)
                             .map(u => (
-                              <div 
-                                key={u.id} 
+                              <div
+                                key={u.id}
                                 className="user-search-item"
                                 onClick={() => {
                                   setEarnersSelectedUser(u);
@@ -6656,12 +6761,12 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                               </div>
                             ))
                           }
-                          {allUsers.filter(u => 
-                              u.email?.toLowerCase().includes(earnersSearchQuery.toLowerCase()) || 
-                              resolveDisplayName(u).toLowerCase().includes(earnersSearchQuery.toLowerCase())
-                            ).length === 0 && (
-                            <div style={{ padding: '15px', textAlign: 'center', opacity: 0.5 }}>No users found</div>
-                          )}
+                          {allUsers.filter(u =>
+                            u.email?.toLowerCase().includes(earnersSearchQuery.toLowerCase()) ||
+                            resolveDisplayName(u).toLowerCase().includes(earnersSearchQuery.toLowerCase())
+                          ).length === 0 && (
+                              <div style={{ padding: '15px', textAlign: 'center', opacity: 0.5 }}>No users found</div>
+                            )}
                         </div>
                       )}
                     </div>
@@ -6758,15 +6863,15 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     <span className="pvp-timer-icon">🕒</span>
                     <span className="pvp-timer-label">NEXT REWARDS SCAN:</span>
                     <span className="pvp-timer-countdown">{pvpCountdown}</span>
-                    
+
                     {isSuperAdminUser && (
                       <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-                        <button 
+                        <button
                           className="admin-secondary-btn"
                           onClick={() => handleTriggerPvpScan(false)}
                           disabled={isScanningPvp}
-                          style={{ 
-                            padding: '6px 14px', 
+                          style={{
+                            padding: '6px 14px',
                             fontSize: '0.8rem',
                             background: 'rgba(168, 85, 247, 0.2)',
                             borderColor: 'var(--accent-purple)',
@@ -6775,12 +6880,12 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         >
                           {isScanningPvp ? '⌛ Scanning...' : '🚀 Quick Scan'}
                         </button>
-                        <button 
+                        <button
                           className="admin-secondary-btn"
                           onClick={() => handleTriggerPvpScan(true)}
                           disabled={isScanningPvp}
-                          style={{ 
-                            padding: '6px 14px', 
+                          style={{
+                            padding: '6px 14px',
                             fontSize: '0.8rem',
                             background: 'rgba(239, 68, 68, 0.15)',
                             borderColor: '#ef4444',
@@ -6882,10 +6987,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
                   {/* Info box */}
                   <div className="pvp-info-box">
-                    <strong>⚔️ PvP System Logic:</strong><br/>
-                    • Scans linked Aurory players every 10 minutes.<br/>
-                    • Skips private matches (handled by Tournament system).<br/>
-                    • Skips <strong>CPU/Bot</strong> matches automatically.<br/>
+                    <strong>⚔️ PvP System Logic:</strong><br />
+                    • Scans linked Aurory players every 10 minutes.<br />
+                    • Skips private matches (handled by Tournament system).<br />
+                    • Skips <strong>CPU/Bot</strong> matches automatically.<br />
                     • Only awards wins that meet the duration requirement.
                   </div>
 
@@ -6918,7 +7023,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             {pvpRewardLogs.map(log => {
                               const userObj = allUsers.find(u => u.id === log.userId);
                               const displayName = userObj ? resolveDisplayName(userObj) : log.displayName;
-                              
+
                               return (
                                 <tr key={log.id}>
                                   <td className="log-time">{formatTime(log.timestamp)}</td>
@@ -6946,7 +7051,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                         <span style={{ fontWeight: 500 }}>vs {log.metadata.opponent}</span>
                                         <div style={{ display: 'flex', gap: '8px', opacity: 0.7 }}>
                                           {log.metadata.duration && <span>⏱️ {log.metadata.duration}s</span>}
-                                          {log.metadata.battleCode && <span title={log.metadata.battleCode}>🔗 {log.metadata.battleCode.substring(0,6)}...</span>}
+                                          {log.metadata.battleCode && <span title={log.metadata.battleCode}>🔗 {log.metadata.battleCode.substring(0, 6)}...</span>}
                                         </div>
                                       </div>
                                     ) : (
@@ -7039,8 +7144,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                 <h2>🔔 Notifications: {resolveDisplayName(selectedUserForNotifications)}</h2>
                 {isSuperAdminUser && userNotifications.length > 0 && (
-                  <button 
-                    className="clear-btn-admin small risky" 
+                  <button
+                    className="clear-btn-admin small risky"
                     onClick={() => handleClearAllNotifications(selectedUserForNotifications.id)}
                     style={{ padding: '5px 12px', fontSize: '0.75em' }}
                   >
@@ -7081,8 +7186,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           <td style={{ fontWeight: 600 }}>{notif.title}</td>
                           <td style={{ fontSize: '0.85em', opacity: 0.8 }}>{notif.message}</td>
                           <td>
-                            <button 
-                              className="delete-prize-btn" 
+                            <button
+                              className="delete-prize-btn"
                               onClick={() => handleDeleteNotification(selectedUserForNotifications.id, notif.id)}
                               style={{ width: '24px', height: '24px', fontSize: '14px' }}
                             >

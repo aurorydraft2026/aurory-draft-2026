@@ -213,6 +213,29 @@ async function processUser(
 
   console.log(`  🔎 ${displayName} (${playerId}): lastCheck=${lastCheckMs ? new Date(lastCheckMs).toISOString() : 'NEVER'}`);
 
+  // 🆕 INITIAL SYNC HANDLING: If this is the first time we've seen this user,
+  // we initialize their checkpoints to "now" so they don't get recompensada
+  // for past matches, keeping the current daily/weekly leaderboards clean.
+  if (!lastCheckMs) {
+    console.log(`  🆕 ${displayName}: Initial sync. Setting checkpoints to current state and skipping backfill.`);
+    
+    // Fetch current matches just to find the latest timestamp, but don't reward them
+    const matches = await fetchPlayerMatches(playerId, 0); 
+    const currentLeaderboardWins = leaderboardMap.get(playerId) || 0;
+
+    const newestTime = matches.reduce((max, m) => {
+      const t = new Date(m.created_at).getTime();
+      return t > max ? t : max;
+    }, Date.now() - 60000);
+
+    await admin.firestore().doc(`users/${uid}`).update({
+      lastPvpMatchCheck: admin.firestore.Timestamp.fromMillis(newestTime),
+      lastLeaderboardWins: currentLeaderboardWins,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return 0;
+  }
+
   const matches = await fetchPlayerMatches(playerId, lastCheckMs);
   
   // LEADERBOARD FALLBACK: Caching the leaderboard once per scan (Top 1000)

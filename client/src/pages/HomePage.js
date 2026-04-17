@@ -102,6 +102,9 @@ function HomePage() {
   const [majorAnnouncement, setMajorAnnouncement] = useState(null);
   const [showMajorAnnouncement, setShowMajorAnnouncement] = useState(false);
 
+  // Shop visibility state
+  const [shopEnabled, setShopEnabled] = useState(true);
+
   const [draftsExpanded, setDraftsExpanded] = useState(false);
   const {
     walletBalance,
@@ -291,6 +294,20 @@ function HomePage() {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  // Fetch Shop config
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'shop'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setShopEnabled(data.enabled ?? true);
+      } else {
+        setShopEnabled(true);
+      }
+    });
+
+    return () => unsub();
   }, []);
 
   // Handle automatic tab redirection
@@ -653,17 +670,16 @@ function HomePage() {
                   <div className="profile-names">
                     <span className="username">
                       {resolveDisplayName(user)}
-                      {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}
                     </span>
                     <div className="profile-badges-row">
+                      {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}
                       {isSuperAdminUser ? (
-                        <span className="admin-badge">⭐Super Admin</span>
+                        <span className="admin-badge">⭐<span className="badge-text">Super Admin</span></span>
                       ) : user?.role === 'admin' ? (
-                        <span className="admin-badge admin-staff">⭐Admin</span>
+                        <span className="admin-badge admin-staff">⭐<span className="badge-text">Admin</span></span>
                       ) : isGamesManagerUser ? (
-                        <span className="admin-badge games-manager-badge">🎮Games Manager</span>
+                        <span className="admin-badge games-manager-badge">🎮<span className="badge-text">Games Manager</span></span>
                       ) : null}
-                      {user.isAurorian && <span className="aurorian-tag">Aurorian Holder</span>}
                     </div>
                   </div>
                   <span className={`menu-arrow ${showUserModal ? 'active' : ''}`}>▾</span>
@@ -1231,14 +1247,23 @@ function HomePage() {
             </div>
 
             {/* Valhalla Vault (Cosmetics Shop) */}
-            <div className="viking-section-header">
-              <h2 className="viking-section-title">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /><path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" /></svg>
-                Valhalla Vault
-              </h2>
-              <div className="viking-title-line"></div>
-            </div>
-            <CosmeticsShop user={user} />
+            {(shopEnabled || isSuperAdminUser) && (
+              <>
+                <div className="viking-section-header">
+                  <h2 className="viking-section-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /><path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" /></svg>
+                    Valhalla Vault
+                    {!shopEnabled && isSuperAdminUser && (
+                      <span style={{ fontSize: '0.45em', color: '#ef4444', marginLeft: '10px', verticalAlign: 'middle', border: '1px solid #ef4444', padding: '2px 8px', borderRadius: '4px', letterSpacing: '1px', fontWeight: '800' }}>
+                        HIDDEN (TESTING VIEW)
+                      </span>
+                    )}
+                  </h2>
+                  <div className="viking-title-line"></div>
+                </div>
+                <CosmeticsShop user={user} />
+              </>
+            )}
           </div>{/* end main-column */}
 
           {/* Right Column: News + Match History + Top Players */}

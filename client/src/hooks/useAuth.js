@@ -541,62 +541,48 @@ export const useAuth = (navigate) => {
                     <div className="user-modal-content">
                         {/* ── PROFILE HEADER ROW ── */}
                         <div className="user-header-info" style={getEquippedBannerStyle(user)}>
+                            {user.auroryPlayerId && (
+                                <button
+                                    className={`sync-profile-mini-btn ${isSyncing ? 'syncing' : ''}`}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSyncProfile();
+                                    }}
+                                    title="Sync Profile Data"
+                                    disabled={isSyncing}
+                                >
+                                    {isSyncing ? (
+                                        <svg className="sync-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+                                    ) : (
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                                    )}
+                                </button>
+                            )}
                             <div className="profile-pic-wrapper">
                                 <AvatarWithAura user={user} size={80} className="modal-profile-pic-aura" />
-                                {tierConfig.badge && (
-                                    <img 
-                                        src={tierConfig.badge} 
-                                        alt={tierConfig.name} 
-                                        className="profile-tier-badge" 
-                                        title={tierConfig.name}
-                                    />
-                                )}
                             </div>
                             <div className="user-text-info">
                                 <span className="modal-username">
                                     {user.displayName}
-                                    {user.isAurorian && (
-                                        <span className="aurorian-badge-outlined" title="Aurorian NFT Holder">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                                        </span>
-                                    )}
-                                    {user.auroryPlayerId && (
-                                        <button
-                                            className={`sync-profile-mini-btn ${isSyncing ? 'syncing' : ''}`}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleSyncProfile();
-                                            }}
-                                            title="Sync Profile Data"
-                                            disabled={isSyncing}
-                                        >
-                                            {isSyncing ? (
-                                                <svg className="sync-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
-                                            ) : (
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-                                            )}
-                                        </button>
-                                    )}
                                 </span>
-                                <span className="modal-email">{user.email}</span>
                                 <div className="modal-badges-row">
                                     {isSuperAdminUser ? (
                                         <span className="modal-admin-badge">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '4px'}}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                                            Super Admin
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                            <span className="badge-text">Super Admin</span>
                                         </span>
                                     ) : user.role === 'admin' ? (
                                         <span className="modal-admin-badge admin-staff">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '4px'}}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                                            Admin
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                            <span className="badge-text">Admin</span>
                                         </span>
                                     ) : isGamesManagerUser ? (
                                         <span className="modal-admin-badge games-manager-badge">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '4px'}}><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h.01"/><path d="M9 12h.01"/><path d="M15 12h.01"/><path d="M18 12h.01"/></svg>
-                                            Games Manager
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h.01"/><path d="M9 12h.01"/><path d="M15 12h.01"/><path d="M18 12h.01"/></svg>
+                                            <span className="badge-text">Games Manager</span>
                                         </span>
                                     ) : null}
-                                    {user.isAurorian && <span className="aurorian-tag">Aurorian Holder</span>}
+                                    {user.isAurorian && <span className="aurorian-tag"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg><span className="badge-text">Aurorian Holder</span></span>}
                                 </div>
                             </div>
                             {/* ── DAILY CHECK-IN (right side) ── */}
@@ -614,13 +600,13 @@ export const useAuth = (navigate) => {
                                         style={!user.auroryPlayerId ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                                         title={!user.auroryPlayerId ? 'Connect Aurory account first' : isCheckedIn ? 'Already checked in today' : 'Claim daily reward'}
                                     >
-                                        <span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             {isCheckedIn ? (
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                                <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span style={{fontSize: '0.85rem', fontWeight: 700}}>Checked In</span></>
                                             ) : (
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                                <><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg><span style={{fontSize: '0.85rem', fontWeight: 700}}>Check In</span></>
                                             )}
-                                        </span>
+                                        </div>
                                     </button>
                                     {user.checkInStreak > 0 && (
                                         <div className="streak-badge-mini external" title={`${user.checkInStreak} day streak`}>
@@ -628,13 +614,13 @@ export const useAuth = (navigate) => {
                                             <span>{user.checkInStreak}d</span>
                                         </div>
                                     )}
+                                    {isCheckedIn && (
+                                        <div className="checkin-timer-wrapper">
+                                            <span className="timer-label">Next reward in:</span>
+                                            <span className="timer-value">{formatTimeRemaining(secondsUntilReset)}</span>
+                                        </div>
+                                    )}
                                 </div>
-                                {isCheckedIn && (
-                                    <div className="checkin-timer-wrapper">
-                                        <span className="timer-label">Next reward in:</span>
-                                        <span className="timer-value">{formatTimeRemaining(secondsUntilReset)}</span>
-                                    </div>
-                                )}
                                 {!user.auroryPlayerId && (
                                     <div className="checkin-unlinked-warning" style={{ fontSize: '11px', color: '#f43f5e', marginTop: '8px', textAlign: 'center', lineHeight: '1.2' }}>
                                         Link Aurory account<br/>to claim daily reward.

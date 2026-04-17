@@ -92,8 +92,10 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-top: 8px;
-    padding: 6px 12px;
+    justify-content: center;
+    margin-left: 8px;
+    margin-top: 0;
+    padding: 0 12px;
     background: rgba(255, 255, 255, 0.03);
     border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.05);
@@ -101,7 +103,7 @@
 }
 
 .timer-label {
-    font-size: 10px;
+    font-size: 9px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: rgba(255, 255, 255, 0.4);
@@ -110,7 +112,7 @@
 }
 
 .timer-value {
-    font-size: 12px;
+    font-size: 11px;
     color: #ffd700; /* Gold to match rewards theme */
     font-family: 'Courier New', Courier, monospace; /* Monospace for steady ticking */
     font-weight: 700;
@@ -132,15 +134,16 @@
 /* Mobile Adjustments for Timer */
 @media (max-width: 768px) {
     .checkin-timer-wrapper {
-        margin-top: 4px;
-        padding: 4px 10px;
+        margin-left: 6px;
+        margin-top: 0;
+        padding: 0 8px;
     }
     
     .timer-label {
-        font-size: 8px;
+        font-size: 7px;
     }
     
     .timer-value {
-        font-size: 10px;
+        font-size: 9px;
     }
 }

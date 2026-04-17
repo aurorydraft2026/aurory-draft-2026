@@ -10,6 +10,7 @@ const RaffleConfirmationModal = ({
     message = "Are you sure you want to proceed?", 
     confirmText = "Confirm",
     cancelText = "Cancel",
+    showCancel = true,
     type = "info" // info, warning, danger
 }) => {
     if (!isOpen) return null;
@@ -27,9 +28,11 @@ const RaffleConfirmationModal = ({
                 </div>
 
                 <div className="modal-footer">
-                    <button className="cancel-btn" onClick={onClose}>
-                        {cancelText}
-                    </button>
+                    {showCancel && (
+                        <button className="cancel-btn" onClick={onClose}>
+                            {cancelText}
+                        </button>
+                    )}
                     <button 
                         className={`confirm-btn ${type}`} 
                         onClick={() => {

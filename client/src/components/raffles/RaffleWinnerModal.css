@@ -1,61 +1,7 @@
 /* =======================================
-   RAFFLE WINNER MODAL — CLEAN CELEBRATION
+   RAFFLE WINNER MODAL — INNER CONTENT
    ======================================= */
 
-/* Overlay */
-.rwm-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.85);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
-  backdrop-filter: blur(8px);
-  padding: 1rem;
-}
-
-/* Card — no internal scroll, fits viewport */
-.rwm-card {
-  position: relative;
-  width: 100%;
-  max-width: 420px;
-  margin: 2rem 0;
-  border-radius: 24px;
-  background: linear-gradient(160deg, #0f172a 0%, #1e1b4b 100%);
-  border: 2px solid rgba(251, 191, 36, 0.5);
-  box-shadow: 0 0 40px rgba(251, 191, 36, 0.15), 0 20px 50px rgba(0, 0, 0, 0.5);
-  padding: 2.5rem 2rem 2rem;
-  text-align: center;
-  animation: rwm-entrance 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes rwm-entrance {
-  from { transform: scale(0.8) translateY(30px); opacity: 0; }
-  to { transform: scale(1) translateY(0); opacity: 1; }
-}
-
-/* Close button */
-.rwm-close {
-  position: absolute;
-  top: 12px;
-  right: 14px;
-  background: none;
-  border: none;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 1.3rem;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 8px;
-  transition: all 0.2s;
-  line-height: 1;
-  z-index: 5;
-}
-
-.rwm-close:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
-}
 
 /* Trophy */
 .rwm-trophy {
@@ -185,40 +131,13 @@
   color: #fbbf24;
 }
 
-/* CTA */
-.rwm-claim-btn {
-  width: 100%;
-  background: linear-gradient(135deg, #fbbf24, #f59e0b);
-  color: #000;
-  border: none;
-  padding: 0.9rem;
-  font-size: 1.1rem;
-  font-weight: 800;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 4px 15px rgba(251, 191, 36, 0.3);
-}
 
-.rwm-claim-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(251, 191, 36, 0.4);
-  filter: brightness(1.1);
-}
-
-.rwm-claim-btn:active {
-  transform: translateY(0);
-}
 
 /* =======================================
    RESPONSIVE
    ======================================= */
 
 @media (max-width: 480px) {
-  .rwm-card {
-    padding: 2rem 1.3rem 1.5rem;
-    border-radius: 20px;
-  }
 
   .rwm-trophy {
     font-size: 4rem;
@@ -250,10 +169,6 @@
 }
 
 @media (max-width: 360px) {
-  .rwm-card {
-    padding: 1.5rem 1rem 1.2rem;
-    border-radius: 16px;
-  }
 
   .rwm-trophy {
     font-size: 3.2rem;

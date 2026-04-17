@@ -1,7 +1,7 @@
-import { db, database } from '../firebase';
+import { db, database, functions } from '../firebase';
 import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs, query as fsQuery, where } from 'firebase/firestore';
 import { ref, onValue, off, query, orderByChild, limitToLast, set, onDisconnect, runTransaction } from 'firebase/database';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions';
 import { createNotification } from './notifications';
 
 // ═══════════════════════════════════════════════════════
@@ -188,6 +188,14 @@ function getDefaultConfig() {
         { difficulty: 'medium', reward: 50 },
         { difficulty: 'hard', reward: 50 },
       ]
+    },
+    nornsFate: {
+      enabled: true,
+      multiplierFactor: 0.9,
+      houseSeed: 1000,
+      botsEnabled: true,
+      minBots: 5,
+      maxBots: 15
     }
   };
 }
@@ -203,7 +211,6 @@ export async function playMiniGame(user, gameType, multiplier = 1) {
   }
 
   try {
-    const functions = getFunctions();
     const playMiniGameFn = httpsCallable(functions, 'playMiniGame');
     const result = await playMiniGameFn({ gameType, multiplier });
     const { success, prize, cost, newBalance, error } = result.data;
@@ -228,6 +235,56 @@ export async function playMiniGame(user, gameType, multiplier = 1) {
   }
 }
 
+
+// ═══════════════════════════════════════════════════════
+//  NORNS FATE — REALTIME SUBSCRIPTIONS
+// ═══════════════════════════════════════════════════════
+
+export function subscribeNornsFateState(callback) {
+  const stateRef = ref(database, 'norns_fate/state');
+  onValue(stateRef, (snapshot) => {
+    callback(snapshot.exists() ? snapshot.val() : null);
+  });
+  return () => off(stateRef);
+}
+
+export function subscribeNornsFatePools(callback) {
+  const poolsRef = ref(database, 'norns_fate/pools');
+  onValue(poolsRef, (snapshot) => {
+    callback(snapshot.exists() ? snapshot.val() : {});
+  });
+  return () => off(poolsRef);
+}
+
+export function subscribeNornsFateBettors(callback) {
+  const bettorsRef = ref(database, 'norns_fate/bettors');
+  onValue(bettorsRef, (snapshot) => {
+    callback(snapshot.exists() ? snapshot.val() : {});
+  });
+  return () => off(bettorsRef);
+}
+
+export async function refreshNornsFate(force = false) {
+  try {
+    const refreshFn = httpsCallable(functions, 'refreshNornsFate');
+    const result = await refreshFn({ force });
+    return result.data;
+  } catch (err) {
+    console.error('Error refreshing Norns Fate:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+export async function placeNornsFateBet(handId, amount) {
+  try {
+    const betFn = httpsCallable(functions, 'placeNornsFateBet');
+    const result = await betFn({ handId, amount });
+    return result.data;
+  } catch (err) {
+    console.error('Error placing Norns Fate bet:', err);
+    return { success: false, error: err.message };
+  }
+}
 
 // ═══════════════════════════════════════════════════════
 //  DRAKKAR RACE v2 — REALTIME SUBSCRIPTIONS
@@ -292,7 +349,6 @@ export function updateDrakkarPresence(uid) {
 
 export async function refreshDrakkarRace() {
   try {
-    const functions = getFunctions();
     const refreshFn = httpsCallable(functions, 'refreshDrakkarRace');
     await refreshFn();
   } catch (err) {
@@ -302,7 +358,6 @@ export async function refreshDrakkarRace() {
 
 export async function placeDrakkarBet(shipId, amount) {
   try {
-    const functions = getFunctions();
     const betFn = httpsCallable(functions, 'placeDrakkarBet');
     const result = await betFn({ shipId, amount });
     return result.data;
@@ -499,7 +554,6 @@ export async function fetchDailyRiddleProgress(uid) {
  */
 export async function submitRiddleAnswer(riddleId, answerIndex) {
   try {
-    const functions = getFunctions();
     const answerFn = httpsCallable(functions, 'answerRiddle');
     const result = await answerFn({ riddleId, answerIndex });
     return result.data;

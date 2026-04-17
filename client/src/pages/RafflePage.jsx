@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { 
@@ -69,9 +69,20 @@ import './RafflePage.css';
   const lastReadTimeRef = useRef(Date.now());
   const lastTypingUpdateRef = useRef(0);
   
-  const triggerConfirm = (actionConfig) => {
+  const triggerConfirm = useCallback((actionConfig) => {
     setConfirmAction(actionConfig);
-  };
+  }, []);
+
+  const showAlert = useCallback((title, message, type = 'info') => {
+    triggerConfirm({
+        title,
+        message,
+        confirmText: "Understood",
+        showCancel: false,
+        type,
+        onConfirm: () => {}
+    });
+  }, [triggerConfirm]);
 
   useEffect(() => {
     if (!id) return;
@@ -85,7 +96,7 @@ import './RafflePage.css';
         }
       } else {
         if (!isDeleting) {
-            alert('Raffle not found');
+            showAlert('Not Found', 'The requested raffle could not be found.', 'warning');
         }
         navigate('/');
       }
@@ -93,7 +104,7 @@ import './RafflePage.css';
     });
 
     return () => unsubscribe();
-  }, [id, navigate, isDeleting]);
+  }, [id, navigate, isDeleting, showAlert]);
 
   // ─── CHAT LISTENERS ───
   useEffect(() => {
@@ -161,7 +172,7 @@ import './RafflePage.css';
 
     // Permissions check: Must be linked and not anonymous
     if (user.isAnonymous || !user.auroryPlayerId) {
-      alert('You must link your Aurory account to participate in the chat.');
+      showAlert('Link Required', 'You must link your Aurory account to participate in the chat.', 'info');
       return;
     }
 
@@ -289,24 +300,29 @@ import './RafflePage.css';
     };
     const result = await joinRaffle(id, user, auroryData);
     if (!result.success) {
-      alert(result.error);
+      showAlert('Entry Failed', result.error, 'danger');
     }
     setJoining(false);
   };
 
   const handleStartSpin = async () => {
     if (!isAdminUser || isStarting) return;
+
+    if (raffle.participantsCount < (raffle.minParticipants || 1)) {
+        showAlert('Locked', `Cannot start raffle. Minimum participants (${raffle.minParticipants}) not reached.`, 'warning');
+        return;
+    }
     
     triggerConfirm({
-        title: "🚀 Start Raffle?",
-        message: "This will pick a winner and start the animation. This cannot be undone!",
+        title: "🚀 Confirm Start",
+        message: "Are you sure you want to start the raffle?",
         confirmText: "Start Spinning",
         type: "warning",
         onConfirm: async () => {
             setIsStarting(true);
             const result = await startRaffle(id, user);
             if (!result.success) {
-                alert(result.error);
+                showAlert('Error', result.error, 'danger');
                 setIsStarting(false);
             }
         }
@@ -331,7 +347,7 @@ import './RafflePage.css';
         onConfirm: async () => {
             const result = await closeRaffleEntries(id, user);
             if (!result.success) {
-                alert(result.error);
+                showAlert('Error', result.error, 'danger');
             }
         }
     });
@@ -353,7 +369,7 @@ import './RafflePage.css';
             } else if (result.error === 'Raffle not found') {
                 navigate('/');
             } else {
-                alert(result.error);
+                showAlert('Error', result.error, 'danger');
                 setIsDeleting(false);
             }
         }
@@ -369,7 +385,7 @@ import './RafflePage.css';
         onConfirm: async () => {
             const result = await shuffleParticipants(id, user);
             if (!result.success) {
-                alert(result.error);
+                showAlert('Error', result.error, 'danger');
             }
         }
     });
@@ -387,7 +403,7 @@ import './RafflePage.css';
           onConfirm: async () => {
               const result = await addMockParticipants(id, parseInt(count));
               if (!result.success) {
-                alert(result.error);
+                showAlert('Error', result.error, 'danger');
               }
           }
       });
@@ -404,7 +420,7 @@ import './RafflePage.css';
         onConfirm: async () => {
             const result = await removeRaffleParticipant(id, participant.uid, user);
             if (!result.success) {
-                alert(result.error);
+                showAlert('Error', result.error, 'danger');
             }
         }
     });
@@ -603,7 +619,7 @@ import './RafflePage.css';
                             <button 
                                 className={`viking-btn-secondary admin-start ${isStarting || isSpinning || isCompleted ? 'disabled' : ''}`} 
                                 onClick={handleStartSpin}
-                                disabled={raffle.participantsCount < raffle.minParticipants || isStarting || isSpinning || isCompleted}
+                                disabled={isStarting || isSpinning || isCompleted}
                             >
                                 {isStarting ? 'Please wait...' : 'Start Raffle (Spin)'}
                             </button>
