@@ -4,6 +4,7 @@ import { getAuth, OAuthProvider, GoogleAuthProvider } from "firebase/auth";
 import { initializeFirestore } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
 import { getFunctions } from "firebase/functions";
+import { getStorage } from "firebase/storage";
 
 // TODO: Replace with your Firebase project configuration
 // Get this from Firebase Console > Project Settings > Your apps > Web app
@@ -37,6 +38,9 @@ export const database = getDatabase(app, "https://asgard-duels-default-rtdb.asia
 // Initialize Cloud Functions
 export const functions = getFunctions(app, "us-central1");
 
+// Initialize Firebase Storage
+export const storage = getStorage(app);
+
 // Create Discord OAuth provider
 export const discordProvider = new OAuthProvider('oidc.discord');
 // Add scopes if needed
@@ -51,4 +55,4 @@ discordProvider.setCustomParameters({
 // Create Google Auth provider
 export const googleProvider = new GoogleAuthProvider();
 
-export default app;
+export default app;

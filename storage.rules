@@ -1,0 +1,28 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.uid == 'wgPwCyYGuYUAokSklV1LNsjCrGA3' ||
+        request.auth.token.email == 'asgardduels@gmail.com' ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'superadmin']
+      );
+    }
+
+    // Match any file in the 'cosmetics' folder
+    match /cosmetics/{allPaths=**} {
+      // Anyone can view cosmetics (Browse shop)
+      allow read: if true;
+      
+      // Only admins can upload/delete
+      allow write: if isAdmin();
+    }
+
+    // Default rule: block everything else
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

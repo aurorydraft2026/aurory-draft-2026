@@ -1,50 +1,88 @@
-/**
- * ============================================================
- * COSMETICS SERVICE
- * Handles purchasing, equipping, and reading cosmetics from Firestore
- * ============================================================
- */
-import { doc, updateDoc, arrayUnion, getDoc } from 'firebase/firestore';
+import { 
+  doc, 
+  updateDoc, 
+  arrayUnion, 
+  getDoc, 
+  getDocs, 
+  collection, 
+  runTransaction, 
+  serverTimestamp, 
+  increment 
+} from 'firebase/firestore';
 import { db } from '../firebase';
-import { getCosmeticById } from '../data/cosmetics';
+
+// Module-level cache to support synchronous helpers for components that haven't transitioned to async fetch
+let COSMETICS_CACHE = {};
+
+/**
+ * Fetch all cosmestics from Firestore catalog
+ */
+export async function getAllCosmetics() {
+  try {
+    const cosmeticsRef = collection(db, 'cosmetics');
+    const snap = await getDocs(cosmeticsRef);
+    const data = snap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // Update cache
+    data.forEach(item => {
+      COSMETICS_CACHE[item.id] = item;
+    });
+    
+    return data;
+  } catch (error) {
+    console.error('Error fetching cosmetics:', error);
+    return [];
+  }
+}
 
 /**
  * Purchase a cosmetic item for the current user.
- * Deducts Valcoins and adds the cosmetic ID to ownedCosmetics.
- * 
- * @param {string} userId - Firebase UID
- * @param {string} cosmeticId - ID from cosmetics catalog
- * @returns {{ success: boolean, error?: string }}
  */
 export async function purchaseCosmetic(userId, cosmeticId) {
   try {
-    const cosmetic = getCosmeticById(cosmeticId);
-    if (!cosmetic) return { success: false, error: 'Cosmetic not found.' };
-
     const userRef = doc(db, 'users', userId);
-    const userSnap = await getDoc(userRef);
+    const cosmeticRef = doc(db, 'cosmetics', cosmeticId);
 
-    if (!userSnap.exists()) return { success: false, error: 'User not found.' };
+    const result = await runTransaction(db, async (transaction) => {
+      const userSnap = await transaction.get(userRef);
+      const cosmeticSnap = await transaction.get(cosmeticRef);
 
-    const userData = userSnap.data();
-    const currentPoints = userData.points || 0;
-    const owned = userData.ownedCosmetics || [];
+      if (!userSnap.exists()) throw new Error('User not found.');
+      if (!cosmeticSnap.exists()) throw new Error('Cosmetic not found.');
 
-    if (owned.includes(cosmeticId)) {
-      return { success: false, error: 'You already own this cosmetic.' };
-    }
+      const userData = userSnap.data();
+      const cosmeticData = cosmeticSnap.data();
 
-    if (currentPoints < cosmetic.price) {
-      return { success: false, error: `Not enough Valcoins. Need ${cosmetic.price.toLocaleString()}, have ${currentPoints.toLocaleString()}.` };
-    }
+      const currentPoints = userData.points || 0;
+      const owned = userData.ownedCosmetics || [];
 
-    // Deduct points and add to owned
-    await updateDoc(userRef, {
-      points: currentPoints - cosmetic.price,
-      ownedCosmetics: arrayUnion(cosmeticId),
+      if (owned.includes(cosmeticId)) {
+        throw new Error('You already own this cosmetic.');
+      }
+
+      if (currentPoints < cosmeticData.price) {
+        throw new Error(`Not enough Valcoins. Need ${cosmeticData.price.toLocaleString()}, have ${currentPoints.toLocaleString()}.`);
+      }
+
+      // Deduct points and add to owned
+      transaction.update(userRef, {
+        points: currentPoints - cosmeticData.price,
+        ownedCosmetics: arrayUnion(cosmeticId),
+        updatedAt: serverTimestamp()
+      });
+
+      // Increment sale count
+      transaction.update(cosmeticRef, {
+        saleCount: increment(1)
+      });
+
+      return { newBalance: currentPoints - cosmeticData.price };
     });
 
-    return { success: true, newBalance: currentPoints - cosmetic.price };
+    return { success: true, ...result };
   } catch (error) {
     console.error('Error purchasing cosmetic:', error);
     return { success: false, error: error.message };
@@ -53,16 +91,11 @@ export async function purchaseCosmetic(userId, cosmeticId) {
 
 /**
  * Equip a cosmetic item to the user's profile.
- * 
- * @param {string} userId - Firebase UID
- * @param {string} cosmeticId - ID to equip (or null to unequip)
- * @param {string} slot - 'aura' | 'banner' | 'frame'
  */
 export async function equipCosmetic(userId, cosmeticId, slot = 'aura') {
   try {
     const userRef = doc(db, 'users', userId);
 
-    // If unequipping
     if (!cosmeticId) {
       await updateDoc(userRef, {
         [`equippedCosmetics.${slot}`]: null,
@@ -70,7 +103,6 @@ export async function equipCosmetic(userId, cosmeticId, slot = 'aura') {
       return { success: true };
     }
 
-    // Verify ownership
     const userSnap = await getDoc(userRef);
     if (!userSnap.exists()) return { success: false, error: 'User not found.' };
 
@@ -93,26 +125,49 @@ export async function equipCosmetic(userId, cosmeticId, slot = 'aura') {
 }
 
 /**
- * Get the equipped aura CSS class for a user object.
- * Can be used anywhere a user object is available.
- * 
- * @param {Object} user - User object with equippedCosmetics field
- * @returns {string|null} CSS class name or null
+ * Helper to fetch a single cosmetic by ID from Firestore
  */
-export function getEquippedAuraClass(user) {
-  if (!user?.equippedCosmetics?.aura) return null;
-  const cosmetic = getCosmeticById(user.equippedCosmetics.aura);
-  return cosmetic?.cssClass || null;
+export async function fetchCosmeticById(cosmeticId) {
+  if (!cosmeticId) return null;
+  
+  // Return from cache if available
+  if (COSMETICS_CACHE[cosmeticId]) return COSMETICS_CACHE[cosmeticId];
+
+  try {
+    const docRef = doc(db, 'cosmetics', cosmeticId);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const data = { id: snap.id, ...snap.data() };
+      COSMETICS_CACHE[cosmeticId] = data; // Cache it
+      return data;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error fetching cosmetic:', error);
+    return null;
+  }
 }
 
 /**
- * Get the equipped banner style object for a user.
- * 
- * @param {Object} user - User object with equippedCosmetics field
- * @returns {Object|null} React style object or null
+ * LEGACY COMPATIBILITY HELPERS
+ * These are synchronous and rely on the local cache. 
+ * They may return empty/null on the first render until the shop/user data is loaded.
  */
-export function getEquippedBannerStyle(user) {
-  if (!user?.equippedCosmetics?.banner) return null;
-  const cosmetic = getCosmeticById(user.equippedCosmetics.banner);
-  return cosmetic?.style || null;
-}
+
+export const getEquippedAuraClass = (user) => {
+  const auraId = user?.equippedCosmetics?.aura;
+  if (!auraId) return null;
+  return COSMETICS_CACHE[auraId]?.cssClass || null;
+};
+
+export const getEquippedBannerStyle = (user) => {
+  const bannerId = user?.equippedCosmetics?.banner;
+  if (!bannerId) return {};
+  return COSMETICS_CACHE[bannerId]?.style || {};
+};
+
+export const getEquippedFrameClass = (user) => {
+    const frameId = user?.equippedCosmetics?.frame;
+    if (!frameId) return null;
+    return COSMETICS_CACHE[frameId]?.cssClass || null;
+};

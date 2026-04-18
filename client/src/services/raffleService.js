@@ -163,12 +163,16 @@ export async function joinRaffle(raffleId, user, auroryData) {
           pointsAwarded = configSnap.data().joinRaffle ?? 20;
       }
 
+      // Fetch complete user document for snapshotting and point validation
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDocSnap = await transaction.get(userDocRef);
+      if (!userDocSnap.exists()) throw new Error('User not found');
+      const userData = userDocSnap.data();
+
       if (entryFeeSmallestUnit > 0) {
         if (isPoints) {
           // Verify user has enough points
-          const userDocSnap = await transaction.get(doc(db, 'users', user.uid));
-          if (!userDocSnap.exists()) throw new Error('User not found');
-          const currentPoints = userDocSnap.data().points || 0;
+          const currentPoints = userData.points || 0;
           if (currentPoints < entryFeeSmallestUnit) throw new Error('Insufficient Valcoins balance');
           
           // Deduction will be handled in the net points calculation below
@@ -199,11 +203,16 @@ export async function joinRaffle(raffleId, user, auroryData) {
       }
 
       // ─── HANDLERS/WRITES (NON-POINTS) ───
-      // Add to participants
+      // Add to participants with visual snapshot
       const newParticipant = {
         uid: user.uid,
         playerName: auroryData.playerName || user.displayName || 'Anonymous',
         auroryPlayerId: auroryData.playerId || null,
+        photoURL: userData.photoURL || user.photoURL || null,
+        auroryProfilePicture: userData.auroryProfilePicture || null,
+        equippedCosmetics: userData.equippedCosmetics || {},
+        role: userData.role || 'user',
+        isAurorian: userData.isAurorian || false,
         joinedAt: new Date().toISOString()
       };
 

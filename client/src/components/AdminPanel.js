@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db, auth, functions } from '../firebase';
+import { db, auth, functions, storage } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
 import {
   collection,
@@ -21,6 +21,7 @@ import {
   setDoc,
   getDoc
 } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
 import { isSuperAdmin } from '../config/admins';
 import { createNotification } from '../services/notifications';
@@ -32,6 +33,9 @@ import { awardPoints } from '../services/pointsService';
 import { getRecommendedIcons } from '../services/miniGameService';
 import './AdminPanel.css';
 import { DEFAULT_KNOWLEDGE } from './RunieChatBot';
+import { RARITY_CONFIG } from '../data/cosmetics';
+
+const RARITY_ORDER = ['common', 'rare', 'epic', 'legendary', 'mythic'];
 
 // Helper to get user email
 const getUserEmail = (user) => {
@@ -328,6 +332,23 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   // Valhalla's Vault (Shop) Management state
   const [websiteSubTab, setWebsiteSubTab] = useState('maintenance');
   const [shopEnabled, setShopEnabled] = useState(true);
+
+  // Shop Inventory Management state
+  const [shopCosmetics, setShopCosmetics] = useState([]);
+  const [cosmeticsLoading, setCosmeticsLoading] = useState(false);
+  const [editingCosmetic, setEditingCosmetic] = useState(null); // null = adding new
+  const [cosmeticFile, setCosmeticFile] = useState(null);
+  const [cosmeticForm, setCosmeticForm] = useState({
+    name: '',
+    type: 'aura',
+    rarity: 'common',
+    price: 1000,
+    description: '',
+    placement: 'behind', // behind | overlay | border
+    gifUrl: '',
+    cssClass: '',
+    style: {} 
+  });
 
   // Handle image upload to Base64
   const handleImageUpload = (e) => {
@@ -733,26 +754,23 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     return () => unsub();
   }, [activeTab, isAdmin, isAdminUser]);
 
-  // Fetch Shop config
+  // Fetch all shop cosmetics (Inventory Management)
   useEffect(() => {
-    if (!isAdmin || activeTab !== 'website_mgmt') return;
+    if (!isAdminUser || activeTab !== 'website_mgmt') return;
 
-    const unsub = onSnapshot(doc(db, 'settings', 'shop'), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        setShopEnabled(data.enabled ?? true);
-      } else {
-        // Initialize if doesn't exist
-        setDoc(doc(db, 'settings', 'shop'), {
-          enabled: true,
-          updatedAt: serverTimestamp()
-        });
-        setShopEnabled(true);
-      }
+    setCosmeticsLoading(true);
+    const q = query(collection(db, 'cosmetics'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setShopCosmetics(data);
+      setCosmeticsLoading(false);
+    }, (error) => {
+      console.error('Error fetching shop cosmetics:', error);
+      setCosmeticsLoading(false);
     });
 
     return () => unsub();
-  }, [activeTab, isAdmin]);
+  }, [activeTab, isAdminUser]);
 
   const handleSaveShopSettings = async () => {
     setProcessingId('save_shop');
@@ -774,6 +792,88 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       alert('Failed to save shop settings. Check console.');
     }
     setProcessingId(null);
+  };
+
+  // ─── SHOP INVENTORY MANAGEMENT HANDLERS ───
+
+  const handleCosmeticImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit for storage assets
+        alert('File too large. Please keep images under 2MB.');
+        return;
+      }
+      setCosmeticFile(file);
+      
+      // Local preview if it's a small enough image
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCosmeticForm(prev => ({ ...prev, gifUrl: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSaveCosmetic = async (e) => {
+    if (e) e.preventDefault();
+    setProcessingId('save_cosmetic');
+    
+    try {
+      let finalUrl = cosmeticForm.gifUrl;
+
+      // 1. Upload file if selected
+      if (cosmeticFile) {
+        const storageRef = ref(storage, `cosmetics/${Date.now()}_${cosmeticFile.name}`);
+        const uploadResult = await uploadBytes(storageRef, cosmeticFile);
+        finalUrl = await getDownloadURL(uploadResult.ref);
+      }
+
+      const cosmeticData = {
+        ...cosmeticForm,
+        gifUrl: finalUrl,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.uid
+      };
+
+      if (!editingCosmetic) {
+        // Create new
+        cosmeticData.createdAt = serverTimestamp();
+        cosmeticData.saleCount = 0;
+        await addDoc(collection(db, 'cosmetics'), cosmeticData);
+        alert('New cosmetic added successfully!');
+      } else {
+        // Update existing
+        const docRef = doc(db, 'cosmetics', editingCosmetic.id);
+        await updateDoc(docRef, cosmeticData);
+        alert('Cosmetic updated successfully!');
+      }
+
+      // Reset form
+      setCosmeticForm({
+        name: '', type: 'aura', rarity: 'common', price: 1000,
+        description: '', placement: 'behind', gifUrl: '', cssClass: '', style: {}
+      });
+      setEditingCosmetic(null);
+      setCosmeticFile(null);
+      
+    } catch (error) {
+      console.error('Error saving cosmetic:', error);
+      alert('Error saving cosmetic: ' + error.message);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleDeleteCosmetic = async (id) => {
+    if (!window.confirm('⚔️ Are you sure you want to PERMANENTLY delete this item? This will NOT remove it from users who already bought it, but new users cannot buy it.')) return;
+    
+    try {
+      await deleteDoc(doc(db, 'cosmetics', id));
+      alert('Cosmetic removed from inventory.');
+    } catch (error) {
+      console.error('Error deleting cosmetic:', error);
+      alert('Error deleting cosmetic: ' + error.message);
+    }
   };
 
   const handleUpdateMiniGameConfig = async (gameType, updates) => {
@@ -4375,7 +4475,20 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     className={`selector-btn ${websiteSubTab === 'shop' ? 'active' : ''}`}
                     onClick={() => setWebsiteSubTab('shop')}
                   >
-                    Valhalla's Vault (Shop)
+                    Vault Settings
+                  </button>
+                  <button
+                    className={`selector-btn ${websiteSubTab === 'inventory' ? 'active' : ''}`}
+                    onClick={() => {
+                        setWebsiteSubTab('inventory');
+                        setEditingCosmetic(null);
+                        setCosmeticForm({
+                          name: '', type: 'aura', rarity: 'common', price: 1000,
+                          description: '', placement: 'behind', gifUrl: '', cssClass: '', style: {}
+                        });
+                    }}
+                  >
+                    Inventory Management
                   </button>
                 </div>
               </div>
@@ -4497,6 +4610,200 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     {processingId === 'save_shop' ? 'Saving...' : '💾 Save Shop Settings'}
                   </button>
                 </div>
+              )}
+
+              {websiteSubTab === 'inventory' && (
+                <div className="inventory-mgmt-container">
+                  {/* Item List / Dashboard */}
+                  <div className="admin-table-container card" style={{ marginBottom: '30px', padding: '15px' }}>
+                    <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                       <div>
+                         <h3 style={{ margin: 0 }}>Current Inventory</h3>
+                         <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>{shopCosmetics.length} Items found in the vault.</p>
+                       </div>
+                    </div>
+                    
+                    {cosmeticsLoading ? (
+                        <div style={{ padding: '40px', textAlign: 'center' }}>Loading items...</div>
+                    ) : (
+                        <table className="admin-table">
+                          <thead>
+                            <tr>
+                              <th>Preview</th>
+                              <th>Name</th>
+                              <th>Rarity</th>
+                              <th>Price</th>
+                              <th>Sales</th>
+                              <th>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {shopCosmetics.map(item => (
+                              <tr key={item.id}>
+                                <td>
+                                   <AvatarWithAura
+                                     user={null}
+                                     size={36}
+                                     auraData={item.type === 'aura' ? item : null}
+                                   />
+                                </td>
+                                <td>
+                                  <div style={{ fontWeight: '600' }}>{item.name}</div>
+                                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>{item.type}</div>
+                                </td>
+                                <td>
+                                   <span className="rarity-badge" style={{ background: RARITY_CONFIG[item.rarity]?.color || '#ccc', fontSize: '10px', padding: '2px 6px' }}>
+                                     {item.rarity.toUpperCase()}
+                                   </span>
+                                </td>
+                                <td>
+                                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <img src="/valcoin-icon.jpg" alt="" style={{ width: '12px', height: '12px' }} />
+                                      {item.price.toLocaleString()}
+                                   </div>
+                                </td>
+                                <td>
+                                   <span style={{ color: '#10b981', fontWeight: 'bold' }}>{item.saleCount || 0}</span>
+                                </td>
+                                <td className="admin-actions">
+                                   <button className="edit-btn" onClick={() => {
+                                       setEditingCosmetic(item);
+                                       setCosmeticForm({ ...item });
+                                       setWebsiteSubTab('inventory_form');
+                                   }}>📝 Edit</button>
+                                   <button className="delete-btn" onClick={() => handleDeleteCosmetic(item.id)}>🗑️</button>
+                                </td>
+                              </tr>
+                            ))}
+                            {shopCosmetics.length === 0 && (
+                              <tr><td colSpan="6" style={{ textAlign: 'center', padding: '20px' }}>Your shop is currently empty. Add your first item below!</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                    )}
+                    
+                    <button 
+                      className="selector-btn active" 
+                      style={{ marginTop: '15px', width: '100%', padding: '10px' }}
+                      onClick={() => {
+                        setEditingCosmetic(null);
+                        setCosmeticForm({
+                          name: '', type: 'aura', rarity: 'common', price: 1000,
+                          description: '', placement: 'behind', gifUrl: '', cssClass: '', style: {}
+                        });
+                        setWebsiteSubTab('inventory_form');
+                      }}
+                    >
+                      + Add New Cosmetic
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {websiteSubTab === 'inventory_form' && (
+                  <div className="credit-form card">
+                    <div className="section-header" style={{ marginBottom: '20px' }}>
+                      <h3>{editingCosmetic ? `Editing: ${editingCosmetic.name}` : '✨ Create New Cosmetic'}</h3>
+                      <button className="back-btn" onClick={() => setWebsiteSubTab('inventory')}>← Back to List</button>
+                    </div>
+
+                    <form onSubmit={handleSaveCosmetic}>
+                      <div className="form-row">
+                         <div className="form-group flex-2">
+                           <label>Display Name</label>
+                           <input 
+                             type="text" 
+                             value={cosmeticForm.name} 
+                             onChange={(e) => setCosmeticForm(prev => ({ ...prev, name: e.target.value }))}
+                             placeholder="e.g. Phoenix Pulse"
+                             required
+                           />
+                         </div>
+                         <div className="form-group flex-1">
+                           <label>Category</label>
+                           <select 
+                             value={cosmeticForm.type}
+                             onChange={(e) => setCosmeticForm(prev => ({ ...prev, type: e.target.value }))}
+                           >
+                             <option value="aura">Aura (Avatar Overlay)</option>
+                             <option value="banner">Banner (Profile Background)</option>
+                           </select>
+                         </div>
+                      </div>
+
+                      <div className="form-row">
+                         <div className="form-group flex-1">
+                           <label>Rarity</label>
+                           <select 
+                             value={cosmeticForm.rarity}
+                             onChange={(e) => setCosmeticForm(prev => ({ ...prev, rarity: e.target.value }))}
+                           >
+                              {RARITY_ORDER.map(r => <option key={r} value={r}>{r.toUpperCase()}</option>)}
+                           </select>
+                         </div>
+                         <div className="form-group flex-1">
+                           <label>Price (Valcoins)</label>
+                           <input 
+                             type="number" 
+                             value={cosmeticForm.price} 
+                             onChange={(e) => setCosmeticForm(prev => ({ ...prev, price: parseInt(e.target.value) || 0 }))}
+                             required
+                           />
+                         </div>
+                      </div>
+
+                      <div className="form-group">
+                         <label>Description</label>
+                         <textarea 
+                           value={cosmeticForm.description}
+                           onChange={(e) => setCosmeticForm(prev => ({ ...prev, description: e.target.value }))}
+                           placeholder="Enter a legendary description for this item..."
+                           style={{ minHeight: '80px' }}
+                         />
+                      </div>
+
+                      {cosmeticForm.type === 'aura' && (
+                        <div className="form-group">
+                           <label>Placement Mode</label>
+                           <div className="currency-toggle-group">
+                             <button type="button" className={`toggle-btn ${cosmeticForm.placement === 'behind' ? 'active' : ''}`} onClick={() => setCosmeticForm(prev => ({ ...prev, placement: 'behind' }))}>Behind (Behind Icon)</button>
+                             <button type="button" className={`toggle-btn ${cosmeticForm.placement === 'overlay' ? 'active' : ''}`} onClick={() => setCosmeticForm(prev => ({ ...prev, placement: 'overlay' }))}>Overlay (Top Layer)</button>
+                             <button type="button" className={`toggle-btn ${cosmeticForm.placement === 'border' ? 'active' : ''}`} onClick={() => setCosmeticForm(prev => ({ ...prev, placement: 'border' }))}>On Border</button>
+                           </div>
+                           <p className="helper-text" style={{ fontSize: '11px', marginTop: '5px' }}>Determines where the GIF/Animation is rendered relative to the user picture.</p>
+                        </div>
+                      )}
+
+                      <div className="form-group">
+                         <label>Asset URL (GIF or Static Image)</label>
+                         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                           <input 
+                             type="text" 
+                             value={cosmeticForm.gifUrl} 
+                             onChange={(e) => setCosmeticForm(prev => ({ ...prev, gifUrl: e.target.value }))}
+                             placeholder="https://..."
+                             className="flex-3"
+                           />
+                           <div className="file-upload-wrapper flex-1">
+                              <label className="file-upload-btn" style={{ padding: '8px', fontSize: '12px' }}>
+                                 📁 Upload New
+                                 <input type="file" onChange={handleCosmeticImageUpload} accept="image/*" />
+                              </label>
+                           </div>
+                         </div>
+                         {cosmeticFile && <p style={{ fontSize: '11px', color: '#10b981' }}>Selected: {cosmeticFile.name}</p>}
+                      </div>
+
+                      <button 
+                        type="submit" 
+                        className="approve-btn" 
+                        disabled={processingId === 'save_cosmetic' || !cosmeticForm.name}
+                        style={{ width: '100%', marginTop: '20px' }}
+                      >
+                         {processingId === 'save_cosmetic' ? 'Processing Transaction...' : (editingCosmetic ? '💾 Update Cosmetic' : '✨ Publish to Shop')}
+                      </button>
+                    </form>
+                  </div>
               )}
             </div>
           )}

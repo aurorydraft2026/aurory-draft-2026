@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { COSMETICS, RARITY_CONFIG } from '../data/cosmetics';
-import { equipCosmetic } from '../services/cosmeticsService';
+import React, { useState, useMemo, useEffect } from 'react';
+import { getAllCosmetics, equipCosmetic } from '../services/cosmeticsService';
+import { RARITY_CONFIG } from '../data/cosmetics';
 import AvatarWithAura from './AvatarWithAura';
 import './ArmoryModal.css';
 
@@ -8,10 +8,23 @@ const ArmoryModal = ({ isOpen, onClose, user }) => {
     const [activeTab, setActiveTab] = useState('aura');
     const [actionMessage, setActionMessage] = useState(null);
 
+    const [allCosmetics, setAllCosmetics] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        if (isOpen) {
+            setIsLoading(true);
+            getAllCosmetics().then(data => {
+                setAllCosmetics(data);
+                setIsLoading(false);
+            });
+        }
+    }, [isOpen]);
+
     const ownedCosmetics = useMemo(() => {
         const ownedIds = user?.ownedCosmetics || [];
-        return COSMETICS.filter(c => ownedIds.includes(c.id));
-    }, [user?.ownedCosmetics]);
+        return allCosmetics.filter(c => ownedIds.includes(c.id));
+    }, [user?.ownedCosmetics, allCosmetics]);
 
     const activeItems = useMemo(() => {
         return ownedCosmetics.filter(c => c.type === activeTab);
@@ -20,7 +33,7 @@ const ArmoryModal = ({ isOpen, onClose, user }) => {
     const handleEquip = async (cosmetic) => {
         const isEquipped = user?.equippedCosmetics?.[cosmetic.type] === cosmetic.id;
         try {
-            const result = await equipCosmetic(user.uid, cosmetic.id, cosmetic.type, isEquipped);
+            const result = await equipCosmetic(user.uid, cosmetic.id, cosmetic.type);
             if (result.success) {
                 setActionMessage({ type: 'success', text: isEquipped ? `${cosmetic.name} unequipped!` : `${cosmetic.name} equipped!` });
                 setTimeout(() => setActionMessage(null), 3000);
@@ -77,7 +90,12 @@ const ArmoryModal = ({ isOpen, onClose, user }) => {
                 </div>
 
                 <div className="modal-body custom-scrollbar">
-                    {activeItems.length > 0 ? (
+                    {isLoading ? (
+                        <div className="armory-loading-container">
+                            <div className="aura-loader"></div>
+                            <p>Fetching legendary relics...</p>
+                        </div>
+                    ) : activeItems.length > 0 ? (
                         <div className="armory-grid">
                             {activeItems.map(item => {
                                 const isEquipped = user?.equippedCosmetics?.[item.type] === item.id;

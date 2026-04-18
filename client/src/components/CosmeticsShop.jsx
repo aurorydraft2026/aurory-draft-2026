@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { COSMETICS, RARITY_CONFIG, getCosmeticById } from '../data/cosmetics';
-import { purchaseCosmetic, equipCosmetic } from '../services/cosmeticsService';
+import React, { useState, useEffect } from 'react';
+import { getAllCosmetics, purchaseCosmetic, equipCosmetic } from '../services/cosmeticsService';
+import { RARITY_CONFIG } from '../data/cosmetics';
 import { TIER_CONFIG } from '../services/tierService';
 import { resolveDisplayName } from '../utils/userUtils';
 import AvatarWithAura from './AvatarWithAura';
@@ -9,6 +9,8 @@ import './CosmeticsShop.css';
 const RARITY_ORDER = ['common', 'rare', 'epic', 'legendary', 'mythic'];
 
 const CosmeticsShop = ({ user }) => {
+  const [cosmetics, setCosmetics] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('aura');
   const [selectedRarity, setSelectedRarity] = useState('all');
   const [previewSlots, setPreviewSlots] = useState({ aura: null, banner: null });
@@ -19,10 +21,25 @@ const CosmeticsShop = ({ user }) => {
   const equippedAura = user?.equippedCosmetics?.aura || null;
   const equippedBanner = user?.equippedCosmetics?.banner || null;
 
-  const filteredCosmetics = COSMETICS
+  // Load cosmetics from database
+  useEffect(() => {
+    let isMounted = true;
+    const loadInventory = async () => {
+      setLoading(true);
+      const data = await getAllCosmetics();
+      if (isMounted) {
+        setCosmetics(data);
+        setLoading(false);
+      }
+    };
+    loadInventory();
+    return () => { isMounted = false; };
+  }, []);
+
+  const filteredCosmetics = cosmetics
     .filter(c => c.type === activeCategory)
     .filter(c => selectedRarity === 'all' || c.rarity === selectedRarity)
-    .sort((a, b) => RARITY_CONFIG[a.rarity].order - RARITY_CONFIG[b.rarity].order);
+    .sort((a, b) => (RARITY_CONFIG[a.rarity]?.order || 0) - (RARITY_CONFIG[b.rarity]?.order || 0));
 
   const showMessage = (msg, type = 'info') => {
     setActionMessage({ text: msg, type });
@@ -31,7 +48,7 @@ const CosmeticsShop = ({ user }) => {
 
   const handlePurchase = async (cosmeticId) => {
     if (!user || purchasing) return;
-    const cosmetic = getCosmeticById(cosmeticId);
+    const cosmetic = cosmetics.find(c => c.id === cosmeticId);
     if (!cosmetic) return;
 
     if (!window.confirm(`⚔️ Purchase "${cosmetic.name}" for ${cosmetic.price.toLocaleString()} Valcoins?`)) return;
@@ -80,8 +97,8 @@ const CosmeticsShop = ({ user }) => {
         <div className="header-title-group">
           <p className="section-subtitle">
             {activeCategory === 'aura' 
-              ? 'Adorn your avatar with mythical auras forged by the gods'
-              : 'Fly your colors with legendary backgrounds for your warrior profile'}
+              ? 'Adorn your avatar with mythical auras and custom effects'
+              : 'Fly your colors with legendary banners for your warrior profile'}
           </p>
         </div>
       </div>
@@ -111,14 +128,14 @@ const CosmeticsShop = ({ user }) => {
         </div>
       )}
 
-      {/* Preview Section - Styled as a Profile Card Sample */}
-      <div className="cosmetics-preview-bar profile-sample-card" style={previewSlots.banner ? getCosmeticById(COSMETICS.find(c => c.id === previewSlots.banner)?.id)?.style : (equippedBanner ? getCosmeticById(equippedBanner)?.style : {})}>
+      {/* Preview Section */}
+      <div className="cosmetics-preview-bar profile-sample-card" style={previewSlots.banner ? (cosmetics.find(c => c.id === previewSlots.banner)?.style || {}) : (equippedBanner ? (cosmetics.find(c => c.id === equippedBanner)?.style || {}) : {})}>
         <div className="cosmetics-preview-avatar">
           <div className="preview-pic-wrapper">
             <AvatarWithAura
               user={user}
               size={72}
-              overrideAura={previewSlots.aura ? getCosmeticById(COSMETICS.find(c => c.id === previewSlots.aura)?.id)?.cssClass : null}
+              auraData={previewSlots.aura ? cosmetics.find(c => c.id === previewSlots.aura) : null}
             />
             {user.tier && TIER_CONFIG[user.tier] && (
                <img 
@@ -132,7 +149,7 @@ const CosmeticsShop = ({ user }) => {
             <span className="preview-username">{resolveDisplayName(user)}</span>
             <span className="preview-label">
               {previewSlots.aura || previewSlots.banner
-                ? (getCosmeticById(previewSlots.aura || previewSlots.banner)?.name || 'Previewing...')
+                ? (cosmetics.find(c => c.id === (previewSlots.aura || previewSlots.banner))?.name || 'Previewing...')
                 : 'Current Setup'}
             </span>
           </div>
@@ -142,7 +159,7 @@ const CosmeticsShop = ({ user }) => {
             <img src="/valcoin-icon.jpg" alt="VC" className="valcoin-shop-icon" />
             <span>{(user.points || 0).toLocaleString()}</span>
           </div>
-          <span className="preview-owned">{ownedCosmetics.length} / {COSMETICS.length} Owned</span>
+          <span className="preview-owned">{ownedCosmetics.length} / {cosmetics.length} Owned</span>
         </div>
       </div>
 
@@ -168,7 +185,16 @@ const CosmeticsShop = ({ user }) => {
 
       {/* Cosmetics Grid */}
       <div className="cosmetics-grid">
-        {filteredCosmetics.map(cosmetic => {
+        {loading ? (
+           <div className="cosmetic-loading-grid">
+             <div className="cosmetic-spinner" />
+             <p>Polishing the armor...</p>
+           </div>
+        ) : filteredCosmetics.length === 0 ? (
+          <div className="cosmetics-empty-view">
+             <p>No {activeCategory}s available in Valhalla's Vault yet.</p>
+          </div>
+        ) : filteredCosmetics.map(cosmetic => {
           const isOwned = ownedCosmetics.includes(cosmetic.id);
           const isEquipped = (cosmetic.type === 'aura' ? equippedAura : equippedBanner) === cosmetic.id;
           const isPurchasing = purchasing === cosmetic.id;
@@ -179,16 +205,16 @@ const CosmeticsShop = ({ user }) => {
               key={cosmetic.id}
               className={`cosmetic-card ${isOwned ? 'owned' : ''} ${isEquipped ? 'equipped' : ''} type-${cosmetic.type}`}
               style={{ 
-                '--rarity-color': rarityConf.color, 
-                '--rarity-glow': rarityConf.glow,
+                '--rarity-color': rarityConf?.color || '#ccc', 
+                '--rarity-glow': rarityConf?.glow || 'none',
                 ...(cosmetic.type === 'banner' ? cosmetic.style : {})
               }}
               onMouseEnter={() => setPreviewSlots(prev => ({ ...prev, [cosmetic.type]: cosmetic.id }))}
               onMouseLeave={() => setPreviewSlots({ aura: null, banner: null })}
             >
               {/* Rarity Badge */}
-              <div className="cosmetic-rarity-badge" style={{ background: rarityConf.color }}>
-                {rarityConf.label}
+              <div className="cosmetic-rarity-badge" style={{ background: rarityConf?.color }}>
+                {rarityConf?.label}
               </div>
 
               {isEquipped && (
@@ -203,7 +229,7 @@ const CosmeticsShop = ({ user }) => {
                 <AvatarWithAura
                   user={user}
                   size={56}
-                  overrideAura={cosmetic.cssClass}
+                  auraData={cosmetic.type === 'aura' ? cosmetic : null}
                 />
               </div>
 

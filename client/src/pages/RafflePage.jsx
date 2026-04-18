@@ -643,6 +643,7 @@ import './RafflePage.css';
 
       {showParticipants && (
         <RaffleParticipantsModal 
+            raffleId={id}
             participants={raffle.participants} 
             onClose={() => setShowParticipants(false)} 
             isAdmin={isAdminUser}

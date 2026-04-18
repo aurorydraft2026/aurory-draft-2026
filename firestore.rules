@@ -88,6 +88,15 @@ service cloud.firestore {
       return request.auth != null && 
              (!('anonymous' in request.auth.token) || request.auth.token.anonymous == false);
     }
+
+    // Helper to verify raffle fee increment (moved from inline to resolve 'let' error)
+    function checkRaffleFee(resourceData, requestResourceData) {
+      let currency = resourceData.get('entryFeeCurrency', 'AURY');
+      let multiplier = currency == 'USDC' ? 1000000 : (currency == 'Valcoins' ? 1 : 1000000000);
+      let entryFee = resourceData.get('isFree', true) ? 0 : resourceData.get('entryFee', 0);
+      let feeSmallestUnit = int(entryFee * multiplier);
+      return requestResourceData.totalFeesCollected == resourceData.get('totalFeesCollected', 0) + feeSmallestUnit;
+    }
     
     // =============================================
     // DRAFTS / TOURNAMENTS
@@ -268,7 +277,14 @@ service cloud.firestore {
                          (!('referredBy' in request.resource.data) || (request.resource.data.referredBy == resource.data.get('referredBy', ''))) &&
                          (!('referralBonusClaimed' in request.resource.data) || (request.resource.data.referralBonusClaimed == resource.data.get('referralBonusClaimed', false))) &&
                          (!('referralCount' in request.resource.data) || (request.resource.data.referralCount == resource.data.get('referralCount', 0))) &&
-                         (!('validReferralCount' in request.resource.data) || (request.resource.data.validReferralCount == resource.data.get('validReferralCount', 0)))
+                         (!('validReferralCount' in request.resource.data) || (request.resource.data.validReferralCount == resource.data.get('validReferralCount', 0))) &&
+                         // Allow points deduction (purchase) OR fixed increment of 20 (raffle reward)
+                         (
+                           !('points' in request.resource.data) || 
+                           request.resource.data.points <= resource.data.get('points', 0) ||
+                           request.resource.data.points == resource.data.get('points', 0) + 20
+                         ) &&
+                         (!('ownedCosmetics' in request.resource.data) || request.resource.data.ownedCosmetics.size() >= resource.data.get('ownedCosmetics', []).size())
                        )) || (isAdmin() && (
                          !('role' in request.resource.data) || 
                          (request.resource.data.role == resource.data.role) ||
@@ -280,7 +296,7 @@ service cloud.firestore {
       match /pointsHistory/{historyId} {
         // Users can read their own points history, admins can read all
         allow read: if isOwner(userId) || isAdmin();
-        // Users can create their own points history entries (for client-side awarding)
+        // Users can create their own points history entries (for rewarding via transaction)
         allow create: if isOwner(userId) || isAdmin();
         // Points history is immutable
         allow update, delete: if isAdmin();
@@ -551,13 +567,7 @@ service cloud.firestore {
         // 5. Participants count must increment by 1
         request.resource.data.participantsCount == resource.data.participantsCount + 1 &&
         // 6. Total fees collected must increase by the correct amount (entryFee * multiplier)
-        (
-          let currency = resource.data.get('entryFeeCurrency', 'AURY');
-          let multiplier = currency == 'USDC' ? 1000000 : (currency == 'Valcoins' ? 1 : 1000000000);
-          let entryFee = resource.data.get('isFree', true) ? 0 : resource.data.get('entryFee', 0);
-          let feeSmallestUnit = int(entryFee * multiplier);
-          request.resource.data.totalFeesCollected == resource.data.get('totalFeesCollected', 0) + feeSmallestUnit
-        )
+        checkRaffleFee(resource.data, request.resource.data)
       );
 
       // Raffle Chat sub-collection
@@ -607,6 +617,22 @@ service cloud.firestore {
     
     match /{path=**}/pointsHistory/{historyId} {
       allow read: if isAdmin();
+    }
+    // =============================================
+    // COSMETICS
+    // =============================================
+    match /cosmetics/{cosmeticId} {
+      // Anyone can read store items
+      allow read: if true;
+      
+      // Anyone can update the saleCount (via transaction)
+      allow update: if isAuthenticated() && (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['saleCount']) &&
+        request.resource.data.saleCount == resource.data.saleCount + 1
+      ) || isAdmin();
+
+      // Only admins can create/delete the inventory
+      allow create, delete: if isAdmin();
     }
   }
 }
