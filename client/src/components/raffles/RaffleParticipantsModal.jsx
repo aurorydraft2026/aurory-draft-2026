@@ -85,9 +85,8 @@ const RaffleParticipantsModal = ({ raffleId, participants = [], onClose, isAdmin
     
     const fetchParticipantsLive = async () => {
       const needsLiveFetch = participants.filter(p => {
-        if (p.isMock || liveUserData[p.uid]) return false;
-        const ec = p.equippedCosmetics;
-        return !ec || Object.keys(ec).filter(k => ec[k]).length === 0;
+        // Fetch live data for everyone to ensure latest cosmetics are shown
+        return !p.isMock && !liveUserData[p.uid];
       });
       
       if (needsLiveFetch.length === 0) return;
