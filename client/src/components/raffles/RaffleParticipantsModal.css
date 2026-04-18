@@ -118,7 +118,7 @@
     display: grid;
     grid-template-columns: 80px 1fr 180px 180px;
     padding: 14px 20px;
-    background: rgba(255, 255, 255, 0.01);
+    background-color: rgba(255, 255, 255, 0.01);
     border: 1px solid transparent;
     border-bottom: 1px solid var(--border-subtle);
     align-items: center;
@@ -127,7 +127,7 @@
 }
 
 .viking-participant-row:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background-color: rgba(255, 255, 255, 0.05);
     border-color: var(--accent-cyan);
     transform: translateX(4px);
     cursor: pointer;
@@ -169,12 +169,12 @@
 }
 
 .viking-participant-row.flagged {
-    background: rgba(239, 68, 68, 0.08);
+    background-color: rgba(239, 68, 68, 0.08);
     border-color: rgba(239, 68, 68, 0.3);
 }
 
 .viking-participant-row.flagged:hover {
-    background: rgba(239, 68, 68, 0.12);
+    background-color: rgba(239, 68, 68, 0.12);
     border-color: #ef4444;
 }
 

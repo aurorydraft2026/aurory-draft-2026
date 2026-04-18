@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { getAllCosmetics, equipCosmetic } from '../services/cosmeticsService';
+import { getAllCosmetics, equipCosmetic, getBannerStyleFromCosmetic } from '../services/cosmeticsService';
 import { RARITY_CONFIG } from '../data/cosmetics';
 import AvatarWithAura from './AvatarWithAura';
 import './ArmoryModal.css';
@@ -107,7 +107,7 @@ const ArmoryModal = ({ isOpen, onClose, user }) => {
                                                     <AvatarWithAura user={user} size={64} overrideAura={item.cssClass} />
                                                 </div>
                                             ) : (
-                                                <div className="banner-preview-item" style={item.style}></div>
+                                                <div className="banner-preview-item" style={getBannerStyleFromCosmetic(item) || {}}></div>
                                             )}
                                             {isEquipped && (
                                                 <div className="equipped-badge">

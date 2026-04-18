@@ -19,6 +19,7 @@ import GlobalWinNotifier from './components/minigames/GlobalWinNotifier';
 import RunieChatBot from './components/RunieChatBot';
 import { isStaff, isUserSuperAdmin } from './config/admins';
 import { doc, onSnapshot, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { getAllCosmetics } from './services/cosmeticsService';
 
 function MaintenanceWarningBanner({ message, onDismiss }) {
   return (
@@ -160,6 +161,11 @@ function App() {
       localStorage.removeItem('maintenance-bypass');
       window.history.replaceState({}, document.title, window.location.pathname);
     }
+  }, []);
+
+  // Global Cosmetics Hydration: Pre-populate the cache on startup
+  useEffect(() => {
+    getAllCosmetics().catch(err => console.error("Global cosmetics fetch failed:", err));
   }, []);
 
   // Central Referral Link Handling (Stabilized & Idempotent)

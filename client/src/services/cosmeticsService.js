@@ -13,29 +13,42 @@ import { db } from '../firebase';
 
 // Module-level cache to support synchronous helpers for components that haven't transitioned to async fetch
 let COSMETICS_CACHE = {};
+let isHydrated = false;
+let initialFetchPromise = null;
 
 /**
- * Fetch all cosmestics from Firestore catalog
+ * Fetch all cosmetics from Firestore catalog.
+ * Uses a singleton promise to ensure only one network request is made even if multiple components call it at once.
  */
 export async function getAllCosmetics() {
-  try {
-    const cosmeticsRef = collection(db, 'cosmetics');
-    const snap = await getDocs(cosmeticsRef);
-    const data = snap.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    
-    // Update cache
-    data.forEach(item => {
-      COSMETICS_CACHE[item.id] = item;
-    });
-    
-    return data;
-  } catch (error) {
-    console.error('Error fetching cosmetics:', error);
-    return [];
-  }
+  if (isHydrated) return Object.values(COSMETICS_CACHE);
+  if (initialFetchPromise) return initialFetchPromise;
+
+  initialFetchPromise = (async () => {
+    try {
+      const cosmeticsRef = collection(db, 'cosmetics');
+      const snap = await getDocs(cosmeticsRef);
+      const data = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Update cache
+      data.forEach(item => {
+        COSMETICS_CACHE[item.id] = item;
+      });
+      
+      isHydrated = true;
+      initialFetchPromise = null; // Clear promise but keep isHydrated true
+      return data;
+    } catch (error) {
+      console.error('Error fetching cosmetics:', error);
+      initialFetchPromise = null;
+      return [];
+    }
+  })();
+
+  return initialFetchPromise;
 }
 
 /**
@@ -162,12 +175,56 @@ export const getEquippedAuraClass = (user) => {
 
 export const getEquippedBannerStyle = (user) => {
   const bannerId = user?.equippedCosmetics?.banner;
-  if (!bannerId) return {};
-  return COSMETICS_CACHE[bannerId]?.style || {};
+  if (!bannerId) return null;
+  const banner = COSMETICS_CACHE[bannerId];
+  if (!banner) return null;
+  
+  // If the banner has an explicit style object with content, use it (legacy local data)
+  if (banner.style && Object.keys(banner.style).length > 0) {
+    return banner.style;
+  }
+  
+  // Otherwise, construct banner style from the gifUrl (admin-created banners)
+  if (banner.gifUrl) {
+    return {
+      backgroundImage: `url("${banner.gifUrl}")`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat'
+    };
+  }
+  
+  return null;
 };
 
 export const getEquippedFrameClass = (user) => {
     const frameId = user?.equippedCosmetics?.frame;
     if (!frameId) return null;
     return COSMETICS_CACHE[frameId]?.cssClass || null;
+};
+
+/**
+ * Extract the visual background style from a banner cosmetic object.
+ * Works for both legacy banners (with a pre-built `style` object) and
+ * admin-created banners (with only a `gifUrl`).
+ */
+export const getBannerStyleFromCosmetic = (cosmetic) => {
+  if (!cosmetic || cosmetic.type !== 'banner') return null;
+  
+  // Legacy banners with pre-built style objects
+  if (cosmetic.style && Object.keys(cosmetic.style).length > 0) {
+    return cosmetic.style;
+  }
+  
+  // Admin-created banners with gifUrl
+  if (cosmetic.gifUrl) {
+    return {
+      backgroundImage: `url("${cosmetic.gifUrl}")`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat'
+    };
+  }
+  
+  return null;
 };

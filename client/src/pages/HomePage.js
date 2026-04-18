@@ -663,7 +663,7 @@ function HomePage() {
                 <div
                   className={`profile-trigger ${getEquippedBannerStyle(user) ? 'has-banner' : ''}`}
                   onClick={() => setShowUserModal(!showUserModal)}
-                  style={getEquippedBannerStyle(user)}
+                  style={getEquippedBannerStyle(user) || {}}
                   title="User Menu"
                 >
                   <AvatarWithAura user={user} size={34} className="profile-pic-aura" />
@@ -1453,7 +1453,7 @@ function HomePage() {
                       <div 
                         key={item.uid || item.id} 
                         className={`top-player-row ${idx < 3 ? `rank-${idx + 1}` : ''} ${getEquippedBannerStyle(item) ? 'has-banner' : ''}`}
-                        style={getEquippedBannerStyle(item)}
+                        style={getEquippedBannerStyle(item) || {}}
                       >
                         <span className="top-player-rank">
                           {idx === 0 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rank-icon gold"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : idx === 1 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rank-icon silver"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : idx === 2 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rank-icon bronze"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : `#${idx + 1}`}
@@ -1522,7 +1522,7 @@ function HomePage() {
                       <div 
                         key={isTeam ? item.teamKey : item.uid} 
                         className={`top-player-row ${idx < 3 ? `rank-${idx + 1}` : ''} ${isTeam ? 'team-row' : ''} ${!isTeam && getEquippedBannerStyle(item) ? 'has-banner' : ''}`}
-                        style={!isTeam ? getEquippedBannerStyle(item) : {}}
+                        style={!isTeam ? (getEquippedBannerStyle(item) || {}) : {}}
                       >
                         {isTeam && item.bannerUrl && (
                           <div

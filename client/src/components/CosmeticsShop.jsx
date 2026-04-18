@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getAllCosmetics, purchaseCosmetic, equipCosmetic } from '../services/cosmeticsService';
+import { getAllCosmetics, purchaseCosmetic, equipCosmetic, getEquippedBannerStyle, getBannerStyleFromCosmetic } from '../services/cosmeticsService';
 import { RARITY_CONFIG } from '../data/cosmetics';
 import { TIER_CONFIG } from '../services/tierService';
 import { resolveDisplayName } from '../utils/userUtils';
@@ -129,7 +129,15 @@ const CosmeticsShop = ({ user }) => {
       )}
 
       {/* Preview Section */}
-      <div className="cosmetics-preview-bar profile-sample-card" style={previewSlots.banner ? (cosmetics.find(c => c.id === previewSlots.banner)?.style || {}) : (equippedBanner ? (cosmetics.find(c => c.id === equippedBanner)?.style || {}) : {})}>
+      {(() => {
+        const previewBanner = previewSlots.banner ? cosmetics.find(c => c.id === previewSlots.banner) : null;
+        const previewStyle = previewBanner ? (getBannerStyleFromCosmetic(previewBanner) || {}) : (getEquippedBannerStyle(user) || {});
+        const hasBannerPreview = previewStyle && Object.keys(previewStyle).length > 0;
+        return (
+          <div 
+            className={`cosmetics-preview-bar profile-sample-card ${hasBannerPreview ? 'has-banner' : ''}`}
+            style={previewStyle}
+          >
         <div className="cosmetics-preview-avatar">
           <div className="preview-pic-wrapper">
             <AvatarWithAura
@@ -161,7 +169,9 @@ const CosmeticsShop = ({ user }) => {
           </div>
           <span className="preview-owned">{ownedCosmetics.length} / {cosmetics.length} Owned</span>
         </div>
-      </div>
+        </div>
+        );
+      })()}
 
       {/* Rarity Filter Tabs */}
       <div className="cosmetics-filter-tabs">
@@ -207,7 +217,7 @@ const CosmeticsShop = ({ user }) => {
               style={{ 
                 '--rarity-color': rarityConf?.color || '#ccc', 
                 '--rarity-glow': rarityConf?.glow || 'none',
-                ...(cosmetic.type === 'banner' ? cosmetic.style : {})
+                ...(cosmetic.type === 'banner' ? (getBannerStyleFromCosmetic(cosmetic) || {}) : {})
               }}
               onMouseEnter={() => setPreviewSlots(prev => ({ ...prev, [cosmetic.type]: cosmetic.id }))}
               onMouseLeave={() => setPreviewSlots({ aura: null, banner: null })}
