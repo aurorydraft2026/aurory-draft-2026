@@ -129,9 +129,13 @@ export async function joinRaffle(raffleId, user, auroryData) {
         }
       }
 
-      // Check if user already joined
-      const isAlreadyJoined = raffle.participants?.some(p => p.uid === user.uid);
-      if (isAlreadyJoined) throw new Error('You have already joined this raffle');
+      // Check if user already joined (UID check)
+      const isAlreadyJoinedUid = raffle.participants?.some(p => p.uid === user.uid);
+      if (isAlreadyJoinedUid) throw new Error('You have already joined this raffle');
+
+      // Check for same Aurory ID (Sybil prevention)
+      const isAlreadyJoinedAuroryId = raffle.participants?.some(p => p.auroryPlayerId === auroryData.playerId);
+      if (isAlreadyJoinedAuroryId) throw new Error('An account with this Aurory ID has already joined this raffle.');
 
       const entryFee = raffle.isFree ? 0 : (raffle.entryFee || 0);
       const currency = raffle.entryFeeCurrency || 'AURY';

@@ -189,14 +189,7 @@ function getDefaultConfig() {
         { difficulty: 'hard', reward: 50 },
       ]
     },
-    nornsFate: {
-      enabled: true,
-      multiplierFactor: 0.9,
-      houseSeed: 1000,
-      botsEnabled: true,
-      minBots: 5,
-      maxBots: 15
-    }
+
   };
 }
 
@@ -236,55 +229,6 @@ export async function playMiniGame(user, gameType, multiplier = 1) {
 }
 
 
-// ═══════════════════════════════════════════════════════
-//  NORNS FATE — REALTIME SUBSCRIPTIONS
-// ═══════════════════════════════════════════════════════
-
-export function subscribeNornsFateState(callback) {
-  const stateRef = ref(database, 'norns_fate/state');
-  onValue(stateRef, (snapshot) => {
-    callback(snapshot.exists() ? snapshot.val() : null);
-  });
-  return () => off(stateRef);
-}
-
-export function subscribeNornsFatePools(callback) {
-  const poolsRef = ref(database, 'norns_fate/pools');
-  onValue(poolsRef, (snapshot) => {
-    callback(snapshot.exists() ? snapshot.val() : {});
-  });
-  return () => off(poolsRef);
-}
-
-export function subscribeNornsFateBettors(callback) {
-  const bettorsRef = ref(database, 'norns_fate/bettors');
-  onValue(bettorsRef, (snapshot) => {
-    callback(snapshot.exists() ? snapshot.val() : {});
-  });
-  return () => off(bettorsRef);
-}
-
-export async function refreshNornsFate(force = false) {
-  try {
-    const refreshFn = httpsCallable(functions, 'refreshNornsFate');
-    const result = await refreshFn({ force });
-    return result.data;
-  } catch (err) {
-    console.error('Error refreshing Norns Fate:', err);
-    return { success: false, error: err.message };
-  }
-}
-
-export async function placeNornsFateBet(handId, amount) {
-  try {
-    const betFn = httpsCallable(functions, 'placeNornsFateBet');
-    const result = await betFn({ handId, amount });
-    return result.data;
-  } catch (err) {
-    console.error('Error placing Norns Fate bet:', err);
-    return { success: false, error: err.message };
-  }
-}
 
 // ═══════════════════════════════════════════════════════
 //  DRAKKAR RACE v2 — REALTIME SUBSCRIPTIONS

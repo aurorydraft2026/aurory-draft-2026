@@ -6015,12 +6015,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     >
                       Drakkar Race
                     </button>
-                    <button
-                      className={`selector-btn ${activeGameType === 'nornsFate' ? 'active' : ''}`}
-                      onClick={() => setActiveGameType('nornsFate')}
-                    >
-                      Norns' Fate
-                    </button>
+
                     <button
                       className={`selector-btn ${activeGameType === 'odinsRiddle' ? 'active' : ''}`}
                       onClick={() => setActiveGameType('odinsRiddle')}
@@ -6032,7 +6027,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               </div>
 
 
-              {activeGameType !== 'drakkarRace' && activeGameType !== 'odinsRiddle' && activeGameType !== 'nornsFate' && (
+              {activeGameType !== 'drakkarRace' && activeGameType !== 'odinsRiddle' && (
                 <div className="config-card probability-guide-card">
                   <div className="guide-header">
                     <h3>⚖️ Probability Balance Guide</h3>
@@ -6161,7 +6156,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       )}
                     </div>
 
-                    {(activeGameType === 'drakkarRace' || activeGameType === 'nornsFate') && (
+                    {activeGameType === 'drakkarRace' && (
                       <>
                         <div className="form-row">
                           <div className="form-group">

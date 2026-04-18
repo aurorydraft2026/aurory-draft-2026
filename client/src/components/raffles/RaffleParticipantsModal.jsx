@@ -3,6 +3,14 @@ import AvatarWithAura from '../AvatarWithAura';
 import './RaffleParticipantsModal.css';
 
 const RaffleParticipantsModal = ({ participants = [], onClose, isAdmin, onRemoveParticipant }) => {
+  // Pre-calculate duplicates if admin
+  const auroryIdCounts = isAdmin ? participants.reduce((acc, p) => {
+    if (p.auroryPlayerId) {
+      acc[p.auroryPlayerId] = (acc[p.auroryPlayerId] || 0) + 1;
+    }
+    return acc;
+  }, {}) : {};
+
   return ReactDOM.createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div className="viking-modal participants-modal" onClick={e => e.stopPropagation()}>
@@ -22,7 +30,7 @@ const RaffleParticipantsModal = ({ participants = [], onClose, isAdmin, onRemove
         <div className="modal-body">
           <div className={`viking-grid-header ${isAdmin ? 'has-admin' : ''}`}>
             <span>RANK</span>
-            <span>PLAYER</span>
+            <span style={{ paddingLeft: '40px' }}>PLAYER</span>
             <span>AURORY ID</span>
             <span>JOINED</span>
             {isAdmin && <span>ACTION</span>}
@@ -31,28 +39,43 @@ const RaffleParticipantsModal = ({ participants = [], onClose, isAdmin, onRemove
             {participants.length === 0 ? (
               <div className="no-participants">No participants yet. Be the first to join!</div>
             ) : (
-              participants.map((p, i) => (
-                <div key={p.uid || i} className={`viking-participant-row ${isAdmin ? 'has-admin' : ''}`}>
-                  <span className="p-rank">#{i + 1}</span>
-                  <div className="p-avatar-mini">
-                    <AvatarWithAura user={p} size={24} />
+              participants.map((p, i) => {
+                const isDuplicate = isAdmin && p.auroryPlayerId && auroryIdCounts[p.auroryPlayerId] > 1;
+                const isMock = isAdmin && (p.isMock || (p.uid && p.uid.startsWith('mock_')));
+                const isFlagged = isDuplicate || isMock;
+
+                return (
+                  <div 
+                    key={p.uid || i} 
+                    className={`viking-participant-row ${isAdmin ? 'has-admin' : ''} ${isFlagged ? 'flagged' : ''}`}
+                  >
+                    <span className="p-rank">#{i + 1}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div className="p-avatar-mini">
+                        <AvatarWithAura user={p} size={24} />
+                      </div>
+                      <div className="p-name-col">
+                        <span className="p-name">{p.playerName}</span>
+                        {isDuplicate && <span className="sybil-warning">Duplicate Aurory ID</span>}
+                        {isMock && <span className="sybil-warning" style={{ color: 'var(--accent-orange)' }}>Mock Participant</span>}
+                      </div>
+                    </div>
+                    <span className="p-id">{p.auroryPlayerId || 'N/A'}</span>
+                    <span className="p-date">
+                      {new Date(p.joinedAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    {isAdmin && (
+                      <button 
+                        className="viking-remove-btn" 
+                        onClick={() => onRemoveParticipant(p)}
+                        title="Remove participant"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                      </button>
+                    )}
                   </div>
-                  <span className="p-name">{p.playerName}</span>
-                  <span className="p-id">{p.auroryPlayerId || 'N/A'}</span>
-                  <span className="p-date">
-                    {new Date(p.joinedAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                  {isAdmin && (
-                    <button 
-                      className="viking-remove-btn" 
-                      onClick={() => onRemoveParticipant(p)}
-                      title="Remove participant"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                    </button>
-                  )}
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

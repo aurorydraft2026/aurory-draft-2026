@@ -7,7 +7,6 @@ import OdinsRiddle from './OdinsRiddle';
 import { useWallet } from '../../hooks/useWallet';
 import './MiniGamesHub.css';
 
-import NornsFate from './NornsFateGame';
 
 const GAME_REGISTRY = {
   slotMachine: {
@@ -31,13 +30,7 @@ const GAME_REGISTRY = {
     description: 'Bet on mythical ships in a real-time global race!',
     component: DrakkarRace
   },
-  nornsFate: {
-    id: 'nornsFate',
-    name: "Norns' Fate",
-    icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" ry="2" /><path d="M7 10h.01" /><path d="M12 10h.01" /><path d="M17 10h.01" /><path d="M7 14h.01" /><path d="M12 14h.01" /><path d="M17 14h.01" /></svg>,
-    description: 'A live parimutuel 3-Card Poker game with hidden twists!',
-    component: NornsFate
-  },
+
   odinsRiddle: {
     id: 'odinsRiddle',
     name: "Odin's Riddle",
@@ -160,10 +153,10 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
         <p>{game.description}</p>
         <div className="minigame-card-cost">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M8 12h8" /><path d="M12 8v8" /></svg>
-          <span>{['drakkarRace', 'nornsFate'].includes(gameKey) ? 'Bet to play' : gameKey === 'odinsRiddle' ? 'Free to play' : `${gameCfg?.costPerPlay || 0} per play`}</span>
+          <span>{gameKey === 'drakkarRace' ? 'Bet to play' : gameKey === 'odinsRiddle' ? 'Free to play' : `${gameCfg?.costPerPlay || 0} per play`}</span>
         </div>
         <div className="minigame-card-prizes">
-          {['drakkarRace', 'nornsFate'].includes(gameKey) ? 'Parimutuel payouts' : gameKey === 'odinsRiddle' ? 'Earn 10-50 VC per riddle' : `${gameCfg?.prizes?.length || 0} prizes available`}
+          {gameKey === 'drakkarRace' ? 'Parimutuel payouts' : gameKey === 'odinsRiddle' ? 'Earn 10-50 VC per riddle' : `${gameCfg?.prizes?.length || 0} prizes available`}
         </div>
       </div>
     );
@@ -223,7 +216,7 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
                 )}
 
                 {/* SOCIAL PLAY */}
-                {availableGames.filter(k => ['drakkarRace', 'nornsFate'].includes(k)).length > 0 && (
+                {availableGames.filter(k => k === 'drakkarRace').length > 0 && (
                   <div className="minigames-section">
                     <h3 className="minigames-section-title">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
@@ -231,7 +224,7 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
                     </h3>
                     <div className="minigames-grid">
                       {availableGames
-                        .filter(k => ['drakkarRace', 'nornsFate'].includes(k))
+                        .filter(k => k === 'drakkarRace')
                         .map(gameKey => renderGameCard(gameKey))}
                     </div>
                   </div>

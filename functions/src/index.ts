@@ -110,6 +110,8 @@ export const tournamentRewards = onMatchupCompleted;
 import { onRaffleCreated, onRaffleWinnerSet, onMatchupCreated, onMatchupWinner, onDraftCreated, scheduledRunieTips, onNewUserWelcome } from './discord';
 export const onRaffleCreatedAnnouncement = onRaffleCreated;
 export const onRaffleWinnerAnnouncement = onRaffleWinnerSet;
+import { investigateRaffles } from './investigateRaffles';
+export { investigateRaffles };
 export const onMatchupCreatedAnnouncement = onMatchupCreated;
 export const onMatchupWinnerAnnouncement = onMatchupWinner;
 export const onDraftCreatedAnnouncement = onDraftCreated;
@@ -118,8 +120,8 @@ export const runieWelcome = onNewUserWelcome;
 
 // ─── 8. MINI-GAMES ───
 // Secure prize selection and payouts
-import { playMiniGame, refreshDrakkarRace, placeDrakkarBet, answerRiddle, refreshNornsFate, placeNornsFateBet } from './miniGames';
-export { playMiniGame, refreshDrakkarRace, placeDrakkarBet, answerRiddle, refreshNornsFate, placeNornsFateBet };
+import { playMiniGame, refreshDrakkarRace, placeDrakkarBet, answerRiddle } from './miniGames';
+export { playMiniGame, refreshDrakkarRace, placeDrakkarBet, answerRiddle };
 
 // ─── 9. REWARDS ───
 import { collectDailyReward } from './rewards';

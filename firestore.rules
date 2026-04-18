@@ -540,7 +540,24 @@ service cloud.firestore {
       // Admins can update everything, users can only update the participants list to join
       allow update: if isAdmin() || (
         isAuthenticated() && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants', 'participantsCount', 'totalFeesCollected', 'updatedAt'])
+        // 1. Must have a linked Aurory account
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('auroryPlayerId', null) != null &&
+        // 2. Only specific fields can be touched
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants', 'participantsCount', 'totalFeesCollected', 'updatedAt']) &&
+        // 3. Exactly one participant added
+        request.resource.data.participants.size() == resource.data.participants.size() + 1 &&
+        // 4. Added participant must be the current user
+        request.resource.data.participants[resource.data.participants.size()].uid == request.auth.uid &&
+        // 5. Participants count must increment by 1
+        request.resource.data.participantsCount == resource.data.participantsCount + 1 &&
+        // 6. Total fees collected must increase by the correct amount (entryFee * multiplier)
+        (
+          let currency = resource.data.get('entryFeeCurrency', 'AURY');
+          let multiplier = currency == 'USDC' ? 1000000 : (currency == 'Valcoins' ? 1 : 1000000000);
+          let entryFee = resource.data.get('isFree', true) ? 0 : resource.data.get('entryFee', 0);
+          let feeSmallestUnit = int(entryFee * multiplier);
+          request.resource.data.totalFeesCollected == resource.data.get('totalFeesCollected', 0) + feeSmallestUnit
+        )
       );
 
       // Raffle Chat sub-collection
