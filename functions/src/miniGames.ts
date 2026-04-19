@@ -277,9 +277,11 @@ export const playMiniGame = onCall(
 
                 if (finalPrize) {
                     if (finalPrize.type.toLowerCase() === 'valcoins' && finalPrize.amount > 0) {
-                        const rawNewPoints = (userData.points || 0) + finalPrize.amount;
+                        // FIX: Account for the costPerPlay that was deducted prior to the win!
+                        const postCostPoints = (userData.points || 0) - costPerPlay;
+                        const rawNewPoints = postCostPoints + finalPrize.amount;
                         const userTier = userData.tier || 1;
-                        const clampedPoints = clampPointsToTierMax(rawNewPoints, userTier);
+                        const clampedPoints = clampPointsToTierMax(rawNewPoints, userTier, postCostPoints);
                         
                         transaction.update(userRef, {
                             points: clampedPoints,
@@ -820,7 +822,7 @@ async function processDrakkarPayouts(raceState: any) {
                     const userTier = userData.tier || 1;
                     
                     const rawNewPoints = currentPoints + winAmount;
-                    const clampedPoints = clampPointsToTierMax(rawNewPoints, userTier);
+                    const clampedPoints = clampPointsToTierMax(rawNewPoints, userTier, currentPoints);
 
                     t.update(userRef, {
                         points: clampedPoints,
@@ -1200,7 +1202,7 @@ export const answerRiddle = onCall(
                     const currentPoints = userData.points || 0;
                     const userTier = userData.tier || 1;
                     const rawNew = currentPoints + reward;
-                    const clamped = clampPointsToTierMax(rawNew, userTier);
+                    const clamped = clampPointsToTierMax(rawNew, userTier, currentPoints);
                     updates.points = clamped;
                 } else {
                     updates[`stats.riddles.streak`] = 0;

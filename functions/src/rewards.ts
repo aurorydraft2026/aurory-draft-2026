@@ -48,11 +48,11 @@ export const collectDailyReward = onCall(
                 }
 
                 // Award points (Dynamic from Settings)
-                let baseAmount = 10;
+                let baseAmount = 100;
                 const configRef = db.collection('settings').doc('valcoin_rewards');
                 const configSnap = await transaction.get(configRef);
                 if (configSnap.exists) {
-                    baseAmount = configSnap.data()?.dailyCheckIn ?? 10;
+                    baseAmount = configSnap.data()?.dailyCheckIn ?? 100;
                 }
 
                 // Bonus Logic: Random bonus if streak >= 7
@@ -66,7 +66,7 @@ export const collectDailyReward = onCall(
                 // Update User
                 const rawNewPoints = (userData.points || 0) + totalAmount;
                 const userTier = userData.tier || 1;
-                const clampedPoints = clampPointsToTierMax(rawNewPoints, userTier);
+                const clampedPoints = clampPointsToTierMax(rawNewPoints, userTier, userData.points || 0);
                 const actualAward = clampedPoints - (userData.points || 0);
 
                 transaction.update(userRef, {

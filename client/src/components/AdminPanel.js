@@ -14,7 +14,6 @@ import {
   addDoc,
   serverTimestamp,
   runTransaction,
-  increment,
   limit,
   writeBatch,
   deleteDoc,
@@ -2620,9 +2619,18 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
       // Process each user
       const results = await Promise.allSettled(selectedCreditUsers.map(async (selectedUser) => {
-        const walletRef = doc(db, 'wallets', selectedUser.id);
-        const userRef = doc(db, 'users', selectedUser.id);
+        if (isValcoins) {
+          // awardPoints handles everything: clamping, exp, history, and notifications
+          return await awardPoints(
+            selectedUser.id, 
+            amountInSmallestUnit, 
+            'manual_credit', 
+            creditReason || 'Valcoins credited by admin'
+          );
+        }
 
+        const walletRef = doc(db, 'wallets', selectedUser.id);
+        
         await runTransaction(db, async (transaction) => {
           const walletDoc = await transaction.get(walletRef);
 
@@ -2637,43 +2645,29 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             updatedAt: serverTimestamp()
           };
 
-          if (isValcoins) {
-            updateData.points = increment(amountInSmallestUnit);
-            transaction.update(userRef, updateData);
+          if (selectedCreditCurrency === 'USDC') {
+            updateData.usdcBalance = currentBalance + amountInSmallestUnit;
           } else {
-            if (selectedCreditCurrency === 'USDC') {
-              updateData.usdcBalance = currentBalance + amountInSmallestUnit;
-            } else {
-              updateData.balance = currentBalance + amountInSmallestUnit;
-            }
-            transaction.set(walletRef, updateData, { merge: true });
+            updateData.balance = currentBalance + amountInSmallestUnit;
           }
+          transaction.set(walletRef, updateData, { merge: true });
         });
 
-        // Add transaction to user's history
-        if (isValcoins) {
-          await addDoc(collection(db, 'users', selectedUser.id, 'pointsHistory'), {
-            amount: amountInSmallestUnit,
-            type: 'manual_credit',
-            description: creditReason || 'Valcoins credited by admin',
-            timestamp: serverTimestamp()
-          });
-        } else {
-          const txRef = collection(db, 'wallets', selectedUser.id, 'transactions');
-          await addDoc(txRef, {
-            type: 'deposit',
-            amount: amountInSmallestUnit,
-            currency: selectedCreditCurrency,
-            reason: creditReason || 'Credit by admin',
-            timestamp: serverTimestamp(),
-            processedBy: getUserEmail(user) || user.displayName || user.uid
-          });
-        }
+        // Add transaction to user's history for AURY/USDC
+        const txRef = collection(db, 'wallets', selectedUser.id, 'transactions');
+        await addDoc(txRef, {
+          type: 'deposit',
+          amount: amountInSmallestUnit,
+          currency: selectedCreditCurrency,
+          reason: creditReason || 'Credit by admin',
+          timestamp: serverTimestamp(),
+          processedBy: getUserEmail(user) || user.displayName || user.uid
+        });
 
-        // Notify User
+        // Notify User for AURY/USDC
         await createNotification(selectedUser.id, {
-          type: isValcoins ? 'points' : 'deposit',
-          title: isValcoins ? 'Valcoins Awarded!' : 'Balance Notification',
+          type: 'deposit',
+          title: 'Balance Notification',
           message: `${amount} ${selectedCreditCurrency} has been added to your account.`,
           link: '#'
         });

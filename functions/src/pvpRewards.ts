@@ -378,7 +378,7 @@ async function processUser(
       const userTier = ud.tier || 1;
 
       const rawNew = currentPoints + totalReward;
-      const clampedPoints = clampPointsToTierMax(rawNew, userTier);
+      const clampedPoints = clampPointsToTierMax(rawNew, userTier, currentPoints);
 
       // If we used a leaderboard fallback, we MUST advance the timestamp to "now"
       // to prevent these wins from being double-counted when they finally show up in history.

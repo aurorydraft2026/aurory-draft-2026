@@ -38,7 +38,9 @@ export const awardPoints = async (userId, amount, type, description) => {
             const maxPoints = config.max;
             
             let newPoints = currentPoints + amount;
-            if (amount > 0 && newPoints > maxPoints) {
+            if (currentPoints > maxPoints) {
+                newPoints = Math.max(maxPoints, Math.min(newPoints, currentPoints));
+            } else if (newPoints > maxPoints) {
                 newPoints = maxPoints;
             }
             

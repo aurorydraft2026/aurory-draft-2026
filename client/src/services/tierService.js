@@ -15,7 +15,11 @@ export const getTierExp = (user) => {
   let spent = 0;
   if (tier > 1) spent += 30000;
   if (tier > 2) spent += 50000;
-  return user.exp !== undefined ? user.exp : (currentPoints + spent);
+  const estimatedExp = currentPoints + spent;
+  if (user.exp !== undefined) {
+    return Math.max(user.exp, estimatedExp);
+  }
+  return estimatedExp;
 };
 
 /**

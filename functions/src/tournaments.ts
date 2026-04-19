@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions/v1';
+import { clampPointsToTierMax, TIER_CONFIG } from './tierAndReferral';
 
 /**
  * Trigger: When a matchup document is updated
@@ -109,6 +110,56 @@ export const onMatchupCompleted = functions.firestore
                     rewardsDistributedAt: admin.firestore.FieldValue.serverTimestamp(),
                     distributionRecords: distributionRecords
                 });
+
+                // ─── NEW: VALCOIN PARTICIPATION REWARDS (+5,000) ───
+                // Award to ANY participant that has at least one win
+                let participationAmount = 5000;
+                const configRef = admin.firestore().collection('settings').doc('valcoin_rewards');
+                const configSnap = await transaction.get(configRef);
+                if (configSnap.exists) {
+                    participationAmount = configSnap.data()?.tournamentWinParticipation ?? 5000;
+                }
+
+                if (participationAmount > 0) {
+                    const participantsWithWins = finalStandings.filter((s: any) => (s.wins || 0) > 0 && s.teamId);
+                    
+                    for (const participant of participantsWithWins) {
+                        const uid = participant.teamId;
+                        const userRef = admin.firestore().collection('users').doc(uid);
+                        const userSnap = await transaction.get(userRef);
+                        
+                        if (userSnap.exists) {
+                            const userData = userSnap.data()!;
+                            
+                            // Check if already awarded (Idempotency)
+                            const entryRewards = userData.tournamentEntryRewards || [];
+                            if (entryRewards.includes(matchupId)) continue;
+
+                            const userTier = userData.tier || 1;
+                            const currentPoints = userData.points || 0;
+                            const newPointsRaw = currentPoints + participationAmount;
+                            const clampedPoints = clampPointsToTierMax(newPointsRaw, userTier, currentPoints);
+                            const actualAward = clampedPoints - currentPoints;
+
+                            transaction.update(userRef, {
+                                points: clampedPoints,
+                                exp: admin.firestore.FieldValue.increment(participationAmount),
+                                tournamentEntryRewards: admin.firestore.FieldValue.arrayUnion(matchupId),
+                                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                            });
+
+                            // History entry
+                            const histRef = userRef.collection('pointsHistory').doc();
+                            transaction.set(histRef, {
+                                amount: actualAward > 0 ? actualAward : participationAmount,
+                                type: 'tournament_participation',
+                                description: `Credit for winning matches in tournament: ${after.title || 'Unknown'}`,
+                                matchupId,
+                                timestamp: admin.firestore.FieldValue.serverTimestamp()
+                            });
+                        }
+                    }
+                }
             });
 
             console.log(`Successfully distributed rewards for tournament ${matchupId}.`, distributionRecords);

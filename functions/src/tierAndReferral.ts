@@ -311,6 +311,14 @@ async function checkAndAwardReferralBonus(
 
   const referrerData = referrerDoc.data()!;
 
+  // Allow configurable bonus amount
+  let bonusAmountConfig = 20000;
+  const configRef = db.collection('settings').doc('valcoin_rewards');
+  const configSnap = await configRef.get();
+  if (configSnap.exists) {
+    bonusAmountConfig = configSnap.data()?.referralBonus ?? 20000;
+  }
+
   // Calculate clamped bonus for each user
   const referredTierMax = TIER_CONFIG[userData.tier || 1]?.max || 30000;
   const referrerTierMax = TIER_CONFIG[referrerData.tier || 1]?.max || 30000;
@@ -318,8 +326,8 @@ async function checkAndAwardReferralBonus(
   const referredCurrentPoints = userData.points || 0;
   const referrerCurrentPoints = referrerData.points || 0;
 
-  const referredBonus = Math.min(REFERRAL_BONUS, referredTierMax - referredCurrentPoints);
-  const referrerBonus = Math.min(REFERRAL_BONUS, referrerTierMax - referrerCurrentPoints);
+  const referredBonus = Math.min(bonusAmountConfig, referredTierMax - referredCurrentPoints);
+  const referrerBonus = Math.min(bonusAmountConfig, referrerTierMax - referrerCurrentPoints);
 
   await db.runTransaction(async (transaction) => {
     // Award bonus to referred user (clamped)
@@ -395,9 +403,12 @@ async function checkAndAwardReferralBonus(
  * Clamp a user's points to their tier maximum.
  * Exported for use by other cloud functions (e.g., rewards, miniGames).
  */
-export function clampPointsToTierMax(currentPoints: number, tier: number): number {
+export function clampPointsToTierMax(newPointsRaw: number, tier: number, oldPoints: number = 0): number {
   const config = TIER_CONFIG[tier] || TIER_CONFIG[1];
-  return Math.min(currentPoints, config.max);
+  if (oldPoints > config.max) {
+      return Math.max(config.max, Math.min(newPointsRaw, oldPoints));
+  }
+  return Math.min(newPointsRaw, config.max);
 }
 
 export { TIER_CONFIG };

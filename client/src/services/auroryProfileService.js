@@ -682,13 +682,27 @@ export async function linkAuroryAccount(userId, auroryData) {
 
     // 2. Proceed with linking
     const userRef = doc(db, 'users', userId);
-    let pointsAwarded = 0;
+    let totalPointsAwarded = 0;
+    let registrationReward = 0;
+    let aurorianReward = 0;
+
     await runTransaction(db, async (transaction) => {
       const userSnap = await transaction.get(userRef);
       if (!userSnap.exists()) throw new Error('User not found');
       
       const userData = userSnap.data();
-      const isFirstLink = !userData.auroryPlayerId;
+      
+      // Configuration defaults
+      let registerRewardAmount = 10000;
+      let ownAurorianRewardAmount = 50000;
+      
+      const configRef = doc(db, 'settings', 'valcoin_rewards');
+      const configSnap = await transaction.get(configRef);
+      if (configSnap.exists()) {
+        const config = configSnap.data();
+        registerRewardAmount = config.registerLinked ?? 10000;
+        ownAurorianRewardAmount = config.ownAurorian ?? 50000;
+      }
       
       const updateData = {
         auroryPlayerId: auroryData.playerId,
@@ -700,35 +714,67 @@ export async function linkAuroryAccount(userId, auroryData) {
         auroryLastSync: serverTimestamp()
       };
       
-      if (isFirstLink) {
-        let amount = 50;
-        const configRef = doc(db, 'settings', 'valcoin_rewards');
-        const configSnap = await transaction.get(configRef);
-        if (configSnap.exists()) {
-          amount = configSnap.data().linkAurory ?? 50;
-        }
+      // Award Registration Bonus (Once per account)
+      if (!userData.registrationRewardClaimed) {
+        registrationReward = registerRewardAmount;
+        updateData.registrationRewardClaimed = true;
+      }
 
-        updateData.points = increment(amount);
-        pointsAwarded = amount;
+      // Award Aurorian Ownership Bonus (Once per account)
+      if (auroryData.isAurorian && !userData.aurorianBonusClaimed) {
+        aurorianReward = ownAurorianRewardAmount;
+        updateData.aurorianBonusClaimed = true;
+      }
+
+      totalPointsAwarded = registrationReward + aurorianReward;
+      if (totalPointsAwarded > 0) {
+        const currentTier = userData.tier || 1;
+        const currentPoints = userData.points || 0;
+        const maxPoints = currentTier === 1 ? 30000 : currentTier === 2 ? 50000 : 100000;
+        let newPoints = currentPoints + totalPointsAwarded;
+        
+        if (currentPoints > maxPoints) {
+            newPoints = Math.max(maxPoints, Math.min(newPoints, currentPoints));
+        } else {
+            newPoints = Math.min(newPoints, maxPoints);
+        }
+        
+        updateData.points = newPoints;
+        updateData.exp = increment(totalPointsAwarded);
       }
       
       transaction.update(userRef, updateData);
       
-      if (isFirstLink && pointsAwarded > 0) {
-        const historyRef = doc(collection(db, 'users', userId, 'pointsHistory'));
-        transaction.set(historyRef, {
-          amount: pointsAwarded,
+      // History entries
+      if (registrationReward > 0) {
+        const regHistoryRef = doc(collection(db, 'users', userId, 'pointsHistory'));
+        transaction.set(regHistoryRef, {
+          amount: registrationReward,
           type: 'registration',
           description: 'Aurory account linking reward (Registration)',
           timestamp: serverTimestamp()
         });
       }
+
+      if (aurorianReward > 0) {
+        const aurHistoryRef = doc(collection(db, 'users', userId, 'pointsHistory'));
+        transaction.set(aurHistoryRef, {
+          amount: aurorianReward,
+          type: 'aurorian_ownership',
+          description: 'One-time bonus for owning an Aurorian NFT',
+          timestamp: serverTimestamp()
+        });
+      }
     });
 
-    if (pointsAwarded > 0) {
+    if (totalPointsAwarded > 0) {
+      const messages = [];
+      if (registrationReward > 0) messages.push(`+${registrationReward} for linking`);
+      if (aurorianReward > 0) messages.push(`+${aurorianReward} for Aurorian ownership`);
+
       await createNotification(userId, {
-        title: 'Registration Reward!',
-        message: `You earned ${pointsAwarded} Valcoins for linking your Aurory account. Welcome to Asgard!`,
+        title: 'Rewards Earned! ⚔️',
+        message: `You earned Valcoins: ${messages.join(' and ')}. Welcome to Asgard!`,
         type: 'points'
       });
     }

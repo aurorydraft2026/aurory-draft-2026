@@ -278,11 +278,10 @@ service cloud.firestore {
                          (!('referralBonusClaimed' in request.resource.data) || (request.resource.data.referralBonusClaimed == resource.data.get('referralBonusClaimed', false))) &&
                          (!('referralCount' in request.resource.data) || (request.resource.data.referralCount == resource.data.get('referralCount', 0))) &&
                          (!('validReferralCount' in request.resource.data) || (request.resource.data.validReferralCount == resource.data.get('validReferralCount', 0))) &&
-                         // Allow points deduction (purchase) OR fixed increment of 20 (raffle reward)
+                         // Allow points deduction (purchase) OR increment up to 60000 (rewards)
                          (
                            !('points' in request.resource.data) || 
-                           request.resource.data.points <= resource.data.get('points', 0) ||
-                           request.resource.data.points == resource.data.get('points', 0) + 20
+                           request.resource.data.points <= resource.data.get('points', 0) + 60000
                          ) &&
                          (!('ownedCosmetics' in request.resource.data) || request.resource.data.ownedCosmetics.size() >= resource.data.get('ownedCosmetics', []).size())
                        )) || (isAdmin() && (

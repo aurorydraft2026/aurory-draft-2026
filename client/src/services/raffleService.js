@@ -155,12 +155,12 @@ export async function joinRaffle(raffleId, user, auroryData) {
 
       const entryFeeSmallestUnit = Math.floor(entryFee * multiplier);
 
-      // Award Points (Dynamic configurable amount, default 20)
-      let pointsAwarded = 20;
+      // Award Points (Dynamic configurable amount, default 5,000)
+      let pointsAwarded = 5000;
       const configRef = doc(db, 'settings', 'valcoin_rewards');
       const configSnap = await transaction.get(configRef);
       if (configSnap.exists()) {
-          pointsAwarded = configSnap.data().joinRaffle ?? 20;
+          pointsAwarded = configSnap.data().joinRaffle ?? 5000;
       }
 
       // Fetch complete user document for snapshotting and point validation
@@ -231,12 +231,31 @@ export async function joinRaffle(raffleId, user, auroryData) {
       // Net logic: award minus deduction (if deduction was from points)
       const netPointsChange = isPoints ? (pointsAwarded - entryFeeSmallestUnit) : pointsAwarded;
       
-      if (netPointsChange !== 0) {
+      if (netPointsChange !== 0 || pointsAwarded > 0) {
         const userRef = doc(db, 'users', user.uid);
-        transaction.update(userRef, {
-          points: increment(netPointsChange),
+        const updateObj = {
           updatedAt: serverTimestamp()
-        });
+        };
+        
+        if (netPointsChange !== 0) {
+          const currentTier = userData.tier || 1;
+          const currentPoints = userData.points || 0;
+          const maxPoints = currentTier === 1 ? 30000 : currentTier === 2 ? 50000 : 100000;
+          let newPoints = currentPoints + netPointsChange;
+          
+          if (currentPoints > maxPoints) {
+              newPoints = Math.max(maxPoints, Math.min(newPoints, currentPoints));
+          } else {
+              newPoints = Math.min(newPoints, maxPoints);
+          }
+          
+          updateObj.points = newPoints;
+        }
+        
+        if (pointsAwarded > 0) {
+          updateObj.exp = increment(pointsAwarded);
+        }
+        transaction.update(userRef, updateObj);
 
         // Log points history for award
         if (pointsAwarded > 0) {
