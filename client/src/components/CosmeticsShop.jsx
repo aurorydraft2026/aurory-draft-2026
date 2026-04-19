@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getAllCosmetics, purchaseCosmetic, equipCosmetic, getEquippedBannerStyle, getBannerStyleFromCosmetic } from '../services/cosmeticsService';
 import { RARITY_CONFIG } from '../data/cosmetics';
-import { TIER_CONFIG } from '../services/tierService';
 import { resolveDisplayName } from '../utils/userUtils';
 import AvatarWithAura from './AvatarWithAura';
 import './CosmeticsShop.css';
@@ -145,13 +144,6 @@ const CosmeticsShop = ({ user }) => {
               size={72}
               auraData={previewSlots.aura ? cosmetics.find(c => c.id === previewSlots.aura) : null}
             />
-            {user.tier && TIER_CONFIG[user.tier] && (
-               <img 
-                 src={TIER_CONFIG[user.tier].badge} 
-                 alt="Tier" 
-                 className="preview-tier-badge" 
-               />
-            )}
           </div>
           <div className="preview-user-details">
             <span className="preview-username">{resolveDisplayName(user)}</span>

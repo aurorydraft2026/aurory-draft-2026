@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { useTheme } from './context/ThemeContext';
+import { ProfileModalProvider } from './context/ProfileModalContext';
 import HomePage from './pages/HomePage';
 import TournamentPage from './pages/TournamentPage';
 import TermsPage from './pages/TermsPage';
@@ -232,49 +233,51 @@ function App() {
 
   return (
     <Router>
-      <div className="App">
-        {maintenance.warningEnabled && !maintenance.enabled && !isWarningDismissed && (
-          <MaintenanceWarningBanner 
-            message={maintenance.warningText} 
-            onDismiss={handleDismissWarning} 
-          />
-        )}
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/tournament/:tournamentId" element={<TournamentPage />} />
-          <Route path="/admin/panel" element={<AdminPanel />} />
-          <Route path="/matchup/:matchupId" element={<MatchupPage />} />
-          <Route path="/raffles" element={<RafflesListingPage />} />
-          <Route path="/raffle/:id" element={<RafflePage />} />
-          <Route path="/terms" element={<TermsPage />} />
-          <Route path="/privacy" element={<PrivacyPage />} />
-          {/* Fallback for maintenance page if someone tries to access directly */}
-          <Route path="/maintenance" element={<MaintenancePage />} />
-        </Routes>
-        <Footer />
-        <MiniGamesButton />
-        <GlobalWinNotifier />
-        {cbConfig.enabled !== false && <RunieChatBot />}
+      <ProfileModalProvider>
+        <div className="App">
+          {maintenance.warningEnabled && !maintenance.enabled && !isWarningDismissed && (
+            <MaintenanceWarningBanner 
+              message={maintenance.warningText} 
+              onDismiss={handleDismissWarning} 
+            />
+          )}
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/tournament/:tournamentId" element={<TournamentPage />} />
+            <Route path="/admin/panel" element={<AdminPanel />} />
+            <Route path="/matchup/:matchupId" element={<MatchupPage />} />
+            <Route path="/raffles" element={<RafflesListingPage />} />
+            <Route path="/raffle/:id" element={<RafflePage />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+            {/* Fallback for maintenance page if someone tries to access directly */}
+            <Route path="/maintenance" element={<MaintenancePage />} />
+          </Routes>
+          <Footer />
+          <MiniGamesButton />
+          <GlobalWinNotifier />
+          {cbConfig.enabled !== false && <RunieChatBot />}
 
-        {/* --- Referral Success Modal (Singleton Notification) --- */}
-        {referralSuccess && (
-          <div className="login-success-modal referral-success-modal" style={{ zIndex: 100000 }}>
-             <div className="modal-body">
-                <div className="success-icon-wrapper">
-                    <span style={{ fontSize: '3rem' }}>🎉</span>
-                </div>
-                <h3>Referral Applied!</h3>
-                <p>{referralSuccess.message}</p>
-                <button 
-                  className="btn-primary awesome-btn" 
-                  onClick={() => setReferralSuccess(null)}
-                >
-                  Great!
-                </button>
-             </div>
-          </div>
-        )}
-      </div>
+          {/* --- Referral Success Modal (Singleton Notification) --- */}
+          {referralSuccess && (
+            <div className="login-success-modal referral-success-modal" style={{ zIndex: 100000 }}>
+               <div className="modal-body">
+                  <div className="success-icon-wrapper">
+                      <span style={{ fontSize: '3rem' }}>🎉</span>
+                  </div>
+                  <h3>Referral Applied!</h3>
+                  <p>{referralSuccess.message}</p>
+                  <button 
+                    className="btn-primary awesome-btn" 
+                    onClick={() => setReferralSuccess(null)}
+                  >
+                    Great!
+                  </button>
+               </div>
+            </div>
+          )}
+        </div>
+      </ProfileModalProvider>
     </Router>
   );
 }

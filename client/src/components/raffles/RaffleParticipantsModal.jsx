@@ -1,16 +1,33 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import AvatarWithAura from '../AvatarWithAura';
-import CondensedProfileModal from '../profile/CondensedProfileModal';
+import { useProfileModal } from '../../context/ProfileModalContext';
 import { getEquippedBannerStyle, getAllCosmetics } from '../../services/cosmeticsService';
 import { doc, getDoc, updateDoc, collection, query, where, documentId, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 import './RaffleParticipantsModal.css';
 
-const RaffleParticipantsModal = ({ raffleId, participants = [], onClose, isAdmin, onRemoveParticipant }) => {
-  const [selectedParticipant, setSelectedParticipant] = useState(null);
+// Persistence Cache (outside component scope to persist between modal opens/closes)
+const PARTICIPANT_CACHE = {};
+
+const RaffleParticipantsModal = ({ raffleId, participants = [], currentUser, onClose, isAdmin, onRemoveParticipant }) => {
+  const { openProfile } = useProfileModal();
   const [isSyncing, setIsSyncing] = useState(false);
   const hasSynced = useRef(false);
+
+  // Persistence Cache (survives modal unmounts to prevent flickers)
+  const [liveUserData, setLiveUserData] = useState(() => {
+    // Initialize with only relevant participants from global cache
+    const initial = {};
+    if (participants && participants.length > 0) {
+      participants.forEach(p => {
+        if (PARTICIPANT_CACHE[p.uid]) {
+          initial[p.uid] = PARTICIPANT_CACHE[p.uid];
+        }
+      });
+    }
+    return initial;
+  });
 
   // Lazy migration for legacy participants (Admins only)
   const handleLazySync = useCallback(async () => {
@@ -76,24 +93,31 @@ const RaffleParticipantsModal = ({ raffleId, participants = [], onClose, isAdmin
     return () => { mounted = false; };
   }, []);
 
-  // Live-fetch user data
-  const [liveUserData, setLiveUserData] = useState({});
+// Pre-calculate which participants need a fresh fetch
+  const needsFreshFetch = useMemo(() => {
+    const now = Date.now();
+    return participants.filter(p => {
+      if (p.isMock) return false;
+      
+      // Always fetch current user live to ensure immediate updates after Armory changes
+      if (currentUser && p.uid === currentUser.uid) return true;
+
+      const cached = PARTICIPANT_CACHE[p.uid];
+      // Fetch if not in cache OR if cache is older than 5 minutes
+      return !cached || (now - (cached.lastFetched || 0)) > 300000;
+    });
+  }, [participants, currentUser]);
+
   const hasLoadedLive = useRef(false);
   
   useEffect(() => {
-    if (participants.length === 0 || hasLoadedLive.current) return;
+    if (needsFreshFetch.length === 0 || hasLoadedLive.current) return;
     
     const fetchParticipantsLive = async () => {
-      const needsLiveFetch = participants.filter(p => {
-        // Fetch live data for everyone to ensure latest cosmetics are shown
-        return !p.isMock && !liveUserData[p.uid];
-      });
-      
-      if (needsLiveFetch.length === 0) return;
       hasLoadedLive.current = true;
 
       try {
-        const uids = needsLiveFetch.map(p => p.uid);
+        const uids = needsFreshFetch.map(p => p.uid);
         const results = {};
         const batchPromises = [];
         for (let i = 0; i < uids.length; i += 30) {
@@ -110,6 +134,8 @@ const RaffleParticipantsModal = ({ raffleId, participants = [], onClose, isAdmin
             results[doc.id] = { 
               equippedCosmetics: data.equippedCosmetics,
               auroryProfilePicture: data.auroryProfilePicture,
+              auroryPlayerName: data.auroryPlayerName,
+              displayName: data.displayName,
               photoURL: data.photoURL,
               isAurorian: data.isAurorian,
               lastFetched: Date.now() 
@@ -117,7 +143,12 @@ const RaffleParticipantsModal = ({ raffleId, participants = [], onClose, isAdmin
           });
         });
 
-        setLiveUserData(prev => ({ ...prev, ...results }));
+        // Update both local state and global cache
+        setLiveUserData(prev => {
+          const newState = { ...prev, ...results };
+          Object.assign(PARTICIPANT_CACHE, results); // Update global cache too
+          return newState;
+        });
       } catch (err) {
         console.error("[RaffleModal] Live fetch error:", err);
         hasLoadedLive.current = false;
@@ -125,7 +156,7 @@ const RaffleParticipantsModal = ({ raffleId, participants = [], onClose, isAdmin
     };
 
     fetchParticipantsLive();
-  }, [participants, liveUserData]); // Include participants and liveUserData to satisfy ESLint
+  }, [needsFreshFetch]);
 
   // Pre-calculate duplicates
   const auroryIdCounts = useMemo(() => {
@@ -146,10 +177,14 @@ const RaffleParticipantsModal = ({ raffleId, participants = [], onClose, isAdmin
       const isFlagged = isDuplicate || isMock;
       
       const liveData = liveUserData[p.uid] || {};
+      
+      // If this is the current user, priority is: Prop > LiveCache > Snapshot
+      const isSelf = currentUser && p.uid === currentUser.uid;
       const mergedUser = {
         ...p,
         ...liveData,
-        equippedCosmetics: liveData.equippedCosmetics || p.equippedCosmetics || {}
+        ...(isSelf ? currentUser : {}), // Priority to reactive user object from App state
+        equippedCosmetics: (isSelf ? currentUser.equippedCosmetics : null) || liveData.equippedCosmetics || p.equippedCosmetics || {}
       };
 
       const bannerStyle = cosmeticsReady ? getEquippedBannerStyle(mergedUser) : null;
@@ -165,7 +200,7 @@ const RaffleParticipantsModal = ({ raffleId, participants = [], onClose, isAdmin
         rank: i + 1
       };
     });
-  }, [participants, liveUserData, cosmeticsReady, isAdmin, auroryIdCounts]);
+  }, [participants, liveUserData, cosmeticsReady, isAdmin, auroryIdCounts, currentUser]);
 
   return ReactDOM.createPortal(
     <div className="modal-overlay" onClick={onClose}>
@@ -201,9 +236,9 @@ const RaffleParticipantsModal = ({ raffleId, participants = [], onClose, isAdmin
               memoizedParticipants.map((p) => (
                 <div 
                   key={p.uid || p.rank} 
-                  className={`viking-participant-row ${isAdmin ? 'has-admin' : ''} ${p.isFlagged ? 'flagged' : ''} ${p.hasBanner ? 'has-banner' : ''}`}
+                  className={`viking-participant-row interactive ${isAdmin ? 'has-admin' : ''} ${p.isFlagged ? 'flagged' : ''} ${p.hasBanner ? 'has-banner' : ''}`}
                   style={p.bannerStyle || {}}
-                  onClick={() => setSelectedParticipant(p)}
+                  onClick={() => openProfile(p)}
                 >
                   <span className="p-rank">#{p.rank}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -237,15 +272,6 @@ const RaffleParticipantsModal = ({ raffleId, participants = [], onClose, isAdmin
             )}
           </div>
         </div>
-
-        {selectedParticipant && (
-          <CondensedProfileModal
-            isOpen={!!selectedParticipant}
-            onClose={() => setSelectedParticipant(null)}
-            user={selectedParticipant}
-            joinedAt={selectedParticipant.joinedAt}
-          />
-        )}
       </div>
     </div>,
     document.body

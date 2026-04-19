@@ -20,6 +20,7 @@ import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
 import AvatarWithAura from '../components/AvatarWithAura';
 import { useAuth } from '../hooks/useAuth';
 import { awardPoints } from '../services/pointsService';
+import { useProfileModal } from '../context/ProfileModalContext';
 import './MatchupPage.css';
 
 
@@ -32,6 +33,8 @@ const MatchupPage = () => {
         setShowLoginModal, 
         renderLoginModalContent 
     } = useAuth(navigate);
+
+    const { openProfile } = useProfileModal();
 
     const [matchup, setMatchup] = useState(null);
     const [participants, setParticipants] = useState([]);
@@ -1727,8 +1730,9 @@ const MatchupPage = () => {
                                                                             <div className="avatar-container">
                                                                                 <img
                                                                                     src={mUser?.auroryProfilePicture || mUser?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'}
-                                                                                    className="roster-avatar-mini"
+                                                                                    className="roster-avatar-mini interactive"
                                                                                     alt=""
+                                                                                    onClick={() => openProfile(mUser)}
                                                                                 />
                                                                                 {isLeader && <div className="leader-crown-badge">👑</div>}
                                                                             </div>
@@ -1744,7 +1748,7 @@ const MatchupPage = () => {
                                             if (!pUser && typeof p === 'string') return null;
                                             const targetUser = pUser || (typeof p === 'object' ? p : { uid: p, displayName: 'Unknown' });
                                             return (
-                                                <div key={targetUser.uid} className={`participant-row ${targetUser.uid === user?.uid ? 'is-me' : ''} ${targetUser.isMock ? 'is-mock' : ''}`}>
+                                                <div key={targetUser.uid} className={`participant-row interactive ${targetUser.uid === user?.uid ? 'is-me' : ''} ${targetUser.isMock ? 'is-mock' : ''}`} onClick={() => openProfile(targetUser)}>
                                                     <div className="p-rank">{index + 1}</div>
                                                     <div className="p-avatar-wrapper">
                                                         <img src={targetUser?.auroryProfilePicture || targetUser?.photoURL || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt={targetUser?.displayName} className="p-avatar" />
@@ -1837,7 +1841,7 @@ const MatchupPage = () => {
 
                                                                     <div className="match-card-body">
                                                                         {/* Team 1 */}
-                                                                        <div className={`match-team-row ${winnerId && winnerId === getUID(p1) ? 'winner' : winnerId ? 'loser' : ''}`}>
+                                                                        <div className={`match-team-row interactive ${winnerId && winnerId === getUID(p1) ? 'winner' : winnerId ? 'loser' : ''}`} onClick={() => matchup?.format !== 'teams' && openProfile(p1)}>
                                                                             <div className="team-info-visual">
                                                                                 <img src={getAvatar(p1)} alt="" className="team-avatar-visual" />
                                                                                 <span className="team-name-visual">{getName(p1)}</span>
@@ -1849,7 +1853,7 @@ const MatchupPage = () => {
                                                                         </div>
                                                                         <div className="match-divider-visual">vs</div>
                                                                         {/* Team 2 */}
-                                                                        <div className={`match-team-row ${winnerId && winnerId === getUID(p2) ? 'winner' : winnerId ? 'loser' : ''}`}>
+                                                                        <div className={`match-team-row interactive ${winnerId && winnerId === getUID(p2) ? 'winner' : winnerId ? 'loser' : ''}`} onClick={() => matchup?.format !== 'teams' && openProfile(p2)}>
                                                                             <div className="team-info-visual">
                                                                                 <img src={getAvatar(p2)} alt="" className="team-avatar-visual" />
                                                                                 <span className="team-name-visual">{getName(p2)}</span>
@@ -1954,7 +1958,7 @@ const MatchupPage = () => {
                                                             <div key={match.id} className={`rr-compact-row ${winner ? 'resolved' : ''}`}>
                                                                 <span className="rr-row-id">{matchId}</span>
 
-                                                                <div className={`rr-row-player ${winner && winner === getUID(p1) ? 'winner' : ''} ${winner && winner !== getUID(p1) ? 'loser' : ''}`}>
+                                                                <div className={`rr-row-player interactive ${winner && winner === getUID(p1) ? 'winner' : ''} ${winner && winner !== getUID(p1) ? 'loser' : ''}`} onClick={() => matchup?.format !== 'teams' && openProfile(p1)}>
                                                                     <img className="rr-row-avatar" src={getAvatar(p1)} alt="" />
                                                                     <span className="rr-row-name">{getName(p1)}</span>
                                                                     {isAdmin && p1 && !winner && (
@@ -1964,7 +1968,7 @@ const MatchupPage = () => {
 
                                                                 <span className="rr-row-vs">vs</span>
 
-                                                                <div className={`rr-row-player ${winner && winner === getUID(p2) ? 'winner' : ''} ${winner && winner !== getUID(p2) ? 'loser' : ''}`}>
+                                                                <div className={`rr-row-player interactive ${winner && winner === getUID(p2) ? 'winner' : ''} ${winner && winner !== getUID(p2) ? 'loser' : ''}`} onClick={() => matchup?.format !== 'teams' && openProfile(p2)}>
                                                                     <img className="rr-row-avatar" src={getAvatar(p2)} alt="" />
                                                                     <span className="rr-row-name">{getName(p2)}</span>
                                                                     {isAdmin && p2 && !winner && (
@@ -2123,7 +2127,7 @@ const MatchupPage = () => {
                                                                         return (
                                                                             <div key={match.id} className={`rr-compact-row ${winner ? 'resolved' : ''}`}>
                                                                                 <span className="rr-row-id">{matchId}</span>
-                                                                                <div className={`rr-row-player ${winner && winner === getUID(p1) ? 'winner' : ''} ${winner && winner !== getUID(p1) ? 'loser' : ''}`}>
+                                                                                <div className={`rr-row-player interactive ${winner && winner === getUID(p1) ? 'winner' : ''} ${winner && winner !== getUID(p1) ? 'loser' : ''}`} onClick={() => openProfile(p1)}>
                                                                                     <img className="rr-row-avatar" src={getAvatar(p1)} alt="" />
                                                                                     <span className="rr-row-name">{getName(p1)}</span>
                                                                                     {isAdmin && p1 && !winner && (
@@ -2133,7 +2137,7 @@ const MatchupPage = () => {
 
                                                                                 <span className="rr-row-vs">vs</span>
 
-                                                                                <div className={`rr-row-player ${winner && winner === getUID(p2) ? 'winner' : ''} ${winner && winner !== getUID(p2) ? 'loser' : ''}`}>
+                                                                                <div className={`rr-row-player interactive ${winner && winner === getUID(p2) ? 'winner' : ''} ${winner && winner !== getUID(p2) ? 'loser' : ''}`} onClick={() => openProfile(p2)}>
                                                                                     <img className="rr-row-avatar" src={getAvatar(p2)} alt="" />
                                                                                     <span className="rr-row-name">{getName(p2)}</span>
                                                                                     {isAdmin && p2 && !winner && (
@@ -2265,7 +2269,7 @@ const MatchupPage = () => {
 
                                                                         <div className="match-card-body">
                                                                             {/* Team 1 */}
-                                                                            <div className={`match-team-row ${winnerId && winnerId === getUID(p1) ? 'winner' : winnerId ? 'loser' : ''}`}>
+                                                                            <div className={`match-team-row interactive ${winnerId && winnerId === getUID(p1) ? 'winner' : winnerId ? 'loser' : ''}`} onClick={() => openProfile(p1)}>
                                                                                 <div className="team-info-visual">
                                                                                     <img src={getAvatar(p1)} alt="" className="team-avatar-visual" />
                                                                                     <span className="team-name-visual">{getName(p1)}</span>
@@ -2277,7 +2281,7 @@ const MatchupPage = () => {
                                                                             </div>
                                                                             <div className="match-divider-visual">vs</div>
                                                                             {/* Team 2 */}
-                                                                            <div className={`match-team-row ${winnerId && winnerId === getUID(p2) ? 'winner' : winnerId ? 'loser' : ''}`}>
+                                                                            <div className={`match-team-row interactive ${winnerId && winnerId === getUID(p2) ? 'winner' : winnerId ? 'loser' : ''}`} onClick={() => openProfile(p2)}>
                                                                                 <div className="team-info-visual">
                                                                                     <img src={getAvatar(p2)} alt="" className="team-avatar-visual" />
                                                                                     <span className="team-name-visual">{getName(p2)}</span>
@@ -2396,7 +2400,7 @@ const MatchupPage = () => {
                                                 {[team.leader, ...(team.members || [])].map(uid => {
                                                     const pUser = getUserById(uid);
                                                     return (
-                                                        <div key={uid} className="player-score-row">
+                                                        <div key={uid} className="player-score-row interactive" onClick={() => openProfile(pUser)}>
                                                             <div className="p-score-avatar">
                                                                 <AvatarWithAura user={pUser} size={32} />
                                                             </div>
@@ -2450,7 +2454,7 @@ const MatchupPage = () => {
                                         {sortedPlayers.map((item, index) => {
                                             const pUser = getUserById(item.uid);
                                             return (
-                                                <div key={item.uid} className={`leader-row rank-${index + 1}`}>
+                                                <div key={item.uid} className={`leader-row interactive rank-${index + 1}`} onClick={() => openProfile(pUser)}>
                                                     <div className="rank-badge">{index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}</div>
                                                     <div className="leader-avatar">
                                                         <AvatarWithAura user={pUser} size={32} />
@@ -2564,7 +2568,7 @@ const MatchupPage = () => {
                                                         {p.members.map(mid => {
                                                             const mUser = getUserById(mid);
                                                             return (
-                                                                <div key={mid} className="roster-item-mini" title={resolveDisplayName(mUser)}>
+                                                                <div key={mid} className="roster-item-mini interactive" title={resolveDisplayName(mUser)} onClick={() => openProfile(mUser)}>
                                                                     <AvatarWithAura user={mUser} size={24} />
                                                                 </div>
                                                             );

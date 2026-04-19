@@ -487,6 +487,35 @@ export function calculateOverallStats(matches) {
 }
 
 /**
+ * Calculate player stats for the current UTC day only
+ * @param {Array} matches - Array of processed match data
+ * @returns {Object} Daily stats (matches, wins, winRate)
+ */
+export function calculateDailyStats(matches) {
+  if (!matches || !matches.length) {
+    return { dailyMatches: 0, dailyWins: 0, dailyWinRate: 0 };
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const todayMatches = matches.filter(m => {
+    const matchDate = new Date(m.timestamp).toISOString().split('T')[0];
+    return matchDate === today;
+  });
+
+  if (!todayMatches.length) {
+    return { dailyMatches: 0, dailyWins: 0, dailyWinRate: 0 };
+  }
+
+  const dailyWins = todayMatches.filter(m => m.result === 'win').length;
+  
+  return {
+    dailyMatches: todayMatches.length,
+    dailyWins,
+    dailyWinRate: Math.round((dailyWins / todayMatches.length) * 100)
+  };
+}
+
+/**
  * Syncs the Aurory name from the API to Firestore
  * @param {string} userId - Firebase User ID
  * @param {string} playerId - Aurory Player ID

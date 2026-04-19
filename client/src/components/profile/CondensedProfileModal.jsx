@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchPlayerMatches, calculateOverallStats } from '../../services/auroryProfileService';
 import { getEquippedBannerStyle } from '../../services/cosmeticsService';
+import { ref, onValue } from 'firebase/database';
+import { doc, getDoc, collection, query, where, getCountFromServer } from 'firebase/firestore';
+import { database, db } from '../../firebase';
 import AvatarWithAura from '../AvatarWithAura';
 import { resolveDisplayName } from '../../utils/userUtils';
 import './CondensedProfileModal.css';
@@ -10,36 +12,72 @@ import './CondensedProfileModal.css';
  * for raffle participants.
  */
 const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
-  const [stats, setStats] = useState(null);
+  const { uid } = user || {};
+  const [pvpWins, setPvpWins] = useState(0);
+  const [pvpRank, setPvpRank] = useState(null);
+  const [wealthRank, setWealthRank] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [liveProfile, setLiveProfile] = useState(null);
 
   const loadStats = useCallback(async () => {
     setLoading(true);
     try {
-      const matches = await fetchPlayerMatches(user.auroryPlayerId);
-      if (matches && matches.matches?.data) {
-        const processedMatches = matches.matches.data.map(m => ({
-          result: m.result,
-          duration: m.data?.duration
-        }));
-        setStats(calculateOverallStats(processedMatches));
+      const today = new Date().toISOString().split('T')[0];
+      
+      // 1. Fetch Daily PvP Wins & Rank from RTDB
+      const pvpRef = ref(database, `leaderboards/earnings/wins/pvp/daily/${today}`);
+      onValue(pvpRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          const userEntry = data[uid];
+          if (userEntry) {
+            setPvpWins(userEntry.score || 0);
+            const participants = Object.values(data);
+            const higherScores = participants.filter(p => (p.score || 0) > (userEntry.score || 0)).length;
+            setPvpRank(higherScores + 1);
+          } else {
+            setPvpWins(0);
+            setPvpRank('100+');
+          }
+        } else {
+          setPvpWins(0);
+          setPvpRank('N/A');
+        }
+      }, { onlyOnce: true });
+
+      // 2. Fetch Total Wealth Rank from Firestore (Total Valcoins)
+      const userRef = doc(db, 'users', uid);
+      const userSnap = await getDoc(userRef);
+      
+      if (userSnap.exists()) {
+          const data = userSnap.data();
+          setLiveProfile(data);
+          const currentPoints = data.points || 0;
+          const q = query(collection(db, 'users'), where('points', '>', currentPoints));
+          const countSnap = await getCountFromServer(q);
+          setWealthRank(countSnap.data().count + 1);
+      } else {
+          setWealthRank('N/A');
       }
+
     } catch (error) {
-      console.error('Error loading public stats:', error);
+      console.error('Error loading profile statistics:', error);
     } finally {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 600);
     }
-  }, [user?.auroryPlayerId]);
+  }, [uid]);
 
   useEffect(() => {
-    if (isOpen && user?.auroryPlayerId) {
+    setLiveProfile(null);
+    if (isOpen && uid) {
       loadStats();
     }
-  }, [isOpen, user?.auroryPlayerId, loadStats]);
+  }, [isOpen, uid, loadStats]);
 
   if (!isOpen) return null;
 
-  const bannerStyle = getEquippedBannerStyle(user);
+  const mergedUser = liveProfile ? { ...user, ...liveProfile } : user;
+  const bannerStyle = getEquippedBannerStyle(mergedUser);
   const formattedDate = joinedAt 
     ? new Date(joinedAt).toLocaleDateString(undefined, { 
         year: 'numeric', 
@@ -58,12 +96,12 @@ const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
           <button className="close-condensed-btn" onClick={onClose}>✕</button>
           
           <div className="header-content">
-            <AvatarWithAura user={user} size={80} className="condensed-avatar" />
+            <AvatarWithAura user={mergedUser} size={80} className="condensed-avatar" />
             <div className="header-text">
-              <h2 className="condensed-name">{resolveDisplayName(user)}</h2>
+              <h2 className="condensed-name">{resolveDisplayName(mergedUser)}</h2>
               <div className="condensed-badges">
-                {user.role === 'admin' && <span className="condensed-badge admin">ADMIN</span>}
-                {user.isAurorian && <span className="condensed-badge aurorian">AURORIAN</span>}
+                {mergedUser.role === 'admin' && <span className="condensed-badge admin">ADMIN</span>}
+                {mergedUser.isAurorian && <span className="condensed-badge aurorian">AURORIAN</span>}
               </div>
             </div>
           </div>
@@ -73,12 +111,14 @@ const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
           <div className="info-grid">
             <div className="info-item">
               <span className="info-label">Aurory ID</span>
-              <span className="info-value highlight">{user.auroryPlayerId || 'Not Linked'}</span>
+              <span className="info-value viking-highlight">{mergedUser.auroryPlayerId || 'Not Linked'}</span>
             </div>
-            <div className="info-item">
-              <span className="info-label">Joined Raffle</span>
-              <span className="info-value">{formattedDate}</span>
-            </div>
+            {joinedAt && (
+              <div className="info-item">
+                <span className="info-label">Joined Raffle</span>
+                <span className="info-value">{formattedDate}</span>
+              </div>
+            )}
           </div>
 
           <div className="stats-divider">
@@ -90,30 +130,30 @@ const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
               <div className="spinner-small"></div>
               <span>Fetching Records...</span>
             </div>
-          ) : stats ? (
+          ) : !loading ? (
             <div className="stats-row">
               <div className="stat-box">
-                <span className="stat-label">Matches</span>
-                <span className="stat-value">{stats.totalMatches}</span>
+                <span className="stat-label">Daily PvP Wins</span>
+                <span className="stat-value">{pvpWins}</span>
               </div>
               <div className="stat-box">
-                <span className="stat-label">Win Rate</span>
-                <span className="stat-value highlight">{stats.winRate}%</span>
+                <span className="stat-label">Top Player #</span>
+                <span className="stat-value viking-highlight">#{pvpRank || '...'}</span>
               </div>
               <div className="stat-box">
-                <span className="stat-label">Avg Duration</span>
-                <span className="stat-value">{Math.round(stats.avgMatchDuration / 60)}m</span>
+                <span className="stat-label">Wealth #</span>
+                <span className="stat-value viking-highlight">#{wealthRank || '...'}</span>
               </div>
             </div>
           ) : (
             <div className="stats-empty">
-              No battle records found for this player.
+              No battle records found.
             </div>
           )}
         </div>
 
         <div className="condensed-profile-footer">
-          <p className="privacy-note">Only public combat data and raffle entry dates are shown.</p>
+          <p className="privacy-note">More details coming soon.</p>
         </div>
       </div>
     </div>

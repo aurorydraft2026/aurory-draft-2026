@@ -193,10 +193,12 @@ const Mode4Draft = ({
                     <img
                         src={playerBanner}
                         alt={getTeamDisplayName(team)}
+                        className="interactive"
+                        onClick={() => leader && utils.openProfile(leader)}
                         onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_AVATAR || 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                     />
                 </div>
-                <h2 className={`team-heading team-${teamColor}-heading`}>
+                <h2 className={`team-heading team-${teamColor}-heading ${leader ? 'interactive' : ''}`} onClick={() => leader && utils.openProfile(leader)}>
                     {getTeamDisplayName(team)}
                 </h2>
 
@@ -314,7 +316,12 @@ const Mode4Draft = ({
                                             return DEFAULT_AVATAR;
                                         })()}
                                         alt={p1Name}
-                                        className="coin-profile-img"
+                                        className="coin-profile-img interactive"
+                                        onClick={() => {
+                                            const leaderUid = draftState.preAssignedTeams?.team1?.leader;
+                                            const foundUser = handlers.registeredUsers?.find(u => (u.uid || u.id) === leaderUid);
+                                            if (foundUser) utils.openProfile(foundUser);
+                                        }}
                                         onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_AVATAR; }}
                                     />
                                 </div>
@@ -332,7 +339,12 @@ const Mode4Draft = ({
                                             return DEFAULT_AVATAR;
                                         })()}
                                         alt={p2Name}
-                                        className="coin-profile-img"
+                                        className="coin-profile-img interactive"
+                                        onClick={() => {
+                                            const leaderUid = draftState.preAssignedTeams?.team2?.leader;
+                                            const foundUser = handlers.registeredUsers?.find(u => (u.uid || u.id) === leaderUid);
+                                            if (foundUser) utils.openProfile(foundUser);
+                                        }}
                                         onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_AVATAR; }}
                                     />
                                 </div>
@@ -346,13 +358,27 @@ const Mode4Draft = ({
                             <p className="roll-instruction">Please confirm to start the coin flip.</p>
                             <div className="roll-status">
                                 <div className={`roll-status-item ${draftState.coinFlip.team1Locked ? 'locked' : ''}`}>
-                                    <span className="player-color blue">🔵 {p1Name}</span>
+                                    <span
+                                        className="player-color blue interactive"
+                                        onClick={() => {
+                                            const leaderUid = draftState.preAssignedTeams?.team1?.leader;
+                                            const foundUser = handlers.registeredUsers?.find(u => (u.uid || u.id) === leaderUid);
+                                            if (foundUser) utils.openProfile(foundUser);
+                                        }}
+                                    >🔵 {p1Name}</span>
                                     <span className={`lock-status ${draftState.coinFlip.team1Locked ? 'locked' : 'waiting'}`}>
                                         {draftState.coinFlip.team1Locked ? '✓ Ready' : 'Waiting...'}
                                     </span>
                                 </div>
                                 <div className={`roll-status-item ${draftState.coinFlip.team2Locked ? 'locked' : ''}`}>
-                                    <span className="player-color red">🔴 {p2Name}</span>
+                                    <span
+                                        className="player-color red interactive"
+                                        onClick={() => {
+                                            const leaderUid = draftState.preAssignedTeams?.team2?.leader;
+                                            const foundUser = handlers.registeredUsers?.find(u => (u.uid || u.id) === leaderUid);
+                                            if (foundUser) utils.openProfile(foundUser);
+                                        }}
+                                    >🔴 {p2Name}</span>
                                     <span className={`lock-status ${draftState.coinFlip.team2Locked ? 'locked' : 'waiting'}`}>
                                         {draftState.coinFlip.team2Locked ? '✓ Ready' : 'Waiting...'}
                                     </span>

@@ -27,6 +27,7 @@ import MajorAnnouncementModal from '../components/MajorAnnouncementModal';
 import CosmeticsShop from '../components/CosmeticsShop';
 import AvatarWithAura from '../components/AvatarWithAura';
 import { resolveDisplayName, resolveAvatar } from '../utils/userUtils';
+import { useProfileModal } from '../context/ProfileModalContext';
 import './HomePage.css';
 
 // Your AURY deposit wallet address (replace with your actual address)
@@ -144,6 +145,8 @@ function HomePage() {
     earnersTimeframe, setEarnersTimeframe,
     earnersLoading
   } = useLeaderboard(registeredUsers);
+
+  const { openProfile } = useProfileModal();
 
   const {
     newTournament, setNewTournament,
@@ -1454,6 +1457,7 @@ function HomePage() {
                         key={item.uid || item.id} 
                         className={`top-player-row ${idx < 3 ? `rank-${idx + 1}` : ''} ${getEquippedBannerStyle(item) ? 'has-banner' : ''}`}
                         style={getEquippedBannerStyle(item) || {}}
+                        onClick={() => openProfile(item)}
                       >
                         <span className="top-player-rank">
                           {idx === 0 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rank-icon gold"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : idx === 1 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rank-icon silver"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : idx === 2 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rank-icon bronze"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg> : `#${idx + 1}`}
@@ -1521,8 +1525,9 @@ function HomePage() {
                     return (
                       <div 
                         key={isTeam ? item.teamKey : item.uid} 
-                        className={`top-player-row ${idx < 3 ? `rank-${idx + 1}` : ''} ${isTeam ? 'team-row' : ''} ${!isTeam && getEquippedBannerStyle(item) ? 'has-banner' : ''}`}
+                        className={`top-player-row ${idx < 3 ? `rank-${idx + 1}` : ''} ${isTeam ? 'team-row' : ''} ${!isTeam && getEquippedBannerStyle(item) ? 'has-banner' : ''} interactive`}
                         style={!isTeam ? (getEquippedBannerStyle(item) || {}) : {}}
+                        onClick={() => !isTeam && openProfile(item)}
                       >
                         {isTeam && item.bannerUrl && (
                           <div
@@ -1692,13 +1697,13 @@ function HomePage() {
                                   <span className="team-label">{teamADisplay}</span>
                                   {/* For 1v1, show player amiko picks; for 3v3, show roster */}
                                   {!is3v3 && teamAPlayers.map((p, i) => (
-                                    <span key={i} className="match-player-name">{resolveDisplayName(p)}</span>
+                                    <span key={i} className="match-player-name interactive" onClick={(e) => { e.stopPropagation(); openProfile(p); }}>{resolveDisplayName(p)}</span>
                                   ))}
                                 </div>
                                 <div className={`match-detail-team team-${teamBColor}`}>
                                   <span className="team-label">{teamBDisplay}</span>
                                   {!is3v3 && teamBPlayers.map((p, i) => (
-                                    <span key={i} className="match-player-name">{resolveDisplayName(p)}</span>
+                                    <span key={i} className="match-player-name interactive" onClick={(e) => { e.stopPropagation(); openProfile(p); }}>{resolveDisplayName(p)}</span>
                                   ))}
                                 </div>
                               </div>

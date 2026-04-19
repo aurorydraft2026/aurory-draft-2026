@@ -1,4 +1,5 @@
 import { resolveDisplayName } from '../utils/userUtils';
+import { useProfileModal } from '../context/ProfileModalContext';
 import './MatchResultsBoard.css';
 
 const MatchResultsBoard = ({
@@ -14,6 +15,7 @@ const MatchResultsBoard = ({
     isSuperAdmin,
     AMIKOS
 }) => {
+    const { openProfile } = useProfileModal();
     const is3v3 = draftState.draftType === 'mode1' || draftState.draftType === 'mode2';
     const isSA = user && isSuperAdmin(getUserEmail(user));
     // Show if completed OR if we have results (partial verification)
@@ -115,7 +117,15 @@ const MatchResultsBoard = ({
                                             <div className={`battle-player ${battle.winner === 'A' ? 'winner' : battle.winner ? 'loser' : ''}`}>
                                                 <span className="player-outcome">{battle.winner === 'A' ? '🏆' : battle.winner ? '💀' : '⏳'}</span>
                                                 <div className="player-info">
-                                                    <span className="player-name">{battle.playerA?.displayName || resolveDisplayName(pA) || getTeamDisplayName('A')}</span>
+                                                    <span
+                                                        className="player-name interactive"
+                                                        onClick={() => {
+                                                            const pObj = battle.playerA || pA;
+                                                            if (pObj) openProfile(pObj);
+                                                        }}
+                                                    >
+                                                        {battle.playerA?.displayName || resolveDisplayName(pA) || getTeamDisplayName('A')}
+                                                    </span>
                                                     {battle.status === 'disqualified_A' && <span className="dq-badge">DQ</span>}
 
                                                     {battle.playerA?.usedAmikos && (
@@ -145,7 +155,15 @@ const MatchResultsBoard = ({
                                             <div className={`battle-player ${battle.winner === 'B' ? 'winner' : battle.winner ? 'loser' : ''}`}>
                                                 <span className="player-outcome">{battle.winner === 'B' ? '🏆' : battle.winner ? '💀' : '⏳'}</span>
                                                 <div className="player-info">
-                                                    <span className="player-name">{battle.playerB?.displayName || resolveDisplayName(pB) || getTeamDisplayName('B')}</span>
+                                                    <span
+                                                        className="player-name interactive"
+                                                        onClick={() => {
+                                                            const pObj = battle.playerB || pB;
+                                                            if (pObj) openProfile(pObj);
+                                                        }}
+                                                    >
+                                                        {battle.playerB?.displayName || resolveDisplayName(pB) || getTeamDisplayName('B')}
+                                                    </span>
                                                     {battle.status === 'disqualified_B' && <span className="dq-badge">DQ</span>}
 
                                                     {battle.playerB?.usedAmikos && (

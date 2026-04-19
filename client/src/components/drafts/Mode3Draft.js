@@ -64,7 +64,16 @@ const Mode3Draft = ({
 
         return (
             <div className="player-section" key={`player-${team}`}>
-                <div className="player-label">{leader ? getUserDisplayName(leader) : (team === 'A' ? 'Player 1' : 'Player 2')}</div>
+                <div className="player-label">
+                    {leader ? (
+                        <span
+                            className="player-name-link interactive"
+                            onClick={() => utils.openProfile(leader)}
+                        >
+                            {getUserDisplayName(leader)}
+                        </span>
+                    ) : (team === 'A' ? 'Player 1' : 'Player 2')}
+                </div>
                 <div className="player-picks">
                     {picks.slice(0, 3).map((amikoId, index) => {
                         const amiko = AMIKOS.find(a => a.id === amikoId);
@@ -132,6 +141,8 @@ const Mode3Draft = ({
                     <img
                         src={playerBanner}
                         alt={getTeamDisplayName(team)}
+                        className="interactive"
+                        onClick={() => leader && utils.openProfile(leader)}
                         onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_AVATAR || 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                     />
                 </div>
@@ -178,13 +189,27 @@ const Mode3Draft = ({
 
                             <div className="roll-status">
                                 <div className={`roll-status-item ${draftState.coinFlip.team1Locked ? 'locked' : ''}`}>
-                                    <span className="player-color blue">🔵 {p1Name}</span>
+                                    <span
+                                        className="player-color blue interactive"
+                                        onClick={() => {
+                                            const p1Uid = draftState.preAssignedTeams?.team1?.leader;
+                                            const p1 = p1Uid && utils.registeredUsers?.find(u => u.uid === p1Uid || u.id === p1Uid);
+                                            if (p1) utils.openProfile(p1);
+                                        }}
+                                    >🔵 {p1Name}</span>
                                     <span className={`lock-status ${draftState.coinFlip.team1Locked ? 'locked' : 'waiting'}`}>
                                         {draftState.coinFlip.team1Locked ? '✓ Ready' : 'Waiting...'}
                                     </span>
                                 </div>
                                 <div className={`roll-status-item ${draftState.coinFlip.team2Locked ? 'locked' : ''}`}>
-                                    <span className="player-color red">🔴 {p2Name}</span>
+                                    <span
+                                        className="player-color red interactive"
+                                        onClick={() => {
+                                            const p2Uid = draftState.preAssignedTeams?.team2?.leader;
+                                            const p2 = p2Uid && utils.registeredUsers?.find(u => u.uid === p2Uid || u.id === p2Uid);
+                                            if (p2) utils.openProfile(p2);
+                                        }}
+                                    >🔴 {p2Name}</span>
                                     <span className={`lock-status ${draftState.coinFlip.team2Locked ? 'locked' : 'waiting'}`}>
                                         {draftState.coinFlip.team2Locked ? '✓ Ready' : 'Waiting...'}
                                     </span>

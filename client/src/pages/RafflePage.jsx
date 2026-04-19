@@ -645,6 +645,7 @@ import './RafflePage.css';
         <RaffleParticipantsModal 
             raffleId={id}
             participants={raffle.participants} 
+            currentUser={user}
             onClose={() => setShowParticipants(false)} 
             isAdmin={isAdminUser}
             onRemoveParticipant={handleRemoveParticipant}

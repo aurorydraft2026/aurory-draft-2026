@@ -45,9 +45,24 @@ const Mode2Draft = ({
 
         let label = `Player ${playerIndex + 1}`;
         if (playerIndex === 0) {
-            label = leader ? getUserDisplayName(leader) : 'Player 1';
+            label = leader ? (
+                <span
+                    className="player-name-link interactive"
+                    onClick={() => leader && utils.openProfile(leader)}
+                >
+                    {getUserDisplayName(leader)}
+                </span>
+            ) : 'Player 1';
         } else {
-            label = (otherMembers[playerIndex - 1] ? getUserDisplayName(otherMembers[playerIndex - 1]) : null) || `Player ${playerIndex + 1}`;
+            const member = otherMembers[playerIndex - 1];
+            label = member ? (
+                <span
+                    className="player-name-link interactive"
+                    onClick={() => utils.openProfile(member)}
+                >
+                    {getUserDisplayName(member)}
+                </span>
+            ) : `Player ${playerIndex + 1}`;
         }
 
         return (
@@ -132,11 +147,17 @@ const Mode2Draft = ({
                         <img
                             src={getUserProfilePicture(leader)}
                             alt=""
-                            className="leader-avatar"
+                            className="leader-avatar interactive"
+                            onClick={() => utils.openProfile(leader)}
                             onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                         />
                         <span className="leader-label">Captain:</span>
-                        <span className="leader-name">{getUserDisplayName(leader)}</span>
+                        <span
+                            className="leader-name interactive"
+                            onClick={() => utils.openProfile(leader)}
+                        >
+                            {getUserDisplayName(leader)}
+                        </span>
                     </div>
                 )}
                 <div className="team-picks-container">

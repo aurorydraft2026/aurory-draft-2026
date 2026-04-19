@@ -30,6 +30,7 @@ import { ElementBadge, RankStars } from '../components/AmikoEnhancements';
 import { isSuperAdmin, isUserSuperAdmin } from '../config/admins';
 import { useSounds } from '../hooks/useSounds';
 import { createNotification } from '../services/notifications';
+import { useProfileModal } from '../context/ProfileModalContext';
 import Mode1Draft from '../components/drafts/Mode1Draft';
 import Mode2Draft from '../components/drafts/Mode2Draft';
 import Mode3Draft from '../components/drafts/Mode3Draft';
@@ -73,6 +74,7 @@ const isAccountLinked = (user) => {
 };
 
 function TournamentPage() {
+  const { openProfile } = useProfileModal();
   const navigate = useNavigate();
   const location = useLocation();
   const { tournamentId } = useParams();
@@ -4737,6 +4739,7 @@ function TournamentPage() {
     getTeamLeader,
     getTeamMembers,
     copyToClipboard,
+    openProfile,
     ElementBadge,
     RankStars,
     getUserProfilePicture,
@@ -5231,7 +5234,11 @@ function TournamentPage() {
                       <div className={`assignment-column team-${draftState.teamColors?.teamA || 'blue'}`}>
                         <h5>{getTeamDisplayName('A')}</h5>
                         {teamAssignments.filter(a => a.team === 'A').map((a, i) => (
-                          <div key={a.participant.uid} className="assigned-user">
+                          <div
+                            key={a.participant.uid}
+                            className="assigned-user interactive"
+                            onClick={() => openProfile(a.participant)}
+                          >
                             <img
                               src={getUserProfilePicture(a.participant)}
                               alt=""
@@ -5244,7 +5251,11 @@ function TournamentPage() {
                       <div className={`assignment-column team-${draftState.teamColors?.teamB || 'red'}`}>
                         <h5>{getTeamDisplayName('B')}</h5>
                         {teamAssignments.filter(a => a.team === 'B').map((a, i) => (
-                          <div key={a.participant.uid} className="assigned-user">
+                          <div
+                            key={a.participant.uid}
+                            className="assigned-user interactive"
+                            onClick={() => openProfile(a.participant)}
+                          >
                             <img
                               src={getUserProfilePicture(a.participant)}
                               alt=""
@@ -5485,7 +5496,10 @@ function TournamentPage() {
                   <div className="match-slots">
                     <div className={`match-slot ${p1 ? 'filled' : (p1Invited ? 'invited' : 'open')}`}>
                       {p1 ? (
-                        <div className="slot-player">
+                        <div
+                          className="slot-player interactive"
+                          onClick={() => openProfile(p1)}
+                        >
                           <img
                             src={getUserProfilePicture(p1)}
                             alt="" className="slot-avatar"
@@ -5496,7 +5510,10 @@ function TournamentPage() {
                           {draftState.entryPaid?.[p1Uid] > 0 && <span className="paid-badge">✓ Paid</span>}
                         </div>
                       ) : p1Invited ? (
-                        <div className="slot-player invited">
+                        <div
+                          className="slot-player invited interactive"
+                          onClick={() => openProfile(p1Invited)}
+                        >
                           <img
                             src={getUserProfilePicture(p1Invited)}
                             alt="" className="slot-avatar grayscale"
@@ -5519,7 +5536,10 @@ function TournamentPage() {
 
                     <div className={`match-slot ${p2 ? 'filled' : (p2Invited ? 'invited' : 'open')}`}>
                       {p2 ? (
-                        <div className="slot-player">
+                        <div
+                          className="slot-player interactive"
+                          onClick={() => openProfile(p2)}
+                        >
                           <img
                             src={getUserProfilePicture(p2)}
                             alt="" className="slot-avatar"
@@ -5530,7 +5550,10 @@ function TournamentPage() {
                           {draftState.entryPaid?.[p2Uid] > 0 && <span className="paid-badge">✓ Paid</span>}
                         </div>
                       ) : p2Invited ? (
-                        <div className="slot-player invited">
+                        <div
+                          className="slot-player invited interactive"
+                          onClick={() => openProfile(p2Invited)}
+                        >
                           <img
                             src={getUserProfilePicture(p2Invited)}
                             alt="" className="slot-avatar grayscale"
@@ -6065,7 +6088,10 @@ function TournamentPage() {
                             />
                             <div className="chat-content">
                               <div className="chat-header">
-                                <span className="chat-sender">
+                                <span
+                                  className="chat-sender interactive"
+                                  onClick={() => openProfile({ uid: msg.senderUid, displayName: msg.senderName, photoURL: msg.senderAuroryPhoto || msg.senderPhoto })}
+                                >
                                   {msg.senderName}
                                   {msg.senderIsAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}
                                 </span>
@@ -6329,8 +6355,16 @@ function TournamentPage() {
                           <span className="slot-label">{(editTournament.draftType === 'mode3' || editTournament.draftType === 'mode4') ? '👤 Player' : '👑 Leader'}</span>
                           {editTeam1.leader ? (
                             <div className="assigned-user">
-                              <AvatarWithAura user={editGetUserById(editTeam1.leader)} size={32} />
-                              <span>{resolveDisplayName(editGetUserById(editTeam1.leader))}</span>
+                              <div
+                                className="avatar-wrapper interactive"
+                                onClick={() => openProfile(editGetUserById(editTeam1.leader))}
+                              >
+                                <AvatarWithAura user={editGetUserById(editTeam1.leader)} size={32} />
+                              </div>
+                              <span
+                                className="interactive"
+                                onClick={() => openProfile(editGetUserById(editTeam1.leader))}
+                              >{resolveDisplayName(editGetUserById(editTeam1.leader))}</span>
                               <button className="remove-btn" onClick={() => editRemoveFromSlot(1, 'leader')}>✖</button>
                             </div>
                           ) : (
@@ -6348,11 +6382,17 @@ function TournamentPage() {
                             <span className="slot-label">👤 Members (2)</span>
                             {editTeam1.member1 && editTeam1.member2 ? (
                               <div className="assigned-members-group">
-                                <div className="assigned-user mini">
+                                <div
+                                  className="assigned-user mini interactive"
+                                  onClick={() => openProfile(editGetUserById(editTeam1.member1))}
+                                >
                                   <AvatarWithAura user={editGetUserById(editTeam1.member1)} size={24} />
                                   <span className="mini-name">{resolveDisplayName(editGetUserById(editTeam1.member1))}</span>
                                 </div>
-                                <div className="assigned-user mini">
+                                <div
+                                  className="assigned-user mini interactive"
+                                  onClick={() => openProfile(editGetUserById(editTeam1.member2))}
+                                >
                                   <AvatarWithAura user={editGetUserById(editTeam1.member2)} size={24} />
                                   <span className="mini-name">{resolveDisplayName(editGetUserById(editTeam1.member2))}</span>
                                   <button className="remove-btn" onClick={() => { editRemoveFromSlot(1, 'member1'); editRemoveFromSlot(1, 'member2'); }}>✖</button>
@@ -6384,8 +6424,16 @@ function TournamentPage() {
                           <span className="slot-label">{(editTournament.draftType === 'mode3' || editTournament.draftType === 'mode4') ? '👤 Player' : '👑 Leader'}</span>
                           {editTeam2.leader ? (
                             <div className="assigned-user">
-                              <AvatarWithAura user={editGetUserById(editTeam2.leader)} size={32} />
-                              <span>{resolveDisplayName(editGetUserById(editTeam2.leader))}</span>
+                              <div
+                                className="avatar-wrapper interactive"
+                                onClick={() => openProfile(editGetUserById(editTeam2.leader))}
+                              >
+                                <AvatarWithAura user={editGetUserById(editTeam2.leader)} size={32} />
+                              </div>
+                              <span
+                                className="interactive"
+                                onClick={() => openProfile(editGetUserById(editTeam2.leader))}
+                              >{resolveDisplayName(editGetUserById(editTeam2.leader))}</span>
                               <button className="remove-btn" onClick={() => editRemoveFromSlot(2, 'leader')}>✖</button>
                             </div>
                           ) : (
@@ -6403,11 +6451,17 @@ function TournamentPage() {
                             <span className="slot-label">👤 Members (2)</span>
                             {editTeam2.member1 && editTeam2.member2 ? (
                               <div className="assigned-members-group">
-                                <div className="assigned-user mini">
+                                <div
+                                  className="assigned-user mini interactive"
+                                  onClick={() => openProfile(editGetUserById(editTeam2.member1))}
+                                >
                                   <AvatarWithAura user={editGetUserById(editTeam2.member1)} size={24} />
                                   <span className="mini-name">{resolveDisplayName(editGetUserById(editTeam2.member1))}</span>
                                 </div>
-                                <div className="assigned-user mini">
+                                <div
+                                  className="assigned-user mini interactive"
+                                  onClick={() => openProfile(editGetUserById(editTeam2.member2))}
+                                >
                                   <AvatarWithAura user={editGetUserById(editTeam2.member2)} size={24} />
                                   <span className="mini-name">{resolveDisplayName(editGetUserById(editTeam2.member2))}</span>
                                   <button className="remove-btn" onClick={() => { editRemoveFromSlot(2, 'member1'); editRemoveFromSlot(2, 'member2'); }}>✖</button>
@@ -6459,7 +6513,11 @@ function TournamentPage() {
                                 const u = editGetUserById(assignedUserId);
                                 if (!u) return null;
                                 return (
-                                  <div key={role} className="participant-item selection-active sticky-selection">
+                                  <div
+                                    key={role}
+                                    className="participant-item selection-active sticky-selection interactive"
+                                    onClick={() => openProfile(u)}
+                                  >
                                     <AvatarWithAura user={u} size={32} className="participant-avatar" />
                                     <div className="participant-info">
                                       <span className="participant-name">{resolveDisplayName(u)}</span>
@@ -6467,7 +6525,10 @@ function TournamentPage() {
                                         {(editTournament.draftType === 'mode3' || editTournament.draftType === 'mode4') ? 'Participant' : `Selected as ${role === 'leader' ? 'Leader' : role === 'member1' ? 'Member 1' : 'Member 2'}`}
                                       </span>
                                     </div>
-                                    <button className="deselect-circle-btn" onClick={() => editHandleDeselectDuringFlow(role)}>✖</button>
+                                    <button
+                                      className="deselect-circle-btn"
+                                      onClick={(e) => { e.stopPropagation(); editHandleDeselectDuringFlow(role); }}
+                                    >✖</button>
                                   </div>
                                 );
                               })}
@@ -6485,21 +6546,28 @@ function TournamentPage() {
                                 editFilteredSearchUsers.map(u => (
                                   <div
                                     key={u.id}
-                                    className={`participant-item hoverable ${!u.auroryPlayerId ? 'unlinked-warning' : ''}`}
-                                    onClick={() => editAssignParticipant(u.id)}
+                                    className={`participant-item hoverable ${!u.auroryPlayerId ? 'unlinked-warning' : ''} interactive`}
                                   >
-                                    <AvatarWithAura
-                                      user={u}
-                                      size={32}
-                                      className="participant-avatar"
-                                    />
-                                    <div className="participant-info">
-                                      <span className="participant-name">{resolveDisplayName(u)}</span>
-                                      {!u.auroryPlayerId && (
-                                        <span className="unlinked-label">⚠️ No Aurory account linked</span>
-                                      )}
+                                    <div
+                                      className="participant-clickable-area"
+                                      onClick={() => openProfile(u)}
+                                    >
+                                      <AvatarWithAura
+                                        user={u}
+                                        size={32}
+                                        className="participant-avatar"
+                                      />
+                                      <div className="participant-info">
+                                        <span className="participant-name">{resolveDisplayName(u)}</span>
+                                        {!u.auroryPlayerId && (
+                                          <span className="unlinked-label">⚠️ No Aurory account linked</span>
+                                        )}
+                                      </div>
                                     </div>
-                                    <div className="plus-indicator">+</div>
+                                    <div
+                                      className="plus-indicator"
+                                      onClick={() => editAssignParticipant(u.id)}
+                                    >+</div>
                                   </div>
                                 ))
 
