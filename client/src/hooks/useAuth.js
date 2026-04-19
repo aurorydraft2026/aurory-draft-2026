@@ -30,6 +30,9 @@ export const useAuth = (navigate) => {
     const [referralInput, setReferralInput] = useState('');
     const [isApplyingReferral, setIsApplyingReferral] = useState(false);
     const [referralCopied, setReferralCopied] = useState(false);
+    const [rouletteBadge, setRouletteBadge] = useState('/Tiers/tier1_loki.png');
+    const [isRouletteActive, setIsRouletteActive] = useState(false);
+    const [isSlamming, setIsSlamming] = useState(false);
     const profileMenuRef = useRef(null);
 
     // Auth state listener and redirect result handler
@@ -455,8 +458,40 @@ export const useAuth = (navigate) => {
                 const result = await upgradeTierCall();
                 if (result.success) {
                     setUnlockedTierData({ ...next, name: `Tier ${next.roman}` });
+                    
+                    // Trigger Roulette Animation
+                    setIsRouletteActive(true);
                     setShowTierUpgradeAnim(true);
-                    setTimeout(() => setShowTierUpgradeAnim(false), 4000);
+                    
+                    const tierBadges = [
+                        '/Tiers/tier1_loki.png',
+                        '/Tiers/tier2_thor.png',
+                        '/Tiers/tier3_odin.png'
+                    ];
+                    
+                    let spinCount = 0;
+                    const maxSpins = 12;
+                    let speed = 80;
+                    
+                    const spin = () => {
+                        spinCount++;
+                        setRouletteBadge(tierBadges[spinCount % tierBadges.length]);
+                        
+                        if (spinCount < maxSpins) {
+                            setTimeout(spin, speed);
+                            speed += 15;
+                        } else {
+                            // End roulette and show final slam
+                            setIsRouletteActive(false);
+                            setIsSlamming(true);
+                            // Only stop the shake after a bit, but do not close the overlay
+                            setTimeout(() => {
+                                setIsSlamming(false);
+                            }, 1000);
+                        }
+                    };
+                    
+                    spin();
                 }
             } catch (error) {
                 alert('❌ ' + (error.message || 'Upgrade failed'));
@@ -521,22 +556,6 @@ export const useAuth = (navigate) => {
                         </button>
                     </div>
 
-                    {/* ── TIER UPGRADE PREMIUM ANIMATION OVERLAY ── */}
-                    {showTierUpgradeAnim && unlockedTierData && (
-                        <div className="tier-upgrade-anim-overlay">
-                            <div className="viking-runes-bg">
-                                <span>ᚠ</span><span>ᚢ</span><span>ᚦ</span><span>ᚨ</span><span>ᚱ</span><span>ᚲ</span>
-                                <span>ᚷ</span><span>ᚹ</span><span>ᚺ</span><span>ᚻ</span><span>ᛁ</span><span>ᛃ</span>
-                            </div>
-                            <div className="tier-slam-content">
-                                <span className="unlock-label">SAGA UNLOCKED</span>
-                                <div className={`slam-badge tier-${unlockedTierData.roman.toLowerCase()}`}>
-                                    {unlockedTierData.name}
-                                </div>
-                                <span className="unlock-subtext">Your power grows, Warrior!</span>
-                            </div>
-                        </div>
-                    )}
 
                     <div className="user-modal-content">
                         {/* ── PROFILE HEADER ROW ── */}
@@ -643,7 +662,10 @@ export const useAuth = (navigate) => {
                         {/* ── TIER GAUGE ── */}
                         <div className="tier-gauge-section">
                             <div className="tier-gauge-header">
-                                <span className={`tier-badge tier-${userTier}`}>{tierConfig.name}</span>
+                                <span className={`tier-badge tier-${userTier}`}>
+                                    <img src={tierConfig.badge} alt="" className="tier-badge-logo-inline" />
+                                    {tierConfig.name}
+                                </span>
                                 <span className="tier-limit">{currentExp.toLocaleString()} / {tierConfig.gaugeMax.toLocaleString()} EXP</span>
                             </div>
                             <div className="tier-gauge-bar">
@@ -822,6 +844,52 @@ export const useAuth = (navigate) => {
                         </div>
                     </div>
                 </div>
+
+                {/* ── TIER UPGRADE PREMIUM ANIMATION OVERLAY ── */}
+                {showTierUpgradeAnim && unlockedTierData && (
+                    <div className={`tier-upgrade-anim-overlay ${isSlamming ? 'slamming' : ''}`}>
+                        <div className="viking-runes-bg">
+                            <span>ᚠ</span><span>ᚢ</span><span>ᚦ</span><span>ᚨ</span><span>ᚱ</span><span>ᚲ</span>
+                            <span>ᚷ</span><span>ᚹ</span><span>ᚺ</span><span>ᚻ</span><span>ᛁ</span><span>ᛃ</span>
+                            <span>ᛗ</span><span>ᛚ</span><span>ᛝ</span><span>ᛟ</span><span>ᛞ</span><span>ᛢ</span>
+                        </div>
+                        
+                        {isRouletteActive ? (
+                            <div className="roulette-wrapper">
+                                <div className="roulette-glow"></div>
+                                <div className="spinning-badge-container">
+                                    <img 
+                                        src={rouletteBadge} 
+                                        className="spinning-badge badge-rolling" 
+                                        alt="Spinning Tier" 
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="tier-slam-content">
+                                <span className="unlock-label">SAGA UNLOCKED</span>
+                                <img 
+                                    src={unlockedTierData.badge} 
+                                    className="slam-badge-img" 
+                                    alt={unlockedTierData.name} 
+                                />
+                                <div className={`slam-badge-text tier-${unlockedTierData.roman.toLowerCase()}`}>
+                                    {unlockedTierData.name}
+                                </div>
+                                <span className="unlock-subtext">Your power grows, Warrior!</span>
+                                
+                                <div className="upgrade-actions">
+                                    <button 
+                                        className="btn-primary upgrade-continue-btn"
+                                        onClick={() => setShowTierUpgradeAnim(false)}
+                                    >
+                                        CONTINUE JOURNEY
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         );
     };

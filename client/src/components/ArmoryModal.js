@@ -33,9 +33,13 @@ const ArmoryModal = ({ isOpen, onClose, user }) => {
     const handleEquip = async (cosmetic) => {
         const isEquipped = user?.equippedCosmetics?.[cosmetic.type] === cosmetic.id;
         try {
-            const result = await equipCosmetic(user.uid, cosmetic.id, cosmetic.type);
+            // If already equipped, pass null to unequip
+            const result = await equipCosmetic(user.uid, isEquipped ? null : cosmetic.id, cosmetic.type);
             if (result.success) {
-                setActionMessage({ type: 'success', text: isEquipped ? `${cosmetic.name} unequipped!` : `${cosmetic.name} equipped!` });
+                setActionMessage({ 
+                    type: 'success', 
+                    text: isEquipped ? `${cosmetic.name} unequipped!` : `${cosmetic.name} equipped!` 
+                });
                 setTimeout(() => setActionMessage(null), 3000);
             }
         } catch (error) {
@@ -104,7 +108,7 @@ const ArmoryModal = ({ isOpen, onClose, user }) => {
                                         <div className="armory-card-preview">
                                             {item.type === 'aura' ? (
                                                 <div className="aura-preview-item">
-                                                    <AvatarWithAura user={user} size={64} overrideAura={item.cssClass} />
+                                                    <AvatarWithAura user={user} size={64} auraData={item} />
                                                 </div>
                                             ) : (
                                                 <div className="banner-preview-item" style={getBannerStyleFromCosmetic(item) || {}}></div>

@@ -1,14 +1,15 @@
 .create-modal.create-matchup-modal {
     background: var(--bg-surface);
-    width: 90%;
+    width: 95%;
     max-width: 680px;
-    max-height: 85vh;
+    max-height: 90vh; /* Increased slightly for more space */
     border-radius: var(--radius-xl);
     border: 1px solid var(--border-default);
     box-shadow: var(--shadow-elevated);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
     animation: modalSlideUp 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
@@ -58,9 +59,11 @@
 }
 
 .create-matchup-modal .modal-body {
-    padding: 24px;
+    padding: 24px 32px; /* Slight horizontal padding increase */
     overflow-y: auto;
     flex: 1;
+    min-height: 0; /* Essential flexfix for scrolling children */
+    scrollbar-gutter: stable; /* Prevent layout shift when scroll appears */
 }
 
 .create-matchup-modal .form-group {
@@ -167,8 +170,19 @@
 }
 
 @media (max-width: 600px) {
+    .create-modal.create-matchup-modal {
+        max-height: 95vh;
+        width: 100%;
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        position: fixed;
+        bottom: 0;
+    }
+    .create-matchup-modal .modal-body {
+        padding: 20px 20px 40px 20px;
+    }
     .create-matchup-modal .form-row {
         grid-template-columns: 1fr;
+        gap: 12px;
     }
 }
 
