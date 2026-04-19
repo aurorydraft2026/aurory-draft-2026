@@ -339,6 +339,33 @@
 /* Card Preview */
 .cosmetic-card-preview {
   padding: 12px 0 4px;
+  position: relative;
+}
+
+/* Loading spinner overlay for animated asset preload */
+.cosmetic-card-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 10, 20, 0.55);
+  backdrop-filter: blur(2px);
+  border-radius: 8px;
+  z-index: 5;
+}
+
+.cosmetic-card-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--accent-gold, #f0c040);
+  border-radius: 50%;
+  animation: cosmetic-spin 0.7s linear infinite;
+}
+
+@keyframes cosmetic-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* Card Info */

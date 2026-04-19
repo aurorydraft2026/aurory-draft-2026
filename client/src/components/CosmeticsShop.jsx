@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getAllCosmetics, purchaseCosmetic, equipCosmetic, getEquippedBannerStyle, getBannerStyleFromCosmetic } from '../services/cosmeticsService';
 import { RARITY_CONFIG } from '../data/cosmetics';
 import { resolveDisplayName } from '../utils/userUtils';
@@ -16,6 +16,8 @@ const CosmeticsShop = ({ user }) => {
   const [purchasing, setPurchasing] = useState(null);
   const [actionMessage, setActionMessage] = useState(null);
   const [hoveredCardId, setHoveredCardId] = useState(null);
+  const [loadingCardId, setLoadingCardId] = useState(null);
+  const loadedAnimUrls = useRef(new Set());
 
   const ownedCosmetics = user?.ownedCosmetics || [];
   const equippedAura = user?.equippedCosmetics?.aura || null;
@@ -213,8 +215,20 @@ const CosmeticsShop = ({ user }) => {
                 '--rarity-glow': rarityConf?.glow || 'none',
                 ...(cosmetic.type === 'banner' ? (getBannerStyleFromCosmetic(cosmetic, hoveredCardId !== cosmetic.id) || {}) : {})
               }}
-              onMouseEnter={() => { setPreviewSlots(prev => ({ ...prev, [cosmetic.type]: cosmetic.id })); setHoveredCardId(cosmetic.id); }}
-              onMouseLeave={() => { setPreviewSlots({ aura: null, banner: null }); setHoveredCardId(null); }}
+              onMouseEnter={() => {
+                setPreviewSlots(prev => ({ ...prev, [cosmetic.type]: cosmetic.id }));
+                setHoveredCardId(cosmetic.id);
+                // Preload animated asset
+                const animUrl = cosmetic.gifUrl;
+                if (animUrl && !loadedAnimUrls.current.has(animUrl)) {
+                  setLoadingCardId(cosmetic.id);
+                  const img = new Image();
+                  img.onload = () => { loadedAnimUrls.current.add(animUrl); setLoadingCardId(prev => prev === cosmetic.id ? null : prev); };
+                  img.onerror = () => { setLoadingCardId(prev => prev === cosmetic.id ? null : prev); };
+                  img.src = animUrl;
+                }
+              }}
+              onMouseLeave={() => { setPreviewSlots({ aura: null, banner: null }); setHoveredCardId(null); setLoadingCardId(prev => prev === cosmetic.id ? null : prev); }}
             >
               {/* Rarity Badge */}
               <div className="cosmetic-rarity-badge" style={{ background: rarityConf?.color }}>
@@ -236,6 +250,11 @@ const CosmeticsShop = ({ user }) => {
                   auraData={cosmetic.type === 'aura' ? cosmetic : null}
                   forceAnimate={hoveredCardId === cosmetic.id}
                 />
+                {loadingCardId === cosmetic.id && (
+                  <div className="cosmetic-card-loading">
+                    <div className="cosmetic-card-spinner" />
+                  </div>
+                )}
               </div>
 
               {/* Info */}
