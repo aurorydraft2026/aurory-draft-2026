@@ -337,6 +337,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   const [cosmeticsLoading, setCosmeticsLoading] = useState(false);
   const [editingCosmetic, setEditingCosmetic] = useState(null); // null = adding new
   const [cosmeticFile, setCosmeticFile] = useState(null);
+  const [cosmeticStaticFile, setCosmeticStaticFile] = useState(null);
   const [cosmeticForm, setCosmeticForm] = useState({
     name: '',
     type: 'aura',
@@ -345,6 +346,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     description: '',
     placement: 'behind', // behind | overlay | border
     gifUrl: '',
+    pngUrl: '',
     cssClass: '',
     style: {} 
   });
@@ -813,23 +815,49 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     }
   };
 
+  const handleCosmeticStaticUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert('File too large. Please keep static images under 2MB.');
+        return;
+      }
+      setCosmeticStaticFile(file);
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCosmeticForm(prev => ({ ...prev, pngUrl: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSaveCosmetic = async (e) => {
     if (e) e.preventDefault();
     setProcessingId('save_cosmetic');
     
     try {
       let finalUrl = cosmeticForm.gifUrl;
+      let finalPngUrl = cosmeticForm.pngUrl;
 
-      // 1. Upload file if selected
+      // 1. Upload animated file if selected
       if (cosmeticFile) {
         const storageRef = ref(storage, `cosmetics/${Date.now()}_${cosmeticFile.name}`);
         const uploadResult = await uploadBytes(storageRef, cosmeticFile);
         finalUrl = await getDownloadURL(uploadResult.ref);
       }
 
+      // 2. Upload static preview file if selected
+      if (cosmeticStaticFile) {
+        const storageRef = ref(storage, `cosmetics/static/${Date.now()}_${cosmeticStaticFile.name}`);
+        const uploadResult = await uploadBytes(storageRef, cosmeticStaticFile);
+        finalPngUrl = await getDownloadURL(uploadResult.ref);
+      }
+
       const cosmeticData = {
         ...cosmeticForm,
         gifUrl: finalUrl,
+        pngUrl: finalPngUrl,
         updatedAt: serverTimestamp(),
         updatedBy: user.uid
       };
@@ -850,10 +878,11 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       // Reset form
       setCosmeticForm({
         name: '', type: 'aura', rarity: 'common', price: 1000,
-        description: '', placement: 'behind', gifUrl: '', cssClass: '', style: {}
+        description: '', placement: 'behind', gifUrl: '', pngUrl: '', cssClass: '', style: {}
       });
       setEditingCosmetic(null);
       setCosmeticFile(null);
+      setCosmeticStaticFile(null);
       
     } catch (error) {
       console.error('Error saving cosmetic:', error);
@@ -4478,7 +4507,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         setEditingCosmetic(null);
                         setCosmeticForm({
                           name: '', type: 'aura', rarity: 'common', price: 1000,
-                          description: '', placement: 'behind', gifUrl: '', cssClass: '', style: {}
+                          description: '', placement: 'behind', gifUrl: '', pngUrl: '', cssClass: '', style: {}
                         });
                     }}
                   >
@@ -4683,7 +4712,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         setEditingCosmetic(null);
                         setCosmeticForm({
                           name: '', type: 'aura', rarity: 'common', price: 1000,
-                          description: '', placement: 'behind', gifUrl: '', cssClass: '', style: {}
+                          description: '', placement: 'behind', gifUrl: '', pngUrl: '', cssClass: '', style: {}
                         });
                         setWebsiteSubTab('inventory_form');
                       }}
@@ -4769,24 +4798,47 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       )}
 
                       <div className="form-group">
-                         <label>Asset URL (GIF or Static Image)</label>
+                         <label>🎬 Animated Asset (AVIF / GIF / WebP)</label>
                          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                            <input 
                              type="text" 
                              value={cosmeticForm.gifUrl} 
                              onChange={(e) => setCosmeticForm(prev => ({ ...prev, gifUrl: e.target.value }))}
-                             placeholder="https://..."
+                             placeholder="https://... (animated asset URL)"
                              className="flex-3"
                            />
                            <div className="file-upload-wrapper flex-1">
                               <label className="file-upload-btn" style={{ padding: '8px', fontSize: '12px' }}>
-                                 📁 Upload New
-                                 <input type="file" onChange={handleCosmeticImageUpload} accept="image/*" />
+                                 📁 Upload Animated
+                                 <input type="file" onChange={handleCosmeticImageUpload} accept="image/avif,image/gif,image/webp,image/*" />
                               </label>
                            </div>
                          </div>
-                         {cosmeticFile && <p style={{ fontSize: '11px', color: '#10b981' }}>Selected: {cosmeticFile.name}</p>}
+                         {cosmeticFile && <p style={{ fontSize: '11px', color: '#10b981' }}>Animated: {cosmeticFile.name}</p>}
+                         <p className="helper-text" style={{ fontSize: '11px', marginTop: '4px' }}>Plays on mouse hover. Leave empty for static-only cosmetics.</p>
                       </div>
+
+                      <div className="form-group">
+                         <label>🖼️ Static Preview (PNG / JPG)</label>
+                         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                           <input 
+                             type="text" 
+                             value={cosmeticForm.pngUrl} 
+                             onChange={(e) => setCosmeticForm(prev => ({ ...prev, pngUrl: e.target.value }))}
+                             placeholder="https://... (static preview URL)"
+                             className="flex-3"
+                           />
+                           <div className="file-upload-wrapper flex-1">
+                              <label className="file-upload-btn" style={{ padding: '8px', fontSize: '12px' }}>
+                                 📁 Upload Static
+                                 <input type="file" onChange={handleCosmeticStaticUpload} accept="image/png,image/jpeg,image/webp,image/*" />
+                              </label>
+                           </div>
+                         </div>
+                         {cosmeticStaticFile && <p style={{ fontSize: '11px', color: '#10b981' }}>Static: {cosmeticStaticFile.name}</p>}
+                         <p className="helper-text" style={{ fontSize: '11px', marginTop: '4px' }}>Default display image. Shown when not hovered.</p>
+                      </div>
+
 
                       <button 
                         type="submit" 

@@ -15,6 +15,7 @@ const CosmeticsShop = ({ user }) => {
   const [previewSlots, setPreviewSlots] = useState({ aura: null, banner: null });
   const [purchasing, setPurchasing] = useState(null);
   const [actionMessage, setActionMessage] = useState(null);
+  const [hoveredCardId, setHoveredCardId] = useState(null);
 
   const ownedCosmetics = user?.ownedCosmetics || [];
   const equippedAura = user?.equippedCosmetics?.aura || null;
@@ -143,6 +144,7 @@ const CosmeticsShop = ({ user }) => {
               user={user}
               size={72}
               auraData={previewSlots.aura ? cosmetics.find(c => c.id === previewSlots.aura) : null}
+              alwaysAnimate
             />
           </div>
           <div className="preview-user-details">
@@ -209,10 +211,10 @@ const CosmeticsShop = ({ user }) => {
               style={{ 
                 '--rarity-color': rarityConf?.color || '#ccc', 
                 '--rarity-glow': rarityConf?.glow || 'none',
-                ...(cosmetic.type === 'banner' ? (getBannerStyleFromCosmetic(cosmetic) || {}) : {})
+                ...(cosmetic.type === 'banner' ? (getBannerStyleFromCosmetic(cosmetic, hoveredCardId !== cosmetic.id) || {}) : {})
               }}
-              onMouseEnter={() => setPreviewSlots(prev => ({ ...prev, [cosmetic.type]: cosmetic.id }))}
-              onMouseLeave={() => setPreviewSlots({ aura: null, banner: null })}
+              onMouseEnter={() => { setPreviewSlots(prev => ({ ...prev, [cosmetic.type]: cosmetic.id })); setHoveredCardId(cosmetic.id); }}
+              onMouseLeave={() => { setPreviewSlots({ aura: null, banner: null }); setHoveredCardId(null); }}
             >
               {/* Rarity Badge */}
               <div className="cosmetic-rarity-badge" style={{ background: rarityConf?.color }}>
@@ -232,6 +234,7 @@ const CosmeticsShop = ({ user }) => {
                   user={user}
                   size={56}
                   auraData={cosmetic.type === 'aura' ? cosmetic : null}
+                  forceAnimate={hoveredCardId === cosmetic.id}
                 />
               </div>
 

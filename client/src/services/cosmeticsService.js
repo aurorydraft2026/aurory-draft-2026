@@ -173,7 +173,7 @@ export const getEquippedAuraClass = (user) => {
   return COSMETICS_CACHE[auraId]?.cssClass || null;
 };
 
-export const getEquippedBannerStyle = (user) => {
+export const getEquippedBannerStyle = (user, useStatic = false) => {
   const bannerId = user?.equippedCosmetics?.banner;
   if (!bannerId) return null;
   const banner = COSMETICS_CACHE[bannerId];
@@ -184,10 +184,11 @@ export const getEquippedBannerStyle = (user) => {
     return banner.style;
   }
   
-  // Otherwise, construct banner style from the gifUrl (admin-created banners)
-  if (banner.gifUrl) {
+  // When useStatic is true, prefer pngUrl for non-animated state
+  const url = useStatic && banner.pngUrl ? banner.pngUrl : banner.gifUrl;
+  if (url) {
     return {
-      backgroundImage: `url("${banner.gifUrl}")`,
+      backgroundImage: `url("${url}")`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       backgroundRepeat: 'no-repeat'
@@ -195,6 +196,17 @@ export const getEquippedBannerStyle = (user) => {
   }
   
   return null;
+};
+
+/**
+ * Returns true if this user has a banner that supports animated/static toggling
+ * (i.e. the banner cosmetic has both gifUrl and pngUrl).
+ */
+export const hasBannerAnimation = (user) => {
+  const bannerId = user?.equippedCosmetics?.banner;
+  if (!bannerId) return false;
+  const banner = COSMETICS_CACHE[bannerId];
+  return !!(banner?.gifUrl);
 };
 
 export const getEquippedFrameClass = (user) => {
@@ -207,8 +219,9 @@ export const getEquippedFrameClass = (user) => {
  * Extract the visual background style from a banner cosmetic object.
  * Works for both legacy banners (with a pre-built `style` object) and
  * admin-created banners (with only a `gifUrl`).
+ * @param {boolean} useStatic - If true, prefer pngUrl for static display.
  */
-export const getBannerStyleFromCosmetic = (cosmetic) => {
+export const getBannerStyleFromCosmetic = (cosmetic, useStatic = false) => {
   if (!cosmetic || cosmetic.type !== 'banner') return null;
   
   // Legacy banners with pre-built style objects
@@ -216,10 +229,11 @@ export const getBannerStyleFromCosmetic = (cosmetic) => {
     return cosmetic.style;
   }
   
-  // Admin-created banners with gifUrl
-  if (cosmetic.gifUrl) {
+  // Prefer pngUrl when useStatic is true
+  const url = useStatic && cosmetic.pngUrl ? cosmetic.pngUrl : cosmetic.gifUrl;
+  if (url) {
     return {
-      backgroundImage: `url("${cosmetic.gifUrl}")`,
+      backgroundImage: `url("${url}")`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       backgroundRepeat: 'no-repeat'
@@ -228,3 +242,4 @@ export const getBannerStyleFromCosmetic = (cosmetic) => {
   
   return null;
 };
+

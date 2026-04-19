@@ -26,7 +26,7 @@ const RaffleWinnerModal = ({ winner, itemType, itemImage, auryAmount, onClose })
 
           {/* Winner Info */}
           <div className="rwm-avatar">
-            <AvatarWithAura user={winner} size={80} />
+            <AvatarWithAura user={winner} size={80} alwaysAnimate />
           </div>
           <div className="rwm-winner-name">{winner.playerName || winner.displayName || 'Unknown Player'}</div>
           {winner.auroryPlayerId && (

@@ -12,6 +12,7 @@ const PARTICIPANT_CACHE = {};
 
 const RaffleParticipantsModal = ({ raffleId, participants = [], currentUser, onClose, isAdmin, onRemoveParticipant }) => {
   const { openProfile } = useProfileModal();
+  const [hoveredUid, setHoveredUid] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const hasSynced = useRef(false);
 
@@ -237,13 +238,15 @@ const RaffleParticipantsModal = ({ raffleId, participants = [], currentUser, onC
                 <div 
                   key={p.uid || p.rank} 
                   className={`viking-participant-row interactive ${isAdmin ? 'has-admin' : ''} ${p.isFlagged ? 'flagged' : ''} ${p.hasBanner ? 'has-banner' : ''}`}
-                  style={p.bannerStyle || {}}
+                  style={p.hasBanner ? (getEquippedBannerStyle(p, hoveredUid !== p.uid) || {}) : {}}
                   onClick={() => openProfile(p)}
+                  onMouseEnter={() => setHoveredUid(p.uid)}
+                  onMouseLeave={() => setHoveredUid(null)}
                 >
                   <span className="p-rank">#{p.rank}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div className="p-avatar-mini">
-                      <AvatarWithAura user={p} size={28} />
+                      <AvatarWithAura user={p} size={28} forceAnimate={hoveredUid === p.uid} />
                     </div>
                     <div className="p-name-col">
                       <span className="p-name">{p.playerName}</span>

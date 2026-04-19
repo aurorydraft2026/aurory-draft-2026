@@ -578,7 +578,7 @@ export const useAuth = (navigate) => {
                                 </button>
                             )}
                             <div className="profile-pic-wrapper">
-                                <AvatarWithAura user={user} size={80} className="modal-profile-pic-aura" />
+                                <AvatarWithAura user={user} size={80} className="modal-profile-pic-aura" alwaysAnimate />
                             </div>
                             <div className="user-text-info">
                                 <span className="modal-username">

@@ -11,6 +11,7 @@ const JoinTeamModal = ({ isOpen, onClose, onJoin, registeredUsers, currentUser }
     const [member2, setMember2] = useState(null);
     const [assigningSlot, setAssigningSlot] = useState(null); // { role: 'leader' | 'member1' | 'member2' }
     const [searchQuery, setSearchQuery] = useState('');
+    const [hoveredUserId, setHoveredUserId] = useState(null);
 
     useEffect(() => {
         if (isOpen && currentUser) {
@@ -264,11 +265,14 @@ const JoinTeamModal = ({ isOpen, onClose, onJoin, registeredUsers, currentUser }
                                                 key={u.id}
                                                 className={`participant-item hoverable ${!u.auroryPlayerId ? 'unlinked-warning' : ''}`}
                                                 onClick={() => handleAssign(u.id)}
+                                                onMouseEnter={() => setHoveredUserId(u.id)}
+                                                onMouseLeave={() => setHoveredUserId(null)}
                                             >
                                                 <AvatarWithAura
                                                     user={u}
                                                     size={36}
                                                     className="participant-avatar"
+                                                    forceAnimate={hoveredUserId === u.id}
                                                 />
                                                 <div className="participant-info">
                                                     <span className="participant-name">{resolveDisplayName(u)}</span>

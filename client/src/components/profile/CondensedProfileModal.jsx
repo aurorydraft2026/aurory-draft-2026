@@ -124,7 +124,7 @@ const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
           <button className="close-condensed-btn" onClick={onClose}>✕</button>
           
           <div className="header-content">
-            <AvatarWithAura user={mergedUser} size={80} className="condensed-avatar" />
+            <AvatarWithAura user={mergedUser} size={80} className="condensed-avatar" alwaysAnimate />
             <div className="header-text">
               <h2 className="condensed-name">{resolveDisplayName(mergedUser)}</h2>
               <div className="condensed-badges">

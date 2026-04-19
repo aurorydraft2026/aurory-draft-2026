@@ -108,7 +108,7 @@ const ArmoryModal = ({ isOpen, onClose, user }) => {
                                         <div className="armory-card-preview">
                                             {item.type === 'aura' ? (
                                                 <div className="aura-preview-item">
-                                                    <AvatarWithAura user={user} size={64} auraData={item} />
+                                                    <AvatarWithAura user={user} size={64} auraData={item} alwaysAnimate />
                                                 </div>
                                             ) : (
                                                 <div className="banner-preview-item" style={getBannerStyleFromCosmetic(item) || {}}></div>

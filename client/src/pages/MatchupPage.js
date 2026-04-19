@@ -57,6 +57,7 @@ const MatchupPage = () => {
     const [isSavingEdit, setIsSavingEdit] = useState(false);
     const [showLinkModal, setShowLinkModal] = useState(false);
     const [zoomLevel, setZoomLevel] = useState(1);
+    const [hoveredRowId, setHoveredRowId] = useState(null);
     
     const ENTRY_FEE = matchup?.requiresEntryFee ? (matchup?.entryFeeAmount || 0) : 0;
 
@@ -2400,9 +2401,9 @@ const MatchupPage = () => {
                                                 {[team.leader, ...(team.members || [])].map(uid => {
                                                     const pUser = getUserById(uid);
                                                     return (
-                                                        <div key={uid} className="player-score-row interactive" onClick={() => openProfile(pUser)}>
+                                                        <div key={uid} className="player-score-row interactive" onClick={() => openProfile(pUser)} onMouseEnter={() => setHoveredRowId('score-' + uid)} onMouseLeave={() => setHoveredRowId(null)}>
                                                             <div className="p-score-avatar">
-                                                                <AvatarWithAura user={pUser} size={32} />
+                                                                <AvatarWithAura user={pUser} size={32} forceAnimate={hoveredRowId === 'score-' + uid} />
                                                             </div>
                                                             <span className="p-score-name">{resolveDisplayName(pUser)}</span>
                                                             <div className="p-score-input-wrapper">
@@ -2454,10 +2455,10 @@ const MatchupPage = () => {
                                         {sortedPlayers.map((item, index) => {
                                             const pUser = getUserById(item.uid);
                                             return (
-                                                <div key={item.uid} className={`leader-row interactive rank-${index + 1}`} onClick={() => openProfile(pUser)}>
+                                                <div key={item.uid} className={`leader-row interactive rank-${index + 1}`} onClick={() => openProfile(pUser)} onMouseEnter={() => setHoveredRowId('leader-' + item.uid)} onMouseLeave={() => setHoveredRowId(null)}>
                                                     <div className="rank-badge">{index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}</div>
                                                     <div className="leader-avatar">
-                                                        <AvatarWithAura user={pUser} size={32} />
+                                                        <AvatarWithAura user={pUser} size={32} forceAnimate={hoveredRowId === 'leader-' + item.uid} />
                                                     </div>
                                                     <div className="leader-info">
                                                         <span className="leader-name">{resolveDisplayName(pUser)}</span>

@@ -14,9 +14,20 @@ import './AvatarWithAura.css';
  * @param {number} [props.size=40] - Avatar size in pixels
  * @param {string} [props.className] - Additional CSS class
  * @param {Function} [props.onClick] - Click handler
+ * @param {boolean} [props.forceAnimate=false] - Parent-controlled animation (e.g., row hover)
+ * @param {boolean} [props.alwaysAnimate=false] - Always animate (e.g., profile modals)
  */
-const AvatarWithAura = ({ user, auraData: initialAuraData = null, size = 40, className = '', onClick }) => {
+const AvatarWithAura = ({ 
+  user, 
+  auraData: initialAuraData = null, 
+  size = 40, 
+  className = '', 
+  onClick,
+  forceAnimate = false,
+  alwaysAnimate = false
+}) => {
   const [auraData, setAuraData] = useState(initialAuraData);
+  const [isHovering, setIsHovering] = useState(false);
   const avatarUrl = resolveAvatar(user);
 
   useEffect(() => {
@@ -44,24 +55,34 @@ const AvatarWithAura = ({ user, auraData: initialAuraData = null, size = 40, cla
 
   const auraClass = auraData?.cssClass || '';
   const gifUrl = auraData?.gifUrl || null;
+  const pngUrl = auraData?.pngUrl || null;
   const placement = auraData?.placement || 'behind'; // behind | overlay | border
   const rarityColor = auraData ? RARITY_CONFIG[auraData.rarity]?.color : null;
 
+  // Animation state: animate only when alwaysAnimate, forceAnimate, or self-hovering
+  const shouldAnimate = alwaysAnimate || forceAnimate || isHovering;
+
+  // Determine which image to show for the aura
+  const activeAuraUrl = shouldAnimate && gifUrl ? gifUrl : pngUrl;
+
   return (
     <div
-      className={`avatar-aura-wrapper ${auraClass} ${className} placement-${placement}`}
+      className={`avatar-aura-wrapper ${auraClass} ${className} placement-${placement} ${shouldAnimate ? 'animating' : ''}`}
       style={{
         '--avatar-size': `${size}px`,
         '--aura-color': rarityColor || 'rgba(212,175,55,0.6)',
       }}
       onClick={onClick}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
     >
       {/* 1. BEHIND Layer (Default) */}
-      {(auraClass || (gifUrl && placement === 'behind')) && (
+      {(activeAuraUrl || auraClass) && placement === 'behind' && (
         <div className="aura-container aura-container-behind">
-          {gifUrl ? (
-            <img src={gifUrl} alt="" className="aura-gif-layer" />
-          ) : (
+          {activeAuraUrl ? (
+            <img src={activeAuraUrl} alt="" className="aura-gif-layer" />
+          ) : gifUrl || pngUrl ? null : (
+            /* Legacy CSS layers — only render if no image URLs at all */
             <>
               <div className="aura-layer aura-layer-1" />
               <div className="aura-layer aura-layer-2" />
@@ -72,9 +93,9 @@ const AvatarWithAura = ({ user, auraData: initialAuraData = null, size = 40, cla
       )}
 
       {/* 2. ON BORDER Layer */}
-      {gifUrl && placement === 'border' && (
+      {activeAuraUrl && placement === 'border' && (
         <div className="aura-container aura-container-border">
-          <img src={gifUrl} alt="" className="aura-gif-layer" />
+          <img src={activeAuraUrl} alt="" className="aura-gif-layer" />
         </div>
       )}
 
@@ -90,9 +111,9 @@ const AvatarWithAura = ({ user, auraData: initialAuraData = null, size = 40, cla
       />
 
       {/* 3. OVERLAY Layer (Top) */}
-      {gifUrl && placement === 'overlay' && (
+      {activeAuraUrl && placement === 'overlay' && (
         <div className="aura-container aura-container-overlay">
-          <img src={gifUrl} alt="" className="aura-gif-layer" />
+          <img src={activeAuraUrl} alt="" className="aura-gif-layer" />
         </div>
       )}
     </div>
