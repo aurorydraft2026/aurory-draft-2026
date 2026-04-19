@@ -4,8 +4,8 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 // ─── TIER CONFIGURATION ───
 const TIER_CONFIG: Record<number, { max: number; upgradeCost: number | null; gaugeMax: number }> = {
   1: { max: 30000, upgradeCost: null, gaugeMax: 50000 },      // Tier I: 30k cap, 50k exp to upgrade
-  2: { max: 50000, upgradeCost: 30000, gaugeMax: 100000 },     // Tier II: 50k cap, 100k exp to upgrade
-  3: { max: 100000, upgradeCost: 50000, gaugeMax: 250000 },    // Tier III: 100k cap, 250k exp max
+  2: { max: 50000, upgradeCost: 30000, gaugeMax: 150000 },     // Tier II: 50k cap, 150k exp to upgrade
+  3: { max: 100000, upgradeCost: 50000, gaugeMax: 500000 },    // Tier III: 100k cap, 500k exp max
 };
 
 const UPGRADE_BONUS = 1000;

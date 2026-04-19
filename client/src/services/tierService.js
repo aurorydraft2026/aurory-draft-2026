@@ -3,8 +3,8 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 // ─── TIER CONFIGURATION (mirrors backend) ───
 export const TIER_CONFIG = {
   1: { name: 'Tier I', max: 30000, upgradeCost: 0, roman: 'I', badge: '/Tiers/tier1_loki.png', gaugeMax: 50000 },
-  2: { name: 'Tier II', max: 50000, upgradeCost: 30000, roman: 'II', badge: '/Tiers/tier2_thor.png', gaugeMax: 100000 },
-  3: { name: 'Tier III', max: 100000, upgradeCost: 50000, roman: 'III', badge: '/Tiers/tier3_odin.png', gaugeMax: 250000 },
+  2: { name: 'Tier II', max: 50000, upgradeCost: 30000, roman: 'II', badge: '/Tiers/tier2_thor.png', gaugeMax: 150000 },
+  3: { name: 'Tier III', max: 100000, upgradeCost: 50000, roman: 'III', badge: '/Tiers/tier3_odin.png', gaugeMax: 500000 },
 };
 
 export const getTierExp = (user) => {
