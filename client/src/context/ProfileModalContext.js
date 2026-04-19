@@ -6,6 +6,17 @@ const ProfileModalContext = createContext();
 export function ProfileModalProvider({ children }) {
   const [selectedUser, setSelectedUser] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [statsCache, setStatsCache] = useState({});
+
+  const updateStatsCache = useCallback((uid, data) => {
+    setStatsCache(prev => ({
+      ...prev,
+      [uid]: {
+        ...data,
+        timestamp: Date.now()
+      }
+    }));
+  }, []);
 
   const openProfile = useCallback((userData) => {
     if (!userData) return;
@@ -32,7 +43,14 @@ export function ProfileModalProvider({ children }) {
   }, []);
 
   return (
-    <ProfileModalContext.Provider value={{ openProfile, closeProfile, selectedUser, isOpen }}>
+    <ProfileModalContext.Provider value={{ 
+      openProfile, 
+      closeProfile, 
+      selectedUser, 
+      isOpen,
+      statsCache,
+      updateStatsCache
+    }}>
       {children}
       {selectedUser && (
         <CondensedProfileModal

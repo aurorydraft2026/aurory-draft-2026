@@ -5,45 +5,51 @@ import { doc, getDoc, collection, query, where, getCountFromServer } from 'fireb
 import { database, db } from '../../firebase';
 import AvatarWithAura from '../AvatarWithAura';
 import { resolveDisplayName } from '../../utils/userUtils';
+import { useProfileModal } from '../../context/ProfileModalContext';
 import './CondensedProfileModal.css';
 
 /**
  * CondensedProfileModal - A privacy-first, high-density profile view
  * for raffle participants.
  */
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
   const { uid } = user || {};
+  const { statsCache, updateStatsCache } = useProfileModal();
   const [pvpWins, setPvpWins] = useState(0);
   const [pvpRank, setPvpRank] = useState(null);
   const [wealthRank, setWealthRank] = useState(null);
   const [loading, setLoading] = useState(false);
   const [liveProfile, setLiveProfile] = useState(null);
 
+
   const loadStats = useCallback(async () => {
     setLoading(true);
     try {
       const today = new Date().toISOString().split('T')[0];
       
-      // 1. Fetch Daily PvP Wins & Rank from RTDB
-      const pvpRef = ref(database, `leaderboards/earnings/wins/pvp/daily/${today}`);
-      onValue(pvpRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-          const userEntry = data[uid];
-          if (userEntry) {
-            setPvpWins(userEntry.score || 0);
+      // 1. Fetch Daily PvP Wins & Rank from RTDB (Promisified)
+      const pvpStats = await new Promise((resolve) => {
+        const pvpRef = ref(database, `leaderboards/earnings/wins/pvp/daily/${today}`);
+        onValue(pvpRef, (snapshot) => {
+          const data = snapshot.val();
+          if (data && data[uid]) {
+            const userEntry = data[uid];
             const participants = Object.values(data);
             const higherScores = participants.filter(p => (p.score || 0) > (userEntry.score || 0)).length;
-            setPvpRank(higherScores + 1);
+            resolve({ 
+              wins: userEntry.score || 0, 
+              rank: higherScores + 1 
+            });
           } else {
-            setPvpWins(0);
-            setPvpRank('100+');
+            resolve({ wins: 0, rank: data ? '100+' : 'N/A' });
           }
-        } else {
-          setPvpWins(0);
-          setPvpRank('N/A');
-        }
-      }, { onlyOnce: true });
+        }, { onlyOnce: true });
+      });
+
+      setPvpWins(pvpStats.wins);
+      setPvpRank(pvpStats.rank);
 
       // 2. Fetch Total Wealth Rank from Firestore (Total Valcoins)
       const userRef = doc(db, 'users', uid);
@@ -55,7 +61,16 @@ const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
           const currentPoints = data.points || 0;
           const q = query(collection(db, 'users'), where('points', '>', currentPoints));
           const countSnap = await getCountFromServer(q);
-          setWealthRank(countSnap.data().count + 1);
+          const wealth = countSnap.data().count + 1;
+          setWealthRank(wealth);
+
+          // 3. Update Cache
+          updateStatsCache(uid, {
+            pvpWins: pvpStats.wins,
+            pvpRank: pvpStats.rank,
+            wealthRank: wealth,
+            liveProfile: data
+          });
       } else {
           setWealthRank('N/A');
       }
@@ -63,16 +78,29 @@ const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
     } catch (error) {
       console.error('Error loading profile statistics:', error);
     } finally {
-      setTimeout(() => setLoading(false), 600);
+      setTimeout(() => setLoading(false), 300); // Reduced delay
     }
-  }, [uid]);
+  }, [uid, updateStatsCache]);
 
   useEffect(() => {
-    setLiveProfile(null);
     if (isOpen && uid) {
-      loadStats();
+      const cached = statsCache[uid];
+      const now = Date.now();
+      
+      if (cached && (now - cached.timestamp < CACHE_TTL)) {
+        // Use cached data
+        setPvpWins(cached.pvpWins || 0);
+        setPvpRank(cached.pvpRank || '...');
+        setWealthRank(cached.wealthRank || '...');
+        setLiveProfile(cached.liveProfile || null);
+        setLoading(false);
+      } else {
+        // Refresh data
+        setLiveProfile(null);
+        loadStats();
+      }
     }
-  }, [isOpen, uid, loadStats]);
+  }, [isOpen, uid, loadStats, statsCache]);
 
   if (!isOpen) return null;
 
