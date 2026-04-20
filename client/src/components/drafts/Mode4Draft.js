@@ -184,14 +184,13 @@ const Mode4Draft = ({
             : (draftState.teamColors?.teamB === 'blue' ? draftState.teamBanners?.team1 : draftState.teamBanners?.team2);
 
         const leaderImage = leader ? getUserProfilePicture(leader) : DEFAULT_AVATAR;
-        const playerBanner = teamBanner || leaderImage;
         const isCurrentTeam = draftState.currentTeam === team && draftState.status === 'active';
 
         return (
             <div className={`team-panel team-${teamColor} ${isCurrentTeam ? 'active-turn' : ''}`}>
                 <div className="team-banner-circle">
                     <img
-                        src={playerBanner}
+                        src={teamBanner || leaderImage}
                         alt={getTeamDisplayName(team)}
                         className="interactive"
                         onClick={() => leader && utils.openProfile(leader)}

@@ -116,10 +116,10 @@ function App() {
             createdAt: serverTimestamp() // Only sets if doc is new
           }, { merge: true });
         } else {
-          // For registered users, just update lastSeen
-          await updateDoc(userRef, {
+          // For registered users, just update lastSeen (using setDoc with merge to ensure no failing updates before initialization)
+          await setDoc(userRef, {
             lastSeen: serverTimestamp()
-          });
+          }, { merge: true });
         }
       } catch (error) {
         console.error('Error updating lastSeen:', error);

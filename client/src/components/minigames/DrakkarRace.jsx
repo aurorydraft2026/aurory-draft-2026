@@ -187,8 +187,19 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
 
   // ─── 2. Heartbeat & Timer ───
   useEffect(() => {
+    let nullWaitTicks = 0;
     const interval = setInterval(() => {
-      if (!state) return;
+      if (!state) {
+        nullWaitTicks++;
+        // If state is null for 3 seconds (6 ticks), attempt to revive/initialize the race
+        if (nullWaitTicks > 6) {
+          refreshDrakkarRace();
+          nullWaitTicks = 0;
+        }
+        return;
+      }
+      
+      nullWaitTicks = 0;
       const now = Date.now();
       const diff = state.endTime - now;
       setTimeLeft(Math.max(0, diff));

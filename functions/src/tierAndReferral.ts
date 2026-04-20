@@ -73,7 +73,7 @@ export const ensureReferralCode = onCall(
       updates.tier = 1;
     }
 
-    await userRef.update(updates);
+    await userRef.set(updates, { merge: true });
 
     return { code, tier: userData.tier || 1 };
   }

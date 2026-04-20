@@ -56,8 +56,11 @@ const Mode3Draft = ({
         user.uid === draftState.preAssignedTeams.team1?.leader ||
         user.uid === draftState.preAssignedTeams.team2?.leader
     );
-    const isTeam1Leader = user && user.uid === draftState.preAssignedTeams?.team1?.leader;
-    const isTeam2Leader = user && user.uid === draftState.preAssignedTeams?.team2?.leader;
+    // Derived player flags
+    const team1LeaderUid = draftState.preAssignedTeams?.team1?.leader;
+    const team2LeaderUid = draftState.preAssignedTeams?.team2?.leader;
+    const isTeam1Leader = user && user.uid === team1LeaderUid;
+    const isTeam2Leader = user && user.uid === team2LeaderUid;
 
     const renderPlayerSection = (team, picks) => {
         const leader = getTeamLeader(team);
