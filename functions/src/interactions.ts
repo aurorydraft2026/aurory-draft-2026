@@ -309,38 +309,173 @@ async function handleLeaderboard(interaction: any, res: any) {
         }
 
         if (category === 'valcoins') {
-            const snapshot = await rtdb.ref(`leaderboards/earnings/valcoins/all/${timeframePath}`).orderByChild('score').limitToLast(10).once('value');
+            const snapshot = await rtdb.ref(`leaderboards/earnings/valcoins/all/${timeframePath}`).orderByChild('score').limitToLast(100).once('value');
             if (!snapshot.exists()) {
-                leaderboardText = `📊 No ${timeframeTitle.toLowerCase()} data yet.`;
-            } else {
-                const entries: { name: string; score: number }[] = [];
-                snapshot.forEach((child: any) => { entries.push({ name: child.val().displayName || 'Unknown', score: child.val().score || 0 }); });
-                entries.sort((a, b) => b.score - a.score);
-                leaderboardText = entries.map((e, i) => `${i < 3 ? medals[i] : `\`${i + 1}.\``} **${e.name}** — ${e.score.toLocaleString()} Valcoins`).join('\n');
+                res.status(200).json({
+                    type: CHANNEL_MESSAGE,
+                    data: { content: `📊 No ${timeframeTitle.toLowerCase()} earnings data yet.` }
+                });
+                return;
             }
-            title = `🏆 Top Valcoin Earners — ${timeframeTitle}`;
-            color = 0xF1C40F;
+
+            const entries: { name: string; score: number }[] = [];
+            snapshot.forEach((child: any) => { 
+                entries.push({ 
+                    name: child.val().displayName || 'Unknown', 
+                    score: child.val().score || 0 
+                }); 
+            });
+            entries.sort((a, b) => b.score - a.score);
+
+            if (entries.length === 0) {
+                res.status(200).json({
+                    type: CHANNEL_MESSAGE,
+                    data: { content: '📊 No warriors have earned Valcoins yet!' }
+                });
+                return;
+            }
+
+            // Split into chunks of 25 for multiple embeds
+            const embeds = [];
+            for (let i = 0; i < entries.length; i += 25) {
+                const chunk = entries.slice(i, i + 25);
+                const leaderboardText = chunk.map((e, idx) => {
+                    const rank = i + idx + 1;
+                    return `${rank < 4 && i === 0 ? medals[idx] : `\`${rank}.\``} **${e.name}** — ${e.score.toLocaleString()} Valcoins`;
+                }).join('\n');
+
+                embeds.push({
+                    title: i === 0 ? `🏆 Top Valcoin Earners — ${timeframeTitle}` : undefined,
+                    description: leaderboardText,
+                    color: 0xF1C40F, // Gold
+                    footer: i + 25 >= entries.length ? { 
+                        text: 'Runie • Earnings Ranking', 
+                        icon_url: 'https://asgard-duels.web.app/favicon.ico' 
+                    } : undefined,
+                    timestamp: i === 0 ? new Date().toISOString() : undefined
+                });
+            }
+
+            res.status(200).json({
+                type: CHANNEL_MESSAGE,
+                data: { embeds }
+            });
+            return;
 
         } else if (category === 'pvp_wins') {
             console.log(`[Interaction] Fetching pvp_wins from ${timeframePath}...`);
-            const snapshot = await rtdb.ref(`leaderboards/earnings/wins/pvp/${timeframePath}`).orderByChild('score').limitToLast(10).once('value');
-            console.log(`[Interaction] pvp_wins snapshot exists: ${snapshot.exists()}`);
+            const snapshot = await rtdb.ref(`leaderboards/earnings/wins/pvp/${timeframePath}`).orderByChild('score').limitToLast(100).once('value');
             
             if (!snapshot.exists()) {
-                leaderboardText = `📊 No PvP wins recorded ${timeframe === 'all_time' ? 'yet' : `for this ${timeframe.replace('ly', '')}`}.`;
-            } else {
-                const entries: { name: string; score: number }[] = [];
-                snapshot.forEach((child: any) => { 
-                    entries.push({ 
-                        name: child.val().displayName || 'Unknown', 
-                        score: child.val().score || 0 
-                    }); 
+                res.status(200).json({
+                    type: CHANNEL_MESSAGE,
+                    data: { content: `📊 No PvP wins recorded ${timeframe === 'all_time' ? 'yet' : `for this ${timeframe.replace('ly', '')}`}.` }
                 });
-                entries.sort((a, b) => b.score - a.score);
-                leaderboardText = entries.map((e, i) => `${i < 3 ? medals[i] : `\`${i + 1}.\``} **${e.name}** — ${e.score} Wins`).join('\n');
+                return;
             }
-            title = `⚔️ Top PvP Warriors — ${timeframeTitle} Wins`;
-            color = 0xE67E22;
+
+            const entries: { name: string; score: number }[] = [];
+            snapshot.forEach((child: any) => { 
+                entries.push({ 
+                    name: child.val().displayName || 'Unknown', 
+                    score: child.val().score || 0 
+                }); 
+            });
+            entries.sort((a, b) => b.score - a.score);
+
+            if (entries.length === 0) {
+                res.status(200).json({
+                    type: CHANNEL_MESSAGE,
+                    data: { content: '📊 No PvP victories recorded yet!' }
+                });
+                return;
+            }
+
+            // Split into chunks of 25 for multiple embeds
+            const embeds = [];
+            for (let i = 0; i < entries.length; i += 25) {
+                const chunk = entries.slice(i, i + 25);
+                const leaderboardText = chunk.map((e, idx) => {
+                    const rank = i + idx + 1;
+                    return `${rank < 4 && i === 0 ? medals[idx] : `\`${rank}.\``} **${e.name}** — ${e.score} Wins`;
+                }).join('\n');
+
+                embeds.push({
+                    title: i === 0 ? `🔥 Top PvP Warriors — ${timeframeTitle} Wins` : undefined,
+                    description: leaderboardText,
+                    color: 0xE67E22, // Orange
+                    footer: i + 25 >= entries.length ? { 
+                        text: 'Runie • PvP Ranking', 
+                        icon_url: 'https://asgard-duels.web.app/favicon.ico' 
+                    } : undefined,
+                    timestamp: i === 0 ? new Date().toISOString() : undefined
+                });
+            }
+
+            res.status(200).json({
+                type: CHANNEL_MESSAGE,
+                data: { embeds }
+            });
+            return;
+
+        } else if (category === 'wealth') {
+            // ─── CURRENT BALANCE LEADERBOARD (Top 100) ───
+            console.log(`[Interaction] /leaderboard category: wealth (Top 100)`);
+            const snap = await db.collection('users')
+                .orderBy('points', 'desc')
+                .limit(100)
+                .get();
+
+            if (snap.empty) {
+                res.status(200).json({
+                    type: CHANNEL_MESSAGE,
+                    data: { content: '📊 No wealth data recorded yet.' }
+                });
+                return;
+            }
+
+            const entries = snap.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    name: data.auroryPlayerName || data.displayName || 'Warrior',
+                    score: data.points || 0
+                };
+            }).filter(e => e.score > 0);
+
+            if (entries.length === 0) {
+                res.status(200).json({
+                    type: CHANNEL_MESSAGE,
+                    data: { content: '📊 No warriors have Valcoins yet!' }
+                });
+                return;
+            }
+
+            // Split into chunks of 25 for multiple embeds
+            const embeds = [];
+            for (let i = 0; i < entries.length; i += 25) {
+                const chunk = entries.slice(i, i + 25);
+                const leaderboardText = chunk.map((e, idx) => {
+                    const rank = i + idx + 1;
+                    return `\`${rank}.\` **${e.name}** — ${e.score.toLocaleString()} Valcoins`;
+                }).join('\n');
+
+                embeds.push({
+                    title: i === 0 ? '🏆 Asgard\'s Wealthiest — Top 100 Balances' : undefined,
+                    description: leaderboardText,
+                    color: 0xF1C40F, // Gold
+                    footer: i + 25 >= entries.length ? {
+                        text: 'Runie • Real-time Wealth Ranking',
+                        icon_url: 'https://asgard-duels.web.app/favicon.ico'
+                    } : undefined,
+                    timestamp: i === 0 ? new Date().toISOString() : undefined
+                });
+            }
+
+            res.status(200).json({
+                type: CHANNEL_MESSAGE,
+                data: { embeds }
+            });
+            return;
 
         } else if (category === 'aury' || category === 'usdc') {
             const field = category === 'aury' ? 'balance' : 'usdcBalance';

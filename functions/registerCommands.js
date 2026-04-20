@@ -34,7 +34,8 @@ const commands = [
         choices: [
           { name: '🎰 Slot Machine', value: 'slotMachine' },
           { name: '📦 Loot Box', value: 'treasureChest' },
-          { name: '⛵ Drakkar Race', value: 'drakkarRace' }
+          { name: '⛵ Drakkar Race', value: 'drakkarRace' },
+          { name: '💎 Top Wealth (Current Balances)', value: 'current_valcoins' }
         ]
       }
     ]
@@ -50,13 +51,14 @@ const commands = [
         required: false,
         choices: [
           { name: '💰 Top Valcoin Earners', value: 'valcoins' },
+          { name: '💎 Top Wealth (Current Balances)', value: 'wealth' },
           { name: '⚡ Top AURY Balances', value: 'aury' },
           { name: '💲 Top USDC Balances', value: 'usdc' },
           { name: '🏆 Best Players', value: 'best_players' },
           { name: '🎰 Slot Machine Top Earners', value: 'slotMachine' },
           { name: '📦 Loot Box Top Earners', value: 'treasureChest' },
           { name: '⛵ Drakkar Race Top Earners', value: 'drakkarRace' },
-          { name: '⚔️ PvP Wins', value: 'pvp_wins' },
+          { name: '🔥 PvP Wins', value: 'pvp_wins' },
           { name: '🤝 Top Recruiters', value: 'referral' }
         ]
       },

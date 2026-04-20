@@ -1278,7 +1278,10 @@ function HomePage() {
             <div className="news-section">
               <div className="news-section-header">
                 <div className="header-title-row">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sidebar-icon"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sidebar-icon">
+                    <path d="m3 11 18-5v12L3 14v-3z" />
+                    <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+                  </svg>
                   <h3>Heimdall's Horn</h3>
                   {hasNewNews && <span className="news-count-badge">NEW</span>}
                 </div>
@@ -2708,7 +2711,13 @@ function HomePage() {
 
             <div className="modal-header">
               <div className="modal-header-title">
-                <h3>📯 HEIMDALL'S HORN: ALL TIDINGS</h3>
+                <h3>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: '10px', color: 'var(--accent-gold)' }}>
+                    <path d="m3 11 18-5v12L3 14v-3z" />
+                    <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+                  </svg>
+                  HEIMDALL'S HORN: ALL TIDINGS
+                </h3>
                 <div className="modal-header-line"></div>
               </div>
               <button className="close-modal" onClick={() => setShowAllNewsModal(false)}>✖</button>
