@@ -77,7 +77,7 @@
 
 .condensed-avatar {
   border: 3px solid var(--bg-surface);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .header-text {
@@ -91,7 +91,7 @@
   font-size: 1.4rem;
   color: white;
   margin: 0;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -189,7 +189,7 @@
 
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
 }
 
@@ -261,16 +261,164 @@
 .privacy-note {
   margin: 0;
   font-size: 0.65rem;
-  color: var(--text-muted-more);
+  color: var(--text-muted);
   text-align: center;
 }
 
 @keyframes modalScaleUp {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes gaugeShimmer {
+  0% {
+    transform: translateX(-100%) skewX(-20deg);
+  }
+
+  100% {
+    transform: translateX(200%) skewX(-20deg);
+  }
+}
+
+/* 🆕 Tier & EXP Gauge Styles - Refined */
+.condensed-tier-section {
+  margin: 15px auto 0;
+  width: 100%;
+  max-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.tier-level-info {
+  display: flex;
+  justify-content: center;
+}
+
+.tier-label-text {
+  display: flex;
+  align-items: center;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--accent-gold);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(255, 191, 0, 0.4);
+}
+
+.condensed-tier-badge-icon {
+  width: 34px;
+  height: 34px;
+  margin-right: 1px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.5));
+}
+
+.condensed-tier-subname {
+  font-size: 0.7rem;
+  opacity: 0.9;
+  margin-right: 8px;
+  letter-spacing: 1px;
+}
+
+.condensed-tier-divider {
+  margin-right: 8px;
+  opacity: 0.5;
+  font-weight: 400;
+}
+
+
+
+.condensed-gauge-container {
+  width: 100%;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  /* Matched to main profile's .tier-gauge-bar */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.condensed-gauge-fill {
+  height: 100%;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+  transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Tier-Specific Colors (Mirrored from HomePage.css) */
+.tier-1-fill {
+  background: linear-gradient(90deg, #7c3aed, #a78bfa);
+  /* Loki - Purple */
+}
+
+.tier-2-fill {
+  background: linear-gradient(90deg, #2563eb, #60a5fa);
+  /* Thor/Warrior - Blue */
+}
+
+.tier-3-fill {
+  background: linear-gradient(90deg, #d97706, #fbbf24);
+  /* Odin - Gold */
+}
+
+/* Animated Shimmer Effect */
+
+.condensed-gauge-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.4) 50%, rgba(255, 255, 255, 0) 100%);
+  animation: gaugeShimmer 2.5s infinite;
+  transform: skewX(-20deg);
+}
+
+.tier-exp-numbers {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* Spacing Adjustments */
+.condensed-profile-header {
+  padding-bottom: 20px;
+}
+
+.condensed-profile-body {
+  padding-top: 12px;
+  /* Reduced from 24px */
+}
+
+.info-grid {
+  gap: 12px;
+  /* Tighter grid */
+  margin-bottom: 20px;
 }

@@ -19,7 +19,7 @@ import MiniGamesButton from './components/minigames/MiniGamesButton';
 import GlobalWinNotifier from './components/minigames/GlobalWinNotifier';
 import RunieChatBot from './components/RunieChatBot';
 import { isStaff, isUserSuperAdmin } from './config/admins';
-import { doc, onSnapshot, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { getAllCosmetics } from './services/cosmeticsService';
 
 function MaintenanceWarningBanner({ message, onDismiss }) {

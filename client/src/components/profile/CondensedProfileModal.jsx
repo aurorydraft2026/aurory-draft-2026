@@ -6,6 +6,7 @@ import { database, db } from '../../firebase';
 import AvatarWithAura from '../AvatarWithAura';
 import { resolveDisplayName } from '../../utils/userUtils';
 import { useProfileModal } from '../../context/ProfileModalContext';
+import { TIER_CONFIG, getTierExp, getTierProgress } from '../../services/tierService';
 import './CondensedProfileModal.css';
 
 /**
@@ -20,6 +21,7 @@ const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
   const [pvpWins, setPvpWins] = useState(0);
   const [pvpRank, setPvpRank] = useState(null);
   const [wealthRank, setWealthRank] = useState(null);
+  const [dailyValcoins, setDailyValcoins] = useState(0);
   const [loading, setLoading] = useState(false);
   const [liveProfile, setLiveProfile] = useState(null);
 
@@ -28,7 +30,7 @@ const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
     setLoading(true);
     try {
       const today = new Date().toISOString().split('T')[0];
-      
+
       // 1. Fetch Daily PvP Wins & Rank from RTDB (Promisified)
       const pvpStats = await new Promise((resolve) => {
         const pvpRef = ref(database, `leaderboards/earnings/wins/pvp/daily/${today}`);
@@ -38,9 +40,9 @@ const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
             const userEntry = data[uid];
             const participants = Object.values(data);
             const higherScores = participants.filter(p => (p.score || 0) > (userEntry.score || 0)).length;
-            resolve({ 
-              wins: userEntry.score || 0, 
-              rank: higherScores + 1 
+            resolve({
+              wins: userEntry.score || 0,
+              rank: higherScores + 1
             });
           } else {
             resolve({ wins: 0, rank: data ? '100+' : 'N/A' });
@@ -51,28 +53,44 @@ const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
       setPvpWins(pvpStats.wins);
       setPvpRank(pvpStats.rank);
 
-      // 2. Fetch Total Wealth Rank from Firestore (Total Valcoins)
+      // 2. Fetch Daily Valcoins from RTDB
+      const dailyValcoinsData = await new Promise((resolve) => {
+        const valcoinsRef = ref(database, `leaderboards/earnings/valcoins/all/daily/${today}`);
+        onValue(valcoinsRef, (snapshot) => {
+          const data = snapshot.val();
+          if (data && data[uid]) {
+            resolve(data[uid].score || 0);
+          } else {
+            resolve(0);
+          }
+        }, { onlyOnce: true });
+      });
+      setDailyValcoins(dailyValcoinsData);
+
+      // 3. Fetch Total Wealth Rank from Firestore (Total Valcoins)
       const userRef = doc(db, 'users', uid);
       const userSnap = await getDoc(userRef);
-      
-      if (userSnap.exists()) {
-          const data = userSnap.data();
-          setLiveProfile(data);
-          const currentPoints = data.points || 0;
-          const q = query(collection(db, 'users'), where('points', '>', currentPoints));
-          const countSnap = await getCountFromServer(q);
-          const wealth = countSnap.data().count + 1;
-          setWealthRank(wealth);
 
-          // 3. Update Cache
-          updateStatsCache(uid, {
-            pvpWins: pvpStats.wins,
-            pvpRank: pvpStats.rank,
-            wealthRank: wealth,
-            liveProfile: data
-          });
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+        setLiveProfile(data);
+        const currentPoints = data.points || 0;
+        const q = query(collection(db, 'users'), where('points', '>', currentPoints));
+        const countSnap = await getCountFromServer(q);
+        const wealth = countSnap.data().count + 1;
+        const formattedWealth = wealth > 100 ? '100+' : wealth;
+        setWealthRank(formattedWealth);
+
+        // 4. Update Cache
+        updateStatsCache(uid, {
+          pvpWins: pvpStats.wins,
+          pvpRank: pvpStats.rank,
+          wealthRank: formattedWealth,
+          dailyValcoins: dailyValcoinsData,
+          liveProfile: data
+        });
       } else {
-          setWealthRank('N/A');
+        setWealthRank('N/A');
       }
 
     } catch (error) {
@@ -86,12 +104,13 @@ const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
     if (isOpen && uid) {
       const cached = statsCache[uid];
       const now = Date.now();
-      
+
       if (cached && (now - cached.timestamp < CACHE_TTL)) {
         // Use cached data
         setPvpWins(cached.pvpWins || 0);
         setPvpRank(cached.pvpRank || '...');
         setWealthRank(cached.wealthRank || '...');
+        setDailyValcoins(cached.dailyValcoins || 0);
         setLiveProfile(cached.liveProfile || null);
         setLoading(false);
       } else {
@@ -106,14 +125,14 @@ const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
 
   const mergedUser = liveProfile ? { ...user, ...liveProfile } : user;
   const bannerStyle = getEquippedBannerStyle(mergedUser);
-  const formattedDate = joinedAt 
-    ? new Date(joinedAt).toLocaleDateString(undefined, { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }) 
+  const formattedDate = joinedAt
+    ? new Date(joinedAt).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
     : 'Unknown';
 
   return (
@@ -122,7 +141,7 @@ const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
         <div className="condensed-profile-header" style={bannerStyle}>
           <div className="header-overlay"></div>
           <button className="close-condensed-btn" onClick={onClose}>✕</button>
-          
+
           <div className="header-content">
             <AvatarWithAura user={mergedUser} size={80} className="condensed-avatar" alwaysAnimate />
             <div className="header-text">
@@ -130,6 +149,27 @@ const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
               <div className="condensed-badges">
                 {mergedUser.role === 'admin' && <span className="condensed-badge admin">ADMIN</span>}
                 {mergedUser.isAurorian && <span className="condensed-badge aurorian">AURORIAN</span>}
+              </div>
+
+              {/* 🆕 Tier & EXP Gauge */}
+              <div className="condensed-tier-section">
+                <div className="tier-level-info">
+                  <span className="tier-label-text">
+                    <img src={TIER_CONFIG[mergedUser.tier || 1].badge} alt="" className="condensed-tier-badge-icon" />
+                    <span className="condensed-tier-title">{TIER_CONFIG[mergedUser.tier || 1].name}</span>
+                    <span className="condensed-tier-divider"> </span>
+                    <span className="condensed-tier-subname">({TIER_CONFIG[mergedUser.tier || 1].subName})</span>
+                  </span>
+                </div>
+                <div className="condensed-gauge-container">
+                  <div
+                    className={`condensed-gauge-fill tier-${mergedUser.tier || 1}-fill`}
+                    style={{ width: `${getTierProgress(mergedUser)}%` }}
+                  ></div>
+                </div>
+                <div className="tier-exp-numbers">
+                  {getTierExp(mergedUser).toLocaleString()} / {TIER_CONFIG[mergedUser.tier || 1].gaugeMax.toLocaleString()} EXP
+                </div>
               </div>
             </div>
           </div>
@@ -160,6 +200,10 @@ const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
             </div>
           ) : !loading ? (
             <div className="stats-row">
+              <div className="stat-box">
+                <span className="stat-label">Daily Earned</span>
+                <span className="stat-value viking-highlight">{dailyValcoins.toLocaleString()}</span>
+              </div>
               <div className="stat-box">
                 <span className="stat-label">Daily PvP Wins</span>
                 <span className="stat-value">{pvpWins}</span>

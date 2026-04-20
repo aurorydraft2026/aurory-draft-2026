@@ -2,10 +2,17 @@ import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 
 // ─── TIER CONFIGURATION ───
-const TIER_CONFIG: Record<number, { max: number; upgradeCost: number | null; gaugeMax: number }> = {
-  1: { max: 30000, upgradeCost: null, gaugeMax: 50000 },      // Tier I: 30k cap, 50k exp to upgrade
-  2: { max: 50000, upgradeCost: 30000, gaugeMax: 150000 },     // Tier II: 50k cap, 150k exp to upgrade
-  3: { max: 100000, upgradeCost: 50000, gaugeMax: 500000 },    // Tier III: 100k cap, 500k exp max
+interface TierInfo {
+  max: number;
+  upgradeCost: number | null;
+  gaugeMax: number;
+  subName: string;
+}
+
+const TIER_CONFIG: Record<number, TierInfo> = {
+  1: { max: 150000, upgradeCost: null, gaugeMax: 100000, subName: 'Loki' },     // Tier I: 150k cap, 100k exp to upgrade
+  2: { max: 350000, upgradeCost: 30000, gaugeMax: 300000, subName: 'Thor' },    // Tier II: 350k cap, 300k exp to upgrade
+  3: { max: 800000, upgradeCost: 50000, gaugeMax: 700000, subName: 'Odin' },    // Tier III: 800k cap, 700k exp max
 };
 
 const UPGRADE_BONUS = 1000;

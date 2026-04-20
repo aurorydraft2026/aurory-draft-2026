@@ -293,11 +293,11 @@ export const useLeaderboard = (registeredUsers) => {
         setEarnersLoading(true);
 
         if (earnersGameFilter === 'wealth') {
-            // ─── WEALTH MODE: Direct Firestore Query (Top 10) ───
+            // ─── WEALTH MODE: Direct Firestore Query (Top 100) ───
             const loadWealth = async () => {
                 try {
                     if (earnersCurrency === 'valcoins') {
-                        const q = query(collection(db, 'users'), orderBy('points', 'desc'), limit(10));
+                        const q = query(collection(db, 'users'), orderBy('points', 'desc'), limit(100));
                         const snap = await getDocs(q);
                         const results = snap.docs.map(doc => {
                             const data = doc.data();
@@ -314,7 +314,7 @@ export const useLeaderboard = (registeredUsers) => {
                     } else {
                         // AURY/USDC: Query wallets first
                         const field = earnersCurrency === 'aury' ? 'balance' : 'usdcBalance';
-                        const wq = query(collection(db, 'wallets'), orderBy(field, 'desc'), limit(10));
+                        const wq = query(collection(db, 'wallets'), orderBy(field, 'desc'), limit(100));
                         const wSnap = await getDocs(wq);
                         
                         const results = await Promise.all(wSnap.docs.map(async (wDoc) => {
