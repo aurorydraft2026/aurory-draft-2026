@@ -198,6 +198,17 @@ function AdminPanel() {
   const [miniGamesConfig, setMiniGamesConfig] = useState(null);
   const [miniGamesLoading, setMiniGamesLoading] = useState(false);
   const [activeGameType, setActiveGameType] = useState('slotMachine');
+
+  // Firestore User Editor (God Mode)
+  const [userToEditFirestore, setUserToEditFirestore] = useState(null);
+  const [localEditingData, setLocalEditingData] = useState(null);
+  const [isSavingEditingDoc, setIsSavingEditingDoc] = useState(false);
+  const [newFieldKey, setNewFieldKey] = useState('');
+  const [newFieldType, setNewFieldType] = useState('string');
+
+  // Users Tab Sorting
+  const [usersSortKey, setUsersSortKey] = useState('superAdmin'); // superAdmin priority first by default
+  const [usersSortDirection, setUsersSortDirection] = useState('desc');
   const [isAutoAssigning, setIsAutoAssigning] = useState(false);
   const [newPrize, setNewPrize] = useState({
     name: '',
@@ -2276,6 +2287,170 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     }
     setPayoutLoading(false);
   };
+
+  // Firestore Editor Helpers
+  const handleOpenUserEditor = (u) => {
+    if (!isSuperAdminUser) return;
+    setUserToEditFirestore(u);
+    // Deep clone the user data (simple JSON clone works for primary data types)
+    const data = JSON.parse(JSON.stringify(u));
+    setLocalEditingData(data);
+  };
+
+  const handleUpdateLocalData = (path, value) => {
+    setLocalEditingData(prev => {
+      const newData = { ...prev };
+      let current = newData;
+      const parts = path.split('.');
+      for (let i = 0; i < parts.length - 1; i++) {
+        current = current[parts[i]];
+      }
+      current[parts[parts.length - 1]] = value;
+      return newData;
+    });
+  };
+
+  const handleDeleteLocalDataField = (path) => {
+    setLocalEditingData(prev => {
+      const newData = { ...prev };
+      let current = newData;
+      const parts = path.split('.');
+      for (let i = 0; i < parts.length - 1; i++) {
+        current = current[parts[i]];
+      }
+      delete current[parts[parts.length - 1]];
+      return newData;
+    });
+  };
+
+  const handleAddFieldToLocalData = (path, key, type) => {
+    if (!key) return;
+    setLocalEditingData(prev => {
+      const newData = { ...prev };
+      let current = newData;
+      if (path) {
+        const parts = path.split('.');
+        for (let i = 0; i < parts.length; i++) {
+          current = current[parts[i]];
+        }
+      }
+
+      if (current[key] !== undefined) {
+        alert('Field already exists');
+        return prev;
+      }
+
+      let defaultValue;
+      switch (type) {
+        case 'number': defaultValue = 0; break;
+        case 'boolean': defaultValue = false; break;
+        case 'object': defaultValue = {}; break;
+        case 'array': defaultValue = []; break;
+        default: defaultValue = '';
+      }
+
+      current[key] = defaultValue;
+      return newData;
+    });
+    setNewFieldKey('');
+  };
+
+  const handleSaveFirestoreUser = async () => {
+    if (!userToEditFirestore || !localEditingData) return;
+    if (!window.confirm('Are you sure you want to SAVE these changes directly to Firestore? This is absolute "God Mode" and can break accounts if values are incorrect.')) return;
+
+    setIsSavingEditingDoc(true);
+    try {
+      const userRef = doc(db, 'users', userToEditFirestore.id);
+      
+      // We don't want to save some fields that shouldn't be touched or are metadata from the fetch
+      const { id, ...dataToSave } = localEditingData;
+      
+      await setDoc(userRef, dataToSave, { merge: false }); // Overwrite with merge: false to allow deletions
+
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'god_mode_user_update',
+        metadata: { userId: id, changedFields: Object.keys(dataToSave) }
+      });
+
+      alert('✅ User document updated successfully!');
+      setUserToEditFirestore(null);
+      setLocalEditingData(null);
+    } catch (error) {
+      console.error('Error saving Firestore document:', error);
+      alert('❌ Error: ' + error.message);
+    } finally {
+      setIsSavingEditingDoc(false);
+    }
+  };
+
+  const renderFirestoreField = (key, value, path = '') => {
+    const fullPath = path ? `${path}.${key}` : key;
+    // Fix: Handle null explicitly because typeof null is "object"
+    const type = value === null ? 'null' : (Array.isArray(value) ? 'array' : (value && typeof value === 'object' ? 'object' : typeof value));
+
+    if (type === 'object' || type === 'array') {
+      return (
+        <div key={fullPath} className="firestore-nested-group">
+          <div className="nested-header">
+            <span className="field-key">{key} <span className="type-tag">{type}</span></span>
+            <button className="del-btn-mini" onClick={() => handleDeleteLocalDataField(fullPath)}>×</button>
+          </div>
+          <div className="nested-body">
+            {Object.entries(value).map(([childKey, childValue]) => renderFirestoreField(childKey, childValue, fullPath))}
+            <div className="add-field-mini">
+              <input 
+                type="text" 
+                placeholder="New key..." 
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.target.value) {
+                    handleAddFieldToLocalData(fullPath, e.target.value, 'string');
+                    e.target.value = '';
+                  }
+                }}
+              />
+              <span>(Enter to Add)</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div key={fullPath} className="firestore-field-row">
+        <div className="key-section">
+          <span className="field-key">{key}</span>
+          <span className="type-tag">{type}</span>
+        </div>
+        <div className="value-section">
+          {type === 'boolean' ? (
+            <input 
+              type="checkbox" 
+              checked={value} 
+              onChange={(e) => handleUpdateLocalData(fullPath, e.target.checked)} 
+            />
+          ) : type === 'number' ? (
+            <input 
+              type="number" 
+              value={value} 
+              onChange={(e) => handleUpdateLocalData(fullPath, parseFloat(e.target.value))} 
+            />
+          ) : (
+            <input 
+              type="text" 
+              value={value ?? ''} 
+              placeholder={value === null ? 'NULL' : ''}
+              onChange={(e) => handleUpdateLocalData(fullPath, e.target.value)} 
+            />
+          )}
+          <button className="del-btn-mini" onClick={() => handleDeleteLocalDataField(fullPath)}>×</button>
+        </div>
+      </div>
+    );
+  };
+
 
   // Handle Leaderboard Migration (Firestore -> RTDB)
   const handleMigrateLeaderboards = async () => {
@@ -5364,25 +5539,6 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 );
               })()}
 
-              {/* Search Bar */}
-              <div className="search-bar" style={{ marginBottom: '20px' }}>
-                <input
-                  type="text"
-                  placeholder="🔍 Search users by name or email..."
-                  value={usersSearchQuery}
-                  onChange={(e) => setUsersSearchQuery(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    fontSize: '14px',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    borderRadius: '8px',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    color: 'white'
-                  }}
-                />
-              </div>
-
               {isSuperAdminUser && (
                 <div className="global-maintenance-row" style={{
                   display: 'flex', alignItems: 'center', gap: '10px',
@@ -5456,6 +5612,71 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 </div>
               )}
 
+              {/* Maintenance Tools and Sorting Row */}
+              <div className="users-controls-row" style={{ 
+                display: 'flex', 
+                gap: '15px', 
+                marginBottom: '20px', 
+                alignItems: 'center' 
+              }}>
+                {/* Search Bar (Relocated) */}
+                <div className="search-bar" style={{ flex: 1 }}>
+                  <input
+                    type="text"
+                    placeholder="🔍 Search users by name, email, or UID..."
+                    value={usersSearchQuery}
+                    onChange={(e) => setUsersSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      fontSize: '14px',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      color: 'white'
+                    }}
+                  />
+                </div>
+
+                {/* Sorting Controls */}
+                <div className="sorting-controls" style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '10px',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  padding: '6px 15px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 255, 255, 0.05)'
+                }}>
+                  <span style={{ fontSize: '0.85em', opacity: 0.6 }}>Sort By:</span>
+                  <select 
+                    value={usersSortKey} 
+                    onChange={(e) => setUsersSortKey(e.target.value)}
+                    className="balance-type-select"
+                    style={{ background: 'transparent', border: 'none', fontSize: '0.9em' }}
+                  >
+                    <option value="name">Name</option>
+                    <option value="balance">Balance ({userBalanceType})</option>
+                    <option value="streak">Streak</option>
+                    <option value="superAdmin">Rank (Admins First)</option>
+                  </select>
+                  <button 
+                    onClick={() => setUsersSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    style={{ 
+                      background: 'none', 
+                      border: 'none', 
+                      color: 'white', 
+                      cursor: 'pointer',
+                      fontSize: '1.1em',
+                      padding: '0 5px'
+                    }}
+                    title="Toggle Direction"
+                  >
+                    {usersSortDirection === 'asc' ? '↑' : '↓'}
+                  </button>
+                </div>
+              </div>
+
               <div className="admin-user-list">
                 <div className="user-list-header">
                   <div className="col-user">User</div>
@@ -5498,11 +5719,39 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       const uid = (u.id || '').toLowerCase();
                       return name.includes(query) || email.includes(query) || uid.includes(query);
                     })
-                    .sort((a, b) => (isSuperAdmin(getUserEmail(a)) ? -1 : isSuperAdmin(getUserEmail(b)) ? 1 : 0))
+                    .sort((a, b) => {
+                      const isSuperA = isSuperAdmin(getUserEmail(a));
+                      const isSuperB = isSuperAdmin(getUserEmail(b));
+                      
+                      // Secondary sort logic based on config
+                      let comparison = 0;
+                      if (usersSortKey === 'name') {
+                        const nameA = resolveDisplayName(a).toLowerCase();
+                        const nameB = resolveDisplayName(b).toLowerCase();
+                        comparison = nameA.localeCompare(nameB);
+                      } else if (usersSortKey === 'balance') {
+                        const balA = userBalanceType === 'AURY' ? (a.balance || 0) : 
+                                     userBalanceType === 'USDC' ? (a.usdcBalance || 0) : (a.points || 0);
+                        const balB = userBalanceType === 'AURY' ? (b.balance || 0) : 
+                                     userBalanceType === 'USDC' ? (b.usdcBalance || 0) : (b.points || 0);
+                        comparison = balA - balB;
+                      } else if (usersSortKey === 'streak') {
+                        comparison = (a.checkInStreak || 0) - (b.checkInStreak || 0);
+                      } else if (usersSortKey === 'superAdmin') {
+                        comparison = (isSuperA === isSuperB) ? 0 : isSuperA ? -1 : 1;
+                        return comparison; // Rank sort ignores direction state for the superadmin tiering
+                      }
+
+                      return usersSortDirection === 'asc' ? comparison : -comparison;
+                    })
                     .map(u => {
                       const userIsSuper = isSuperAdmin(getUserEmail(u));
                       return (
-                        <div key={u.id} className={`user-list-item ${userIsSuper ? 'super-admin' : ''}`}>
+                        <div 
+                          key={u.id} 
+                          className={`user-list-item ${userIsSuper ? 'super-admin' : ''} ${isSuperAdminUser ? 'clickable' : ''}`}
+                          onClick={() => handleOpenUserEditor(u)}
+                        >
                           <div className="col-user">
                             <img src={resolveAvatar(u)} alt="" />
                             <span>{resolveDisplayName(u)}</span>
@@ -5545,6 +5794,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                   type="text"
                                   placeholder="YYYY-MM-DD"
                                   defaultValue={u.lastDailyCheckIn || ''}
+                                  onClick={(e) => e.stopPropagation()}
                                   onBlur={async (e) => {
                                     const newDate = e.target.value.trim();
                                     if (newDate === (u.lastDailyCheckIn || '')) return;
@@ -5573,7 +5823,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 <button
                                   className="set-yesterday-btn"
                                   title="Set to Yesterday for testing"
-                                  onClick={async () => {
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
                                     const yesterday = new Date();
                                     yesterday.setUTCDate(yesterday.getUTCDate() - 1);
                                     const yesterdayStr = yesterday.toISOString().split('T')[0];
@@ -5650,7 +5901,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 <select
                                   className={`role-select ${u.role === 'blocked' ? 'blocked' : ''}`}
                                   value={u.role || 'user'}
+                                  onClick={(e) => e.stopPropagation()}
                                   onChange={async (e) => {
+                                    e.stopPropagation();
                                     const newRole = e.target.value;
                                     try {
                                       if (newRole === 'delete') {
@@ -7574,6 +7827,74 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   </table>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Firestore Document Editor Modal (God Mode) */}
+      {userToEditFirestore && localEditingData && (
+        <div className="admin-modal-overlay firestore-editor-overlay">
+          <div className="admin-modal firestore-editor-modal">
+            <div className="modal-header firestore-header-compact">
+              <div className="header-left">
+                <div className="title-area">
+                  <h2>🛠️ God Mode: {resolveDisplayName(userToEditFirestore)}</h2>
+                  <span className="user-id">UID: {userToEditFirestore.id}</span>
+                </div>
+              </div>
+
+              <div className="header-add-field-group">
+                <input 
+                  type="text" 
+                  placeholder="New field key..." 
+                  value={newFieldKey}
+                  onChange={(e) => setNewFieldKey(e.target.value)}
+                  className="header-compact-input"
+                />
+                <select 
+                  value={newFieldType} 
+                  onChange={(e) => setNewFieldType(e.target.value)}
+                  className="header-compact-select"
+                >
+                  <option value="string">String</option>
+                  <option value="number">Number</option>
+                  <option value="boolean">Boolean</option>
+                  <option value="object">Object {}</option>
+                  <option value="array">Array []</option>
+                </select>
+                <button 
+                  className="header-add-btn" 
+                  onClick={() => handleAddFieldToLocalData('', newFieldKey, newFieldType)}
+                >
+                  + Add Root Field
+                </button>
+              </div>
+
+              <button className="close-btn" onClick={() => setUserToEditFirestore(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="fields-container">
+                {Object.entries(localEditingData)
+                  .filter(([key]) => key !== 'id') // UID is read-only
+                  .map(([key, value]) => renderFirestoreField(key, value))}
+              </div>
+            </div>
+
+            <div className="modal-footer firestore-footer-custom">
+              <div className="editor-warning-compact">
+                ⚠️ <strong>CAUTION:</strong> God Mode. Changes are direct and absolute.
+              </div>
+              <div className="footer-actions">
+                <button className="secondary-btn" onClick={() => setUserToEditFirestore(null)}>Cancel</button>
+                <button 
+                  className="save-btn-admin primary" 
+                  onClick={handleSaveFirestoreUser}
+                  disabled={isSavingEditingDoc}
+                >
+                  {isSavingEditingDoc ? 'Saving...' : '💾 Save Changes to Firestore'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
