@@ -1077,10 +1077,11 @@ export const answerRiddle = onCall(
         if (!riddleId || typeof riddleId !== 'string') {
             throw new HttpsError('invalid-argument', 'Riddle ID is required.');
         }
-        if (typeof answerIndex !== 'number' || answerIndex < 0 || answerIndex > 3) {
-            throw new HttpsError('invalid-argument', 'Answer index must be 0-3.');
+        if (typeof answerIndex !== 'number' || answerIndex < -1 || answerIndex > 3) {
+            throw new HttpsError('invalid-argument', 'Answer index must be -1 (timeout) or 0-3.');
         }
 
+        const isTimeout = answerIndex === -1;
         const db = admin.firestore();
 
         try {
@@ -1097,7 +1098,7 @@ export const answerRiddle = onCall(
             }
 
             const riddle = riddleSnap.data()!;
-            const isCorrect = answerIndex === riddle.correctIndex;
+            const isCorrect = isTimeout ? false : answerIndex === riddle.correctIndex;
 
             // Get config (admin-editable)
             let riddleConfig: any;

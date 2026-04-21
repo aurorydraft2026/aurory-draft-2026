@@ -3,6 +3,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // API Configuration is handled via .env (GEMINI_API_KEY)
+// Version: 1.0.2 - Forcing redeploy to activate new token
 
 const SUPER_ADMIN_UIDS = ['wgPwCyYGuYUAokSklV1LNsjCrGA3'];
 
@@ -77,7 +78,7 @@ export const chatWithRunie = onCall({
                 `The Norns whisper that **${winner.name}** carries the strongest blessing this hour.`,
                 `I see a vision of **${winner.name}** cutting through the fog more swiflty than the rest. Bet with courage!`
             ];
-            
+
             return { reply: replies[Math.floor(Math.random() * replies.length)], engine: 'valkyrie_vision' };
         } catch (err: any) {
             return { reply: "The runes have shattered! I cannot see the ships. (Error: " + err.message + ")", engine: 'system' };
@@ -142,7 +143,7 @@ export const chatWithRunie = onCall({
         const knowledgeItems = knowledgeSnapshot.docs.map(doc => doc.data());
         const knowledgeContext = knowledgeItems.map(item => `Topic: ${item.label}\nResponse: ${item.response}`).join('\n\n');
 
-const PLATFORM_GUIDE = `
+        const PLATFORM_GUIDE = `
 ASGARD DUELS - PLATFORM GUIDE & STRUCTURE:
 
 1. CORE IDENTITY:
@@ -171,6 +172,12 @@ Asgard Duels is a premier competitive platform for Amiko Legends. Users earn Val
 - PROFILES: Users can "Like" each other's profiles and leave "Comments". 
 - NOTIFICATIONS: Users see a badge on their profile when they have new comments.
 - REFERRALS: Invite friends to earn rewards and climb the Referral Leaderboard.
+- SOCIAL FEED: Read the "Valkyrie's Feed" on the home page for real-time win announcements and site activity.
+
+6. MINI-GAME MECHANICS:
+- DRAKKAR RACE: A parimutuel betting game. 7 ships race across Midgard. You can place multiple bets (max 30k total) on various ships. Winners share the entire pool minus a small 'Valkyrie's Cut' (10%).
+- NORNS' FATE: High-stakes card prediction. Guess which of the three fates will be revealed. 
+- ODIN'S RIDDLE: A trivia trial. Correct answers earn you Valcoins. It is a test of both mythology and Aurory knowledge.
 `;
 
         const systemPrompt = `You are Runie, the helpful Valkyrie Guide for Asgard Duels.
@@ -202,7 +209,7 @@ User: ${userMessage}`;
         const options = {
             hostname: 'generativelanguage.googleapis.com',
             port: 443,
-            path: `/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+            path: `/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -236,7 +243,7 @@ User: ${userMessage}`;
 
         return {
             reply: resultText.trim(),
-            engine: 'gemini-2.5-flash'
+            engine: 'gemini-1.5-flash'
         };
 
     } catch (error: any) {

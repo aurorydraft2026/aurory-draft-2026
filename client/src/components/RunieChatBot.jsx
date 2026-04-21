@@ -69,6 +69,20 @@ export const DEFAULT_KNOWLEDGE = [
     keywords: ['like', 'comment', 'social', 'notification', 'interact'],
     showAsBadge: true,
     response: "Show respect to fellow warriors by 'Liking' their profiles! You can also leave comments to share strategies. You'll see a notification on your profile when others speak to you."
+  },
+  {
+    id: 'norns_fate',
+    label: 'How to play Norns\' Fate?',
+    keywords: ['norns', 'fate', 'destiny', 'betting', 'cards'],
+    showAsBadge: true,
+    response: "In Norn's Fate, you bet on the threads of destiny! Each round, three cards are revealed. You win by correctly predicting the outcome. It's a game of risk and high rewards, warrior! Each win grants you Valcoins to climb the leaderboard."
+  },
+  {
+    id: 'odins_riddle',
+    label: 'What is Odin\'s Riddle?',
+    keywords: ['riddle', 'question', 'quiz', 'odin', 'trivia'],
+    showAsBadge: true,
+    response: "Knowledge is as sharp as any blade! Odin's Riddle tests your wits with trivia about Norse mythology and Aurory. Answer correctly to earn Valcoins. You can find me often presiding over these trials!"
   }
 ];
 

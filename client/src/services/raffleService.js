@@ -12,6 +12,7 @@ import {
 import { createNotification } from './notifications';
 import { db } from '../firebase';
 import { logActivity } from './activityService';
+import { TIER_CONFIG } from './tierService';
 
 /**
  * Create a new raffle
@@ -240,7 +241,8 @@ export async function joinRaffle(raffleId, user, auroryData) {
         if (netPointsChange !== 0) {
           const currentTier = userData.tier || 1;
           const currentPoints = userData.points || 0;
-          const maxPoints = currentTier === 1 ? 30000 : currentTier === 2 ? 50000 : 100000;
+          const tierInfo = TIER_CONFIG[currentTier] || TIER_CONFIG[1];
+          const maxPoints = tierInfo.max;
           let newPoints = currentPoints + netPointsChange;
           
           if (currentPoints > maxPoints) {

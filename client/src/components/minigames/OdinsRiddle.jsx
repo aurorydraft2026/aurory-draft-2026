@@ -163,27 +163,45 @@ const OdinsRiddle = ({ user, onClose, onBack }) => {
     setIsSubmitting(true);
     setSelectedAnswer(answerIndex);
 
-    // Explicitly handle timeout locally to ensure pop-up shows immediately
+    // Explicitly handle timeout — still call server with answerIndex=-1
     if (answerIndex < 0) {
-      setResult({
-        correct: false,
-        correctIndex: -1,
-        reward: 0,
-        streak: 0,
-        isTimeout: true
-      });
-      
-      // Update local daily progress for timeout
-      setDailyProgress(prev => {
-        const newWrong = prev.wrongAnswers + 1;
-        const maxWrong = config.maxWrongPerDay || 3;
-        return {
-          ...prev,
-          totalAnswered: prev.totalAnswered + 1,
-          wrongAnswers: newWrong,
-          phase: newWrong >= maxWrong ? 'locked' : prev.phase
-        };
-      });
+      try {
+        const res = await submitRiddleAnswer(riddle.id, -1);
+        setResult({
+          correct: false,
+          correctIndex: res.correctIndex ?? -1,
+          reward: 0,
+          streak: res.streak || 0,
+          isTimeout: true
+        });
+        setStats({
+          streak: res.streak || 0,
+          totalCorrect: res.totalCorrect || 0,
+          totalPlayed: res.totalPlayed || 0,
+        });
+        if (res.dailyProgress) {
+          setDailyProgress(res.dailyProgress);
+        }
+      } catch (err) {
+        // Fallback to local update if server call fails
+        setResult({
+          correct: false,
+          correctIndex: -1,
+          reward: 0,
+          streak: 0,
+          isTimeout: true
+        });
+        setDailyProgress(prev => {
+          const newWrong = prev.wrongAnswers + 1;
+          const maxWrong = config.maxWrongPerDay || 3;
+          return {
+            ...prev,
+            totalAnswered: prev.totalAnswered + 1,
+            wrongAnswers: newWrong,
+            phase: newWrong >= maxWrong ? 'locked' : prev.phase
+          };
+        });
+      }
       setIsSubmitting(false);
       return;
     }
