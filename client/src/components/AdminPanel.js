@@ -66,6 +66,7 @@ function AdminPanel() {
   const [pendingWithdrawals, setPendingWithdrawals] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [userBalanceType, setUserBalanceType] = useState('AURY'); // Added for balance selector
+  const [userContactType, setUserContactType] = useState('email'); // Toggle between Email and UID
 
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
@@ -2137,8 +2138,13 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
   // Handle cleanup of inactive guest accounts
   const handleCleanupInactiveGuests = async () => {
-    if (!isSuperAdminUser || wipeAllConfirmText !== 'WIPE ALL') return;
-    if (!window.confirm('🧹 Are you sure you want to delete all anonymous Guest accounts that have been inactive for over 5 minutes? This is irreversible.')) return;
+    if (!isSuperAdminUser || (activeTab === 'users' && wipeAllConfirmText !== 'WIPE ALL')) return;
+    
+    const confirmMessage = activeTab === 'visitors' 
+      ? '🧹 Are you sure you want to delete all anonymous Guest accounts that have been inactive for over 1 minute? This is irreversible.'
+      : '🧹 Are you sure you want to delete all anonymous Guest accounts that have been inactive for over 1 minute? This is irreversible.';
+
+    if (!window.confirm(confirmMessage)) return;
 
     setIsWiping(true);
     setProcessingId('cleanup_guests');
@@ -5405,14 +5411,6 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   </button>
                   <button
                     className="clear-btn-admin risky"
-                    onClick={handleCleanupInactiveGuests}
-                    disabled={isWiping || wipeAllConfirmText !== 'WIPE ALL'}
-                    style={{ padding: '8px 15px', fontSize: '0.85em', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
-                  >
-                    🧹 Clear Inactive Guest Accounts
-                  </button>
-                  <button
-                    className="clear-btn-admin risky"
                     onClick={handleClearAllGlobalNotifications}
                     disabled={isWiping || wipeAllConfirmText !== 'WIPE ALL'}
                     style={{ padding: '8px 15px', fontSize: '0.85em' }}
@@ -5461,7 +5459,17 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               <div className="admin-user-list">
                 <div className="user-list-header">
                   <div className="col-user">User</div>
-                  <div className="col-email">Email</div>
+                  <div className="col-email">
+                    <select
+                      value={userContactType}
+                      onChange={(e) => setUserContactType(e.target.value)}
+                      className="balance-type-select"
+                      style={{ padding: '2px 5px', fontSize: '11px', height: '24px' }}
+                    >
+                      <option value="email">Email Address</option>
+                      <option value="uid">User UID</option>
+                    </select>
+                  </div>
                   <div className="col-linked">Linked</div>
                   <div className="col-holder">Holder</div>
                   <div className="col-balance">
@@ -5482,12 +5490,13 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 <div className="user-list-body">
                   {allUsers
                     .filter(u => {
+                      if (u.isAnonymous) return false; // Remove guests completely
                       if (!usersSearchQuery) return true;
                       const query = usersSearchQuery.toLowerCase();
                       const name = resolveDisplayName(u).toLowerCase();
                       const email = (u.email || '').toLowerCase();
-                      const isMatch = name.includes(query) || email.includes(query);
-                      return isMatch && !u.isAnonymous;
+                      const uid = (u.id || '').toLowerCase();
+                      return name.includes(query) || email.includes(query) || uid.includes(query);
                     })
                     .sort((a, b) => (isSuperAdmin(getUserEmail(a)) ? -1 : isSuperAdmin(getUserEmail(b)) ? 1 : 0))
                     .map(u => {
@@ -5498,7 +5507,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             <img src={resolveAvatar(u)} alt="" />
                             <span>{resolveDisplayName(u)}</span>
                           </div>
-                          <div className="col-email">{u.email}</div>
+                          <div className="col-email">
+                            {userContactType === 'email' ? (u.email || 'No email') : u.id}
+                          </div>
                           <div className="col-linked">
                             {u.auroryPlayerId ? (
                               <span className="linked-badge" title={`Linked to ${u.auroryPlayerName || 'Aurory Account'}`}>🔗 Yes</span>
@@ -5906,8 +5917,23 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
           {activeTab === 'visitors' && isAdminUser && (
             <div className="visitors-section">
-              <div className="section-info">
+              <div className="section-info visitors-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <p>🌐 Users who visited the website in the last 3 days.</p>
+                {isSuperAdminUser && (
+                  <button
+                    className="clear-btn-admin risky"
+                    onClick={handleCleanupInactiveGuests}
+                    disabled={isWiping}
+                    style={{
+                      padding: '8px 15px',
+                      fontSize: '0.85em',
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      margin: 0
+                    }}
+                  >
+                    🧹 Clear Inactive Guest Accounts (1 min)
+                  </button>
+                )}
               </div>
 
               {onlineVisitors.length === 0 ? (

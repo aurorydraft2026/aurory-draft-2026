@@ -9,6 +9,7 @@ import {
 import { db } from '../firebase';
 import { auroryFetch } from './auroryProxyClient';
 import { createNotification } from './notifications';
+import { TIER_CONFIG } from './tierService';
 
 // ============================================================================
 // API FUNCTIONS
@@ -517,6 +518,7 @@ export function calculateDailyStats(matches) {
 
 /**
  * Syncs the Aurory name from the API to Firestore
+ * Detects and awards the Aurorian holder bonus (50k Valcoins) if applicable.
  * @param {string} userId - Firebase User ID
  * @param {string} playerId - Aurory Player ID
  */
@@ -525,17 +527,79 @@ export async function syncAuroryName(userId, playerId) {
     const data = await validateAuroryAccount(playerId);
     if (data.valid && data.playerName) {
       const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, {
-        auroryPlayerName: data.playerName,
-        auroryProfilePicture: data.profilePicture || null,
-        isAurorian: data.isAurorian || false,
-        auroryLastSync: serverTimestamp()
+      
+      let aurorianReward = 0;
+
+      await runTransaction(db, async (transaction) => {
+        const userSnap = await transaction.get(userRef);
+        if (!userSnap.exists()) throw new Error('User not found');
+        
+        const userData = userSnap.data();
+
+        // Configuration defaults
+        let ownAurorianRewardAmount = 50000;
+        const configRef = doc(db, 'settings', 'valcoin_rewards');
+        const configSnap = await transaction.get(configRef);
+        if (configSnap.exists()) {
+          ownAurorianRewardAmount = configSnap.data().ownAurorian ?? 50000;
+        }
+
+        const updateData = {
+          auroryPlayerName: data.playerName,
+          auroryProfilePicture: data.profilePicture || null,
+          isAurorian: data.isAurorian || false,
+          auroryLastSync: serverTimestamp()
+        };
+
+        // Award Aurorian Ownership Bonus if they are now a holder and haven't claimed it yet
+        if (data.isAurorian && !userData.aurorianBonusClaimed) {
+          aurorianReward = ownAurorianRewardAmount;
+          updateData.aurorianBonusClaimed = true;
+          
+          const currentTier = userData.tier || 1;
+          const currentPoints = userData.points || 0;
+          const tierInfo = TIER_CONFIG[currentTier] || TIER_CONFIG[1];
+          const maxPoints = tierInfo.max;
+          
+          let newPoints = currentPoints + aurorianReward;
+          
+          // Clamp points
+          if (currentPoints > maxPoints) {
+            newPoints = Math.max(maxPoints, Math.min(newPoints, currentPoints));
+          } else {
+            newPoints = Math.min(newPoints, maxPoints);
+          }
+          
+          updateData.points = newPoints;
+          updateData.exp = increment(aurorianReward);
+
+          // History entry inside transaction
+          const aurHistoryRef = doc(collection(db, 'users', userId, 'pointsHistory'));
+          transaction.set(aurHistoryRef, {
+            amount: aurorianReward,
+            type: 'aurorian_ownership',
+            description: 'One-time bonus for owning an Aurorian NFT (Sync Reward)',
+            timestamp: serverTimestamp()
+          });
+        }
+
+        transaction.update(userRef, updateData);
       });
+
+      if (aurorianReward > 0) {
+        await createNotification(userId, {
+          title: 'Aurorian Reward Earned! ⚔️',
+          message: `You earned ${aurorianReward.toLocaleString()} Valcoins for being an Aurorian holder. Welcome to the elite!`,
+          type: 'points'
+        });
+      }
+
       return {
         success: true,
         playerName: data.playerName,
         profilePicture: data.profilePicture,
-        isAurorian: data.isAurorian
+        isAurorian: data.isAurorian,
+        rewardAwarded: aurorianReward
       };
     }
     return { success: false, error: 'Could not fetch current name from Aurory API' };
@@ -730,7 +794,8 @@ export async function linkAuroryAccount(userId, auroryData) {
       if (totalPointsAwarded > 0) {
         const currentTier = userData.tier || 1;
         const currentPoints = userData.points || 0;
-        const maxPoints = currentTier === 1 ? 30000 : currentTier === 2 ? 50000 : 100000;
+        const tierInfo = TIER_CONFIG[currentTier] || TIER_CONFIG[1];
+        const maxPoints = tierInfo.max;
         let newPoints = currentPoints + totalPointsAwarded;
         
         if (currentPoints > maxPoints) {
