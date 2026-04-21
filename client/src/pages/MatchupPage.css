@@ -1775,6 +1775,8 @@
     border: 1px solid var(--border-subtle);
     border-radius: 12px;
     transition: all 0.3s ease;
+    cursor: pointer;
+    user-select: none;
 }
 
 .leader-row:hover {
@@ -3309,3 +3311,9 @@
     border-color: #ff8500;
     transform: rotate(-30deg);
 }
+
+/* Interactive Utilities */
+.interactive {
+    cursor: pointer !important;
+    user-select: none;
+}

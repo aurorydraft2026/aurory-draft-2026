@@ -26,10 +26,10 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
 // Initialize Cloud Firestore and get a reference to the service
-// Use initializeFirestore to set experimentalForceLongPolling: true
-// This fixes the internal "BloomFilter error" and transient stream issues in v12 sdk
 export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true
+  // Use experimentalAutoDetectLongPolling to stabilize 'ID: ca9' assertion failures.
+  // This allows the SDK to intelligently fallback to long polling if streaming fails.
+  experimentalAutoDetectLongPolling: true
 });
 
 // Initialize Realtime Database (Explicitly specifying the asia-southeast1 URL)

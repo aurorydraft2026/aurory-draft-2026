@@ -89,6 +89,12 @@ service cloud.firestore {
              (!('anonymous' in request.auth.token) || request.auth.token.anonymous == false);
     }
 
+    // Helper function to check if user has a linked account
+    function isLinked() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('auroryPlayerId', null) != null;
+    }
+
     // Helper to verify raffle fee increment (moved from inline to resolve 'let' error)
     function checkRaffleFee(resourceData, requestResourceData) {
       let currency = resourceData.get('entryFeeCurrency', 'AURY');
@@ -318,6 +324,34 @@ service cloud.firestore {
 
       // Only Super Admins can delete users
       allow delete: if isSuperAdmin();
+    }
+
+    // =============================================
+    // PROFILE SOCIAL INTERACTIONS
+    // =============================================
+    match /profileInteractions/{targetUid} {
+      // Anyone can read profile stats (likes/comment count)
+      allow read: if true;
+      
+      // Creating or updating interaction stats (likes, counts)
+      // Restricted to linked accounts only
+      allow create, update: if isLinked();
+      
+      // Allow specific subcollection matches
+      match /comments/{commentId} {
+        // Anyone can read comments
+        allow read: if true;
+        
+        // Only linked accounts can post comments
+        allow create: if isLinked() && 
+                         request.resource.data.authorUid == request.auth.uid;
+        
+        // Only authors or staff can delete comments
+        allow delete: if isAdmin() || (isAuthenticated() && resource.data.authorUid == request.auth.uid);
+        
+        // Comments are generally immutable
+        allow update: if isAdmin();
+      }
     }
 
     // Notifications subcollection (Dedicated match for clarity)
@@ -633,5 +667,6 @@ service cloud.firestore {
       // Only admins can create/delete the inventory
       allow create, delete: if isAdmin();
     }
+
   }
 }

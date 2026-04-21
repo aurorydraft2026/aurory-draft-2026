@@ -2481,6 +2481,8 @@
   box-sizing: border-box;
   padding: 0 14px;
   background: transparent;
+  cursor: pointer;
+  user-select: none;
 }
 
 .top-player-row:hover {
@@ -2742,6 +2744,7 @@
   padding: 12px 14px;
   cursor: pointer;
   position: relative;
+  user-select: none;
 }
 
 .match-summary-top {
@@ -8474,6 +8477,14 @@ input[type="file"] {
   0% { border-color: rgba(239, 68, 68, 0.2); }
   50% { border-color: rgba(239, 68, 68, 0.35); }
   100% { border-color: rgba(239, 68, 68, 0.2); }
+}
+
+/* ============================================================
+   GLOBAL INTERACTIVE UTILITIES
+   ============================================================ */
+.interactive {
+  cursor: pointer !important;
+  user-select: none;
 }
 
 
