@@ -256,7 +256,24 @@ export const playMiniGame = onCall(
                     throw new Error(`Insufficient Valcoins. Need ${costPerPlay}, have ${currentPoints}`);
                 }
 
-                const selectedPrize = selectWeightedPrize(prizes, noWinWeight, baseCost);
+                // --- DIVINE FORESIGHT CONSUMPTION ---
+                let selectedPrize = null;
+                const pendingOutcomes = userData.pendingMiniGameOutcomes || {};
+                const predictedPrize = pendingOutcomes[gameType];
+
+                if (predictedPrize) {
+                    // Use the predicted prize (ensure it's not a dummy 'none' object)
+                    selectedPrize = predictedPrize.id === 'none' ? null : predictedPrize;
+                    
+                    // Clear the prophecy so it's only used once
+                    transaction.update(userRef, {
+                        [`pendingMiniGameOutcomes.${gameType}`]: admin.firestore.FieldValue.delete()
+                    });
+                } else {
+                    // Standard RNG
+                    selectedPrize = selectWeightedPrize(prizes, noWinWeight, baseCost);
+                }
+
                 let finalPrize = selectedPrize ? { ...selectedPrize } : null;
 
                 if (finalPrize) {

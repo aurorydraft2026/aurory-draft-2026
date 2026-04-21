@@ -50,11 +50,25 @@ export const DEFAULT_KNOWLEDGE = [
     response: "Yes! Our community is active on Discord. You can find the link in the footer at the bottom of the page or in the welcome section above. Come say hi!"
   },
   {
-    id: 'hidden_knowledge',
-    label: '',
-    keywords: ['hidden', 'without badges', 'invisible', 'secret'],
-    showAsBadge: false,
-    response: "Yes! I just updated the system for you. You can now leave the 'Button Label' empty in the Admin Panel or toggle the 'Show as Button' switch to NO. Runie will still learn the keywords and answer those questions when typed in the chat, but no button will appear."
+    id: 'nav_help',
+    label: 'Where am I?',
+    keywords: ['navigation', 'pages', 'where', 'find', 'how to get to'],
+    showAsBadge: true,
+    response: "You are in Asgard, warrior! You can find Tournaments and Matchups in the main menu, check out Raffles for epic prizes, or view your own legend in the Profile menu at the top right."
+  },
+  {
+    id: 'tiers_exp',
+    label: 'How do Tiers work?',
+    keywords: ['tiers', 'rank', 'exp', 'level', 'valhalla', 'limit'],
+    showAsBadge: true,
+    response: "By earning EXP through battles and games, you climb from Bronze to Valhalla! Higher tiers unlock greater glory and allow you to hold more Valcoins in your vault."
+  },
+  {
+    id: 'social_features',
+    label: 'Profile Likes & Comments?',
+    keywords: ['like', 'comment', 'social', 'notification', 'interact'],
+    showAsBadge: true,
+    response: "Show respect to fellow warriors by 'Liking' their profiles! You can also leave comments to share strategies. You'll see a notification on your profile when others speak to you."
   }
 ];
 
@@ -275,6 +289,11 @@ const RunieChatBot = () => {
       setMessages(prev => [...prev, botMsg]);
       setIsTyping(false);
       return;
+    }
+
+    // 0. Handle Commands (Special Privacy / Thematic Delay)
+    if (lowerText.startsWith('/')) {
+      await new Promise(resolve => setTimeout(resolve, 1500)); // Thematic "consulting the runes" delay
     }
 
     // 1. Enhanced Weighted Matching System (Manual Knowledge First)
