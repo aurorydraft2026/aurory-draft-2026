@@ -2475,11 +2475,11 @@
   gap: 12px;
   border-bottom: 1px solid var(--border-subtle);
   transition: all 0.2s ease;
-  height: 38px;
-  max-height: 38px;
+  min-height: 64px;
+  height: auto;
   overflow: visible;
   box-sizing: border-box;
-  padding: 0 14px;
+  padding: 8px 14px;
   background: transparent;
   cursor: pointer;
   user-select: none;
@@ -2566,7 +2566,7 @@
   z-index: 1;
 }
 
-.top-player-row.has-banner > * {
+.top-player-row.has-banner>* {
   position: relative;
   z-index: 2;
 }
@@ -3299,7 +3299,8 @@
   border-radius: var(--radius-xl);
   width: 100%;
   max-width: 680px;
-  max-height: 90vh; /* Increased from 85vh */
+  max-height: 90vh;
+  /* Increased from 85vh */
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -4666,10 +4667,11 @@
   inset: 0;
   background: linear-gradient(90deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.25) 100%);
   z-index: 1;
-  border-radius: inherit; /* Ensure overlay follows parent shape */
+  border-radius: inherit;
+  /* Ensure overlay follows parent shape */
 }
 
-.profile-trigger.has-banner > * {
+.profile-trigger.has-banner>* {
   position: relative;
   z-index: 2;
 }
@@ -4686,7 +4688,8 @@
 
 .profile-pic-aura {
   position: relative;
-  z-index: 10; /* Keep aura on top of banner gradient */
+  z-index: 10;
+  /* Keep aura on top of banner gradient */
 }
 
 .profile-pic {
@@ -4841,10 +4844,11 @@
   bottom: 0;
   background: linear-gradient(90deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.2) 60%, transparent 100%);
   z-index: 1;
-  border-radius: inherit; /* Ensure overlay follows parent shape */
+  border-radius: inherit;
+  /* Ensure overlay follows parent shape */
 }
 
-.user-header-info > * {
+.user-header-info>* {
   position: relative;
   z-index: 2;
 }
@@ -4852,7 +4856,8 @@
 .modal-profile-pic-aura {
   flex-shrink: 0;
   position: relative;
-  z-index: 10; /* Keep aura on top of banner gradient */
+  z-index: 10;
+  /* Keep aura on top of banner gradient */
 }
 
 .user-text-info {
@@ -7776,8 +7781,13 @@ input[type="file"] {
 }
 
 @keyframes gaugeShimmer {
-  0% { transform: translateX(-150%) skewX(-20deg); }
-  100% { transform: translateX(150%) skewX(-20deg); }
+  0% {
+    transform: translateX(-150%) skewX(-20deg);
+  }
+
+  100% {
+    transform: translateX(150%) skewX(-20deg);
+  }
 }
 
 .tier-1-fill {
@@ -8149,7 +8159,8 @@ input[type="file"] {
   overflow: hidden;
   backdrop-filter: blur(15px);
   pointer-events: auto;
-  transform: translateZ(0); /* Force new rendering context */
+  transform: translateZ(0);
+  /* Force new rendering context */
 }
 
 /* Impact Flash Overlay */
@@ -8164,19 +8175,41 @@ input[type="file"] {
 }
 
 @keyframes impactFlash {
-  0% { opacity: 0.8; }
-  100% { opacity: 0; }
+  0% {
+    opacity: 0.8;
+  }
+
+  100% {
+    opacity: 0;
+  }
 }
 
 .tier-upgrade-anim-overlay.slamming {
-  animation: screenShake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+  animation: screenShake 0.4s cubic-bezier(.36, .07, .19, .97) both;
 }
 
 @keyframes screenShake {
-  10%, 90% { transform: translate3d(-2px, 0, 0); }
-  20%, 80% { transform: translate3d(4px, 0, 0); }
-  30%, 50%, 70% { transform: translate3d(-8px, 0, 0); }
-  40%, 60% { transform: translate3d(8px, 0, 0); }
+
+  10%,
+  90% {
+    transform: translate3d(-2px, 0, 0);
+  }
+
+  20%,
+  80% {
+    transform: translate3d(4px, 0, 0);
+  }
+
+  30%,
+  50%,
+  70% {
+    transform: translate3d(-8px, 0, 0);
+  }
+
+  40%,
+  60% {
+    transform: translate3d(8px, 0, 0);
+  }
 }
 
 .roulette-wrapper {
@@ -8208,7 +8241,7 @@ input[type="file"] {
   width: 120px;
   height: 120px;
   object-fit: contain;
-  filter: drop-shadow(0 0 20px rgba(0,0,0,0.5));
+  filter: drop-shadow(0 0 20px rgba(0, 0, 0, 0.5));
 }
 
 /* Rolling Animation */
@@ -8217,12 +8250,31 @@ input[type="file"] {
 }
 
 @keyframes rouletteSpin {
-  0% { transform: scale(0.8) rotateY(0deg); }
-  20% { transform: scale(1) rotateY(720deg); }
-  40% { transform: scale(1.1) rotateY(1800deg); }
-  60% { transform: scale(1.1) rotateY(3600deg); }
-  85% { transform: scale(1.2) rotateY(7200deg); opacity: 1; }
-  100% { transform: scale(1.5) rotateY(10800deg); opacity: 0; }
+  0% {
+    transform: scale(0.8) rotateY(0deg);
+  }
+
+  20% {
+    transform: scale(1) rotateY(720deg);
+  }
+
+  40% {
+    transform: scale(1.1) rotateY(1800deg);
+  }
+
+  60% {
+    transform: scale(1.1) rotateY(3600deg);
+  }
+
+  85% {
+    transform: scale(1.2) rotateY(7200deg);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1.5) rotateY(10800deg);
+    opacity: 0;
+  }
 }
 
 .tier-slam-content {
@@ -8245,19 +8297,49 @@ input[type="file"] {
 }
 
 @keyframes slamEntry {
-  0% { transform: scale(6) translateY(-200px); opacity: 0; filter: brightness(10) blur(20px); }
-  10% { opacity: 1; }
-  100% { transform: scale(1) translateY(0); opacity: 1; filter: brightness(1) blur(0); }
+  0% {
+    transform: scale(6) translateY(-200px);
+    opacity: 0;
+    filter: brightness(10) blur(20px);
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+    filter: brightness(1) blur(0);
+  }
 }
 
 @keyframes badgeBreathe {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 30px var(--accent-gold-glow)); }
-  50% { transform: scale(1.05); filter: drop-shadow(0 0 50px var(--accent-gold-glow)); }
+
+  0%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 30px var(--accent-gold-glow));
+  }
+
+  50% {
+    transform: scale(1.05);
+    filter: drop-shadow(0 0 50px var(--accent-gold-glow));
+  }
 }
 
 @keyframes glowPulse {
-  0%, 100% { opacity: 0.2; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(1.1); }
+
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.5;
+    transform: scale(1.1);
+  }
 }
 
 .unlock-label {
@@ -8307,8 +8389,15 @@ input[type="file"] {
 }
 
 @keyframes fadeInAction {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .viking-runes-bg {
@@ -8332,8 +8421,15 @@ input[type="file"] {
 }
 
 @keyframes runeFlicker {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 768px) {
@@ -8421,8 +8517,13 @@ input[type="file"] {
 }
 
 @keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .mini-flame-icon {
@@ -8483,9 +8584,17 @@ input[type="file"] {
 }
 
 @keyframes pulse-border {
-  0% { border-color: rgba(239, 68, 68, 0.2); }
-  50% { border-color: rgba(239, 68, 68, 0.35); }
-  100% { border-color: rgba(239, 68, 68, 0.2); }
+  0% {
+    border-color: rgba(239, 68, 68, 0.2);
+  }
+
+  50% {
+    border-color: rgba(239, 68, 68, 0.35);
+  }
+
+  100% {
+    border-color: rgba(239, 68, 68, 0.2);
+  }
 }
 
 /* ============================================================
@@ -8495,5 +8604,3 @@ input[type="file"] {
   cursor: pointer !important;
   user-select: none;
 }
-
-

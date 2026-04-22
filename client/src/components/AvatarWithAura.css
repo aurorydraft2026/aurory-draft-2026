@@ -45,6 +45,9 @@
   border-radius: 50%;
   object-fit: cover;
   transition: opacity 0.3s ease;
+  /* Performance: Promote to GPU layer for animations */
+  will-change: transform, opacity;
+  transform: translateZ(0);
 }
 
 /* 1. Behind Placement (Z-index 1, significantly larger for glows) */

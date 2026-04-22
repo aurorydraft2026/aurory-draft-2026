@@ -54,8 +54,8 @@ const AvatarWithAura = ({
   }, [user?.equippedCosmetics?.aura, initialAuraData]);
 
   const auraClass = auraData?.cssClass || '';
-  const gifUrl = auraData?.gifUrl || null;
-  const pngUrl = auraData?.pngUrl || null;
+  const animatedUrl = auraData?.avifUrl || auraData?.gifUrl || null;
+  const staticUrl = auraData?.webpUrl || auraData?.pngUrl || auraData?.gifUrl || null;
   const placement = auraData?.placement || 'behind'; // behind | overlay | border
   const rarityColor = auraData ? RARITY_CONFIG[auraData.rarity]?.color : null;
 
@@ -63,7 +63,7 @@ const AvatarWithAura = ({
   const shouldAnimate = alwaysAnimate || forceAnimate || isHovering;
 
   // Determine which image to show for the aura
-  const activeAuraUrl = shouldAnimate && gifUrl ? gifUrl : pngUrl;
+  const activeAuraUrl = shouldAnimate ? animatedUrl : staticUrl;
 
   return (
     <div
@@ -81,7 +81,7 @@ const AvatarWithAura = ({
         <div className="aura-container aura-container-behind">
           {activeAuraUrl ? (
             <img src={activeAuraUrl} alt="" className="aura-gif-layer" />
-          ) : gifUrl || pngUrl ? null : (
+          ) : animatedUrl || staticUrl ? null : (
             /* Legacy CSS layers — only render if no image URLs at all */
             <>
               <div className="aura-layer aura-layer-1" />

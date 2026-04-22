@@ -4,7 +4,7 @@ import { ref, onValue, query as rtdbQuery, orderByChild, limitToLast } from 'fir
 import { db, database } from '../firebase';
 import { fetchVerifiedMatches, scanAndVerifyCompletedDrafts } from '../services/matchVerificationService';
 
-export const useLeaderboard = (registeredUsers) => {
+export const useLeaderboard = (registeredUsers, currentUser = null) => {
     const [matchHistory, setMatchHistory] = useState([]);
     const [matchHistoryLoading, setMatchHistoryLoading] = useState(true);
     const [matchHistoryFilter, setMatchHistoryFilter] = useState('all'); // 'all', 'mode1', 'mode2', 'mode3'
@@ -173,7 +173,8 @@ export const useLeaderboard = (registeredUsers) => {
                     // Record win/loss for player A
                     if (uidA) {
                         if (!winCounts[uidA]) {
-                            const userData = registeredUsers.find(u => u.id === uidA);
+                            const isSelf = currentUser && currentUser.uid === uidA;
+                            const userData = isSelf ? currentUser : registeredUsers.find(u => u.id === uidA);
                             winCounts[uidA] = {
                                 uid: uidA,
                                 displayName: userData?.auroryPlayerName || pA?.auroryPlayerName || pA?.displayName || userData?.displayName || 'Player',
@@ -190,7 +191,8 @@ export const useLeaderboard = (registeredUsers) => {
                     // Record win/loss for player B
                     if (uidB) {
                         if (!winCounts[uidB]) {
-                            const userData = registeredUsers.find(u => u.id === uidB);
+                            const isSelf = currentUser && currentUser.uid === uidB;
+                            const userData = isSelf ? currentUser : registeredUsers.find(u => u.id === uidB);
                             winCounts[uidB] = {
                                 uid: uidB,
                                 displayName: userData?.auroryPlayerName || pB?.auroryPlayerName || pB?.displayName || userData?.displayName || 'Player',
@@ -217,7 +219,8 @@ export const useLeaderboard = (registeredUsers) => {
 
                         if (uidA) {
                             if (!winCounts[uidA]) {
-                                const userData = registeredUsers.find(u => u.id === uidA);
+                                const isSelf = currentUser && currentUser.uid === uidA;
+                                const userData = isSelf ? currentUser : registeredUsers.find(u => u.id === uidA);
                                 winCounts[uidA] = {
                                     uid: uidA,
                                     displayName: userData?.auroryPlayerName || pA?.displayName || userData?.displayName || 'Player',
@@ -240,7 +243,8 @@ export const useLeaderboard = (registeredUsers) => {
 
                         if (uidB) {
                             if (!winCounts[uidB]) {
-                                const userData = registeredUsers.find(u => u.id === uidB);
+                                const isSelf = currentUser && currentUser.uid === uidB;
+                                const userData = isSelf ? currentUser : registeredUsers.find(u => u.id === uidB);
                                 winCounts[uidB] = {
                                     uid: uidB,
                                     displayName: userData?.auroryPlayerName || pB?.displayName || userData?.displayName || 'Player',
@@ -261,7 +265,7 @@ export const useLeaderboard = (registeredUsers) => {
         return Object.values(winCounts)
             .sort((a, b) => b.wins - a.wins || a.losses - b.losses)
             .slice(0, 10);
-    }, [matchHistory, registeredUsers, leaderboardMode, selectedMonth]);
+    }, [matchHistory, registeredUsers, leaderboardMode, selectedMonth, currentUser]);
 
     // Discover available months from match history
     const availableMonths = useMemo(() => {
@@ -301,12 +305,14 @@ export const useLeaderboard = (registeredUsers) => {
                         const snap = await getDocs(q);
                         const results = snap.docs.map(doc => {
                             const data = doc.data();
+                            const isSelf = currentUser && currentUser.uid === doc.id;
+                            const userData = isSelf ? currentUser : data;
                             return {
                                 uid: doc.id,
                                 ...data,
-                                displayName: data.auroryPlayerName || data.displayName || 'Guest',
-                                photoURL: data.auroryProfilePicture || data.photoURL || '',
-                                equippedCosmetics: data.equippedCosmetics || null,
+                                displayName: userData.auroryPlayerName || userData.displayName || 'Guest',
+                                photoURL: userData.auroryProfilePicture || userData.photoURL || '',
+                                equippedCosmetics: userData.equippedCosmetics || null,
                                 earnedValue: data.points || 0
                             };
                         });
@@ -322,11 +328,12 @@ export const useLeaderboard = (registeredUsers) => {
                             const val = earnersCurrency === 'aury' ? (wData.balance || 0) / 1e9 : (wData.usdcBalance || 0) / 1e6;
                             
                             // Find in current registeredUsers list
-                            const u = registeredUsers?.find(ru => ru.id === wDoc.id);
+                            const isSelf = currentUser && currentUser.uid === wDoc.id;
+                            const u = isSelf ? currentUser : registeredUsers?.find(ru => ru.id === wDoc.id);
                             
                             // Fallback: If not found in memory, we could fetch, but for now just use data if it exists
                             return {
-                        uid: wDoc.id,
+                                uid: wDoc.id,
                                 displayName: u?.auroryPlayerName || u?.displayName || 'Guest',
                                 photoURL: u?.auroryProfilePicture || u?.photoURL || '',
                                 equippedCosmetics: u?.equippedCosmetics || null,
@@ -374,7 +381,8 @@ export const useLeaderboard = (registeredUsers) => {
 
             const list = Object.entries(data)
                 .map(([uid, val]) => {
-                    const userData = registeredUsers.find(u => u.id === uid);
+                    const isSelf = currentUser && currentUser.uid === uid;
+                    const userData = isSelf ? currentUser : registeredUsers.find(u => u.id === uid);
                     return {
                         uid,
                         displayName: userData?.auroryPlayerName || val.displayName || 'Guest',
@@ -393,7 +401,7 @@ export const useLeaderboard = (registeredUsers) => {
         });
 
         return () => unsubscribe();
-    }, [earnersCurrency, earnersGameFilter, earnersTimeframe, registeredUsers]);
+    }, [earnersCurrency, earnersGameFilter, earnersTimeframe, registeredUsers, currentUser]);
 
     const topEarnersFiltered = topEarners;
 

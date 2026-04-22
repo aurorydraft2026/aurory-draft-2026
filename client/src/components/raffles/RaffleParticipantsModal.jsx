@@ -237,8 +237,8 @@ const RaffleParticipantsModal = ({ raffleId, participants = [], currentUser, onC
               memoizedParticipants.map((p) => (
                 <div 
                   key={p.uid || p.rank} 
-                  className={`viking-participant-row interactive ${isAdmin ? 'has-admin' : ''} ${p.isFlagged ? 'flagged' : ''} ${p.hasBanner ? 'has-banner' : ''}`}
-                  style={p.hasBanner ? (getEquippedBannerStyle(p, hoveredUid !== p.uid) || {}) : {}}
+                  className={`viking-participant-row interactive ${isAdmin ? 'has-admin' : ''} ${p.isFlagged ? 'flagged' : ''} ${p.equippedCosmetics?.banner ? 'has-banner' : ''}`}
+                  style={p.equippedCosmetics?.banner ? (getEquippedBannerStyle(p, hoveredUid !== p.uid) || {}) : {}}
                   onClick={() => openProfile(p)}
                   onMouseEnter={() => setHoveredUid(p.uid)}
                   onMouseLeave={() => setHoveredUid(null)}
@@ -246,7 +246,7 @@ const RaffleParticipantsModal = ({ raffleId, participants = [], currentUser, onC
                   <span className="p-rank">#{p.rank}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div className="p-avatar-mini">
-                      <AvatarWithAura user={p} size={28} forceAnimate={hoveredUid === p.uid} />
+                      <AvatarWithAura user={p} size={38} forceAnimate={hoveredUid === p.uid} />
                     </div>
                     <div className="p-name-col">
                       <span className="p-name">{p.playerName}</span>

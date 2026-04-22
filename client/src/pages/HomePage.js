@@ -147,7 +147,7 @@ function HomePage() {
     earnersGameFilter, setEarnersGameFilter,
     earnersTimeframe, setEarnersTimeframe,
     earnersLoading
-  } = useLeaderboard(registeredUsers);
+  } = useLeaderboard(registeredUsers, user);
 
   const { openProfile } = useProfileModal();
 
@@ -1473,7 +1473,7 @@ function HomePage() {
 
                         <AvatarWithAura
                           user={item}
-                          size={28}
+                          size={40}
                           className="top-player-avatar"
                           forceAnimate={hoveredRowId === 'earner-' + (item.uid || item.id)}
                         />
@@ -1568,7 +1568,7 @@ function HomePage() {
                         ) : (
                           <AvatarWithAura
                             user={item}
-                            size={28}
+                            size={40}
                             className="top-player-avatar"
                             forceAnimate={hoveredRowId === 'valor-' + item.uid}
                           />

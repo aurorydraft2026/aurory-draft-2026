@@ -20,9 +20,9 @@ let initialFetchPromise = null;
  * Fetch all cosmetics from Firestore catalog.
  * Uses a singleton promise to ensure only one network request is made even if multiple components call it at once.
  */
-export async function getAllCosmetics() {
-  if (isHydrated) return Object.values(COSMETICS_CACHE);
-  if (initialFetchPromise) return initialFetchPromise;
+export async function getAllCosmetics(force = false) {
+  if (isHydrated && !force) return Object.values(COSMETICS_CACHE);
+  if (initialFetchPromise && !force) return initialFetchPromise;
 
   initialFetchPromise = (async () => {
     try {
@@ -49,6 +49,20 @@ export async function getAllCosmetics() {
   })();
 
   return initialFetchPromise;
+}
+
+/**
+ * Manually update the local cosmetics cache with fresh data.
+ * Useful when a component already has the metadata and wants to sync it globally.
+ */
+export function updateCosmeticsCache(data) {
+  if (!data) return;
+  const items = Array.isArray(data) ? data : [data];
+  items.forEach(item => {
+    if (item && item.id) {
+      COSMETICS_CACHE[item.id] = { ...COSMETICS_CACHE[item.id], ...item };
+    }
+  });
 }
 
 /**
@@ -184,8 +198,15 @@ export const getEquippedBannerStyle = (user, useStatic = false) => {
     return banner.style;
   }
   
-  // When useStatic is true, prefer pngUrl for non-animated state
-  const url = useStatic && banner.pngUrl ? banner.pngUrl : banner.gifUrl;
+  // Order of preference for animations: avif -> gif
+  // Order of preference for static: webp -> png
+  let url = null;
+  if (useStatic) {
+    url = banner.webpUrl || banner.pngUrl || banner.gifUrl;
+  } else {
+    url = banner.avifUrl || banner.gifUrl || banner.webpUrl || banner.pngUrl;
+  }
+
   if (url) {
     return {
       backgroundImage: `url("${url}")`,
@@ -229,8 +250,15 @@ export const getBannerStyleFromCosmetic = (cosmetic, useStatic = false) => {
     return cosmetic.style;
   }
   
-  // Prefer pngUrl when useStatic is true
-  const url = useStatic && cosmetic.pngUrl ? cosmetic.pngUrl : cosmetic.gifUrl;
+  // Order of preference for animations: avif -> gif
+  // Order of preference for static: webp -> png
+  let url = null;
+  if (useStatic) {
+    url = cosmetic.webpUrl || cosmetic.pngUrl || cosmetic.gifUrl;
+  } else {
+    url = cosmetic.avifUrl || cosmetic.gifUrl || cosmetic.webpUrl || cosmetic.pngUrl;
+  }
+
   if (url) {
     return {
       backgroundImage: `url("${url}")`,

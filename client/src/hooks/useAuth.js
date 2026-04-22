@@ -117,7 +117,17 @@ export const useAuth = (navigate) => {
 
                         setUser(prevUser => {
                             if (!prevUser || prevUser.uid !== firebaseUser.uid) return prevUser;
-                            return { ...prevUser, ...userData };
+                            const merged = { ...prevUser, ...userData };
+                            
+                            // Proactively fetch metadata for equipped cosmetics to populate global cache
+                            if (userData.equippedCosmetics) {
+                                import('../services/cosmeticsService').then(({ fetchCosmeticById }) => {
+                                    if (userData.equippedCosmetics.aura) fetchCosmeticById(userData.equippedCosmetics.aura);
+                                    if (userData.equippedCosmetics.banner) fetchCosmeticById(userData.equippedCosmetics.banner);
+                                });
+                            }
+                            
+                            return merged;
                         });
                     }
                 }, (error) => {
