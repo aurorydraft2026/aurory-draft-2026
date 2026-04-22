@@ -47,22 +47,27 @@
   transition: opacity 0.3s ease;
 }
 
-/* 1. Behind Placement (Z-index 1, slightly larger for glow) */
+/* 1. Behind Placement (Z-index 1, significantly larger for glows) */
 .aura-container-behind {
   z-index: 1;
-  inset: -20%; /* Expands out for glow/aura effect */
+  inset: -25%; 
 }
 
-/* 2. On Border Placement (Z-index 3, exactly over the 2px border) */
+/* 2. On Border Placement (Z-index 3, significantly outset to frame the avatar) */
 .aura-container-border {
   z-index: 3;
-  inset: -2px; 
+  inset: -12px; 
 }
 
-/* 3. Overlay Placement (Z-index 3, strictly over the image) */
+.aura-container-border .aura-gif-layer {
+  border-radius: 0; /* Don't clip frame assets */
+  object-fit: contain;
+}
+
+/* 3. Overlay Placement (Z-index 4, slightly larger than image for full coverage) */
 .aura-container-overlay {
-  z-index: 3;
-  inset: 0;
+  z-index: 4;
+  inset: -4px;
 }
 
 /* Legacy support for CSS layers (kept for backward compat) */

@@ -4655,7 +4655,7 @@
   min-width: 130px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   position: relative;
-  overflow: hidden;
+  /* overflow: hidden; Removed to allow aura overlay */
   background-size: cover;
   background-position: center;
 }
@@ -4666,6 +4666,7 @@
   inset: 0;
   background: linear-gradient(90deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.25) 100%);
   z-index: 1;
+  border-radius: inherit; /* Ensure overlay follows parent shape */
 }
 
 .profile-trigger.has-banner > * {
@@ -4681,6 +4682,11 @@
 .profile-trigger:hover {
   border-color: var(--accent-purple);
   background: var(--bg-card-hover);
+}
+
+.profile-pic-aura {
+  position: relative;
+  z-index: 10; /* Keep aura on top of banner gradient */
 }
 
 .profile-pic {
@@ -4819,7 +4825,7 @@
   border-radius: 12px;
   flex-wrap: wrap;
   position: relative;
-  overflow: hidden;
+  /* overflow: hidden; Removed to allow aura overlay */
   background-size: cover;
   background-position: center;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
@@ -4835,6 +4841,7 @@
   bottom: 0;
   background: linear-gradient(90deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.2) 60%, transparent 100%);
   z-index: 1;
+  border-radius: inherit; /* Ensure overlay follows parent shape */
 }
 
 .user-header-info > * {
@@ -4844,6 +4851,8 @@
 
 .modal-profile-pic-aura {
   flex-shrink: 0;
+  position: relative;
+  z-index: 10; /* Keep aura on top of banner gradient */
 }
 
 .user-text-info {

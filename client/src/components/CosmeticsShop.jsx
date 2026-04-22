@@ -17,6 +17,7 @@ const CosmeticsShop = ({ user }) => {
   const [actionMessage, setActionMessage] = useState(null);
   const [hoveredCardId, setHoveredCardId] = useState(null);
   const [loadingCardId, setLoadingCardId] = useState(null);
+  const [equipping, setEquipping] = useState(null);
   const loadedAnimUrls = useRef(new Set());
 
   const ownedCosmetics = user?.ownedCosmetics || [];
@@ -38,10 +39,41 @@ const CosmeticsShop = ({ user }) => {
     return () => { isMounted = false; };
   }, []);
 
+  const isNewItem = (createdAt) => {
+    if (!createdAt) return false;
+    try {
+      const createdDate = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
+      const diffDays = (new Date() - createdDate) / (1000 * 60 * 60 * 24);
+      return diffDays <= 7;
+    } catch (e) {
+      return false;
+    }
+  };
+
   const filteredCosmetics = cosmetics
     .filter(c => c.type === activeCategory)
     .filter(c => selectedRarity === 'all' || c.rarity === selectedRarity)
     .sort((a, b) => (RARITY_CONFIG[a.rarity]?.order || 0) - (RARITY_CONFIG[b.rarity]?.order || 0));
+
+  const newItemsCount = cosmetics.filter(c => isNewItem(c.createdAt)).length;
+
+  const getCategoryStats = (type) => {
+    const items = cosmetics.filter(c => c.type === type);
+    return {
+      count: items.length,
+      hasNew: items.some(c => isNewItem(c.createdAt))
+    };
+  };
+
+  const getRarityStats = (rarity) => {
+    const items = cosmetics
+      .filter(c => c.type === activeCategory)
+      .filter(c => rarity === 'all' || c.rarity === rarity);
+    return {
+      count: items.length,
+      hasNew: items.some(c => isNewItem(c.createdAt))
+    };
+  };
 
   const showMessage = (msg, type = 'info') => {
     setActionMessage({ text: msg, type });
@@ -72,7 +104,9 @@ const CosmeticsShop = ({ user }) => {
     const currentEquipped = user?.equippedCosmetics?.[slot] || null;
     const isCurrentlyEquipped = currentEquipped === cosmetic.id;
     
+    setEquipping(cosmetic.id);
     const result = await equipCosmetic(user.uid, isCurrentlyEquipped ? null : cosmetic.id, slot);
+    setEquipping(null);
 
     if (result.success) {
       showMessage(isCurrentlyEquipped ? `${slot.charAt(0).toUpperCase() + slot.slice(1)} removed.` : `✨ Equipped "${cosmetic?.name}"!`, 'success');
@@ -101,26 +135,43 @@ const CosmeticsShop = ({ user }) => {
             {activeCategory === 'aura' 
               ? 'Adorn your avatar with mythical auras and custom effects'
               : 'Fly your colors with legendary banners for your warrior profile'}
+            {newItemsCount > 0 && (
+              <span className="new-items-highlight">
+                ⚡ {newItemsCount} NEW ARRIVAL{newItemsCount > 1 ? 'S' : ''} IN THE VAULT
+              </span>
+            )}
           </p>
         </div>
       </div>
 
       {/* Category Tabs */}
       <div className="cosmetics-category-tabs">
-        <button 
-          className={`category-tab ${activeCategory === 'aura' ? 'active' : ''}`}
-          onClick={() => { setActiveCategory('aura'); setSelectedRarity('all'); }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
-          Auras
-        </button>
-        <button 
-          className={`category-tab ${activeCategory === 'banner' ? 'active' : ''}`}
-          onClick={() => { setActiveCategory('banner'); setSelectedRarity('all'); }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>
-          Banners
-        </button>
+        {(() => {
+          const auraStats = getCategoryStats('aura');
+          const bannerStats = getCategoryStats('banner');
+          return (
+            <>
+              <button 
+                className={`category-tab ${activeCategory === 'aura' ? 'active' : ''} ${auraStats.hasNew ? 'has-new' : ''}`}
+                onClick={() => { setActiveCategory('aura'); setSelectedRarity('all'); }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                <span>Auras</span>
+                <span className="tab-count">{auraStats.count}</span>
+                {auraStats.hasNew && <span className="tab-new-indicator">NEW</span>}
+              </button>
+              <button 
+                className={`category-tab ${activeCategory === 'banner' ? 'active' : ''} ${bannerStats.hasNew ? 'has-new' : ''}`}
+                onClick={() => { setActiveCategory('banner'); setSelectedRarity('all'); }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>
+                <span>Banners</span>
+                <span className="tab-count">{bannerStats.count}</span>
+                {bannerStats.hasNew && <span className="tab-new-indicator">NEW</span>}
+              </button>
+            </>
+          );
+        })()}
       </div>
 
       {/* Action Message */}
@@ -171,22 +222,34 @@ const CosmeticsShop = ({ user }) => {
 
       {/* Rarity Filter Tabs */}
       <div className="cosmetics-filter-tabs">
-        <button
-          className={`cosmetics-filter-tab ${selectedRarity === 'all' ? 'active' : ''}`}
-          onClick={() => setSelectedRarity('all')}
-        >
-          All
-        </button>
-        {RARITY_ORDER.map(rarity => (
-          <button
-            key={rarity}
-            className={`cosmetics-filter-tab ${selectedRarity === rarity ? 'active' : ''}`}
-            style={{ '--tab-color': RARITY_CONFIG[rarity].color }}
-            onClick={() => setSelectedRarity(rarity)}
-          >
-            {RARITY_CONFIG[rarity].label}
-          </button>
-        ))}
+        {(() => {
+          const allStats = getRarityStats('all');
+          return (
+            <button
+              className={`cosmetics-filter-tab ${selectedRarity === 'all' ? 'active' : ''} ${allStats.hasNew ? 'has-new' : ''}`}
+              onClick={() => setSelectedRarity('all')}
+            >
+              <span>All</span>
+              <span className="tab-count">{allStats.count}</span>
+              {allStats.hasNew && <span className="tab-new-indicator">NEW</span>}
+            </button>
+          );
+        })()}
+        {RARITY_ORDER.map(rarity => {
+          const stats = getRarityStats(rarity);
+          return (
+            <button
+              key={rarity}
+              className={`cosmetics-filter-tab ${selectedRarity === rarity ? 'active' : ''} ${stats.hasNew ? 'has-new' : ''}`}
+              onClick={() => setSelectedRarity(rarity)}
+              style={{ '--rarity-color': RARITY_CONFIG[rarity]?.color }}
+            >
+              <span>{RARITY_CONFIG[rarity]?.label}</span>
+              <span className="tab-count">{stats.count}</span>
+              {stats.hasNew && <span className="tab-new-indicator">NEW</span>}
+            </button>
+          );
+        })}
       </div>
 
       {/* Cosmetics Grid */}
@@ -250,7 +313,7 @@ const CosmeticsShop = ({ user }) => {
                   auraData={cosmetic.type === 'aura' ? cosmetic : null}
                   forceAnimate={hoveredCardId === cosmetic.id}
                 />
-                {loadingCardId === cosmetic.id && (
+                {(loadingCardId === cosmetic.id || purchasing === cosmetic.id || equipping === cosmetic.id) && (
                   <div className="cosmetic-card-loading">
                     <div className="cosmetic-card-spinner" />
                   </div>
@@ -269,8 +332,11 @@ const CosmeticsShop = ({ user }) => {
                   <button
                     className={`cosmetic-btn equip-btn ${isEquipped ? 'unequip' : ''}`}
                     onClick={() => handleEquip(cosmetic)}
+                    disabled={equipping === cosmetic.id}
                   >
-                    {isEquipped ? (
+                    {equipping === cosmetic.id ? (
+                      'Processing...'
+                    ) : isEquipped ? (
                       <>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" x2="12" y1="2" y2="12"/></svg>
                         Unequip
@@ -286,10 +352,10 @@ const CosmeticsShop = ({ user }) => {
                   <button
                     className="cosmetic-btn buy-btn"
                     onClick={() => handlePurchase(cosmetic.id)}
-                    disabled={isPurchasing || (user.points || 0) < cosmetic.price}
+                    disabled={isPurchasing || equipping === cosmetic.id || (user.points || 0) < cosmetic.price}
                   >
                     {isPurchasing ? (
-                      <span className="cosmetic-spinner" />
+                      'Buying...'
                     ) : (
                       <>
                         <img src="/valcoin-icon.jpg" alt="" className="valcoin-btn-icon" />

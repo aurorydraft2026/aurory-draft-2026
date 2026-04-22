@@ -1345,10 +1345,10 @@ function HomePage() {
                   {earnersCurrency === 'usdc' && <img src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png" alt="" className="valcoin-icon" />}
                   {earnersCurrency === 'wins' && <span className="valcoin-icon" style={{ fontSize: '1.2rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>⚔️</span>}
                   {' '}
-                  {earnersGameFilter === 'wealth' ? 'Valiant Wealth' : 
-                   earnersGameFilter === 'pvp_wins' ? 'PvP Earnings' :
-                   earnersGameFilter === 'pvp' && earnersCurrency === 'wins' ? 'PvP Win Kings' :
-                   'Top Gainers'}
+                  {earnersGameFilter === 'wealth' ? 'Valiant Wealth' :
+                    earnersGameFilter === 'pvp_wins' ? 'PvP Earnings' :
+                      earnersGameFilter === 'pvp' && earnersCurrency === 'wins' ? 'PvP Win Kings' :
+                        'Top Gainers'}
                 </h3>
                 <div className="earners-filters">
                   <select
@@ -1363,9 +1363,9 @@ function HomePage() {
                     }}
                   >
                     <option value="valcoins">Valcoins</option>
-                    <option value="wins">Wins Count</option>
                     <option value="aury">AURY</option>
                     <option value="usdc">USDC</option>
+                    <option value="wins">PvP Wins</option>
                   </select>
                   <select
                     className="leaderboard-mode-select"
@@ -1374,8 +1374,8 @@ function HomePage() {
                   >
                     {earnersCurrency === 'valcoins' && (
                       <>
-                        <option value="wealth">Wealth (All Time)</option>
-                        <option value="all">Total Earnings (All games)</option>
+                        <option value="wealth">Wealth</option>
+                        <option value="all">Total Earnings</option>
                         <option value="pvp_wins">PvP Rewards</option>
                         <option value="slotMachine">Odin's Fortune</option>
                         <option value="treasureChest">Loot Box</option>
@@ -1386,7 +1386,7 @@ function HomePage() {
                     {earnersCurrency === 'wins' && (
                       <>
                         <option value="pvp">PvP Wins</option>
-                        <option value="all">Total Game Wins</option>
+                        <option value="all">Total PvP Wins</option>
                       </>
                     )}
                     {(earnersCurrency === 'aury' || earnersCurrency === 'usdc') && (
@@ -1444,23 +1444,23 @@ function HomePage() {
                         : earnersCurrency === 'wins'
                           ? null
                           : 'https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png';
-                    
-                    const currencyLabel = earnersCurrency === 'valcoins' ? 'Valcoins' : 
-                                          earnersCurrency === 'wins' ? 'Wins' :
-                                          earnersCurrency.toUpperCase();
-                    
-                    const currencyColor = earnersCurrency === 'valcoins' ? '#fbcd02' : 
-                                          earnersCurrency === 'aury' ? '#9945FF' : 
-                                          earnersCurrency === 'wins' ? '#ff4d4d' :
-                                          '#2775CA';
-                    
+
+                    const currencyLabel = earnersCurrency === 'valcoins' ? 'Valcoins' :
+                      earnersCurrency === 'wins' ? 'Wins' :
+                        earnersCurrency.toUpperCase();
+
+                    const currencyColor = earnersCurrency === 'valcoins' ? '#fbcd02' :
+                      earnersCurrency === 'aury' ? '#9945FF' :
+                        earnersCurrency === 'wins' ? '#ff4d4d' :
+                          '#2775CA';
+
                     const displayValue = earnersCurrency === 'valcoins' || earnersCurrency === 'wins'
                       ? item.earnedValue.toLocaleString()
                       : item.earnedValue.toFixed(earnersCurrency === 'aury' ? 4 : 2);
 
                     return (
-                      <div 
-                        key={item.uid || item.id} 
+                      <div
+                        key={item.uid || item.id}
                         className={`top-player-row ${idx < 3 ? `rank-${idx + 1}` : ''} ${getEquippedBannerStyle(item) ? 'has-banner' : ''}`}
                         style={getEquippedBannerStyle(item, hoveredRowId !== 'earner-' + (item.uid || item.id)) || {}}
                         onClick={() => openProfile(item)}
@@ -1532,8 +1532,8 @@ function HomePage() {
                   topPlayers.map((item, idx) => {
                     const isTeam = leaderboardMode === 'team';
                     return (
-                      <div 
-                        key={isTeam ? item.teamKey : item.uid} 
+                      <div
+                        key={isTeam ? item.teamKey : item.uid}
                         className={`top-player-row ${idx < 3 ? `rank-${idx + 1}` : ''} ${isTeam ? 'team-row' : ''} ${!isTeam && getEquippedBannerStyle(item) ? 'has-banner' : ''} interactive`}
                         style={!isTeam ? (getEquippedBannerStyle(item, hoveredRowId !== 'valor-' + (isTeam ? item.teamKey : item.uid)) || {}) : {}}
                         onClick={() => !isTeam && openProfile(item)}
@@ -2896,7 +2896,7 @@ function HomePage() {
 
       {/* Profile Modal (Centered Overlay - moved here to escape header backdrop-filter constraints) */}
       {showUserModal && renderUserProfileContent({ setShowAuroryModal })}
-      
+
       {/* Armory Modal (Standalone to prevent unmounting) */}
       {renderArmoryModal()}
     </div >

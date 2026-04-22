@@ -49,6 +49,10 @@
   color: var(--accent-gold);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), 0 0 10px rgba(212, 175, 55, 0.1);
   border: 1px solid rgba(212, 175, 55, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .category-tab.active {
@@ -114,6 +118,26 @@
   margin-top: 2px;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   opacity: 0.9;
+}
+
+.new-items-highlight {
+  display: inline-block;
+  margin-left: 12px;
+  background: linear-gradient(90deg, #ef4444, #f59e0b);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 800;
+  font-size: 0.75rem;
+  letter-spacing: 1.5px;
+  animation: pulse-new-arrivals 2s infinite;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  padding-left: 12px;
+}
+
+@keyframes pulse-new-arrivals {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.02); }
 }
 
 .profile-sample-card {
@@ -228,6 +252,9 @@
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .cosmetics-filter-tab:hover {
@@ -334,6 +361,41 @@
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* Tab Elements */
+.tab-count {
+  font-size: 0.7rem;
+  opacity: 0.5;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-weight: 600;
+  min-width: 18px;
+  text-align: center;
+}
+
+.tab-new-indicator {
+  font-size: 0.6rem;
+  font-weight: 900;
+  color: #fff;
+  background: linear-gradient(135deg, #ef4444, #991b1b);
+  padding: 1px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+  animation: pulse-tab-new 2s infinite;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.5);
+}
+
+@keyframes pulse-tab-new {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.9; }
+}
+
+.cosmetics-filter-tab.active .tab-count {
+  background: rgba(255, 255, 255, 0.15);
+  opacity: 0.8;
 }
 
 /* Card Preview */
