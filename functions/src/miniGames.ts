@@ -1177,19 +1177,14 @@ export const answerRiddle = onCall(
                     daily.wrongAnswers += 1;
                 }
 
-                // Check if base round is complete → unlock streak?
+                // Check if base round is complete → allow streak if lives left
                 const baseCount = (riddleConfig.baseRiddles && riddleConfig.baseRiddles.length > 0) ? riddleConfig.baseRiddles.length : 5;
                 if (daily.totalAnswered === baseCount) {
-                    if (daily.totalCorrect === baseCount) {
+                    if (daily.wrongAnswers < maxWrong) {
                         daily.streakUnlocked = true;
                         daily.phase = 'streak';
                     } else {
-                        // Base round done but not perfect — check if locked
-                        if (daily.wrongAnswers >= maxWrong) {
-                            daily.phase = 'locked';
-                        } else {
-                            daily.phase = 'completed';
-                        }
+                        daily.phase = 'locked';
                     }
                 }
 

@@ -227,8 +227,11 @@ function AdminPanel() {
     correctIndex: 0,
     category: 'norse',
     difficulty: 'easy',
-    enabled: true
+    enabled: true,
+    imageUrl: ''
   });
+  const [riddleFile, setRiddleFile] = useState(null);
+  const [riddlePreview, setRiddlePreview] = useState('');
   const [allRiddles, setAllRiddles] = useState([]);
   const [riddlesLoading, setRiddlesLoading] = useState(false);
   const [editingPrizeId, setEditingPrizeId] = useState(null);
@@ -360,7 +363,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     gifUrl: '',
     pngUrl: '',
     cssClass: '',
-    style: {} 
+    style: {}
   });
 
   // Handle image upload to Base64
@@ -578,7 +581,11 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     setPvpRewardsLoading(true);
     const unsub = onSnapshot(doc(db, 'settings', 'pvp_rewards'), (snap) => {
       if (snap.exists()) {
-        setPvpRewardsConfig(snap.data());
+        const data = snap.data();
+        setPvpRewardsConfig({
+          ...data,
+          enabled: data.enabled ?? true
+        });
       } else {
         const defaults = { enabled: true, rewardPerWin: 20, minMatchDuration: 120 };
         setDoc(doc(db, 'settings', 'pvp_rewards'), defaults);
@@ -817,7 +824,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         return;
       }
       setCosmeticFile(file);
-      
+
       // Local preview if it's a small enough image
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -835,7 +842,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         return;
       }
       setCosmeticStaticFile(file);
-      
+
       const reader = new FileReader();
       reader.onloadend = () => {
         setCosmeticForm(prev => ({ ...prev, pngUrl: reader.result }));
@@ -847,7 +854,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   const handleSaveCosmetic = async (e) => {
     if (e) e.preventDefault();
     setProcessingId('save_cosmetic');
-    
+
     try {
       let finalUrl = cosmeticForm.gifUrl;
       let finalPngUrl = cosmeticForm.pngUrl;
@@ -895,7 +902,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       setEditingCosmetic(null);
       setCosmeticFile(null);
       setCosmeticStaticFile(null);
-      
+
     } catch (error) {
       console.error('Error saving cosmetic:', error);
       alert('Error saving cosmetic: ' + error.message);
@@ -906,7 +913,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
   const handleDeleteCosmetic = async (id) => {
     if (!window.confirm('⚔️ Are you sure you want to PERMANENTLY delete this item? This will NOT remove it from users who already bought it, but new users cannot buy it.')) return;
-    
+
     try {
       await deleteDoc(doc(db, 'cosmetics', id));
       alert('Cosmetic removed from inventory.');
@@ -942,6 +949,22 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   };
 
   // Odin's Riddle Management
+  const handleRiddleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert('File too large. Please keep images under 2MB.');
+        return;
+      }
+      setRiddleFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setRiddlePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSaveRiddle = async () => {
     if (!newRiddle.question || newRiddle.options.some(opt => !opt)) {
       return alert('Question and all 4 options are required.');
@@ -949,8 +972,18 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
     setProcessingId('save_riddle');
     try {
+      let finalImageUrl = newRiddle.imageUrl;
+
+      // Upload image if selected
+      if (riddleFile) {
+        const storageRef = ref(storage, `riddles/${Date.now()}_${riddleFile.name}`);
+        const uploadResult = await uploadBytes(storageRef, riddleFile);
+        finalImageUrl = await getDownloadURL(uploadResult.ref);
+      }
+
       const riddleData = {
         ...newRiddle,
+        imageUrl: finalImageUrl,
         updatedAt: serverTimestamp()
       };
 
@@ -977,8 +1010,11 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         correctIndex: 0,
         category: 'norse',
         difficulty: 'easy',
-        enabled: true
+        enabled: true,
+        imageUrl: ''
       });
+      setRiddleFile(null);
+      setRiddlePreview('');
 
       // Trigger refresh
       const snapshot = await getDocs(collection(db, 'riddles'));
@@ -1050,8 +1086,103 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     }
   };
 
+  const handleSeedExpandedRiddles = async () => {
+    if (!window.confirm('This will seed 40 new riddles into the database. Continue?')) return;
+
+    setProcessingId('seed_riddles');
+    try {
+      const riddlesBatch = [
+        // ── AMIKO SKILLSETS (10) ──
+        { question: "Which one is not part of Axobubbles Skillset?", options: ["Volt Surge III", "Reckless Shriek II", "Bubble Chain II", "Sear I"], correctIndex: 3, category: 'skillsets', difficulty: 'medium', enabled: true },
+        { question: "Which one is not part of Keybab Skillset?", options: ["Devour III", "Burning Confidence II", "Spice Layer II", "Rest I"], correctIndex: 0, category: 'skillsets', difficulty: 'medium', enabled: true },
+        { question: "Which one is not part of Bitebit Skillset?", options: ["Energetic Jba I", "Volt Surge III", "Flash Step I", "Devour III"], correctIndex: 1, category: 'skillsets', difficulty: 'hard', enabled: true },
+        { question: "Which one is not part of Dracurve Skillset?", options: ["Draconic Roar II", "Clear Sky II", "Scorching Bite II", "Burning Confidence II"], correctIndex: 3, category: 'skillsets', difficulty: 'hard', enabled: true },
+        { question: "Which one is not part of Dodorex Skillset?", options: ["Dumb Kick I", "Prime Target II", "Flash Step I", "PayBack II"], correctIndex: 2, category: 'skillsets', difficulty: 'medium', enabled: true },
+        { question: "Which one is not part of Unikirin Skillset?", options: ["Recharge I", "Draconic Roar II", "Fulgurous Steps I", "Flamethrower I"], correctIndex: 1, category: 'skillsets', difficulty: 'hard', enabled: true },
+        { question: "Which one is not part of Cybertooth Skillset?", options: ["Sandering Fang I", "Flowing Strike I", "Aqua Bolt I", "Shattering Wind II"], correctIndex: 0, category: 'skillsets', difficulty: 'hard', enabled: true },
+        { question: "Which one is not part of Walpuff Skillset?", options: ["Wingblade II", "Headbutt II", "Stone Skin I", "Dumb Kick I"], correctIndex: 3, category: 'skillsets', difficulty: 'medium', enabled: true },
+        { question: "Which one is not part of Dinotusk Skillset?", options: ["Shared Fate III", "Headbutt II", "NoPain, No Gain I", "Peak State I"], correctIndex: 1, category: 'skillsets', difficulty: 'hard', enabled: true },
+        { question: "Which one is not part of Zzoo Skillset?", options: ["Flint Snap II", "Mirror Coat II", "Clear Sky II", "Talon Guard I"], correctIndex: 2, category: 'skillsets', difficulty: 'medium', enabled: true },
+
+        // ── WHO AM I? (10) ──
+        { question: "Who Am I?", imageUrl: "/amikos/hollowoo.png", options: ["Hollowoo", "Ghouliath", "Bloomtail", "Raccoin"], correctIndex: 0, category: 'who_am_i', difficulty: 'easy', enabled: true },
+        { question: "Who Am I?", imageUrl: "/amikos/dodorex.png", options: ["Dodorex", "Chocorex", "Dinobit", "Keybab"], correctIndex: 0, category: 'who_am_i', difficulty: 'easy', enabled: true },
+        { question: "Who Am I?", imageUrl: "/amikos/tokoma.png", options: ["Tokoma", "Oogrock", "Zzoo", "Unikirin"], correctIndex: 0, category: 'who_am_i', difficulty: 'easy', enabled: true },
+        { question: "Who Am I?", imageUrl: "/amikos/ghouliath.png", options: ["Ghouliath", "Hollowoo", "Walpuff", "Wassie"], correctIndex: 0, category: 'who_am_i', difficulty: 'easy', enabled: true },
+        { question: "Who Am I?", imageUrl: "/amikos/bloomtail.png", options: ["Bloomtail", "Axobubble", "N9", "Lucky"], correctIndex: 0, category: 'who_am_i', difficulty: 'easy', enabled: true },
+        { question: "Who Am I?", imageUrl: "/amikos/oogrock.png", options: ["Oogrock", "Cybertooth", "Dinotusk", "Tokoma"], correctIndex: 0, category: 'who_am_i', difficulty: 'medium', enabled: true },
+        { question: "Who Am I?", imageUrl: "/amikos/znix.png", options: ["Znix", "Bitebit", "Walpuff", "Dipking"], correctIndex: 0, category: 'who_am_i', difficulty: 'hard', enabled: true },
+        { question: "Who Am I?", imageUrl: "/amikos/raccoin.png", options: ["Raccoin", "Lucky", "Unika", "Shibark"], correctIndex: 0, category: 'who_am_i', difficulty: 'easy', enabled: true },
+        { question: "Who Am I?", imageUrl: "/amikos/shiba-ignite.png", options: ["Shiba Ignite", "Shibark", "Dracurve", "Keybab"], correctIndex: 0, category: 'who_am_i', difficulty: 'medium', enabled: true },
+        { question: "Who Am I?", imageUrl: "/amikos/dinobit.png", options: ["Dinobit", "Dinotusk", "Dodorex", "Raccoin"], correctIndex: 0, category: 'who_am_i', difficulty: 'easy', enabled: true },
+
+        // ── EGG MASTER (10) ──
+        { question: "Which egg contains: Lucky, Logator, Bubllu Popper?", options: ["Zen Egg", "Dune Egg", "Cliff Egg", "Marsh Egg"], correctIndex: 0, category: 'egg_master', difficulty: 'medium', enabled: true },
+        { question: "Which egg contains Beeblock, Chocorex, and Keybab?", options: ["Dune Egg", "Frost Egg", "Volatile Egg", "Zen Egg"], correctIndex: 0, category: 'egg_master', difficulty: 'medium', enabled: true },
+        { question: "Which egg contains Raccoin, Shibark, and Unikirin?", options: ["Cliff Egg", "Aurora Egg", "Zen Egg", "Marsh Egg"], correctIndex: 0, category: 'egg_master', difficulty: 'medium', enabled: true },
+        { question: "Which egg contains Chocomint, Ghouliath, and Walpuff?", options: ["Aurora Egg", "Frost Egg", "Marsh Egg", "Volatile Egg"], correctIndex: 0, category: 'egg_master', difficulty: 'medium', enabled: true },
+        { question: "Which egg contains Cybertooth, Dinotusk, and Oogrock?", options: ["Frost Egg", "Cliff Egg", "Dune Egg", "Aurora Egg"], correctIndex: 0, category: 'egg_master', difficulty: 'medium', enabled: true },
+        { question: "Which egg does Dipking belong to?", options: ["Volatile Egg", "Marsh Egg", "Zen Egg", "Coco Egg"], correctIndex: 0, category: 'egg_master', difficulty: 'hard', enabled: true },
+        { question: "Which egg contains the Matriarch Bloomtail?", options: ["Bloomer Egg", "Marsh Egg", "Zen Egg", "Aurora Egg"], correctIndex: 0, category: 'egg_master', difficulty: 'hard', enabled: true },
+        { question: "Which egg contains Dinobit, Raccoin, and Wassie?", options: ["Dune Egg", "Cliff Egg", "Zen Egg", "Marsh Egg"], correctIndex: 0, category: 'egg_master', difficulty: 'medium', enabled: true },
+        { question: "Which egg contains Axobubble, Bloomtail, and N9?", options: ["Marsh Egg", "Aurora Egg", "Zen Egg", "Cliff Egg"], correctIndex: 0, category: 'egg_master', difficulty: 'medium', enabled: true },
+        { question: "Which egg contains Dodorex?", options: ["Coco Egg", "Zen Egg", "Cliff Egg", "Marsh Egg"], correctIndex: 0, category: 'egg_master', difficulty: 'hard', enabled: true },
+
+        // ── PASSIVE EFFECTS (10) ──
+        { question: "What is the Passive Skill of Pandata?", options: ["Maintenance", "Crabby", "Wash It Down", "Power Nap"], correctIndex: 0, category: 'passives', difficulty: 'medium', enabled: true },
+        { question: "What is the Passive Skill of Bubble Popper?", options: ["Crabby", "Hexdrinker", "Maintenance", "Second Wind"], correctIndex: 0, category: 'passives', difficulty: 'medium', enabled: true },
+        { question: "What is the Passive Skill of Block Choy?", options: ["Wash It Down", "Power Nap", "Maintenance", "Scarecrow"], correctIndex: 0, category: 'passives', difficulty: 'medium', enabled: true },
+        { question: "What is the Passive Skill of Raccoin?", options: ["Power Nap", "Maintenance", "Hexdrinker", "Swan Song"], correctIndex: 0, category: 'passives', difficulty: 'medium', enabled: true },
+        { question: "What is the Passive Skill of Number 9?", options: ["Hexdrinker", "Scarecrow", "Insulated", "Eye of the Storm"], correctIndex: 0, category: 'passives', difficulty: 'hard', enabled: true },
+        { question: "What does the 'Swan Song' effect do?", options: ["After each action, if Cursed, +1 Mana", "Heal on Unlucky Hit", "Shadowbind on swap in", "Starts with Lightning Res"], correctIndex: 0, category: 'passives', difficulty: 'hard', enabled: true },
+        { question: "What does the 'Insulated' effect do?", options: ["Starts with +5 Lightning Res & Uncleansable", "Opponent Atk -2 when hit by Lightning", "Heal on Unlucky Hit", "Mana if Cursed"], correctIndex: 0, category: 'passives', difficulty: 'hard', enabled: true },
+        { question: "What does the 'Eye of the Storm' effect do?", options: ["Opponent Atk/Ether Atk -2 when hit by Lightning", "Starts with +5 Lightning Res", "Shadowbind on swap in", "Mana if Cursed"], correctIndex: 0, category: 'passives', difficulty: 'hard', enabled: true },
+        { question: "What does the 'Scarecrow' effect do?", options: ["Every time this Amiko Swaps in, Shadowbind Opponent (2 turns)", "Atk -2 when hit by Lightning", "Heal on Unlucky Hit", "Lightning Res"], correctIndex: 0, category: 'passives', difficulty: 'hard', enabled: true },
+        { question: "What does the 'Second Wind' effect do?", options: ["Every time this Amiko Unlucky Hits, Heal 7% Max HP", "Mana if Cursed", "Lightning Res", "Shadowbind on swap in"], correctIndex: 0, category: 'passives', difficulty: 'hard', enabled: true }
+      ];
+
+      const batch = writeBatch(db);
+      riddlesBatch.forEach(r => {
+        const ref = doc(collection(db, 'riddles'));
+        batch.set(ref, {
+          ...r,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      });
+
+      await batch.commit();
+      alert(`✅ Successfully seeded ${riddlesBatch.length} new riddles!`);
+
+      // Refresh list
+      const snapshot = await getDocs(collection(db, 'riddles'));
+      setAllRiddles(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (e) {
+      console.error('Seed error:', e);
+      alert('Error seeding: ' + e.message);
+    } finally {
+      setProcessingId('');
+    }
+  };
+
   const handleEditRiddle = (riddle) => {
-    setNewRiddle({ ...riddle });
+    setNewRiddle({
+      id: riddle.id || '',
+      question: riddle.question || '',
+      options: [
+        riddle.options?.[0] || '',
+        riddle.options?.[1] || '',
+        riddle.options?.[2] || '',
+        riddle.options?.[3] || ''
+      ],
+      correctIndex: riddle.correctIndex ?? 0,
+      category: riddle.category || 'norse',
+      difficulty: riddle.difficulty || 'easy',
+      enabled: riddle.enabled ?? true,
+      imageUrl: riddle.imageUrl || ''
+    });
+    setRiddleFile(null);
+    setRiddlePreview('');
     const formElement = document.querySelector('.riddle-form-card');
     if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
   };
@@ -1131,11 +1262,11 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   const handleStartEditPrize = (prize) => {
     setEditingPrizeId(prize.id);
     setNewPrize({
-      name: prize.name,
-      type: prize.type,
-      amount: prize.amount,
-      weight: prize.weight,
-      rarity: prize.rarity,
+      name: prize.name || '',
+      type: prize.type || 'valcoins',
+      amount: prize.amount ?? 10,
+      weight: prize.weight ?? 10,
+      rarity: prize.rarity || 'common',
       icon: prize.icon || 'common_horn.png'
     });
     // Scroll to top of form for UX
@@ -2150,8 +2281,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   // Handle cleanup of inactive guest accounts
   const handleCleanupInactiveGuests = async () => {
     if (!isSuperAdminUser || (activeTab === 'users' && wipeAllConfirmText !== 'WIPE ALL')) return;
-    
-    const confirmMessage = activeTab === 'visitors' 
+
+    const confirmMessage = activeTab === 'visitors'
       ? '🧹 Are you sure you want to delete all anonymous Guest accounts that have been inactive for over 1 minute? This is irreversible.'
       : '🧹 Are you sure you want to delete all anonymous Guest accounts that have been inactive for over 1 minute? This is irreversible.';
 
@@ -2362,10 +2493,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     setIsSavingEditingDoc(true);
     try {
       const userRef = doc(db, 'users', userToEditFirestore.id);
-      
+
       // We don't want to save some fields that shouldn't be touched or are metadata from the fetch
       const { id, ...dataToSave } = localEditingData;
-      
+
       await setDoc(userRef, dataToSave, { merge: false }); // Overwrite with merge: false to allow deletions
 
       logActivity({
@@ -2401,9 +2532,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           <div className="nested-body">
             {Object.entries(value).map(([childKey, childValue]) => renderFirestoreField(childKey, childValue, fullPath))}
             <div className="add-field-mini">
-              <input 
-                type="text" 
-                placeholder="New key..." 
+              <input
+                type="text"
+                placeholder="New key..."
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && e.target.value) {
                     handleAddFieldToLocalData(fullPath, e.target.value, 'string');
@@ -2426,23 +2557,23 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         </div>
         <div className="value-section">
           {type === 'boolean' ? (
-            <input 
-              type="checkbox" 
-              checked={value} 
-              onChange={(e) => handleUpdateLocalData(fullPath, e.target.checked)} 
+            <input
+              type="checkbox"
+              checked={value}
+              onChange={(e) => handleUpdateLocalData(fullPath, e.target.checked)}
             />
           ) : type === 'number' ? (
-            <input 
-              type="number" 
-              value={value} 
-              onChange={(e) => handleUpdateLocalData(fullPath, parseFloat(e.target.value))} 
+            <input
+              type="number"
+              value={value}
+              onChange={(e) => handleUpdateLocalData(fullPath, parseFloat(e.target.value))}
             />
           ) : (
-            <input 
-              type="text" 
-              value={value ?? ''} 
+            <input
+              type="text"
+              value={value ?? ''}
               placeholder={value === null ? 'NULL' : ''}
-              onChange={(e) => handleUpdateLocalData(fullPath, e.target.value)} 
+              onChange={(e) => handleUpdateLocalData(fullPath, e.target.value)}
             />
           )}
           <button className="del-btn-mini" onClick={() => handleDeleteLocalDataField(fullPath)}>×</button>
@@ -2832,15 +2963,15 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         if (isValcoins) {
           // awardPoints handles everything: clamping, exp, history, and notifications
           return await awardPoints(
-            selectedUser.id, 
-            amountInSmallestUnit, 
-            'manual_credit', 
+            selectedUser.id,
+            amountInSmallestUnit,
+            'manual_credit',
             creditReason || 'Valcoins credited by admin'
           );
         }
 
         const walletRef = doc(db, 'wallets', selectedUser.id);
-        
+
         await runTransaction(db, async (transaction) => {
           const walletDoc = await transaction.get(walletRef);
 
@@ -4684,12 +4815,12 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   <button
                     className={`selector-btn ${websiteSubTab === 'inventory' ? 'active' : ''}`}
                     onClick={() => {
-                        setWebsiteSubTab('inventory');
-                        setEditingCosmetic(null);
-                        setCosmeticForm({
-                          name: '', type: 'aura', rarity: 'common', price: 1000,
-                          description: '', placement: 'behind', gifUrl: '', pngUrl: '', cssClass: '', style: {}
-                        });
+                      setWebsiteSubTab('inventory');
+                      setEditingCosmetic(null);
+                      setCosmeticForm({
+                        name: '', type: 'aura', rarity: 'common', price: 1000,
+                        description: '', placement: 'behind', gifUrl: '', pngUrl: '', cssClass: '', style: {}
+                      });
                     }}
                   >
                     Inventory Management
@@ -4821,73 +4952,73 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   {/* Item List / Dashboard */}
                   <div className="admin-table-container card" style={{ marginBottom: '30px', padding: '15px' }}>
                     <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                       <div>
-                         <h3 style={{ margin: 0 }}>Current Inventory</h3>
-                         <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>{shopCosmetics.length} Items found in the vault.</p>
-                       </div>
+                      <div>
+                        <h3 style={{ margin: 0 }}>Current Inventory</h3>
+                        <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>{shopCosmetics.length} Items found in the vault.</p>
+                      </div>
                     </div>
-                    
+
                     {cosmeticsLoading ? (
-                        <div style={{ padding: '40px', textAlign: 'center' }}>Loading items...</div>
+                      <div style={{ padding: '40px', textAlign: 'center' }}>Loading items...</div>
                     ) : (
-                        <table className="admin-table">
-                          <thead>
-                            <tr>
-                              <th>Preview</th>
-                              <th>Name</th>
-                              <th>Rarity</th>
-                              <th>Price</th>
-                              <th>Sales</th>
-                              <th>Actions</th>
+                      <table className="admin-table">
+                        <thead>
+                          <tr>
+                            <th>Preview</th>
+                            <th>Name</th>
+                            <th>Rarity</th>
+                            <th>Price</th>
+                            <th>Sales</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {shopCosmetics.map(item => (
+                            <tr key={item.id}>
+                              <td>
+                                <AvatarWithAura
+                                  user={null}
+                                  size={36}
+                                  auraData={item.type === 'aura' ? item : null}
+                                />
+                              </td>
+                              <td>
+                                <div style={{ fontWeight: '600' }}>{item.name}</div>
+                                <div style={{ fontSize: '11px', color: '#94a3b8' }}>{item.type}</div>
+                              </td>
+                              <td>
+                                <span className="rarity-badge" style={{ background: RARITY_CONFIG[item.rarity]?.color || '#ccc', fontSize: '10px', padding: '2px 6px' }}>
+                                  {item.rarity.toUpperCase()}
+                                </span>
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <img src="/valcoin-icon.jpg" alt="" style={{ width: '12px', height: '12px' }} />
+                                  {item.price.toLocaleString()}
+                                </div>
+                              </td>
+                              <td>
+                                <span style={{ color: '#10b981', fontWeight: 'bold' }}>{item.saleCount || 0}</span>
+                              </td>
+                              <td className="admin-actions">
+                                <button className="edit-btn" onClick={() => {
+                                  setEditingCosmetic(item);
+                                  setCosmeticForm({ ...item });
+                                  setWebsiteSubTab('inventory_form');
+                                }}>📝 Edit</button>
+                                <button className="delete-btn" onClick={() => handleDeleteCosmetic(item.id)}>🗑️</button>
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {shopCosmetics.map(item => (
-                              <tr key={item.id}>
-                                <td>
-                                   <AvatarWithAura
-                                     user={null}
-                                     size={36}
-                                     auraData={item.type === 'aura' ? item : null}
-                                   />
-                                </td>
-                                <td>
-                                  <div style={{ fontWeight: '600' }}>{item.name}</div>
-                                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>{item.type}</div>
-                                </td>
-                                <td>
-                                   <span className="rarity-badge" style={{ background: RARITY_CONFIG[item.rarity]?.color || '#ccc', fontSize: '10px', padding: '2px 6px' }}>
-                                     {item.rarity.toUpperCase()}
-                                   </span>
-                                </td>
-                                <td>
-                                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                      <img src="/valcoin-icon.jpg" alt="" style={{ width: '12px', height: '12px' }} />
-                                      {item.price.toLocaleString()}
-                                   </div>
-                                </td>
-                                <td>
-                                   <span style={{ color: '#10b981', fontWeight: 'bold' }}>{item.saleCount || 0}</span>
-                                </td>
-                                <td className="admin-actions">
-                                   <button className="edit-btn" onClick={() => {
-                                       setEditingCosmetic(item);
-                                       setCosmeticForm({ ...item });
-                                       setWebsiteSubTab('inventory_form');
-                                   }}>📝 Edit</button>
-                                   <button className="delete-btn" onClick={() => handleDeleteCosmetic(item.id)}>🗑️</button>
-                                </td>
-                              </tr>
-                            ))}
-                            {shopCosmetics.length === 0 && (
-                              <tr><td colSpan="6" style={{ textAlign: 'center', padding: '20px' }}>Your shop is currently empty. Add your first item below!</td></tr>
-                            )}
-                          </tbody>
-                        </table>
+                          ))}
+                          {shopCosmetics.length === 0 && (
+                            <tr><td colSpan="6" style={{ textAlign: 'center', padding: '20px' }}>Your shop is currently empty. Add your first item below!</td></tr>
+                          )}
+                        </tbody>
+                      </table>
                     )}
-                    
-                    <button 
-                      className="selector-btn active" 
+
+                    <button
+                      className="selector-btn active"
                       style={{ marginTop: '15px', width: '100%', padding: '10px' }}
                       onClick={() => {
                         setEditingCosmetic(null);
@@ -4905,132 +5036,132 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               )}
 
               {websiteSubTab === 'inventory_form' && (
-                  <div className="credit-form card">
-                    <div className="section-header" style={{ marginBottom: '20px' }}>
-                      <h3>{editingCosmetic ? `Editing: ${editingCosmetic.name}` : '✨ Create New Cosmetic'}</h3>
-                      <button className="back-btn" onClick={() => setWebsiteSubTab('inventory')}>← Back to List</button>
+                <div className="credit-form card">
+                  <div className="section-header" style={{ marginBottom: '20px' }}>
+                    <h3>{editingCosmetic ? `Editing: ${editingCosmetic.name}` : '✨ Create New Cosmetic'}</h3>
+                    <button className="back-btn" onClick={() => setWebsiteSubTab('inventory')}>← Back to List</button>
+                  </div>
+
+                  <form onSubmit={handleSaveCosmetic}>
+                    <div className="form-row">
+                      <div className="form-group flex-2">
+                        <label>Display Name</label>
+                        <input
+                          type="text"
+                          value={cosmeticForm.name}
+                          onChange={(e) => setCosmeticForm(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder="e.g. Phoenix Pulse"
+                          required
+                        />
+                      </div>
+                      <div className="form-group flex-1">
+                        <label>Category</label>
+                        <select
+                          value={cosmeticForm.type}
+                          onChange={(e) => setCosmeticForm(prev => ({ ...prev, type: e.target.value }))}
+                        >
+                          <option value="aura">Aura (Avatar Overlay)</option>
+                          <option value="banner">Banner (Profile Background)</option>
+                        </select>
+                      </div>
                     </div>
 
-                    <form onSubmit={handleSaveCosmetic}>
-                      <div className="form-row">
-                         <div className="form-group flex-2">
-                           <label>Display Name</label>
-                           <input 
-                             type="text" 
-                             value={cosmeticForm.name} 
-                             onChange={(e) => setCosmeticForm(prev => ({ ...prev, name: e.target.value }))}
-                             placeholder="e.g. Phoenix Pulse"
-                             required
-                           />
-                         </div>
-                         <div className="form-group flex-1">
-                           <label>Category</label>
-                           <select 
-                             value={cosmeticForm.type}
-                             onChange={(e) => setCosmeticForm(prev => ({ ...prev, type: e.target.value }))}
-                           >
-                             <option value="aura">Aura (Avatar Overlay)</option>
-                             <option value="banner">Banner (Profile Background)</option>
-                           </select>
-                         </div>
+                    <div className="form-row">
+                      <div className="form-group flex-1">
+                        <label>Rarity</label>
+                        <select
+                          value={cosmeticForm.rarity}
+                          onChange={(e) => setCosmeticForm(prev => ({ ...prev, rarity: e.target.value }))}
+                        >
+                          {RARITY_ORDER.map(r => <option key={r} value={r}>{r.toUpperCase()}</option>)}
+                        </select>
                       </div>
-
-                      <div className="form-row">
-                         <div className="form-group flex-1">
-                           <label>Rarity</label>
-                           <select 
-                             value={cosmeticForm.rarity}
-                             onChange={(e) => setCosmeticForm(prev => ({ ...prev, rarity: e.target.value }))}
-                           >
-                              {RARITY_ORDER.map(r => <option key={r} value={r}>{r.toUpperCase()}</option>)}
-                           </select>
-                         </div>
-                         <div className="form-group flex-1">
-                           <label>Price (Valcoins)</label>
-                           <input 
-                             type="number" 
-                             value={cosmeticForm.price} 
-                             onChange={(e) => setCosmeticForm(prev => ({ ...prev, price: parseInt(e.target.value) || 0 }))}
-                             required
-                           />
-                         </div>
+                      <div className="form-group flex-1">
+                        <label>Price (Valcoins)</label>
+                        <input
+                          type="number"
+                          value={cosmeticForm.price}
+                          onChange={(e) => setCosmeticForm(prev => ({ ...prev, price: parseInt(e.target.value) || 0 }))}
+                          required
+                        />
                       </div>
+                    </div>
 
+                    <div className="form-group">
+                      <label>Description</label>
+                      <textarea
+                        value={cosmeticForm.description}
+                        onChange={(e) => setCosmeticForm(prev => ({ ...prev, description: e.target.value }))}
+                        placeholder="Enter a legendary description for this item..."
+                        style={{ minHeight: '80px' }}
+                      />
+                    </div>
+
+                    {cosmeticForm.type === 'aura' && (
                       <div className="form-group">
-                         <label>Description</label>
-                         <textarea 
-                           value={cosmeticForm.description}
-                           onChange={(e) => setCosmeticForm(prev => ({ ...prev, description: e.target.value }))}
-                           placeholder="Enter a legendary description for this item..."
-                           style={{ minHeight: '80px' }}
-                         />
-                      </div>
-
-                      {cosmeticForm.type === 'aura' && (
-                        <div className="form-group">
-                           <label>Placement Mode</label>
-                           <div className="currency-toggle-group">
-                             <button type="button" className={`toggle-btn ${cosmeticForm.placement === 'behind' ? 'active' : ''}`} onClick={() => setCosmeticForm(prev => ({ ...prev, placement: 'behind' }))}>Behind (Behind Icon)</button>
-                             <button type="button" className={`toggle-btn ${cosmeticForm.placement === 'overlay' ? 'active' : ''}`} onClick={() => setCosmeticForm(prev => ({ ...prev, placement: 'overlay' }))}>Overlay (Top Layer)</button>
-                             <button type="button" className={`toggle-btn ${cosmeticForm.placement === 'border' ? 'active' : ''}`} onClick={() => setCosmeticForm(prev => ({ ...prev, placement: 'border' }))}>On Border</button>
-                           </div>
-                           <p className="helper-text" style={{ fontSize: '11px', marginTop: '5px' }}>Determines where the GIF/Animation is rendered relative to the user picture.</p>
+                        <label>Placement Mode</label>
+                        <div className="currency-toggle-group">
+                          <button type="button" className={`toggle-btn ${cosmeticForm.placement === 'behind' ? 'active' : ''}`} onClick={() => setCosmeticForm(prev => ({ ...prev, placement: 'behind' }))}>Behind (Behind Icon)</button>
+                          <button type="button" className={`toggle-btn ${cosmeticForm.placement === 'overlay' ? 'active' : ''}`} onClick={() => setCosmeticForm(prev => ({ ...prev, placement: 'overlay' }))}>Overlay (Top Layer)</button>
+                          <button type="button" className={`toggle-btn ${cosmeticForm.placement === 'border' ? 'active' : ''}`} onClick={() => setCosmeticForm(prev => ({ ...prev, placement: 'border' }))}>On Border</button>
                         </div>
-                      )}
-
-                      <div className="form-group">
-                         <label>🎬 Animated Asset (AVIF / GIF / WebP)</label>
-                         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                           <input 
-                             type="text" 
-                             value={cosmeticForm.gifUrl} 
-                             onChange={(e) => setCosmeticForm(prev => ({ ...prev, gifUrl: e.target.value }))}
-                             placeholder="https://... (animated asset URL)"
-                             className="flex-3"
-                           />
-                           <div className="file-upload-wrapper flex-1">
-                              <label className="file-upload-btn" style={{ padding: '8px', fontSize: '12px' }}>
-                                 📁 Upload Animated
-                                 <input type="file" onChange={handleCosmeticImageUpload} accept="image/avif,image/gif,image/webp,image/*" />
-                              </label>
-                           </div>
-                         </div>
-                         {cosmeticFile && <p style={{ fontSize: '11px', color: '#10b981' }}>Animated: {cosmeticFile.name}</p>}
-                         <p className="helper-text" style={{ fontSize: '11px', marginTop: '4px' }}>Plays on mouse hover. Leave empty for static-only cosmetics.</p>
+                        <p className="helper-text" style={{ fontSize: '11px', marginTop: '5px' }}>Determines where the GIF/Animation is rendered relative to the user picture.</p>
                       </div>
+                    )}
 
-                      <div className="form-group">
-                         <label>🖼️ Static Preview (PNG / JPG)</label>
-                         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                           <input 
-                             type="text" 
-                             value={cosmeticForm.pngUrl} 
-                             onChange={(e) => setCosmeticForm(prev => ({ ...prev, pngUrl: e.target.value }))}
-                             placeholder="https://... (static preview URL)"
-                             className="flex-3"
-                           />
-                           <div className="file-upload-wrapper flex-1">
-                              <label className="file-upload-btn" style={{ padding: '8px', fontSize: '12px' }}>
-                                 📁 Upload Static
-                                 <input type="file" onChange={handleCosmeticStaticUpload} accept="image/png,image/jpeg,image/webp,image/*" />
-                              </label>
-                           </div>
-                         </div>
-                         {cosmeticStaticFile && <p style={{ fontSize: '11px', color: '#10b981' }}>Static: {cosmeticStaticFile.name}</p>}
-                         <p className="helper-text" style={{ fontSize: '11px', marginTop: '4px' }}>Default display image. Shown when not hovered.</p>
+                    <div className="form-group">
+                      <label>🎬 Animated Asset (AVIF / GIF / WebP)</label>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <input
+                          type="text"
+                          value={cosmeticForm.gifUrl}
+                          onChange={(e) => setCosmeticForm(prev => ({ ...prev, gifUrl: e.target.value }))}
+                          placeholder="https://... (animated asset URL)"
+                          className="flex-3"
+                        />
+                        <div className="file-upload-wrapper flex-1">
+                          <label className="file-upload-btn" style={{ padding: '8px', fontSize: '12px' }}>
+                            📁 Upload Animated
+                            <input type="file" onChange={handleCosmeticImageUpload} accept="image/avif,image/gif,image/webp,image/*" />
+                          </label>
+                        </div>
                       </div>
+                      {cosmeticFile && <p style={{ fontSize: '11px', color: '#10b981' }}>Animated: {cosmeticFile.name}</p>}
+                      <p className="helper-text" style={{ fontSize: '11px', marginTop: '4px' }}>Plays on mouse hover. Leave empty for static-only cosmetics.</p>
+                    </div>
+
+                    <div className="form-group">
+                      <label>🖼️ Static Preview (PNG / JPG)</label>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <input
+                          type="text"
+                          value={cosmeticForm.pngUrl}
+                          onChange={(e) => setCosmeticForm(prev => ({ ...prev, pngUrl: e.target.value }))}
+                          placeholder="https://... (static preview URL)"
+                          className="flex-3"
+                        />
+                        <div className="file-upload-wrapper flex-1">
+                          <label className="file-upload-btn" style={{ padding: '8px', fontSize: '12px' }}>
+                            📁 Upload Static
+                            <input type="file" onChange={handleCosmeticStaticUpload} accept="image/png,image/jpeg,image/webp,image/*" />
+                          </label>
+                        </div>
+                      </div>
+                      {cosmeticStaticFile && <p style={{ fontSize: '11px', color: '#10b981' }}>Static: {cosmeticStaticFile.name}</p>}
+                      <p className="helper-text" style={{ fontSize: '11px', marginTop: '4px' }}>Default display image. Shown when not hovered.</p>
+                    </div>
 
 
-                      <button 
-                        type="submit" 
-                        className="approve-btn" 
-                        disabled={processingId === 'save_cosmetic' || !cosmeticForm.name}
-                        style={{ width: '100%', marginTop: '20px' }}
-                      >
-                         {processingId === 'save_cosmetic' ? 'Processing Transaction...' : (editingCosmetic ? '💾 Update Cosmetic' : '✨ Publish to Shop')}
-                      </button>
-                    </form>
-                  </div>
+                    <button
+                      type="submit"
+                      className="approve-btn"
+                      disabled={processingId === 'save_cosmetic' || !cosmeticForm.name}
+                      style={{ width: '100%', marginTop: '20px' }}
+                    >
+                      {processingId === 'save_cosmetic' ? 'Processing Transaction...' : (editingCosmetic ? '💾 Update Cosmetic' : '✨ Publish to Shop')}
+                    </button>
+                  </form>
+                </div>
               )}
             </div>
           )}
@@ -5613,11 +5744,11 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               )}
 
               {/* Maintenance Tools and Sorting Row */}
-              <div className="users-controls-row" style={{ 
-                display: 'flex', 
-                gap: '15px', 
-                marginBottom: '20px', 
-                alignItems: 'center' 
+              <div className="users-controls-row" style={{
+                display: 'flex',
+                gap: '15px',
+                marginBottom: '20px',
+                alignItems: 'center'
               }}>
                 {/* Search Bar (Relocated) */}
                 <div className="search-bar" style={{ flex: 1 }}>
@@ -5639,9 +5770,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 </div>
 
                 {/* Sorting Controls */}
-                <div className="sorting-controls" style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
+                <div className="sorting-controls" style={{
+                  display: 'flex',
+                  alignItems: 'center',
                   gap: '10px',
                   background: 'rgba(255, 255, 255, 0.03)',
                   padding: '6px 15px',
@@ -5649,8 +5780,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   border: '1px solid rgba(255, 255, 255, 0.05)'
                 }}>
                   <span style={{ fontSize: '0.85em', opacity: 0.6 }}>Sort By:</span>
-                  <select 
-                    value={usersSortKey} 
+                  <select
+                    value={usersSortKey}
                     onChange={(e) => setUsersSortKey(e.target.value)}
                     className="balance-type-select"
                     style={{ background: 'transparent', border: 'none', fontSize: '0.9em' }}
@@ -5660,12 +5791,12 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     <option value="streak">Streak</option>
                     <option value="superAdmin">Rank (Admins First)</option>
                   </select>
-                  <button 
+                  <button
                     onClick={() => setUsersSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
-                    style={{ 
-                      background: 'none', 
-                      border: 'none', 
-                      color: 'white', 
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'white',
                       cursor: 'pointer',
                       fontSize: '1.1em',
                       padding: '0 5px'
@@ -5722,7 +5853,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     .sort((a, b) => {
                       const isSuperA = isSuperAdmin(getUserEmail(a));
                       const isSuperB = isSuperAdmin(getUserEmail(b));
-                      
+
                       // Secondary sort logic based on config
                       let comparison = 0;
                       if (usersSortKey === 'name') {
@@ -5730,10 +5861,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         const nameB = resolveDisplayName(b).toLowerCase();
                         comparison = nameA.localeCompare(nameB);
                       } else if (usersSortKey === 'balance') {
-                        const balA = userBalanceType === 'AURY' ? (a.balance || 0) : 
-                                     userBalanceType === 'USDC' ? (a.usdcBalance || 0) : (a.points || 0);
-                        const balB = userBalanceType === 'AURY' ? (b.balance || 0) : 
-                                     userBalanceType === 'USDC' ? (b.usdcBalance || 0) : (b.points || 0);
+                        const balA = userBalanceType === 'AURY' ? (a.balance || 0) :
+                          userBalanceType === 'USDC' ? (a.usdcBalance || 0) : (a.points || 0);
+                        const balB = userBalanceType === 'AURY' ? (b.balance || 0) :
+                          userBalanceType === 'USDC' ? (b.usdcBalance || 0) : (b.points || 0);
                         comparison = balA - balB;
                       } else if (usersSortKey === 'streak') {
                         comparison = (a.checkInStreak || 0) - (b.checkInStreak || 0);
@@ -5747,8 +5878,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     .map(u => {
                       const userIsSuper = isSuperAdmin(getUserEmail(u));
                       return (
-                        <div 
-                          key={u.id} 
+                        <div
+                          key={u.id}
                           className={`user-list-item ${userIsSuper ? 'super-admin' : ''} ${isSuperAdminUser ? 'clickable' : ''}`}
                           onClick={() => handleOpenUserEditor(u)}
                         >
@@ -7002,6 +7133,30 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 rows="3"
                               />
                             </div>
+                            <div className="form-group">
+                              <label>🖼️ Riddle Image (Optional - Used for 'Who Am I?')</label>
+                              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                <input
+                                  type="text"
+                                  value={newRiddle.imageUrl}
+                                  onChange={(e) => setNewRiddle(prev => ({ ...prev, imageUrl: e.target.value }))}
+                                  placeholder="https://... (image URL)"
+                                  className="flex-3"
+                                />
+                                <div className="file-upload-wrapper flex-1">
+                                  <label className="file-upload-btn" style={{ padding: '8px', fontSize: '12px' }}>
+                                    📁 Upload
+                                    <input type="file" onChange={handleRiddleImageUpload} accept="image/*" />
+                                  </label>
+                                </div>
+                              </div>
+                              {(riddlePreview || newRiddle.imageUrl) && (
+                                <div className="image-preview-mini" style={{ marginTop: '10px' }}>
+                                  <img src={riddlePreview || newRiddle.imageUrl} alt="Preview" style={{ maxHeight: '120px', borderRadius: '4px' }} />
+                                  <button onClick={() => { setRiddleFile(null); setRiddlePreview(''); setNewRiddle(prev => ({ ...prev, imageUrl: '' })); }} type="button">Remove</button>
+                                </div>
+                              )}
+                            </div>
                             <div className="form-row">
                               <div className="form-group">
                                 <label>Option A (Correct? <input type="radio" checked={newRiddle.correctIndex === 0} onChange={() => setNewRiddle({ ...newRiddle, correctIndex: 0 })} />)</label>
@@ -7064,17 +7219,37 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 </label>
                               </div>
                             </div>
-                            <div className="form-actions-admin" style={{ marginTop: '20px' }}>
-                              <button
-                                className="admin-primary-btn"
-                                onClick={handleSaveRiddle}
-                                disabled={processingId === 'save_riddle'}
-                              >
-                                {processingId === 'save_riddle' ? 'Saving...' : newRiddle.id ? 'Update Riddle' : 'Add Riddle to Database'}
-                              </button>
-                              {newRiddle.id && (
-                                <button className="admin-secondary-btn" onClick={() => setNewRiddle({ id: '', question: '', options: ['', '', '', ''], correctIndex: 0, category: 'norse', difficulty: 'easy', enabled: true })}>
-                                  Cancel Edit
+                            <div className="form-actions-admin" style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ display: 'flex', gap: '10px' }}>
+                                <button
+                                  className="admin-primary-btn"
+                                  onClick={handleSaveRiddle}
+                                  disabled={processingId === 'save_riddle'}
+                                >
+                                  {processingId === 'save_riddle' ? 'Saving...' : newRiddle.id ? 'Update Riddle' : 'Add Riddle to Database'}
+                                </button>
+                                {newRiddle.id && (
+                                  <button
+                                    className="admin-secondary-btn"
+                                    onClick={() => {
+                                      setNewRiddle({ id: '', question: '', options: ['', '', '', ''], correctIndex: 0, category: 'norse', difficulty: 'easy', enabled: true, imageUrl: '' });
+                                      setRiddleFile(null);
+                                      setRiddlePreview('');
+                                    }}
+                                  >
+                                    Cancel Edit
+                                  </button>
+                                )}
+                              </div>
+
+                              {!newRiddle.id && (
+                                <button
+                                  className="admin-secondary-btn"
+                                  onClick={handleSeedExpandedRiddles}
+                                  disabled={processingId === 'seed_riddles'}
+                                  style={{ background: 'rgba(16, 185, 129, 0.1)', borderColor: '#10b981', color: '#10b981', margin: 0 }}
+                                >
+                                  {processingId === 'seed_riddles' ? '🌱 Seeding...' : '🌱 Seed 40 New Riddles'}
                                 </button>
                               )}
                             </div>
@@ -7531,15 +7706,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     <label className="pvp-switch">
                       <input
                         type="checkbox"
-                        checked={pvpRewardsConfig.enabled ?? true}
-                        onChange={async (e) => {
+                        checked={!!pvpRewardsConfig.enabled}
+                        onChange={(e) => {
                           const val = e.target.checked;
                           setPvpRewardsConfig(prev => ({ ...prev, enabled: val }));
-                          try {
-                            await updateDoc(doc(db, 'settings', 'pvp_rewards'), { enabled: val });
-                          } catch (err) {
-                            alert('Error: ' + err.message);
-                          }
                         }}
                       />
                       <span className="pvp-slider" />
@@ -7845,26 +8015,26 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               </div>
 
               <div className="header-add-field-group">
-                <input 
-                  type="text" 
-                  placeholder="New field key..." 
+                <input
+                  type="text"
+                  placeholder="New field key..."
                   value={newFieldKey}
                   onChange={(e) => setNewFieldKey(e.target.value)}
                   className="header-compact-input"
                 />
-                <select 
-                  value={newFieldType} 
+                <select
+                  value={newFieldType}
                   onChange={(e) => setNewFieldType(e.target.value)}
                   className="header-compact-select"
                 >
                   <option value="string">String</option>
                   <option value="number">Number</option>
                   <option value="boolean">Boolean</option>
-                  <option value="object">Object {}</option>
+                  <option value="object">Object { }</option>
                   <option value="array">Array []</option>
                 </select>
-                <button 
-                  className="header-add-btn" 
+                <button
+                  className="header-add-btn"
                   onClick={() => handleAddFieldToLocalData('', newFieldKey, newFieldType)}
                 >
                   + Add Root Field
@@ -7887,8 +8057,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               </div>
               <div className="footer-actions">
                 <button className="secondary-btn" onClick={() => setUserToEditFirestore(null)}>Cancel</button>
-                <button 
-                  className="save-btn-admin primary" 
+                <button
+                  className="save-btn-admin primary"
                   onClick={handleSaveFirestoreUser}
                   disabled={isSavingEditingDoc}
                 >

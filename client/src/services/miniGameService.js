@@ -396,6 +396,7 @@ export async function fetchRandomRiddle(uid, requiredDifficulty = null) {
               options: selected.options,
               category: selected.category || 'norse',
               difficulty: selected.difficulty || 'easy',
+              imageUrl: selected.imageUrl || '',
               initialTimeLeft: Math.max(0, 15 - Math.floor(elapsed))
             };
           }
@@ -426,7 +427,7 @@ export async function fetchRandomRiddle(uid, requiredDifficulty = null) {
             riddleId: selected.id, startTime: serverTimestamp(), status: 'active'
           });
         }
-        return { id: selected.id, question: selected.question, options: selected.options, category: selected.category || 'norse', difficulty: selected.difficulty || 'easy', initialTimeLeft: 15 };
+        return { id: selected.id, question: selected.question, options: selected.options, category: selected.category || 'norse', difficulty: selected.difficulty || 'easy', imageUrl: selected.imageUrl || '', initialTimeLeft: 15 };
       }
       return null;
     }
@@ -450,6 +451,7 @@ export async function fetchRandomRiddle(uid, requiredDifficulty = null) {
       options: selected.options,
       category: selected.category || 'norse',
       difficulty: selected.difficulty || 'easy',
+      imageUrl: selected.imageUrl || '',
       initialTimeLeft: 15
     };
   } catch (error) {

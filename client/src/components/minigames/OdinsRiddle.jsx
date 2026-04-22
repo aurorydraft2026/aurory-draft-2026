@@ -330,7 +330,7 @@ const OdinsRiddle = ({ user, onClose, onBack }) => {
                 <span className="value">{dailyProgress.totalCorrect}/{dailyProgress.streakUnlocked ? (baseCount + streakCount) : baseCount}</span>
               </div>
               {!dailyProgress.streakUnlocked && dailyProgress.totalAnswered >= baseCount && (
-                <p className="streak-hint">💡 Answer all {baseCount} base riddles correctly next time to unlock Streak Rewards!</p>
+                <p className="streak-hint">💡 Stay under {maxWrong} mistakes to unlock Streak Rewards!</p>
               )}
               <p className="comeback-text">Return tomorrow for your next audience with Odin.</p>
             </div>
@@ -409,6 +409,11 @@ const OdinsRiddle = ({ user, onClose, onBack }) => {
 
       {/* Question */}
       <div className="riddle-question-card">
+        {riddle.imageUrl && (
+          <div className="riddle-image-container">
+            <img src={riddle.imageUrl} alt="Riddle Hint" className="riddle-image" />
+          </div>
+        )}
         <p className="riddle-question-text">{riddle.question}</p>
       </div>
 
@@ -460,7 +465,7 @@ const OdinsRiddle = ({ user, onClose, onBack }) => {
                 <div className="penalty-info">
                   <div className="wrong-count">{dailyProgress.wrongAnswers}/{maxWrong} WRONG</div>
                   <p className="penalty-text">
-                    {result.isTimeout ? "You ran out of time!" : "Careful! 3 mistakes will lock you out for the day."}
+                    {result.isTimeout ? "You ran out of time!" : `Careful! ${maxWrong} mistakes will lock you out for the day.`}
                   </p>
                 </div>
               )}
