@@ -1,14 +1,15 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { database } from '../../firebase';
 import { ref, query, orderByChild, limitToLast, onValue } from 'firebase/database';
-import { playMiniGame, getRarityColor } from '../../services/miniGameService';
+import { playMiniGame, getRarityColor, subscribeJackpot } from '../../services/miniGameService';
+import AuryFeverGauge from './AuryFeverGauge';
 import confetti from 'canvas-confetti';
 import './SlotMachine.css';
 
-const SlotMachine = ({ 
-  user, 
-  userPoints, 
-  gameConfig, 
+const SlotMachine = ({
+  user,
+  userPoints,
+  gameConfig,
   onConfigReload,
   setFrozen,
   setDisplayedPoints
@@ -29,6 +30,8 @@ const SlotMachine = ({
   const costPerPlay = gameConfig?.costPerPlay || 50;
   const [recentWinners, setRecentWinners] = useState([]);
   const [displayedWinners, setDisplayedWinners] = useState([]);
+  const [jackpotData, setJackpotData] = useState({ count: 0, lastWinner: null });
+  const [pendingFill, setPendingFill] = useState(false);
 
   // Sync displayed winners from real-time data ONLY when not currently spinning
   useEffect(() => {
@@ -52,7 +55,7 @@ const SlotMachine = ({
           id: key,
           ...data[key]
         })).sort((a, b) => b.timestamp - a.timestamp);
-        
+
         // Filter out non-slot machine ones, then truncate to 20
         const slotsWinners = winnersArray.filter(w => w.gameType === 'slotMachine').slice(0, 20);
         setRecentWinners(slotsWinners);
@@ -61,6 +64,12 @@ const SlotMachine = ({
       }
     });
 
+    return () => unsubscribe();
+  }, []);
+
+  // Subscribe to AURY Fever jackpot gauge
+  useEffect(() => {
+    const unsubscribe = subscribeJackpot('slotMachine', setJackpotData);
     return () => unsubscribe();
   }, []);
 
@@ -91,6 +100,7 @@ const SlotMachine = ({
     setError('');
     setResult(null);
     setShowResult(false);
+    setPendingFill(true);
     setIsSpinning(true);
 
     // Snap back to ready zone seamlessly BEFORE fetching the next spin
@@ -103,7 +113,7 @@ const SlotMachine = ({
         const tPos = -((readyOffset + currentIndices[i]) * symbolHeight) + symbolHeight;
         ref.current.style.transform = `translateY(${tPos}px)`;
         // trigger reflow so the browser applies the jump instantly
-        void ref.current.offsetHeight; 
+        void ref.current.offsetHeight;
       }
     });
 
@@ -124,15 +134,15 @@ const SlotMachine = ({
     // 1. Determine if it's a win or a loss
     const wonPrize = playResult.prize;
     const isLoss = !wonPrize;
-    
+
     let targetPositions = [];
-    
+
     if (isLoss) {
       // Pick 3 mismatched indices
       const idx1 = Math.floor(Math.random() * prizes.length);
       let idx2 = Math.floor(Math.random() * prizes.length);
       let idx3 = Math.floor(Math.random() * prizes.length);
-      
+
       // Ensure they aren't all the same symbols (to avoid visual confusion)
       if (prizes.length > 1) {
         while (idx1 === idx2 && idx2 === idx3) {
@@ -140,10 +150,10 @@ const SlotMachine = ({
           idx3 = (idx2 + 1) % prizes.length;
         }
       }
-      
+
       const targetIndices = [idx1, idx2, idx3];
       setCurrentIndices(targetIndices); // Store for safe-zone resync
-      
+
       targetPositions = targetIndices.map(targetIdx => {
         const landingOffset = prizes.length * 15; // Always spin to the 'Landing Zone'
         const finalIndex = landingOffset + targetIdx;
@@ -154,7 +164,7 @@ const SlotMachine = ({
       const winIndex = prizes.findIndex(p => p.id === wonPrize.id);
       const targetIndex = winIndex >= 0 ? winIndex : 0;
       setCurrentIndices([targetIndex, targetIndex, targetIndex]);
-      
+
       // Calculate position
       const landingOffset = prizes.length * 15;
       const finalIndex = landingOffset + targetIndex;
@@ -168,7 +178,7 @@ const SlotMachine = ({
         const delay = i * 400; // Stagger each reel
         const duration = 2000 + (i * 600); // Each reel spins longer
         const finalPosition = targetPositions[i];
-        
+
         // Remove the reset-to-zero logic to allow persistence
         setTimeout(() => {
           if (ref.current) {
@@ -184,11 +194,10 @@ const SlotMachine = ({
     setTimeout(() => {
       setResult(playResult);
       setIsSpinning(false);
+      setPendingFill(false); // Allow gauge to update now
 
       if (isLoss) {
         // On loss: Do not show modal. Sync balance.
-        // We removed the reel snapping here because it was using a stale `currentIndices` closure,
-        // causing a visual mismatch flash. The reset now happens harmlessly on the next click.
         setFrozen(false);
       } else {
         // On win: Show modal & perform visual effects
@@ -210,7 +219,7 @@ const SlotMachine = ({
     setShowResult(false);
     setResult(null);
     setFrozen(false); // Sync back to real Firestore balance (reveal winnings)
-    
+
     // 🛡️ SEAMLESS INFINITE LOOP: 
     // Snap the reels back to an identical 'Ready Zone' instantly (transition: none)
     // Because the icons are identical, the user won't see any jump.
@@ -230,11 +239,11 @@ const SlotMachine = ({
       <div className="slot-winners-feed side-panel">
         <div className="slot-meta-buttons">
           <button className="slot-meta-btn" onClick={() => setShowPrizesModal(true)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>
             Rewards
           </button>
           <button className="slot-meta-btn" onClick={() => setShowRulesModal(true)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
             Rules
           </button>
         </div>
@@ -242,7 +251,7 @@ const SlotMachine = ({
           <h4>Recent Action</h4>
           <span className="live-indicator">
             <span className="pulse-dot"></span>
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 8v8" /><path d="M8 12h8" /></svg>
             Live
           </span>
         </div>
@@ -275,6 +284,17 @@ const SlotMachine = ({
       {/* CENTER COLUMN: Machine & Controls */}
       <div className="minigame-main-view">
         <div className="slot-machine-visuals">
+          {/* AURY Fever Gauge - Left Side (desktop) / Below (mobile) */}
+          <div className="fever-gauge-desktop">
+            <AuryFeverGauge
+              count={jackpotData.count || 0}
+              maxCount={gameConfig?.jackpotMaxCount || 500}
+              minAury={gameConfig?.jackpotMinAury || 0}
+              maxAury={gameConfig?.jackpotMaxAury || 10}
+              pendingFill={pendingFill}
+              tooltipDirection="right"
+            />
+          </div>
           <div className="slot-machine-frame">
             {error && (
               <div className="slot-error">
@@ -302,7 +322,7 @@ const SlotMachine = ({
                           {prize.icon && prize.icon.endsWith('.png') ? (
                             <img src={`${process.env.PUBLIC_URL}/icons/minigames/${prize.icon}`} alt="" className="slot-icon-img" />
                           ) : (
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--accent-gold)'}}><path d="M20 12V8H4v4"/><rect width="20" height="12" x="2" y="12" rx="2"/><path d="M12 12V3"/><path d="M7 12V7"/><path d="M17 12V7"/><path d="M11 3h2"/></svg>
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-gold)' }}><path d="M20 12V8H4v4" /><rect width="20" height="12" x="2" y="12" rx="2" /><path d="M12 12V3" /><path d="M7 12V7" /><path d="M17 12V7" /><path d="M11 3h2" /></svg>
                           )}
                         </span>
                         <span className="slot-symbol-name">{prize.name}</span>
@@ -319,7 +339,7 @@ const SlotMachine = ({
 
 
           {/* Mechanical Pull Lever */}
-          <div 
+          <div
             className={`slot-lever-container ${isSpinning ? 'pulling' : ''}`}
             onClick={handleSpin}
           >
@@ -347,6 +367,17 @@ const SlotMachine = ({
               ))}
             </div>
           )}
+        </div>
+
+        {/* AURY Fever Gauge - Mobile (below machine) */}
+        <div className="fever-gauge-mobile">
+          <AuryFeverGauge
+            count={jackpotData.count || 0}
+            maxCount={gameConfig?.jackpotMaxCount || 500}
+            minAury={gameConfig?.jackpotMinAury || 0}
+            maxAury={gameConfig?.jackpotMaxAury || 10}
+            pendingFill={pendingFill}
+          />
         </div>
 
         {/* Action Controls */}
@@ -379,18 +410,18 @@ const SlotMachine = ({
                 <img src={`${process.env.PUBLIC_URL}/icons/minigames/${result.prize.icon}`} alt="" className="result-icon-img" />
               ) : (
                 result.prize ? (
-                  <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--accent-gold)'}}><path d="M20 12V8H4v4"/><rect width="20" height="12" x="2" y="12" rx="2"/><path d="M12 12V3"/><path d="M7 12V7"/><path d="M17 12V7"/><path d="M11 3h2"/></svg>
+                  <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-gold)' }}><path d="M20 12V8H4v4" /><rect width="20" height="12" x="2" y="12" rx="2" /><path d="M12 12V3" /><path d="M7 12V7" /><path d="M17 12V7" /><path d="M11 3h2" /></svg>
                 ) : (
-                  <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--text-muted)'}}><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-muted)' }}><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
                 )
               )}
             </div>
             <h3 className="slot-result-title">
               {!result.prize ? 'BETTER LUCK NEXT TIME!' :
-               result.prize.rarity === 'legendary' ? '🔥 LEGENDARY WIN! 🔥' :
-               result.prize.rarity === 'epic' ? '⚡ EPIC WIN! ⚡' :
-               result.prize.rarity === 'rare' ? '💎 RARE WIN!' :
-               'YOU WON!'}
+                result.prize.rarity === 'legendary' ? '🔥 LEGENDARY WIN! 🔥' :
+                  result.prize.rarity === 'epic' ? '⚡ EPIC WIN! ⚡' :
+                    result.prize.rarity === 'rare' ? '💎 RARE WIN!' :
+                      'YOU WON!'}
             </h3>
             <p className="slot-result-prize" style={{ color: result.prize ? getRarityColor(result.prize.rarity) : '#64748b' }}>
               {result.prize ? result.prize.name : 'No prize this time.'}
@@ -417,7 +448,7 @@ const SlotMachine = ({
                     {prize.icon && prize.icon.endsWith('.png') ? (
                       <img src={`${process.env.PUBLIC_URL}/icons/minigames/${prize.icon}`} alt="" className="prize-table-icon-img" />
                     ) : (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H4v4"/><rect width="20" height="12" x="2" y="12" rx="2"/><path d="M12 12V3"/><path d="M7 12V7"/><path d="M17 12V7"/><path d="M11 3h2"/></svg>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H4v4" /><rect width="20" height="12" x="2" y="12" rx="2" /><path d="M12 12V3" /><path d="M7 12V7" /><path d="M17 12V7" /><path d="M11 3h2" /></svg>
                     )}
                   </span>
                   <span className="prize-name">{prize.name}</span>
@@ -448,6 +479,7 @@ const SlotMachine = ({
                 <li><span style={{ color: '#ffb300' }}>Legendary</span> - The Jackpot!</li>
               </ul>
               <p>4. All winnings are automatically credited to your balance.</p>
+              <p>5. <strong>AURY Fever:</strong> Every time a player loses, the AURY Fever gauge fills up. Once full, getting the Jackpot prize will award a share of the accumulated AURY!</p>
             </div>
             <button className="slot-play-again-btn" onClick={() => setShowRulesModal(false)} style={{ marginTop: '20px', width: '100%' }}>
               Got it!

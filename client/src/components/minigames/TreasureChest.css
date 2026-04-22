@@ -18,15 +18,13 @@
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  /* Reduced gap */
   background: rgba(15, 23, 42, 0.4);
   padding: 20px 30px;
-  /* Reduced padding */
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .minigame-main-view::before {
@@ -39,6 +37,10 @@
   background: linear-gradient(90deg, transparent, rgba(184, 134, 11, 0.5), transparent);
 }
 
+/* Desktop: show gauge in stage row, hide mobile gauge */
+.fever-gauge-desktop { display: block; }
+.fever-gauge-mobile { display: none; }
+
 @media (max-width: 900px) {
   .loot-box-container {
     flex-direction: column-reverse;
@@ -49,6 +51,21 @@
   .side-panel {
     width: 100%;
     max-width: 500px;
+  }
+
+  .minigame-main-view {
+    padding: 16px 12px;
+  }
+}
+
+/* Mobile: hide gauge in stage, show below chest */
+@media (max-width: 600px) {
+  .fever-gauge-desktop { display: none; }
+  .fever-gauge-mobile {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    margin-top: 8px;
   }
 }
 
@@ -61,11 +78,14 @@
 /* ───────────── STAGE ───────────── */
 .chest-stage {
   position: relative;
-  width: 280px;
-  height: 340px; /* Increased from 280px for better headroom */
+  width: 100%;
+  max-width: 440px; /* Increased to fit gauge */
+  height: 340px;
   display: flex;
+  flex-direction: row;
   align-items: flex-end;
   justify-content: center;
+  gap: 32px;
   padding-bottom: 5px;
 }
 
@@ -207,26 +227,24 @@
 /* Shaking */
 .chest-body.shaking {
   animation: chestShake 0.15s ease-in-out infinite;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 @keyframes chestShake {
-
-  0%,
-  100% {
-    transform: translateX(0) rotate(0deg);
-  }
-
-  25% {
-    transform: translateX(-4px) rotate(-1deg);
-  }
-
-  75% {
-    transform: translateX(4px) rotate(1deg);
-  }
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  25% { transform: translateX(-4px) rotate(-1deg); }
+  75% { transform: translateX(4px) rotate(1deg); }
 }
 
 .chest-body.shaking .chest-lock {
-  animation: lockGlow 0.5s ease-in-out infinite alternate;
+  animation: lockPulse 0.5s ease-in-out infinite alternate;
+  will-change: filter, opacity;
+}
+
+@keyframes lockPulse {
+  0% { filter: brightness(1); opacity: 0.8; }
+  100% { filter: brightness(1.5) drop-shadow(0 0 8px var(--accent-gold)); opacity: 1; }
 }
 
 @keyframes lockGlow {

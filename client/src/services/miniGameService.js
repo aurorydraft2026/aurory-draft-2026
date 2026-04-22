@@ -351,13 +351,16 @@ export function getRarityLabel(rarity) {
   }
 }
 
-export function getRecommendedIcons(rarity) {
+export function getRecommendedIcons(rarity, isJackpot = false) {
+  if (isJackpot) {
+    return ['jackpot_pouch_2.png', 'jackpot_pouch.png', 'legendary_hammer.png', 'legendary_ship.png', '💰', '👑'];
+  }
   switch (rarity) {
-    case 'legendary': return ['legendary_ship.png', 'legendary_hammer.png'];
-    case 'epic': return ['epic_helmet.png', 'epic_amber.png'];
-    case 'rare': return ['rare_axe.png'];
+    case 'legendary': return ['legendary_ship.png', 'legendary_hammer.png', '🟡', '✨'];
+    case 'epic': return ['epic_helmet.png', 'epic_amber.png', '🟣', '🔥'];
+    case 'rare': return ['rare_axe.png', '🔵', '💎'];
     case 'common':
-    default: return ['common_horn.png', 'common_shield.png'];
+    default: return ['common_horn.png', 'common_shield.png', '⚪', '🪙'];
   }
 }
 
@@ -507,4 +510,27 @@ export async function submitRiddleAnswer(riddleId, answerIndex) {
     console.error('Error submitting riddle answer:', error);
     throw error;
   }
+}
+
+
+// ═══════════════════════════════════════════════════════
+//  AURY FEVER — JACKPOT GAUGE SUBSCRIPTION
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Subscribe to the global AURY Fever jackpot gauge for a given game type.
+ * @param {'slotMachine' | 'treasureChest'} gameType
+ * @param {(data: { count: number, lastWinner: object|null }) => void} callback
+ * @returns {() => void} unsubscribe function
+ */
+export function subscribeJackpot(gameType, callback) {
+  const jackpotRef = ref(database, `mini_games/jackpots/${gameType}`);
+  onValue(jackpotRef, (snapshot) => {
+    if (snapshot.exists()) {
+      callback(snapshot.val());
+    } else {
+      callback({ count: 0, lastWinner: null });
+    }
+  });
+  return () => off(jackpotRef);
 }

@@ -1,0 +1,419 @@
+/* ═══════════════════════════════════════════════════════
+   AURY FEVER GAUGE — Liquid Test Tube
+   ═══════════════════════════════════════════════════════ */
+
+.aury-fever-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 72px;
+  flex-shrink: 0;
+  user-select: none;
+  position: relative;
+  /* Performance: Promote to GPU layer */
+  will-change: transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* ─── Header: Prize + Label ─── */
+.aury-fever-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  position: relative;
+}
+
+.aury-fever-prize {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fbbf24;
+  text-shadow: 0 0 8px rgba(251, 191, 36, 0.5);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.aury-fever-label {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #ff6b35, #fbbf24, #ff6b35);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: feverLabelShimmer 3s ease-in-out infinite;
+}
+
+@keyframes feverLabelShimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* ─── Tube Wrapper ─── */
+.aury-fever-tube-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.aury-fever-tube {
+  position: relative;
+  width: 32px;
+  height: 220px;
+  background: linear-gradient(180deg, 
+    rgba(15, 23, 42, 0.9) 0%, 
+    rgba(15, 23, 42, 0.7) 100%
+  );
+  border: 2px solid rgba(148, 163, 184, 0.25);
+  border-radius: 16px 16px 10px 10px;
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 12px rgba(0, 0, 0, 0.6),
+    0 0 8px rgba(251, 191, 36, 0.1);
+}
+
+/* ─── Liquid Fill ─── */
+.aury-fever-liquid {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(0deg, 
+    #ff4500 0%, 
+    #ff6b35 30%, 
+    #fbbf24 70%, 
+    #ffe066 100%
+  );
+  border-radius: 0 0 8px 8px;
+  transition: height 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+  box-shadow:
+    0 -4px 16px rgba(255, 107, 53, 0.4),
+    inset 0 2px 8px rgba(255, 255, 255, 0.15);
+}
+
+/* ─── Surface Wave ─── */
+.liquid-surface {
+  position: absolute;
+  top: -4px;
+  left: -10%;
+  right: -10%;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  animation: liquidWave 2.5s ease-in-out infinite;
+}
+
+@keyframes liquidWave {
+  0%, 100% { transform: translateX(-3px) scaleY(1); }
+  25% { transform: translateX(3px) scaleY(1.4); }
+  50% { transform: translateX(-2px) scaleY(0.8); }
+  75% { transform: translateX(4px) scaleY(1.2); }
+}
+
+/* ─── Bubbles ─── */
+.liquid-bubbles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.bubble {
+  position: absolute;
+  bottom: -6px;
+  width: 4px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  animation: bubbleRise 3s ease-in infinite;
+}
+
+.bubble:nth-child(1) { left: 15%; animation-delay: 0s; animation-duration: 2.8s; }
+.bubble:nth-child(2) { left: 40%; animation-delay: 0.6s; animation-duration: 3.2s; width: 3px; height: 3px; }
+.bubble:nth-child(3) { left: 65%; animation-delay: 1.2s; animation-duration: 2.5s; }
+.bubble:nth-child(4) { left: 25%; animation-delay: 1.8s; animation-duration: 3.5s; width: 2px; height: 2px; }
+.bubble:nth-child(5) { left: 55%; animation-delay: 2.4s; animation-duration: 2.9s; width: 3px; height: 3px; }
+
+@keyframes bubbleRise {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    transform: translateY(-200px) scale(0.3);
+    opacity: 0;
+  }
+}
+
+/* ─── Glass Highlight ─── */
+.tube-highlight {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 6px;
+  height: calc(100% - 8px);
+  background: linear-gradient(180deg, 
+    rgba(255, 255, 255, 0.12) 0%, 
+    rgba(255, 255, 255, 0.04) 50%, 
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+/* ─── Markers ─── */
+.tube-markers {
+  position: absolute;
+  top: 4px;
+  right: -20px;
+  bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.tube-markers .marker {
+  font-size: 0.45rem;
+  color: rgba(148, 163, 184, 0.5);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+/* ─── Footer ─── */
+.aury-fever-footer {
+  text-align: center;
+}
+
+.aury-fever-count {
+  font-size: 0.6rem;
+  color: rgba(148, 163, 184, 0.6);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── High Fever Glow (above 75%) ─── */
+.aury-fever-tube::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  background: radial-gradient(circle, rgba(255, 107, 53, 0.4) 0%, transparent 70%);
+  border-radius: 40px;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.aury-fever-container.high-fever .aury-fever-tube::before {
+  opacity: 1;
+  animation: tubeGlowFade 2s ease-in-out infinite;
+}
+
+.aury-fever-container.full-fever .aury-fever-tube::before {
+  background: radial-gradient(circle, rgba(255, 69, 0, 0.6) 0%, transparent 70%);
+  opacity: 1;
+  animation: tubeFullPulseFade 1.2s ease-in-out infinite;
+}
+
+@keyframes tubeGlowFade {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.1); }
+}
+
+@keyframes tubeFullPulseFade {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+.aury-fever-container.full-fever .aury-fever-prize {
+  animation: prizeFullPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes prizeFullPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.9; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   FEVER PARTICLE BURST — Bursting from the Prize
+   ═══════════════════════════════════════════════════════ */
+
+.fever-particles-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.fever-particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fbbf24, #ff6b35);
+  box-shadow: 0 0 6px #fbbf24, 0 0 12px rgba(255, 107, 53, 0.6);
+  animation: feverParticleFly 0.8s ease-in forwards;
+  animation-delay: var(--particle-delay);
+  opacity: 0;
+}
+
+/* Each particle starts from a scattered position and converges on the gauge tube */
+.fever-particle:nth-child(1) { --start-x: 80px;  --start-y: -60px; }
+.fever-particle:nth-child(2) { --start-x: -70px; --start-y: -80px; }
+.fever-particle:nth-child(3) { --start-x: 100px; --start-y: 20px; }
+.fever-particle:nth-child(4) { --start-x: -90px; --start-y: 30px; }
+.fever-particle:nth-child(5) { --start-x: 60px;  --start-y: -100px; }
+.fever-particle:nth-child(6) { --start-x: -50px; --start-y: -40px; }
+.fever-particle:nth-child(7) { --start-x: 90px;  --start-y: -20px; }
+.fever-particle:nth-child(8) { --start-x: -80px; --start-y: -90px; }
+
+@keyframes feverParticleFly {
+  0% {
+    transform: translate(var(--start-x), var(--start-y)) scale(1.5);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    transform: translate(0, 0) scale(0);
+    opacity: 0;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   MOBILE RESPONSIVE — Gauge below on small screens
+   ═══════════════════════════════════════════════════════ */
+
+/* Tablets — slightly smaller gauge */
+@media (max-width: 768px) {
+  .aury-fever-container {
+    width: 56px;
+  }
+  
+  .aury-fever-tube {
+    width: 26px;
+    height: 160px;
+  }
+  
+  .aury-fever-prize {
+    font-size: 0.6rem;
+  }
+  
+  .aury-fever-label {
+    font-size: 0.5rem;
+  }
+  
+  .tube-markers {
+    display: none;
+  }
+}
+
+/* Small mobile — gauge becomes a horizontal bar below the game */
+@media (max-width: 480px) {
+  .aury-fever-container {
+    flex-direction: row;
+    width: 100%;
+    gap: 12px;
+    padding: 10px 16px;
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.1);
+  }
+
+  .aury-fever-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 70px;
+  }
+
+  .aury-fever-tube-wrapper {
+    flex: 1;
+  }
+
+  .aury-fever-tube {
+    width: 100%;
+    height: 20px;
+    border-radius: 10px;
+  }
+
+  .aury-fever-liquid {
+    /* For horizontal layout, use width instead of height */
+    bottom: 0;
+    top: 0;
+    left: 0;
+    right: auto;
+    height: 100% !important;
+    width: var(--fever-pct, 0%);
+    border-radius: 8px;
+    background: linear-gradient(90deg, 
+      #ff4500 0%, 
+      #ff6b35 30%, 
+      #fbbf24 70%, 
+      #ffe066 100%
+    );
+    transition: width 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .liquid-surface {
+    top: 0;
+    bottom: 0;
+    left: auto;
+    right: -4px;
+    width: 10px;
+    height: 100%;
+    border-radius: 50%;
+    animation: liquidWaveHoriz 2.5s ease-in-out infinite;
+  }
+
+  .tube-highlight {
+    top: 3px;
+    left: 4px;
+    width: calc(100% - 8px);
+    height: 5px;
+    border-radius: 8px;
+  }
+
+  .aury-fever-footer {
+    min-width: 50px;
+  }
+
+  .aury-fever-count {
+    font-size: 0.55rem;
+  }
+
+  .tube-markers {
+    display: none;
+  }
+
+  .fever-particle:nth-child(1) { --start-x: 40px;  --start-y: -30px; }
+  .fever-particle:nth-child(2) { --start-x: -35px; --start-y: -40px; }
+  .fever-particle:nth-child(3) { --start-x: 50px;  --start-y: 10px; }
+  .fever-particle:nth-child(4) { --start-x: -45px; --start-y: 15px; }
+  .fever-particle:nth-child(5) { --start-x: 30px;  --start-y: -50px; }
+  .fever-particle:nth-child(6) { --start-x: -25px; --start-y: -20px; }
+  .fever-particle:nth-child(7) { --start-x: 45px;  --start-y: -10px; }
+  .fever-particle:nth-child(8) { --start-x: -40px; --start-y: -45px; }
+}
+
+@keyframes liquidWaveHoriz {
+  0%, 100% { transform: translateY(-2px) scaleX(1); }
+  25% { transform: translateY(2px) scaleX(1.3); }
+  50% { transform: translateY(-1px) scaleX(0.8); }
+  75% { transform: translateY(3px) scaleX(1.1); }
+}

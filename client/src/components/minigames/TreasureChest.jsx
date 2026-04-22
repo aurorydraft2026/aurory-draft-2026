@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { database } from '../../firebase';
 import { ref, query, orderByChild, limitToLast, onValue } from 'firebase/database';
-import { playMiniGame, getRarityColor } from '../../services/miniGameService';
+import { playMiniGame, getRarityColor, subscribeJackpot } from '../../services/miniGameService';
+import AuryFeverGauge from './AuryFeverGauge';
 import confetti from 'canvas-confetti';
 import './TreasureChest.css';
 
@@ -25,6 +26,8 @@ const TreasureChest = ({
   
   const [recentWinners, setRecentWinners] = useState([]);
   const [displayedWinners, setDisplayedWinners] = useState([]);
+  const [jackpotData, setJackpotData] = useState({ count: 0, lastWinner: null });
+  const [pendingFill, setPendingFill] = useState(false);
 
   // Sync displayed winners from real-time data ONLY when not currently opening
   useEffect(() => {
@@ -60,6 +63,12 @@ const TreasureChest = ({
     return () => unsubscribe();
   }, []);
 
+  // Subscribe to AURY Fever jackpot gauge
+  useEffect(() => {
+    const unsub = subscribeJackpot('treasureChest', setJackpotData);
+    return () => unsub();
+  }, []);
+
   const prizes = gameConfig?.prizes || [];
   const costPerPlay = gameConfig?.costPerPlay || 30;
 
@@ -75,6 +84,7 @@ const TreasureChest = ({
     setError('');
     setResult(null);
     setIsOpening(true);
+    setPendingFill(true);
 
     // 1. Optimistic deduction in UI and Freeze sync
     setFrozen(true);
@@ -104,6 +114,7 @@ const TreasureChest = ({
       setResult(playResult);
       setPhase('reveal');
       setIsOpening(false);
+      setPendingFill(false); // Allow gauge to update now
 
       // Trigger High-Energy Celebration for Legendary Win
       if (playResult.prize?.rarity === 'legendary') {
@@ -219,6 +230,17 @@ const TreasureChest = ({
             </div>
           )}
           <div className="chest-stage">
+            {/* AURY Fever Gauge - Left Side (desktop) */}
+            <div className="fever-gauge-desktop">
+              <AuryFeverGauge
+                count={jackpotData.count || 0}
+                maxCount={gameConfig?.jackpotMaxCount || 500}
+                minAury={gameConfig?.jackpotMinAury || 0}
+                maxAury={gameConfig?.jackpotMaxAury || 5}
+                pendingFill={pendingFill}
+                tooltipDirection="right"
+              />
+            </div>
             <div 
               className={`chest-wrapper ${phase} ${phase === 'idle' ? 'interactive' : ''}`}
               onClick={phase === 'idle' ? handleOpen : (phase === 'reveal' ? handlePlayAgain : undefined)}
@@ -320,6 +342,17 @@ const TreasureChest = ({
           </div>
         </div>
 
+        {/* AURY Fever Gauge - Mobile (below chest) */}
+        <div className="fever-gauge-mobile">
+          <AuryFeverGauge
+            count={jackpotData.count || 0}
+            maxCount={gameConfig?.jackpotMaxCount || 500}
+            minAury={gameConfig?.jackpotMinAury || 0}
+            maxAury={gameConfig?.jackpotMaxAury || 5}
+            pendingFill={pendingFill}
+          />
+        </div>
+
         {/* Action Controls */}
         <div className="chest-controls-wrapper">
           <div className="minigame-multiplier-selector">
@@ -392,6 +425,7 @@ const TreasureChest = ({
                 <li><span style={{ color: '#ffb300' }}>Legendary</span> - The Motherlode!</li>
               </ul>
               <p>4. All winnings are automatically credited to your balance.</p>
+              <p>5. <strong>AURY Fever:</strong> Every time a player loses, the AURY Fever gauge fills up. Once full, getting the Jackpot prize will award a share of the accumulated AURY!</p>
             </div>
             <button className="chest-again-btn" onClick={() => setShowRulesModal(false)} style={{ marginTop: '20px', width: '100%' }}>
               Got it!

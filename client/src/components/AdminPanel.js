@@ -216,7 +216,8 @@ function AdminPanel() {
     amount: 10,
     weight: 10,
     rarity: 'common',
-    icon: 'common_horn.png'
+    icon: 'common_horn.png',
+    isJackpot: false
   });
 
   // Odin's Riddle Specific State
@@ -1197,7 +1198,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       if (!gameConfig || !gameConfig.prizes) return;
 
       const updatedPrizes = gameConfig.prizes.map(prize => {
-        const icons = getRecommendedIcons(prize.rarity);
+        const icons = getRecommendedIcons(prize.rarity, prize.isJackpot);
         // Map common icons specifically for slot machine if possible
         let icon = icons[0];
         if (gameType === 'slotMachine') {
@@ -1267,7 +1268,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       amount: prize.amount ?? 10,
       weight: prize.weight ?? 10,
       rarity: prize.rarity || 'common',
-      icon: prize.icon || 'common_horn.png'
+      icon: prize.icon || 'common_horn.png',
+      isJackpot: prize.isJackpot || false
     });
     // Scroll to top of form for UX
     document.querySelector('.prizes-management-card')?.scrollIntoView({ behavior: 'smooth' });
@@ -6900,7 +6902,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             <input
                               type="number"
                               value={miniGamesConfig[activeGameType]?.maxWrongPerDay ?? 3}
-                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { maxWrongPerDay: parseInt(e.target.value) })}
+                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { maxWrongPerDay: parseInt(e.target.value) || 0 })}
                               min="1"
                               max="10"
                             />
@@ -6912,10 +6914,45 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           <input
                             type="number"
                             value={miniGamesConfig[activeGameType]?.costPerPlay ?? 50}
-                            onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { costPerPlay: parseInt(e.target.value) })}
+                            onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { costPerPlay: parseInt(e.target.value) || 0 })}
                             min="0"
                           />
                         </div>
+                      )}
+                      {(activeGameType === 'slotMachine' || activeGameType === 'treasureChest') && (
+                        <>
+                          <div className="form-group">
+                            <label>Jackpot Min AURY (Base Reward)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={miniGamesConfig[activeGameType]?.jackpotMinAury ?? 0}
+                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { jackpotMinAury: parseFloat(e.target.value) || 0 })}
+                              min="0"
+                              title="The starting AURY reward when the gauge is empty"
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Jackpot Max AURY (Full Gauge Reward)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={miniGamesConfig[activeGameType]?.jackpotMaxAury ?? (activeGameType === 'slotMachine' ? 10 : 5)}
+                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { jackpotMaxAury: parseFloat(e.target.value) || 0 })}
+                              min="0"
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Jackpot Max Losses (Gauge Size)</label>
+                            <input
+                              type="number"
+                              value={miniGamesConfig[activeGameType]?.jackpotMaxCount ?? 500}
+                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { jackpotMaxCount: parseInt(e.target.value) || 500 })}
+                              min="10"
+                              title="How many 'Better Luck Next Time' results to fill the gauge"
+                            />
+                          </div>
+                        </>
                       )}
                     </div>
 
@@ -7350,7 +7387,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                               <div className="form-group icon-picker-group">
                                 <label>Icon</label>
                                 <div className="icon-quick-picker">
-                                  {getRecommendedIcons(newPrize.rarity).map(emoji => (
+                                  {getRecommendedIcons(newPrize.rarity, newPrize.isJackpot).map(emoji => (
                                     <button
                                       key={emoji}
                                       type="button"
@@ -7371,6 +7408,17 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                   onChange={(e) => setNewPrize({ ...newPrize, icon: e.target.value })}
                                   placeholder="Emoji or icon reference"
                                 />
+                              </div>
+                              <div className="form-group toggle-group" style={{ minWidth: '120px' }}>
+                                <label className="toggle-label" style={{ padding: '4px 0' }}>
+                                  <span>Is Jackpot?</span>
+                                  <input
+                                    type="checkbox"
+                                    checked={newPrize.isJackpot || false}
+                                    onChange={(e) => setNewPrize({ ...newPrize, isJackpot: e.target.checked })}
+                                    className="admin-checkbox"
+                                  />
+                                </label>
                               </div>
                               <div className="form-actions-mini">
                                 <button
@@ -7404,7 +7452,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                       )}
                                     </div>
                                     <div className="prize-info-admin">
-                                      <span className="prize-name-admin">{prize.name}</span>
+                                      <span className="prize-name-admin">
+                                        {prize.name}
+                                        {prize.isJackpot && <span className="jackpot-badge-admin">JACKPOT</span>}
+                                      </span>
                                       <span className="prize-details-admin">
                                         {prize.type.toUpperCase()}: {prize.amount} | Weight: {prize.weight}
                                       </span>

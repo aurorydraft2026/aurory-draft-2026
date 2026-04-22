@@ -284,6 +284,20 @@ export const playMiniGame = onCall(
                         finalPrize.name.toLowerCase().includes('usdc')) {
                         finalPrize.name = `${finalPrize.amount.toLocaleString()} ${finalPrize.type}`;
                     }
+                } else {
+                    // --- AURY FEVER INCREMENT ---
+                    // Every "Better Luck Next Time" (loss) increments the global jackpot gauge
+                    try {
+                        const rtdb = admin.database();
+                        const jackpotRef = rtdb.ref(`mini_games/jackpots/${gameType}/count`);
+                        const maxCount = gameConfig.jackpotMaxCount || 500;
+                        await jackpotRef.transaction((current) => {
+                            const newCount = (current || 0) + multiplier; // Scale by multiplier
+                            return newCount > maxCount ? maxCount : newCount; // Cap at maxCount
+                        });
+                    } catch (e) {
+                        console.error('Failed to increment AURY Fever counter', e);
+                    }
                 }
 
                 transaction.update(userRef, {
@@ -293,6 +307,38 @@ export const playMiniGame = onCall(
                 });
 
                 if (finalPrize) {
+                    // --- AURY FEVER JACKPOT CHECK ---
+                    if (finalPrize.isJackpot || finalPrize.id === 'jackpot') {
+                        try {
+                            const rtdb = admin.database();
+                            const jackpotCountRef = rtdb.ref(`mini_games/jackpots/${gameType}/count`);
+                            const jackpotSnap = await jackpotCountRef.get();
+                            const currentCount = jackpotSnap.val() || 0;
+                            
+                            const minAury = gameConfig.jackpotMinAury || 0;
+                            const maxAury = gameConfig.jackpotMaxAury || (gameType === 'slotMachine' ? 10 : 5);
+                            const maxCount = gameConfig.jackpotMaxCount || 500;
+                            
+                            // Proportional reward: min + (count / max) * (max - min)
+                            const auryReward = minAury + (currentCount / maxCount) * (maxAury - minAury);
+                            finalPrize.amount = auryReward;
+                            finalPrize.name = `${auryReward.toFixed(2)} AURY JACKPOT!`;
+                            
+                            // Reset the counter for this game type
+                            await jackpotCountRef.set(0);
+                            await rtdb.ref(`mini_games/jackpots/${gameType}/lastWinner`).set({
+                                uid,
+                                name: userData.auroryPlayerName || userData.displayName || 'Guest',
+                                amount: auryReward,
+                                timestamp: admin.database.ServerValue.TIMESTAMP
+                            });
+                        } catch (e) {
+                            console.error('Failed to process AURY Fever Jackpot payout', e);
+                            // Fallback to a small amount if RTDB fails
+                            finalPrize.amount = 0.1;
+                        }
+                    }
+
                     if (finalPrize.type.toLowerCase() === 'valcoins' && finalPrize.amount > 0) {
                         // FIX: Account for the costPerPlay that was deducted prior to the win!
                         const postCostPoints = (userData.points || 0) - costPerPlay;
@@ -965,6 +1011,7 @@ function getDefaultConfig(): any {
             enabled: true,
             costPerPlay: 50,
             noWinWeight: 30,
+            jackpotMaxAury: 10,
             prizes: [
                 { id: 'sm1', name: '25 Valcoins', type: 'valcoins', amount: 25, weight: 35, rarity: 'common', icon: 'common_horn.png' },
                 { id: 'sm2', name: '50 Valcoins', type: 'valcoins', amount: 50, weight: 25, rarity: 'common', icon: 'common_shield.png' },
@@ -974,12 +1021,14 @@ function getDefaultConfig(): any {
                 { id: 'sm6', name: '0.5 AURY', type: 'aury', amount: 0.5, weight: 5, rarity: 'epic', icon: 'epic_helmet.png' },
                 { id: 'sm7', name: '1 AURY', type: 'aury', amount: 1, weight: 3, rarity: 'legendary', icon: 'legendary_hammer.png' },
                 { id: 'sm8', name: '1 USDC', type: 'usdc', amount: 1, weight: 2, rarity: 'legendary', icon: 'legendary_ship.png' },
+                { id: 'jackpot', name: 'AURY FEVER JACKPOT', type: 'aury', amount: 0, weight: 1, rarity: 'legendary', icon: 'legendary_hammer.png', isJackpot: true },
             ]
         },
         treasureChest: {
             enabled: true,
             costPerPlay: 30,
             noWinWeight: 20,
+            jackpotMaxAury: 5,
             prizes: [
                 { id: 'tc1', name: '15 Valcoins', type: 'valcoins', amount: 15, weight: 35, rarity: 'common', icon: 'common_horn.png' },
                 { id: 'tc2', name: '30 Valcoins', type: 'valcoins', amount: 30, weight: 25, rarity: 'common', icon: 'common_shield.png' },
@@ -989,6 +1038,7 @@ function getDefaultConfig(): any {
                 { id: 'tc6', name: '0.25 AURY', type: 'aury', amount: 0.25, weight: 5, rarity: 'epic', icon: 'epic_amber.png' },
                 { id: 'tc7', name: '0.5 AURY', type: 'aury', amount: 0.5, weight: 3, rarity: 'legendary', icon: 'legendary_hammer.png' },
                 { id: 'tc8', name: '0.5 USDC', type: 'usdc', amount: 0.5, weight: 2, rarity: 'legendary', icon: 'legendary_ship.png' },
+                { id: 'jackpot', name: 'AURY FEVER JACKPOT', type: 'aury', amount: 0, weight: 1, rarity: 'legendary', icon: 'legendary_ship.png', isJackpot: true },
             ]
         },
         drakkarRace: {

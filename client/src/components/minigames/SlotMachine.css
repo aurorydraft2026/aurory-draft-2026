@@ -18,15 +18,13 @@
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  /* Reduced gap */
   background: rgba(15, 23, 42, 0.4);
   padding: 20px 30px;
-  /* Reduced vertical padding */
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .minigame-main-view::before {
@@ -39,6 +37,10 @@
   background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
 }
 
+/* Desktop: show gauge in visuals row, hide mobile gauge */
+.fever-gauge-desktop { display: block; }
+.fever-gauge-mobile { display: none; }
+
 @media (max-width: 900px) {
   .slot-machine-container {
     flex-direction: column-reverse;
@@ -50,6 +52,21 @@
     width: 100%;
     max-width: 600px;
   }
+
+  .minigame-main-view {
+    padding: 16px 12px;
+  }
+}
+
+/* Mobile: hide gauge in visuals, show below machine */
+@media (max-width: 600px) {
+  .fever-gauge-desktop { display: none; }
+  .fever-gauge-mobile {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    margin-top: 8px;
+  }
 }
 
 
@@ -57,9 +74,13 @@
 .slot-machine-visuals {
   position: relative;
   width: 100%;
-  max-width: 440px;
+  max-width: 540px; /* Increased from 440px */
   display: flex;
+  flex-direction: row;
+  align-items: flex-end;
   justify-content: center;
+  gap: 24px;
+  margin-bottom: 20px;
 }
 
 .slot-machine-frame {
@@ -151,7 +172,9 @@
 .slot-reel {
   display: flex;
   flex-direction: column;
+  /* Performance: Promote to GPU layer */
   will-change: transform;
+  transform: translateZ(0);
 }
 
 .slot-symbol {
@@ -1027,7 +1050,8 @@
   background: var(--color);
   animation: slotParticleBurst 1.5s cubic-bezier(0.1, 0.8, 0.3, 1) var(--delay) forwards;
   opacity: 0;
-  box-shadow: 0 0 10px var(--color);
+  will-change: transform, opacity;
+  filter: drop-shadow(0 0 5px var(--color));
 }
 
 @keyframes slotParticleBurst {

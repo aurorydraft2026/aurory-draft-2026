@@ -39,6 +39,12 @@
           }
         }
       }
+    },
+    "mini_games": {
+      "jackpots": {
+        ".read": true,
+        ".write": false
+      }
     }
   }
 }
