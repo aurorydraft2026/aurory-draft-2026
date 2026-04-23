@@ -6787,12 +6787,18 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     >
                       Odin's Riddle
                     </button>
+                    <button
+                      className={`selector-btn ${activeGameType === 'yggdrasilAscender' ? 'active' : ''}`}
+                      onClick={() => setActiveGameType('yggdrasilAscender')}
+                    >
+                      Yggdrasil
+                    </button>
                   </div>
                 </div>
               </div>
 
 
-              {activeGameType !== 'drakkarRace' && activeGameType !== 'odinsRiddle' && (
+              {activeGameType !== 'drakkarRace' && activeGameType !== 'odinsRiddle' && activeGameType !== 'yggdrasilAscender' && (
                 <div className="config-card probability-guide-card">
                   <div className="guide-header">
                     <h3>⚖️ Probability Balance Guide</h3>
@@ -6908,7 +6914,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             />
                           </div>
                         </>
-                      ) : (
+                      ) : activeGameType !== 'yggdrasilAscender' ? (
                         <div className="form-group">
                           <label>Cost Per Play (Valcoins)</label>
                           <input
@@ -6918,7 +6924,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             min="0"
                           />
                         </div>
-                      )}
+                      ) : null}
                       {(activeGameType === 'slotMachine' || activeGameType === 'treasureChest') && (
                         <>
                           <div className="form-group">
@@ -7013,6 +7019,32 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           </div>
                         </div>
                       </>
+                    )}
+
+                    {activeGameType === 'yggdrasilAscender' && (
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label>Max Rewarded Runs / Day</label>
+                          <input
+                            type="number"
+                            value={miniGamesConfig[activeGameType]?.maxDailyRuns ?? 5}
+                            onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { maxDailyRuns: parseInt(e.target.value) || 0 })}
+                            min="0"
+                            max="50"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Rune Multiplier</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={miniGamesConfig[activeGameType]?.runeMultiplier ?? 1.0}
+                            onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { runeMultiplier: parseFloat(e.target.value) || 0 })}
+                            min="0"
+                            max="10"
+                          />
+                        </div>
+                      </div>
                     )}
                   </div>
 
@@ -7130,7 +7162,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         </div>
                       </div>
                     </>
-                  ) : (
+                  ) : activeGameType !== 'yggdrasilAscender' ? (
                     <>
                       <div className="form-group">
                         <label>Cost Per Play (Valcoins)</label>
@@ -7152,10 +7184,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         />
                       </div>
                     </>
-                  )}
+                  ) : null}
 
 
-                  {activeGameType !== 'drakkarRace' && (
+                  {activeGameType !== 'drakkarRace' && activeGameType !== 'yggdrasilAscender' && (
                     <div className="prizes-management-card card">
                       {activeGameType === 'odinsRiddle' ? (
                         <div className="riddle-management-section">

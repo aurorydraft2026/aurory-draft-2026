@@ -140,3 +140,79 @@ exports.getAuroryNeftiesIndex = functions.https.onCall(async (data, context) => 
         throw new functions.https.HttpsError('internal', error.message);
     }
 });
+
+// ============================================================================
+// YGGDRASIL ASCENDER
+// ============================================================================
+
+/**
+ * Submit Yggdrasil Ascender run for rewards
+ */
+exports.submitYggdrasilRun = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
+    }
+
+    const { altitude, runes } = data;
+    const uid = context.auth.uid;
+    const today = new Date().toISOString().split('T')[0];
+
+    // Basic validation
+    if (typeof altitude !== 'number' || typeof runes !== 'number' || altitude < 0 || runes < 0) {
+        throw new functions.https.HttpsError('invalid-argument', 'Invalid run data.');
+    }
+
+    const userRef = admin.firestore().collection('users').doc(uid);
+    const runDocRef = userRef.collection('yggdrasil_runs').doc(today);
+    const configRef = admin.firestore().collection('admin').doc('minigames');
+
+    try {
+        return await admin.firestore().runTransaction(async (transaction) => {
+            const userDoc = await transaction.get(userRef);
+            const runDoc = await transaction.get(runDocRef);
+            const configDoc = await transaction.get(configRef);
+
+            if (!userDoc.exists) {
+                throw new functions.https.HttpsError('not-found', 'User not found.');
+            }
+
+            // Get config
+            const configData = configDoc.exists ? configDoc.data().yggdrasilAscender || {} : {};
+            const maxDailyRuns = configData.maxDailyRuns || 5;
+            const runeMultiplier = configData.runeMultiplier || 1.0;
+
+            // Check runs limit
+            const runData = runDoc.exists ? runDoc.data() : { count: 0 };
+            if (runData.count >= maxDailyRuns) {
+                return { success: true, reward: 0, limitReached: true, runsCompleted: runData.count, maxRuns: maxDailyRuns };
+            }
+
+            // Calculate reward
+            const rewardAmount = Math.floor(altitude / 100) * Math.max(1, Math.floor(runes * runeMultiplier));
+
+            if (rewardAmount > 0) {
+                const userData = userDoc.data();
+                const currentBalance = userData.valcoins || 0;
+                transaction.update(userRef, {
+                    valcoins: currentBalance + rewardAmount
+                });
+            }
+
+            // Update runs count
+            transaction.set(runDocRef, {
+                count: runData.count + 1,
+                lastRunTime: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            return { 
+                success: true, 
+                reward: rewardAmount, 
+                runsCompleted: runData.count + 1,
+                maxRuns: maxDailyRuns
+            };
+        });
+    } catch (error) {
+        console.error('Transaction failed:', error);
+        throw new functions.https.HttpsError('internal', error.message);
+    }
+});

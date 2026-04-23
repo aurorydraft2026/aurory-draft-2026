@@ -1343,4 +1343,85 @@ export const answerRiddle = onCall(
     }
 );
 
+// ═══════════════════════════════════════════════════════
+//  YGGDRASIL ASCENDER
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Submit Yggdrasil Ascender run for rewards
+ */
+export const submitYggdrasilRun = onCall(
+    { cors: true, maxInstances: 10 },
+    async (request) => {
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User must be logged in.');
+        }
+
+        const { altitude, runes } = request.data;
+        const { uid } = request.auth;
+        const today = new Date().toISOString().split('T')[0];
+
+        // Basic validation
+        if (typeof altitude !== 'number' || typeof runes !== 'number' || altitude < 0 || runes < 0) {
+            throw new HttpsError('invalid-argument', 'Invalid run data.');
+        }
+
+        const db = admin.firestore();
+        const userRef = db.collection('users').doc(uid);
+        const runDocRef = userRef.collection('yggdrasil_runs').doc(today);
+        const configRef = db.collection('settings').doc('mini_games');
+
+        try {
+            return await db.runTransaction(async (transaction: any) => {
+                const [userDoc, runDoc, configDoc] = await Promise.all([
+                    transaction.get(userRef),
+                    transaction.get(runDocRef),
+                    transaction.get(configRef)
+                ]);
+
+                if (!userDoc.exists) {
+                    throw new HttpsError('not-found', 'User not found.');
+                }
+
+                // Get config
+                const configData = configDoc.exists ? configDoc.data().yggdrasilAscender || {} : {};
+                const maxDailyRuns = configData.maxDailyRuns ?? 5;
+                const runeMultiplier = configData.runeMultiplier ?? 1.0;
+
+                // Check runs limit
+                const runData = runDoc.exists ? runDoc.data() : { count: 0 };
+                if (runData.count >= maxDailyRuns) {
+                    return { success: true, reward: 0, limitReached: true, runsCompleted: runData.count, maxRuns: maxDailyRuns };
+                }
+
+                // Calculate reward
+                const rewardAmount = Math.floor(altitude / 100) * Math.max(1, Math.floor(runes * runeMultiplier));
+
+                if (rewardAmount > 0) {
+                    transaction.update(userRef, {
+                        points: admin.firestore.FieldValue.increment(rewardAmount),
+                        exp: admin.firestore.FieldValue.increment(rewardAmount)
+                    });
+                }
+
+                // Update runs count
+                transaction.set(runDocRef, {
+                    count: runData.count + 1,
+                    lastRunTime: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                return { 
+                    success: true, 
+                    reward: rewardAmount, 
+                    runsCompleted: runData.count + 1,
+                    maxRuns: maxDailyRuns
+                };
+            });
+        } catch (error: any) {
+            console.error('SubmitYggdrasilRun Error:', error);
+            throw new HttpsError('internal', error.message || 'Failed to submit run.');
+        }
+    }
+);
+
 

@@ -189,8 +189,32 @@ function getDefaultConfig() {
         { difficulty: 'hard', reward: 50 },
       ]
     },
-
+    yggdrasilAscender: {
+      enabled: true,
+      description: 'Climb the World Tree with friends!',
+      costPerPlay: 0,
+    },
   };
+}
+
+// ═══════════════════════════════════════════════════════
+//  YGGDRASIL ASCENDER — REWARDS
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Submit Yggdrasil Ascender run for altitude/rune rewards.
+ * @param {number} altitude - The max altitude reached.
+ * @param {number} runes - The number of runes collected.
+ */
+export async function submitYggdrasilRun(altitude, runes) {
+  try {
+    const claimFn = httpsCallable(functions, 'submitYggdrasilRun');
+    const result = await claimFn({ altitude, runes });
+    return result.data;
+  } catch (error) {
+    console.error('Error submitting Yggdrasil run:', error);
+    return { success: false, error: error.message };
+  }
 }
 
 
