@@ -38,8 +38,13 @@
 }
 
 /* Desktop: show gauge in stage row, hide mobile gauge */
-.fever-gauge-desktop { display: block; }
-.fever-gauge-mobile { display: none; }
+.fever-gauge-desktop {
+  display: block;
+}
+
+.fever-gauge-mobile {
+  display: none;
+}
 
 @media (max-width: 900px) {
   .loot-box-container {
@@ -60,7 +65,10 @@
 
 /* Mobile: hide gauge in stage, show below chest */
 @media (max-width: 600px) {
-  .fever-gauge-desktop { display: none; }
+  .fever-gauge-desktop {
+    display: none;
+  }
+
   .fever-gauge-mobile {
     display: flex;
     justify-content: center;
@@ -79,7 +87,8 @@
 .chest-stage {
   position: relative;
   width: 100%;
-  max-width: 440px; /* Increased to fit gauge */
+  max-width: 440px;
+  /* Increased to fit gauge */
   height: 340px;
   display: flex;
   flex-direction: row;
@@ -184,7 +193,8 @@
   height: 160px;
   transform-style: preserve-3d;
   transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  margin: 20px auto 0 auto; /* Reduced top margin, removed bottom margin */
+  margin: 20px auto 0 auto;
+  /* Reduced top margin, removed bottom margin */
   display: flex;
   justify-content: center;
   align-items: center;
@@ -232,9 +242,19 @@
 }
 
 @keyframes chestShake {
-  0%, 100% { transform: translateX(0) rotate(0deg); }
-  25% { transform: translateX(-4px) rotate(-1deg); }
-  75% { transform: translateX(4px) rotate(1deg); }
+
+  0%,
+  100% {
+    transform: translateX(0) rotate(0deg);
+  }
+
+  25% {
+    transform: translateX(-4px) rotate(-1deg);
+  }
+
+  75% {
+    transform: translateX(4px) rotate(1deg);
+  }
 }
 
 .chest-body.shaking .chest-lock {
@@ -243,8 +263,15 @@
 }
 
 @keyframes lockPulse {
-  0% { filter: brightness(1); opacity: 0.8; }
-  100% { filter: brightness(1.5) drop-shadow(0 0 8px var(--accent-gold)); opacity: 1; }
+  0% {
+    filter: brightness(1);
+    opacity: 0.8;
+  }
+
+  100% {
+    filter: brightness(1.5) drop-shadow(0 0 8px var(--accent-gold));
+    opacity: 1;
+  }
 }
 
 @keyframes lockGlow {
@@ -293,7 +320,8 @@
 /* Tap to Open Hint */
 .chest-tap-hint {
   position: absolute;
-  top: -20px; /* Reduced from -60px */
+  top: -20px;
+  /* Reduced from -60px */
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -307,7 +335,8 @@
 
 .chest-status-msg {
   position: absolute;
-  top: -30px; /* Reduced from -70px */
+  top: -30px;
+  /* Reduced from -70px */
   left: 50%;
   transform: translateX(-50%);
   font-family: 'Rajdhani', sans-serif;
@@ -322,8 +351,15 @@
 }
 
 @keyframes mgPulse {
-  from { opacity: 0.5; transform: translateX(-50%) scale(0.95); }
-  to { opacity: 1; transform: translateX(-50%) scale(1.05); }
+  from {
+    opacity: 0.5;
+    transform: translateX(-50%) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.05);
+  }
 }
 
 
@@ -331,7 +367,8 @@
 /* ─── PRIZE REVEAL ─── */
 .chest-prize-reveal {
   position: absolute;
-  top: -40px; /* Lowered even more to sit right above the chest */
+  top: -40px;
+  /* Lowered even more to sit right above the chest */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -425,11 +462,12 @@
 
 .chest-particle {
   position: absolute;
-  top:0;
-  left:0;
+  top: 0;
+  left: 0;
   width: 8px;
   height: 8px;
-  border-radius: 2px; /* Rectangular confetti style */
+  border-radius: 2px;
+  /* Rectangular confetti style */
   background: var(--color);
   animation: particleBurst 1.5s cubic-bezier(0.1, 0.8, 0.3, 1) var(--delay) forwards;
   opacity: 0;
@@ -441,10 +479,12 @@
     transform: translate(-50%, -50%) rotate(0deg) translateY(0) scale(0);
     opacity: 0;
   }
+
   15% {
     opacity: 1;
     transform: translate(-50%, -50%) rotate(var(--angle)) translateY(0) scale(1.5);
   }
+
   100% {
     transform: translate(-50%, -50%) rotate(calc(var(--angle) + 360deg)) translateY(-200px) scale(0);
     opacity: 0;
@@ -497,18 +537,22 @@
 .multiplier-options {
   display: flex;
   justify-content: center;
-  gap: 6px; /* Reduced from 10px */
+  gap: 6px;
+  /* Reduced from 10px */
   flex-wrap: wrap;
 }
 
 .multiplier-opt {
-  width: 32px; /* Increased from 26px */
-  height: 32px; /* Increased from 26px */
+  width: 32px;
+  /* Increased from 26px */
+  height: 32px;
+  /* Increased from 26px */
   border-radius: 50%;
   background: #1e293b;
   border: 1.5px solid rgba(255, 255, 255, 0.1);
   color: #94a3b8;
-  font-size: 0.8rem; /* Increased from 0.7rem */
+  font-size: 0.8rem;
+  /* Increased from 0.7rem */
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -644,8 +688,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px; /* Reduced from 12px */
-  margin-top: 20px; /* Added margin to push it lower */
+  gap: 8px;
+  /* Reduced from 12px */
+  margin-top: 20px;
+  /* Added margin to push it lower */
   position: relative;
   z-index: 50;
 }
@@ -939,7 +985,7 @@
   .chest-tap-hint {
     top: -50px;
   }
-  
+
   .tap-text {
     font-size: 0.75rem;
   }

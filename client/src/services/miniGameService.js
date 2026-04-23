@@ -375,6 +375,8 @@ export function getRecommendedIcons(rarity, isJackpot = false) {
  */
 export async function fetchRandomRiddle(uid, requiredDifficulty = null) {
   try {
+    let askedRiddleIds = [];
+    
     if (!uid) {
       console.warn("fetchRandomRiddle: No UID provided.");
     } else {
@@ -382,6 +384,19 @@ export async function fetchRandomRiddle(uid, requiredDifficulty = null) {
       const sessionRef = doc(db, 'users', uid, 'activeSessions', 'odinsRiddle');
       const sessionSnap = await getDoc(sessionRef);
       
+      const userRef = doc(db, 'users', uid);
+      const userSnap = await getDoc(userRef);
+      const userData = userSnap.data() || {};
+      const daily = userData.dailyRiddle || {};
+      
+      // Get today's date string
+      const now = new Date();
+      const today = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
+      
+      if (daily.date === today) {
+        askedRiddleIds = daily.askedRiddleIds || [];
+      }
+
       if (sessionSnap.exists()) {
         const session = sessionSnap.data();
         const startTime = session.startTime?.toMillis?.() || session.startTime || Date.now();
@@ -393,10 +408,15 @@ export async function fetchRandomRiddle(uid, requiredDifficulty = null) {
           if (riddleDoc.exists()) {
             const selected = riddleDoc.data();
             console.log("Resuming active riddle session:", session.riddleId);
+            
+            // Map options to include original indices and scramble
+            const optionsWithIdx = selected.options.map((opt, i) => ({ text: opt, originalIndex: i }));
+            const scrambledOptions = [...optionsWithIdx].sort(() => Math.random() - 0.5);
+
             return {
               id: riddleDoc.id,
               question: selected.question,
-              options: selected.options,
+              options: scrambledOptions, // Scrambled for UI
               category: selected.category || 'norse',
               difficulty: selected.difficulty || 'easy',
               imageUrl: selected.imageUrl || '',
@@ -423,23 +443,54 @@ export async function fetchRandomRiddle(uid, requiredDifficulty = null) {
         const fallbackQ = fsQuery(riddlesRef, where('enabled', '==', true));
         const fallbackSnap = await getDocs(fallbackQ);
         if (fallbackSnap.empty) return null;
-        const riddles = fallbackSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const selected = riddles[Math.floor(Math.random() * riddles.length)];
+        
+        let riddles = fallbackSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        // Filter out already asked riddles in memory
+        const freshRiddles = riddles.filter(r => !askedRiddleIds.includes(r.id));
+        const candidateRiddles = freshRiddles.length > 0 ? freshRiddles : riddles; // Reuse pool if all exhausted
+        
+        const selected = candidateRiddles[Math.floor(Math.random() * candidateRiddles.length)];
+        
         if (uid) {
+          // Track that we asked this riddle
+          const userRef = doc(db, 'users', uid);
+          const newAskedIds = Array.from(new Set([...askedRiddleIds, selected.id]));
+          await setDoc(userRef, { "dailyRiddle.askedRiddleIds": newAskedIds }, { merge: true });
+          
           await setDoc(doc(db, 'users', uid, 'activeSessions', 'odinsRiddle'), {
             riddleId: selected.id, startTime: serverTimestamp(), status: 'active'
           });
         }
-        return { id: selected.id, question: selected.question, options: selected.options, category: selected.category || 'norse', difficulty: selected.difficulty || 'easy', imageUrl: selected.imageUrl || '', initialTimeLeft: 15 };
+
+        const optionsWithIdx = selected.options.map((opt, i) => ({ text: opt, originalIndex: i }));
+        const scrambledOptions = [...optionsWithIdx].sort(() => Math.random() - 0.5);
+
+        return { 
+          id: selected.id, 
+          question: selected.question, 
+          options: scrambledOptions, 
+          category: selected.category || 'norse', 
+          difficulty: selected.difficulty || 'easy', 
+          imageUrl: selected.imageUrl || '', 
+          initialTimeLeft: 15 
+        };
       }
       return null;
     }
 
-    const riddles = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    const selected = riddles[Math.floor(Math.random() * riddles.length)];
+    let riddles = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Filter out already asked riddles in memory
+    const freshRiddles = riddles.filter(r => !askedRiddleIds.includes(r.id));
+    const candidateRiddles = freshRiddles.length > 0 ? freshRiddles : riddles;
 
-    // 3. Save new session
+    const selected = candidateRiddles[Math.floor(Math.random() * candidateRiddles.length)];
+
+    // 3. Save new session and track asked ID
     if (uid) {
+      const userRef = doc(db, 'users', uid);
+      const newAskedIds = Array.from(new Set([...askedRiddleIds, selected.id]));
+      await setDoc(userRef, { "dailyRiddle.askedRiddleIds": newAskedIds }, { merge: true });
+
       const sessionRef = doc(db, 'users', uid, 'activeSessions', 'odinsRiddle');
       await setDoc(sessionRef, {
         riddleId: selected.id,
@@ -448,10 +499,13 @@ export async function fetchRandomRiddle(uid, requiredDifficulty = null) {
       });
     }
 
+    const optionsWithIdx = selected.options.map((opt, i) => ({ text: opt, originalIndex: i }));
+    const scrambledOptions = [...optionsWithIdx].sort(() => Math.random() - 0.5);
+
     return {
       id: selected.id,
       question: selected.question,
-      options: selected.options,
+      options: scrambledOptions,
       category: selected.category || 'norse',
       difficulty: selected.difficulty || 'easy',
       imageUrl: selected.imageUrl || '',

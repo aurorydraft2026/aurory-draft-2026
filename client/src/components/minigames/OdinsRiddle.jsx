@@ -422,8 +422,9 @@ const OdinsRiddle = ({ user, onClose, onBack }) => {
         {riddle.options.map((option, idx) => {
           let stateClass = '';
           if (result) {
-            if (idx === result.correctIndex) stateClass = 'correct';
-            else if (idx === selectedAnswer && !result.correct) stateClass = 'wrong';
+            // Compare against originalIndex for correct/wrong highlighting
+            if (option.originalIndex === result.correctIndex) stateClass = 'correct';
+            else if (option.originalIndex === selectedAnswer && !result.correct) stateClass = 'wrong';
             else stateClass = 'revealed';
           }
 
@@ -431,11 +432,11 @@ const OdinsRiddle = ({ user, onClose, onBack }) => {
             <button
               key={idx}
               className={`riddle-option-btn ${stateClass}`}
-              onClick={() => handleSubmit(idx)}
+              onClick={() => handleSubmit(option.originalIndex)}
               disabled={!!result || isSubmitting}
             >
               <span className="riddle-option-letter">{OPTION_LETTERS[idx]}</span>
-              {option}
+              {option.text}
             </button>
           );
         })}

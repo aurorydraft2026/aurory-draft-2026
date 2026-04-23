@@ -38,8 +38,13 @@
 }
 
 /* Desktop: show gauge in visuals row, hide mobile gauge */
-.fever-gauge-desktop { display: block; }
-.fever-gauge-mobile { display: none; }
+.fever-gauge-desktop {
+  display: block;
+}
+
+.fever-gauge-mobile {
+  display: none;
+}
 
 @media (max-width: 900px) {
   .slot-machine-container {
@@ -60,7 +65,10 @@
 
 /* Mobile: hide gauge in visuals, show below machine */
 @media (max-width: 600px) {
-  .fever-gauge-desktop { display: none; }
+  .fever-gauge-desktop {
+    display: none;
+  }
+
   .fever-gauge-mobile {
     display: flex;
     justify-content: center;
@@ -74,7 +82,8 @@
 .slot-machine-visuals {
   position: relative;
   width: 100%;
-  max-width: 540px; /* Increased from 440px */
+  max-width: 540px;
+  /* Increased from 440px */
   display: flex;
   flex-direction: row;
   align-items: flex-end;
@@ -282,7 +291,8 @@
 }
 
 .chest-stage {
-  padding-top: 140px; /* Increased from 100px */
+  padding-top: 140px;
+  /* Increased from 100px */
 }
 
 @keyframes controlsFadeIn {
@@ -536,10 +546,24 @@
   background: var(--text-muted);
 }
 
-.slot-result-rarity-bar.common { background: #78909c; }
-.slot-result-rarity-bar.rare { background: #2196f3; box-shadow: 0 0 15px rgba(33, 150, 243, 0.5); }
-.slot-result-rarity-bar.epic { background: #9c27b0; box-shadow: 0 0 20px rgba(156, 39, 176, 0.6); }
-.slot-result-rarity-bar.legendary { background: #ffb300; box-shadow: 0 0 25px rgba(255, 179, 0, 0.7); }
+.slot-result-rarity-bar.common {
+  background: #78909c;
+}
+
+.slot-result-rarity-bar.rare {
+  background: #2196f3;
+  box-shadow: 0 0 15px rgba(33, 150, 243, 0.5);
+}
+
+.slot-result-rarity-bar.epic {
+  background: #9c27b0;
+  box-shadow: 0 0 20px rgba(156, 39, 176, 0.6);
+}
+
+.slot-result-rarity-bar.legendary {
+  background: #ffb300;
+  box-shadow: 0 0 25px rgba(255, 179, 0, 0.7);
+}
 
 .slot-result-icon {
   width: 140px;
@@ -560,8 +584,15 @@
 }
 
 @keyframes prizeIconFloat {
-  0%, 100% { transform: translateY(0) rotate(-2deg); }
-  50% { transform: translateY(-10px) rotate(2deg); }
+
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+
+  50% {
+    transform: translateY(-10px) rotate(2deg);
+  }
 }
 
 .slot-result-title {
@@ -981,7 +1012,7 @@
   height: 28px;
   background: radial-gradient(circle at 30% 30%, #ffd700, #b8860b);
   border-radius: 50%;
-  box-shadow: 
+  box-shadow:
     0 4px 10px rgba(0, 0, 0, 0.5),
     inset -4px -4px 10px rgba(0, 0, 0, 0.3),
     0 0 15px rgba(184, 134, 11, 0.4);
@@ -1020,13 +1051,27 @@
 }
 
 @keyframes leverMsgPulse {
-  from { opacity: 0.5; transform: translateX(-50%) scale(0.95); }
-  to { opacity: 1; transform: translateX(-50%) scale(1.05); }
+  from {
+    opacity: 0.5;
+    transform: translateX(-50%) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.05);
+  }
 }
 
 @keyframes arrowBounce {
-  from { transform: translateY(0); opacity: 0.4; }
-  to { transform: translateY(4px); opacity: 1; }
+  from {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+
+  to {
+    transform: translateY(4px);
+    opacity: 1;
+  }
 }
 
 /* ───────────── PARTICLES ───────────── */
@@ -1059,10 +1104,12 @@
     transform: translate(-50%, -50%) rotate(0deg) translateY(0) scale(0);
     opacity: 0;
   }
+
   15% {
     opacity: 1;
     transform: translate(-50%, -50%) rotate(var(--angle)) translateY(0) scale(1.5);
   }
+
   100% {
     transform: translate(-50%, -50%) rotate(calc(var(--angle) + 360deg)) translateY(-200px) scale(0);
     opacity: 0;
@@ -1081,6 +1128,6 @@
     right: -25px;
     top: 50%;
     transform: translateY(-50%) scale(0.65);
-    filter: drop-shadow(0 0 10px rgba(0,0,0,0.5));
+    filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.5));
   }
-}
+}

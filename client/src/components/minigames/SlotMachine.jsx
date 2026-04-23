@@ -121,13 +121,37 @@ const SlotMachine = ({
     setFrozen(true);
     setDisplayedPoints(prev => (prev ?? 0) - (costPerPlay * multiplier));
 
+    // --- START PRE-SPIN ANIMATION IMMEDIATELY ---
+    // This makes the machine feel responsive while we wait for the API
+    reelRefs.forEach((ref, i) => {
+      if (ref.current) {
+        // Optimized pre-spin speed (~25 symbols/sec)
+        const duration = 15000 + (i * 2000); 
+        const farOffset = prizes.length * 60;
+        const pos = -(farOffset * symbolHeight) + symbolHeight;
+
+        ref.current.style.transition = `transform ${duration}ms linear`;
+        ref.current.style.transform = `translateY(${pos}px)`;
+      }
+    });
+
     // Call the service to determine the prize (fixed parameter order)
     const playResult = await playMiniGame(user, 'slotMachine', multiplier);
 
     if (!playResult.success) {
       setError(playResult.error);
       setIsSpinning(false);
-      setFrozen(false); // Unfreeze on error so user can see it failed
+      setFrozen(false); 
+
+      // Reset reels to current positions if error
+      reelRefs.forEach((ref, i) => {
+        if (ref.current) {
+          ref.current.style.transition = 'none';
+          const readyOffset = prizes.length * 5;
+          const tPos = -((readyOffset + currentIndices[i]) * symbolHeight) + symbolHeight;
+          ref.current.style.transform = `translateY(${tPos}px)`;
+        }
+      });
       return;
     }
 
@@ -135,7 +159,7 @@ const SlotMachine = ({
     const wonPrize = playResult.prize;
     const isLoss = !wonPrize;
 
-    let targetPositions = [];
+    let targetIndices = [];
 
     if (isLoss) {
       // Pick 3 mismatched indices
@@ -143,58 +167,61 @@ const SlotMachine = ({
       let idx2 = Math.floor(Math.random() * prizes.length);
       let idx3 = Math.floor(Math.random() * prizes.length);
 
-      // Ensure they aren't all the same symbols (to avoid visual confusion)
       if (prizes.length > 1) {
         while (idx1 === idx2 && idx2 === idx3) {
           idx2 = (idx1 + 1) % prizes.length;
           idx3 = (idx2 + 1) % prizes.length;
         }
       }
-
-      const targetIndices = [idx1, idx2, idx3];
-      setCurrentIndices(targetIndices); // Store for safe-zone resync
-
-      targetPositions = targetIndices.map(targetIdx => {
-        const landingOffset = prizes.length * 15; // Always spin to the 'Landing Zone'
-        const finalIndex = landingOffset + targetIdx;
-        return -(finalIndex * symbolHeight) + symbolHeight;
-      });
+      targetIndices = [idx1, idx2, idx3];
     } else {
-      // Find the winning prize index
       const winIndex = prizes.findIndex(p => p.id === wonPrize.id);
       const targetIndex = winIndex >= 0 ? winIndex : 0;
-      setCurrentIndices([targetIndex, targetIndex, targetIndex]);
-
-      // Calculate position
-      const landingOffset = prizes.length * 15;
-      const finalIndex = landingOffset + targetIndex;
-      const pos = -(finalIndex * symbolHeight) + symbolHeight;
-      targetPositions = [pos, pos, pos];
+      targetIndices = [targetIndex, targetIndex, targetIndex];
     }
 
-    // Spin each reel with staggered timing
+    setCurrentIndices(targetIndices);
+
+    // --- UPDATE TO FINAL POSITIONS ---
+    // We calculate the final position dynamically based on where the reel currently is
     reelRefs.forEach((ref, i) => {
       if (ref.current) {
-        const delay = i * 400; // Stagger each reel
-        const duration = 2000 + (i * 600); // Each reel spins longer
-        const finalPosition = targetPositions[i];
+        // Get current transform value mid-spin
+        const currentStyle = window.getComputedStyle(ref.current);
+        const matrix = new DOMMatrixReadOnly(currentStyle.transform);
+        const currentY = matrix.m42;
+        
+        // Convert Y back to an approximate symbol index
+        const currentIdx = Math.abs(currentY - symbolHeight) / symbolHeight;
+        
+        // Land at least 3 full rotations away (reduced from 6) for a snappier feel
+        const minLandingIdx = currentIdx + (prizes.length * 3);
+        const rotationsNeeded = Math.ceil((minLandingIdx - targetIndices[i]) / prizes.length);
+        const finalIndex = (rotationsNeeded * prizes.length) + targetIndices[i];
+        const finalPosition = -(finalIndex * symbolHeight) + symbolHeight;
 
-        // Remove the reset-to-zero logic to allow persistence
-        setTimeout(() => {
-          if (ref.current) {
-            ref.current.style.transition = `transform ${duration}ms cubic-bezier(0.15, 0.85, 0.25, 1)`;
-            ref.current.style.transform = `translateY(${finalPosition}px)`;
-          }
-        }, delay + 50);
+        // Snappier duration (2.0s - 3.2s instead of 3.0s - 5.0s)
+        const duration = 2000 + (i * 600); 
+
+        // Override the linear pre-spin with a smooth landing curve
+        ref.current.style.transition = `transform ${duration}ms cubic-bezier(0.15, 0.85, 0.25, 1)`;
+        ref.current.style.transform = `translateY(${finalPosition}px)`;
       }
     });
 
     // Show result after all reels stop
-    const totalAnimTime = 2000 + (2 * 600) + 400 + 500;
+    const totalAnimTime = 2000 + (2 * 600) + 500;
     setTimeout(() => {
       setResult(playResult);
       setIsSpinning(false);
       setPendingFill(false); // Allow gauge to update now
+
+      // Clean up stopping classes
+      reelRefs.forEach((ref) => {
+        if (ref.current) {
+          ref.current.classList.remove('is-stopping');
+        }
+      });
 
       if (isLoss) {
         // On loss: Do not show modal. Sync balance.
