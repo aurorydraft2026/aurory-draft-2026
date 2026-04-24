@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { database } from '../../firebase';
 import { ref, onValue, set, remove, onDisconnect, get } from 'firebase/database';
-import { submitYggdrasilRun } from '../../services/miniGameService';
+import { submitYggdrasilRun, getYggdrasilEvents, joinYggdrasilEvent, claimYggdrasilEventPrize } from '../../services/miniGameService';
 import './YggdrasilAscender.css';
 
 // ═══ CONSTANTS ═══
@@ -124,6 +124,13 @@ const YggdrasilAscender = ({ user }) => {
   const [runStats, setRunStats] = useState(null);
   const zoneNameRef = useRef('MIDGARD');
   const bestScoreRef = useRef(0);
+  
+  // Events
+  const [events, setEvents] = useState([]);
+  const [activeEvent, setActiveEvent] = useState(null);
+  const activeEventIdRef = useRef(null);
+  const [eventPrizeCaught, setEventPrizeCaught] = useState(null);
+  const [eventLoading, setEventLoading] = useState(false);
 
   // Load and process assets (remove white background)
   useEffect(() => {
@@ -183,6 +190,11 @@ const YggdrasilAscender = ({ user }) => {
     }
     setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
   }, []);
+
+  // Load events
+  useEffect(() => {
+    getYggdrasilEvents().then(setEvents);
+  }, [gameState]);
 
   // Subscribe to ghost players
   useEffect(() => {
@@ -310,12 +322,33 @@ const YggdrasilAscender = ({ user }) => {
       shake: 0, // screen shake magnitude
       lastTime: performance.now(),
       lastHUDTime: 0,
+      specialPrize: (activeEvent && activeEvent.currentPool >= activeEvent.targetPool) ? {
+        x: CANVAS_W / 2 - 25,
+        y: -activeEvent.targetAltitude * 4,
+        w: 50,
+        h: 50,
+        collected: false,
+        name: activeEvent.prizeName,
+        image: null // will be loaded
+      } : null
     };
+
+    // Load special prize image if needed
+    if (gameRef.current.specialPrize) {
+      const prizeImg = new Image();
+      prizeImg.src = activeEvent.prizeImage;
+      prizeImg.onload = () => {
+        if (gameRef.current?.specialPrize) {
+          gameRef.current.specialPrize.image = prizeImg;
+        }
+      };
+    }
+
     setRunesCollected(0);
     setRunStats(null);
     keysRef.current = {};
     touchRef.current = { left: false, right: false, jump: false };
-  }, []);
+  }, [activeEvent]);
 
   // Game loop
   const gameLoop = useCallback(() => {
@@ -435,6 +468,36 @@ const YggdrasilAscender = ({ user }) => {
             life: 30,
             color: '#fbbf24',
             size: 3
+          });
+        }
+      }
+    }
+
+    // Special Prize collision
+    if (g.specialPrize && !g.specialPrize.collected) {
+      const sp = g.specialPrize;
+      if (
+        p.x + PLAYER_W > sp.x &&
+        p.x < sp.x + sp.w &&
+        p.y + PLAYER_H > sp.y &&
+        p.y < sp.y + sp.h
+      ) {
+        sp.collected = true;
+        setEventPrizeCaught(sp.name);
+        claimYggdrasilEventPrize(activeEventIdRef.current, Math.floor(-sp.y / 4)).then(res => {
+          if (res.success) {
+            console.log('Prize claimed successfully!');
+          }
+        });
+        // Sparkle particles
+        for (let i = 0; i < 20; i++) {
+          g.particles.push({
+            x: sp.x + sp.w / 2, y: sp.y + sp.h / 2,
+            vx: (Math.random() - 0.5) * 8,
+            vy: (Math.random() - 0.5) * 8,
+            life: 40,
+            color: '#fbbf24',
+            size: 4
           });
         }
       }
@@ -828,6 +891,32 @@ const YggdrasilAscender = ({ user }) => {
     }
     ctx.globalAlpha = 1;
 
+    // Draw Special Prize
+    if (g.specialPrize && !g.specialPrize.collected) {
+      const sp = g.specialPrize;
+      // Only draw if on screen
+      if (sp.y > g.camera - 100 && sp.y < g.camera + CANVAS_H + 100) {
+        if (sp.image) {
+          ctx.drawImage(sp.image, sp.x, sp.y, sp.w, sp.h);
+        } else {
+          // Glow effect if image not loaded yet
+          ctx.shadowBlur = 15;
+          ctx.shadowColor = '#fbbf24';
+          ctx.fillStyle = '#fbbf24';
+          ctx.beginPath();
+          ctx.arc(sp.x + sp.w / 2, sp.y + sp.h / 2, sp.w / 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+
+        // Draw label
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px Rajdhani';
+        ctx.textAlign = 'center';
+        ctx.fillText(sp.name.toUpperCase(), sp.x + sp.w / 2, sp.y - 10);
+      }
+    }
+
     // Ghost players
     Object.entries(ghostPlayersDataRef.current).forEach(([uid, gp]) => {
       if (gp.x === undefined || gp.y === undefined) return;
@@ -966,7 +1055,23 @@ const YggdrasilAscender = ({ user }) => {
   }, [publishPresence, removePresence, submitScore]);
 
   // Start/restart game
-  const startGame = useCallback(() => {
+  const startGame = useCallback(async (eventId = null) => {
+    if (eventId) {
+      setEventLoading(true);
+      const res = await joinYggdrasilEvent(eventId);
+      setEventLoading(false);
+      if (!res.success) {
+        alert(res.error || 'Failed to join event');
+        return;
+      }
+      const ev = events.find(e => e.id === eventId);
+      setActiveEvent(ev);
+      activeEventIdRef.current = eventId;
+    } else {
+      setActiveEvent(null);
+      activeEventIdRef.current = null;
+    }
+
     keysRef.current = {};
     touchRef.current = { left: false, right: false, jump: false };
     setGameState('playing');
@@ -979,7 +1084,7 @@ const YggdrasilAscender = ({ user }) => {
     }
     if (animRef.current) cancelAnimationFrame(animRef.current);
     animRef.current = requestAnimationFrame(gameLoop);
-  }, [initGame, gameLoop, user]);
+  }, [initGame, gameLoop, user, events]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -1195,7 +1300,52 @@ const YggdrasilAscender = ({ user }) => {
             {!assetsLoaded ? (
               <div className="ygg-loading">Loading Assets...</div>
             ) : (
-              <button className="ygg-start-btn" onClick={startGame}>Start Climbing</button>
+              <>
+                <button className="ygg-start-btn" onClick={() => startGame()}>Start Free Run</button>
+                
+                {events.length > 0 && (
+                  <div className="ygg-events-container" style={{ marginTop: '20px', width: '100%' }}>
+                    <div style={{ fontSize: '12px', color: '#fbbf24', fontWeight: 'bold', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>🏆 Special Events</div>
+                    <div className="ygg-events-grid" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {events.map(ev => (
+                        <button 
+                          key={ev.id}
+                          className={`ygg-event-btn ${ev.status}`}
+                          disabled={ev.status === 'closed' || eventLoading}
+                          onClick={() => startGame(ev.id)}
+                          style={{
+                            width: '100%',
+                            padding: '10px',
+                            background: ev.status === 'closed' ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, rgba(184,134,11,0.3) 0%, rgba(184,134,11,0.1) 100%)',
+                            border: ev.status === 'closed' ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(184,134,11,0.5)',
+                            borderRadius: '8px',
+                            color: ev.status === 'closed' ? '#64748b' : '#fff',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            cursor: ev.status === 'closed' ? 'default' : 'pointer'
+                          }}
+                        >
+                          <div style={{ textAlign: 'left' }}>
+                            <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{ev.name}</div>
+                            <div style={{ fontSize: '11px', opacity: 0.8 }}>Prize: {ev.prizeName}</div>
+                          </div>
+                          {ev.status === 'closed' ? (
+                            <div style={{ fontSize: '10px', textAlign: 'right' }}>
+                              Ended<br/>
+                              <span style={{ color: '#fbbf24' }}>{ev.winnerName || 'Winner'} got it!</span>
+                            </div>
+                          ) : (
+                            <div style={{ fontWeight: 'bold', color: '#fbbf24' }}>
+                              {ev.entryFee} {ev.currency === 'AURY' ? 'AURY' : 'VC'}
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
             <div className="ygg-controls-hint">
               <span><span className="ygg-key">←</span><span className="ygg-key">→</span> or <span className="ygg-key">A</span><span className="ygg-key">D</span></span>
@@ -1235,8 +1385,33 @@ const YggdrasilAscender = ({ user }) => {
             </div>
 
             <div className="ygg-gameover-btns">
-              <button className="ygg-retry-btn" onClick={startGame}>Play Again</button>
+              <button className="ygg-retry-btn" onClick={() => startGame(activeEvent?.id)}>Play Again</button>
+              {activeEvent && (
+                <button className="ygg-free-btn" onClick={() => startGame()} style={{ marginTop: '8px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', width: '100%', padding: '10px', borderRadius: '8px' }}>Return to Free Play</button>
+              )}
             </div>
+          </div>
+        )}
+
+        {/* Caught Prize Notification */}
+        {eventPrizeCaught && (
+          <div className="ygg-prize-caught-overlay" style={{
+            position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.8)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            zIndex: 100, textAlign: 'center', animation: 'fadeIn 0.5s ease-out'
+          }}>
+            <div style={{ fontSize: '40px', marginBottom: '20px' }}>🎁</div>
+            <div style={{ color: '#fbbf24', fontSize: '24px', fontWeight: 'bold', marginBottom: '10px' }}>TREASURE FOUND!</div>
+            <div style={{ fontSize: '18px', color: '#fff', marginBottom: '30px' }}>You caught the {eventPrizeCaught}!</div>
+            <button 
+              className="ygg-start-btn" 
+              onClick={() => {
+                setEventPrizeCaught(null);
+                setGameState('over');
+              }}
+            >
+              CLAIM REWARD
+            </button>
           </div>
         )}
       </div>

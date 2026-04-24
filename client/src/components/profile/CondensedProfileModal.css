@@ -123,6 +123,20 @@
   border: 1px solid rgba(0, 200, 255, 0.3);
 }
 
+.condensed-badge.senior-admin {
+  background: linear-gradient(135deg, #f97316, #ef4444);
+  color: white;
+  border: none;
+  box-shadow: 0 0 10px rgba(249, 115, 22, 0.3);
+}
+
+.condensed-badge.super-admin {
+  background: linear-gradient(135deg, #d97706, #fbbf24);
+  color: white;
+  border: none;
+  box-shadow: 0 0 10px rgba(217, 119, 6, 0.3);
+}
+
 .condensed-badge.aurorian {
   background: rgba(240, 178, 50, 0.15);
   color: var(--accent-gold);

@@ -681,6 +681,8 @@ function HomePage() {
                       {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}
                       {isSuperAdminUser ? (
                         <span className="admin-badge">⭐<span className="badge-text">Super Admin</span></span>
+                      ) : user?.role === 'senior_admin' ? (
+                        <span className="admin-badge senior-admin-badge">⭐<span className="badge-text">Senior Admin</span></span>
                       ) : user?.role === 'admin' ? (
                         <span className="admin-badge admin-staff">⭐<span className="badge-text">Admin</span></span>
                       ) : isGamesManagerUser ? (

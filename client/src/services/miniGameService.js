@@ -217,6 +217,52 @@ export async function submitYggdrasilRun(altitude, runes) {
   }
 }
 
+/**
+ * Fetch all active Yggdrasil Events.
+ */
+export async function getYggdrasilEvents() {
+  try {
+    const eventsRef = collection(db, 'yggdrasil_events');
+    const q = fsQuery(eventsRef, where('status', '==', 'open'));
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error('Error fetching Yggdrasil events:', error);
+    return [];
+  }
+}
+
+/**
+ * Join an event run.
+ * @param {string} eventId - The ID of the event to join.
+ */
+export async function joinYggdrasilEvent(eventId) {
+  try {
+    const joinFn = httpsCallable(functions, 'joinYggdrasilEvent');
+    const result = await joinFn({ eventId });
+    return result.data;
+  } catch (error) {
+    console.error('Error joining Yggdrasil event:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Claim an event prize.
+ * @param {string} eventId - The ID of the event.
+ * @param {number} altitude - Current altitude to verify.
+ */
+export async function claimYggdrasilEventPrize(eventId, altitude) {
+  try {
+    const claimFn = httpsCallable(functions, 'claimYggdrasilEventPrize');
+    const result = await claimFn({ eventId, altitude });
+    return result.data;
+  } catch (error) {
+    console.error('Error claiming Yggdrasil prize:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 
 // ═══════════════════════════════════════════════════════
 //  PLAY MINI GAME (Slot Machine / Treasure Chest)

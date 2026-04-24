@@ -64,6 +64,7 @@ function AdminPanel() {
   const [authLoading, setAuthLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('credit');
   const [pendingWithdrawals, setPendingWithdrawals] = useState([]);
+  const [pendingPrizeClaims, setPendingPrizeClaims] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [userBalanceType, setUserBalanceType] = useState('AURY'); // Added for balance selector
   const [userContactType, setUserContactType] = useState('email'); // Toggle between Email and UID
@@ -252,6 +253,24 @@ function AdminPanel() {
   const [isScanningPvp, setIsScanningPvp] = useState(false);
   const [isRepairingPvp, setIsRepairingPvp] = useState(false);
 
+  // Yggdrasil Events State
+  const [yggEvents, setYggEvents] = useState([]);
+  const [isCreatingYggEvent, setIsCreatingYggEvent] = useState(false);
+  const [editingYggEventId, setEditingYggEventId] = useState(null);
+  const [newYggEvent, setNewYggEvent] = useState({
+    name: '',
+    entryFee: 5,
+    currency: 'AURY', // AURY or Valcoins
+    prizeName: '',
+    prizeImage: '',
+    prizeRarity: 'epic',
+    altitudeFrom: 5000,
+    altitudeTo: 15000,
+    targetPool: 60,
+    status: 'open'
+  });
+  const [yggEventPrizePreview, setYggEventPrizePreview] = useState('');
+
   // Major Announcement Campaign state
   const [announcementEnabled, setAnnouncementEnabled] = useState(false);
   const [announcementTitle, setAnnouncementTitle] = useState('🎮 Triad Tourney Season 1');
@@ -424,8 +443,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
   // Check if current user is admin/super admin
   const isSuperAdminUser = user && (isSuperAdmin(getUserEmail(user)) || user.role === 'superadmin');
+  const isSeniorAdminUser = user && (isSuperAdminUser || user.role === 'senior_admin');
   const isGamesManagerUser = user && user.role === 'games_manager';
-  const isGeneralAdmin = user && (isSuperAdminUser || user.role === 'admin');
+  const isGeneralAdmin = user && (isSeniorAdminUser || user.role === 'admin');
   const isAdminUser = isGeneralAdmin || isGamesManagerUser;
   const isAdmin = isGeneralAdmin; // Keep for existing checks in the file (withdrawals, etc)
 
@@ -472,6 +492,30 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         setLoading(false);
       }
     );
+
+    return () => unsubscribe();
+  }, [isAdminUser, isGeneralAdmin]);
+
+  // Fetch pending prize claims
+  useEffect(() => {
+    if (!isAdminUser || !isGeneralAdmin) return;
+
+    const claimsRef = collection(db, 'prize_claims');
+    const q = query(
+      claimsRef,
+      where('status', '==', 'pending'),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const claims = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setPendingPrizeClaims(claims);
+    }, (error) => {
+      console.error('Error fetching prize claims:', error);
+    });
 
     return () => unsubscribe();
   }, [isAdminUser, isGeneralAdmin]);
@@ -1287,6 +1331,120 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     });
   };
 
+  // Yggdrasil Event Handlers
+  const handleYggPrizeUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 1024 * 1024) {
+        alert('Image too large. Please use an image under 1MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setYggEventPrizePreview(reader.result);
+        setNewYggEvent(prev => ({ ...prev, prizeImage: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSaveYggEvent = async () => {
+    if (!newYggEvent.name || !newYggEvent.prizeName || !newYggEvent.prizeImage) {
+      alert('Please fill in all required fields (Name, Prize Name, and Prize Image)');
+      return;
+    }
+
+    setProcessingId('save_ygg_event');
+    try {
+      const randomAltitude = Math.floor(Math.random() * (parseInt(newYggEvent.altitudeTo) - parseInt(newYggEvent.altitudeFrom) + 1)) + parseInt(newYggEvent.altitudeFrom);
+
+      const eventData = {
+        ...newYggEvent,
+        targetAltitude: editingYggEventId ? (newYggEvent.targetAltitude || randomAltitude) : randomAltitude,
+        currentPool: editingYggEventId ? (newYggEvent.currentPool || 0) : 0,
+        status: newYggEvent.status || 'open',
+        winner: newYggEvent.winner || null,
+        updatedAt: serverTimestamp()
+      };
+
+      if (editingYggEventId) {
+        await updateDoc(doc(db, 'yggdrasil_events', editingYggEventId), eventData);
+      } else {
+        eventData.createdAt = serverTimestamp();
+        await addDoc(collection(db, 'yggdrasil_events'), eventData);
+      }
+
+      setIsCreatingYggEvent(false);
+      setEditingYggEventId(null);
+      setNewYggEvent({
+        name: '',
+        entryFee: 5,
+        currency: 'AURY',
+        prizeName: '',
+        prizeImage: '',
+        prizeRarity: 'epic',
+        altitudeFrom: 5000,
+        altitudeTo: 15000,
+        targetPool: 60,
+        status: 'open'
+      });
+      setYggEventPrizePreview('');
+      alert(editingYggEventId ? 'Event updated successfully!' : 'Yggdrasil Event created successfully!');
+    } catch (error) {
+      console.error('Error saving Yggdrasil event:', error);
+      alert('Failed to save event: ' + error.message);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleStartEditYggEvent = (event) => {
+    setEditingYggEventId(event.id);
+    setNewYggEvent({
+      name: event.name,
+      entryFee: event.entryFee,
+      currency: event.currency || 'AURY',
+      prizeName: event.prizeName,
+      prizeImage: event.prizeImage,
+      prizeRarity: event.prizeRarity || 'epic',
+      altitudeFrom: event.altitudeFrom || 5000,
+      altitudeTo: event.altitudeTo || 15000,
+      targetPool: event.targetPool,
+      status: event.status,
+      // Preserve hidden fields if we're editing
+      targetAltitude: event.targetAltitude,
+      currentPool: event.currentPool,
+      winner: event.winner || null,
+      winnerId: event.winnerId || null,
+      winnerName: event.winnerName || null,
+      claimTimestamp: event.claimTimestamp || null
+    });
+    setYggEventPrizePreview(event.prizeImage);
+    setIsCreatingYggEvent(true);
+  };
+
+  const handleCloseYggEvent = async (eventId) => {
+    if (!window.confirm('Are you sure you want to manually close this event?')) return;
+    try {
+      await updateDoc(doc(db, 'yggdrasil_events', eventId), {
+        status: 'closed',
+        closedAt: serverTimestamp(),
+        closedBy: user.email
+      });
+    } catch (error) {
+      console.error('Error closing event:', error);
+    }
+  };
+
+  const handleDeleteYggEvent = async (eventId) => {
+    if (!window.confirm('Delete this event forever?')) return;
+    try {
+      await deleteDoc(doc(db, 'yggdrasil_events', eventId));
+    } catch (error) {
+      console.error('Error deleting event:', error);
+    }
+  };
+
   // Fetch all users and their balances
   useEffect(() => {
     if (!isAdmin) return;
@@ -1395,6 +1553,17 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       setNews(newsData);
     });
 
+    return () => unsubscribe();
+  }, [isAdmin]);
+
+  // Fetch Yggdrasil Events
+  useEffect(() => {
+    if (!isAdmin) return;
+    const eventsRef = collection(db, 'yggdrasil_events');
+    const q = query(eventsRef, orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setYggEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
     return () => unsubscribe();
   }, [isAdmin]);
 
@@ -2818,6 +2987,46 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     setProcessingId(null);
   };
 
+  const processPrizeClaim = async (claimId, userId, prizeId, action) => {
+    setProcessingId(claimId);
+    try {
+      const claimRef = doc(db, 'prize_claims', claimId);
+      const userPrizeRef = doc(db, 'users', userId, 'prizes', prizeId);
+
+      await runTransaction(db, async (transaction) => {
+        // 1. Update claim status
+        transaction.update(claimRef, {
+          status: action === 'approve' ? 'claimed' : 'rejected',
+          processedAt: serverTimestamp(),
+          processedBy: getUserEmail(user) || user.displayName || user.uid
+        });
+
+        // 2. Update user's prize status
+        transaction.update(userPrizeRef, {
+          status: action === 'approve' ? 'claimed' : 'available',
+          processedAt: serverTimestamp()
+        });
+      });
+
+      // Notify User
+      await createNotification(userId, {
+        type: 'gift',
+        title: action === 'approve' ? '🎁 Prize Claim Approved!' : '❌ Prize Claim Rejected',
+        message: action === 'approve' 
+          ? `Your claim for the prize has been approved and processed by an admin.` 
+          : `Your claim for the prize was rejected. Please contact support for more info.`,
+        link: '/armory'
+      });
+
+      alert(`Prize claim ${action}d successfully!`);
+    } catch (error) {
+      console.error("Error processing prize claim:", error);
+      alert("Failed to process prize claim: " + error.message);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   // Process deposit notification (credit user balance)
   const processDepositNotification = async (notificationId, userId, amountVal, currency = 'AURY') => {
     setProcessingId(notificationId);
@@ -3455,14 +3664,17 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         <h1>Admin Panel</h1>
       </div>
 
-      {isSuperAdminUser && (depositNotifications.length > 0 || pendingWithdrawals.length > 0) && (
+      {isSeniorAdminUser && (depositNotifications.length > 0 || pendingWithdrawals.length > 0 || pendingPrizeClaims.length > 0) && (
         <div className="admin-notification-alert">
           <div className="alert-content">
             <span className="alert-icon">⚠️</span>
             <div className="alert-text">
-              <strong>Action Required:</strong> You have {depositNotifications.length > 0 && <span>{depositNotifications.length} pending deposit{depositNotifications.length > 1 ? 's' : ''}</span>}
-              {depositNotifications.length > 0 && pendingWithdrawals.length > 0 && ' and '}
+              <strong>Action Required:</strong>
+              {depositNotifications.length > 0 && <span> {depositNotifications.length} pending deposit{depositNotifications.length > 1 ? 's' : ''}</span>}
+              {depositNotifications.length > 0 && (pendingWithdrawals.length > 0 || pendingPrizeClaims.length > 0) && ', '}
               {pendingWithdrawals.length > 0 && <span>{pendingWithdrawals.length} withdrawal request{pendingWithdrawals.length > 1 ? 's' : ''}</span>}
+              {pendingWithdrawals.length > 0 && pendingPrizeClaims.length > 0 && ', and '}
+              {pendingPrizeClaims.length > 0 && <span>{pendingPrizeClaims.length} prize claim{pendingPrizeClaims.length > 1 ? 's' : ''}</span>}
               {' '}awaiting review.
             </div>
           </div>
@@ -3487,7 +3699,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 <span className="category-arrow">▼</span>
               </div>
               <div className="category-tabs">
-                {isSuperAdminUser && (
+                {isSeniorAdminUser && (
                   <>
                     <button
                       className={`admin-tab ${activeTab === 'credit' ? 'active' : ''}`}
@@ -3524,9 +3736,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               >
                 <h3>
                   Transactions
-                  {(depositNotifications.length + pendingWithdrawals.length) > 0 && (
+                  {(depositNotifications.length + pendingWithdrawals.length + pendingPrizeClaims.length) > 0 && (
                     <span className="category-badge">
-                      {depositNotifications.length + pendingWithdrawals.length}
+                      {depositNotifications.length + pendingWithdrawals.length + pendingPrizeClaims.length}
                     </span>
                   )}
                 </h3>
@@ -3544,6 +3756,12 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   onClick={() => setActiveTab('withdrawals')}
                 >
                   📤 Withdrawals {pendingWithdrawals.length > 0 && <span className="tab-badge">{pendingWithdrawals.length}</span>}
+                </button>
+                <button
+                  className={`admin-tab ${activeTab === 'prize_claims' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('prize_claims')}
+                >
+                  🎁 Prize Claims {pendingPrizeClaims.length > 0 && <span className="tab-badge gold">{pendingPrizeClaims.length}</span>}
                 </button>
                 <button
                   className={`admin-tab ${activeTab === 'history' ? 'active' : ''}`}
@@ -4362,6 +4580,71 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             </div>
           )}
 
+          {activeTab === 'prize_claims' && (
+            <div className="prize-claims-section">
+              <div className="section-info">
+                <p>🎁 Review and fulfill prize claims from Yggdrasil events. Once the manual fulfillment is complete, click Approve.</p>
+              </div>
+
+              {loading ? (
+                <LoadingScreen message="Loading prize claims..." />
+              ) : pendingPrizeClaims.length === 0 ? (
+                <div className="empty-state">
+                  <p>✅ No pending prize claims</p>
+                </div>
+              ) : (
+                <div className="withdrawal-list">
+                  {pendingPrizeClaims.map(claim => (
+                    <div key={claim.id} className="withdrawal-card">
+                      <div className="withdrawal-header">
+                        <div>
+                          <span className="user-name">{claim.userName || 'Unknown User'}</span>
+                          <span className="user-email">{claim.userEmail}</span>
+                        </div>
+                        <span className={`rarity-badge rarity-${claim.rarity}`}>
+                          {claim.rarity}
+                        </span>
+                      </div>
+
+                      <div className="withdrawal-details">
+                        <div className="detail-row">
+                          <span className="label">Prize Name:</span>
+                          <span className="value">{claim.prizeName}</span>
+                        </div>
+                        <div className="detail-row">
+                          <span className="label">Requested:</span>
+                          <span className="value">{formatTime(claim.createdAt)}</span>
+                        </div>
+                        <div className="prize-preview-admin">
+                           <img src={claim.prizeImage} alt={claim.prizeName} style={{ width: '64px', height: '64px', borderRadius: '8px', marginTop: '10px' }} />
+                        </div>
+                      </div>
+
+                      <div className="withdrawal-actions">
+                        <div className="action-buttons">
+                          <button
+                            className="approve-btn"
+                            onClick={() => processPrizeClaim(claim.id, claim.userId, claim.prizeId, 'approve')}
+                            disabled={processingId === claim.id}
+                          >
+                            {processingId === claim.id ? '...' : '✅ Approve & Fulfill'}
+                          </button>
+                          <button
+                            className="reject-btn"
+                            onClick={() => processPrizeClaim(claim.id, claim.userId, claim.prizeId, 'reject')}
+                            disabled={processingId === claim.id}
+                          >
+                            ❌ Reject
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'deposits' && (
             <div className="deposits-section">
               <div className="section-info">
@@ -5168,7 +5451,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             </div>
           )}
 
-          {activeTab === 'credit' && isSuperAdminUser && (
+          {activeTab === 'credit' && isSeniorAdminUser && (
             <div className="credit-section">
               <div className="section-info">
                 <p>📥 Select multiple players to credit AURY or USDC simultaneously.</p>
@@ -5304,7 +5587,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             </div>
           )}
 
-          {activeTab === 'deduct' && isSuperAdminUser && (
+          {activeTab === 'deduct' && isSeniorAdminUser && (
             <div className="credit-section deduct-section">
               <div className="section-info deduct-info">
                 <p>📉 Subtract balance from users for corrections or adjustments.</p>
@@ -6073,6 +6356,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 >
                                   <option value="user">User</option>
                                   <option value="games_manager">Games Manager</option>
+                                  <option value="senior_admin">Senior Admin</option>
                                   <option value="admin">Admin</option>
                                   {u.role === 'blocked' ? (
                                     <option value="user">✅ Unblock User</option>
@@ -7515,6 +7799,232 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           </div>
                         </>
                       )}
+                    </div>
+                  )}
+
+                  {activeGameType === 'yggdrasilAscender' && (
+                    <div className="prizes-management-card card">
+                      <div className="yggdrasil-events-management">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                          <h3>🏆 Yggdrasil Events</h3>
+                          <button
+                            className={editingYggEventId ? "admin-secondary-btn" : "admin-primary-btn"}
+                            onClick={() => {
+                              if (editingYggEventId) {
+                                setEditingYggEventId(null);
+                                setIsCreatingYggEvent(false);
+                                setNewYggEvent({
+                                  name: '',
+                                  entryFee: 5,
+                                  currency: 'AURY',
+                                  prizeName: '',
+                                  prizeImage: '',
+                                  prizeRarity: 'epic',
+                                  altitudeFrom: 5000,
+                                  altitudeTo: 15000,
+                                  targetPool: 60,
+                                  status: 'open'
+                                });
+                                setYggEventPrizePreview('');
+                              } else {
+                                setIsCreatingYggEvent(!isCreatingYggEvent);
+                              }
+                            }}
+                          >
+                            {editingYggEventId ? '✕ Cancel Edit' : isCreatingYggEvent ? '✕ Cancel' : '➕ Create New Event'}
+                          </button>
+                        </div>
+
+                        {isCreatingYggEvent && (
+                          <div className="new-prize-form ygg-event-form card" style={{ marginBottom: '30px', padding: '20px', background: 'rgba(0,0,0,0.2)', border: editingYggEventId ? '1px solid #3b82f6' : 'none' }}>
+                            <h4>{editingYggEventId ? '📝 Edit Event Run' : '✨ Create Event Run'}</h4>
+                            <div className="form-row">
+                              <div className="form-group flex-2">
+                                <label>Event Name</label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. The Amiko Hunt"
+                                  value={newYggEvent.name}
+                                  onChange={(e) => setNewYggEvent({ ...newYggEvent, name: e.target.value })}
+                                />
+                              </div>
+                              <div className="form-group flex-1">
+                                <label>Entry Fee</label>
+                                <div style={{ display: 'flex', gap: '5px' }}>
+                                  <input
+                                    type="number"
+                                    value={newYggEvent.entryFee}
+                                    onChange={(e) => setNewYggEvent({ ...newYggEvent, entryFee: parseFloat(e.target.value) || 0 })}
+                                    style={{ width: '70px' }}
+                                  />
+                                  <select
+                                    value={newYggEvent.currency}
+                                    onChange={(e) => setNewYggEvent({ ...newYggEvent, currency: e.target.value })}
+                                  >
+                                    <option value="AURY">AURY</option>
+                                    <option value="Valcoins">Valcoins</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="form-row">
+                              <div className="form-group flex-2">
+                                <label>Prize Name</label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. Legendary Amiko"
+                                  value={newYggEvent.prizeName}
+                                  onChange={(e) => setNewYggEvent({ ...newYggEvent, prizeName: e.target.value })}
+                                />
+                              </div>
+                              <div className="form-group flex-1">
+                                <label>Prize Rarity</label>
+                                <select
+                                  value={newYggEvent.prizeRarity}
+                                  onChange={(e) => setNewYggEvent({ ...newYggEvent, prizeRarity: e.target.value })}
+                                >
+                                  <option value="common">Common</option>
+                                  <option value="uncommon">Uncommon</option>
+                                  <option value="rare">Rare</option>
+                                  <option value="epic">Epic</option>
+                                  <option value="legendary">Legendary</option>
+                                  <option value="mythic">Mythic</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div className="form-row">
+                              <div className="form-group flex-2">
+                                <label>Spawn Altitude Range (Meters)</label>
+                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                  <input
+                                    type="number"
+                                    placeholder="From"
+                                    value={newYggEvent.altitudeFrom}
+                                    onChange={(e) => setNewYggEvent({ ...newYggEvent, altitudeFrom: parseInt(e.target.value) || 0 })}
+                                    style={{ flex: 1 }}
+                                  />
+                                  <span>to</span>
+                                  <input
+                                    type="number"
+                                    placeholder="To"
+                                    value={newYggEvent.altitudeTo}
+                                    onChange={(e) => setNewYggEvent({ ...newYggEvent, altitudeTo: parseInt(e.target.value) || 0 })}
+                                    style={{ flex: 1 }}
+                                  />
+                                </div>
+                              </div>
+                              <div className="form-group">
+                                <label>Entry Pool Target (Runs)</label>
+                                <input
+                                  type="number"
+                                  value={newYggEvent.targetPool}
+                                  onChange={(e) => setNewYggEvent({ ...newYggEvent, targetPool: parseInt(e.target.value) || 0 })}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="form-group">
+                              <label>Prize Image (Visible when caught)</label>
+                              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                <input
+                                  type="text"
+                                  value={newYggEvent.prizeImage}
+                                  onChange={(e) => setNewYggEvent(prev => ({ ...prev, prizeImage: e.target.value }))}
+                                  placeholder="https://... (image URL)"
+                                  className="flex-3"
+                                />
+                                <div className="file-upload-wrapper flex-1">
+                                  <label className="file-upload-btn" style={{ padding: '8px', fontSize: '12px' }}>
+                                    📁 Upload
+                                    <input type="file" onChange={handleYggPrizeUpload} accept="image/*" />
+                                  </label>
+                                </div>
+                              </div>
+                              {yggEventPrizePreview && (
+                                <div className="image-preview-mini" style={{ marginTop: '10px' }}>
+                                  <img src={yggEventPrizePreview} alt="Prize Preview" style={{ maxHeight: '100px', borderRadius: '4px' }} />
+                                </div>
+                              )}
+                            </div>
+
+                            <button
+                              className="admin-primary-btn"
+                              style={{ width: '100%', marginTop: '10px' }}
+                              onClick={handleSaveYggEvent}
+                              disabled={processingId === 'save_ygg_event'}
+                            >
+                              {processingId === 'save_ygg_event' ? (editingYggEventId ? 'Updating...' : 'Creating...') : (editingYggEventId ? '💾 Update Event' : '🚀 Launch Event')}
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="ygg-events-list">
+                          <h4>Active Events</h4>
+                          <div className="admin-table-container">
+                            <table className="admin-table">
+                              <thead>
+                                <tr>
+                                  <th>Event</th>
+                                  <th>Fee</th>
+                                  <th>Prize</th>
+                                  <th>Pool (Admin Only)</th>
+                                  <th>Target</th>
+                                  <th>Status</th>
+                                  <th>Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {yggEvents.length === 0 ? (
+                                  <tr><td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>No events found.</td></tr>
+                                ) : (
+                                  yggEvents.map(ev => (
+                                    <tr key={ev.id}>
+                                      <td><strong>{ev.name}</strong></td>
+                                      <td>{ev.entryFee} {ev.currency}</td>
+                                      <td>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                          <img src={ev.prizeImage} alt="" style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'contain' }} />
+                                          <span>{ev.prizeName}</span>
+                                        </div>
+                                      </td>
+                                      <td>
+                                        <div className="pool-bar-container" style={{ width: '100px', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                                          <div
+                                            className="pool-bar-fill"
+                                            style={{
+                                              width: `${Math.min(100, (ev.currentPool / ev.targetPool) * 100)}%`,
+                                              height: '100%',
+                                              background: ev.currentPool >= ev.targetPool ? '#10b981' : '#3b82f6'
+                                            }}
+                                          />
+                                        </div>
+                                        <div style={{ fontSize: '10px', marginTop: '4px' }}>{ev.currentPool} / {ev.targetPool} runs</div>
+                                      </td>
+                                      <td>{ev.targetAltitude}m</td>
+                                      <td>
+                                        <span className={`status-badge ${ev.status}`}>
+                                          {ev.status === 'open' ? '🟢 Open' : '🔴 Closed'}
+                                        </span>
+                                      </td>
+                                      <td>
+                                        <div className="action-btns">
+                                          <button className="edit-btn" onClick={() => handleStartEditYggEvent(ev)} title="Edit Event">📝</button>
+                                          {ev.status === 'open' && (
+                                            <button className="edit-btn" onClick={() => handleCloseYggEvent(ev.id)} title="Close Event">🛑</button>
+                                          )}
+                                          <button className="delete-btn" onClick={() => handleDeleteYggEvent(ev.id)} title="Delete Event">🗑️</button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

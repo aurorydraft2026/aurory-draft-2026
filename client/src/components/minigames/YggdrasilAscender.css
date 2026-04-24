@@ -570,3 +570,34 @@ body.ygg-gaming-mode .runie-bot-container {
 }
 
 
+.ygg-btn-dir.is-pressed {
+  background: rgba(251, 191, 36, 0.6) !important;
+  border-color: rgba(251, 191, 36, 0.9) !important;
+  transform: scale(0.9);
+}
+
+.ygg-event-btn {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  position: relative;
+}
+
+.ygg-event-btn:not(:disabled):hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 4px 15px rgba(184, 134, 11, 0.3);
+  background: linear-gradient(135deg, rgba(184,134,11,0.4) 0%, rgba(184,134,11,0.2) 100%) !important;
+}
+
+.ygg-prize-caught-overlay {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

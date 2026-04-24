@@ -14,6 +14,7 @@
 
 export const RARITY_CONFIG = {
   common:    { label: 'Common',    color: '#8b9db6', glow: 'rgba(139,157,182,0.3)', order: 1 },
+  uncommon:  { label: 'Uncommon',  color: '#4ade80', glow: 'rgba(74,222,128,0.3)',  order: 1.5 },
   rare:      { label: 'Rare',      color: '#4d9dff', glow: 'rgba(77,157,255,0.3)',  order: 2 },
   epic:      { label: 'Epic',      color: '#a855f7', glow: 'rgba(168,85,247,0.3)',  order: 3 },
   legendary: { label: 'Legendary', color: '#f59e0b', glow: 'rgba(245,158,11,0.3)',  order: 4 },

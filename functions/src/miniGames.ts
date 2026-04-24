@@ -1,5 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import fetch from 'node-fetch';
 import { updateLeaderboardStats } from './leaderboardUtils';
 import { clampPointsToTierMax } from './tierAndReferral';
 
@@ -1423,5 +1425,258 @@ export const submitYggdrasilRun = onCall(
         }
     }
 );
+
+
+// ═══════════════════════════════════════════════════════
+//  YGGDRASIL EVENTS — JOIN & CLAIM
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Join a Yggdrasil event run. Deducts entry fee and increments the pool.
+ */
+export const joinYggdrasilEvent = onCall(
+    { cors: true, maxInstances: 10, timeoutSeconds: 15, memory: '256MiB' },
+    async (request) => {
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'You must be logged in.');
+        }
+
+        const { eventId } = request.data;
+        if (!eventId || typeof eventId !== 'string') {
+            throw new HttpsError('invalid-argument', 'Event ID is required.');
+        }
+
+        const { uid } = request.auth;
+        const db = admin.firestore();
+
+        try {
+            const eventRef = db.collection('yggdrasil_events').doc(eventId);
+
+            return await db.runTransaction(async (transaction: any) => {
+                const eventSnap = await transaction.get(eventRef);
+                if (!eventSnap.exists) {
+                    throw new HttpsError('not-found', 'Event not found.');
+                }
+
+                const eventData = eventSnap.data();
+                if (eventData.status !== 'open') {
+                    return { success: false, error: 'This event is no longer open.' };
+                }
+
+                // Get user data to deduct fee
+                const userRef = db.collection('users').doc(uid);
+                const userSnap = await transaction.get(userRef);
+                if (!userSnap.exists) {
+                    throw new HttpsError('not-found', 'User not found.');
+                }
+                const userData = userSnap.data();
+
+                const entryFee = eventData.entryFee || 0;
+                const currency = eventData.currency || 'AURY';
+
+                // Deduct entry fee
+                if (entryFee > 0) {
+                    if (currency === 'Valcoins') {
+                        const currentPoints = userData.points || 0;
+                        if (currentPoints < entryFee) {
+                            return { success: false, error: `Insufficient Valcoins. Need ${entryFee}, have ${currentPoints}.` };
+                        }
+                        transaction.update(userRef, {
+                            points: admin.firestore.FieldValue.increment(-entryFee)
+                        });
+                    } else {
+                        // AURY — deduct from wallet
+                        const walletRef = db.collection('wallets').doc(uid);
+                        const walletSnap = await transaction.get(walletRef);
+                        if (!walletSnap.exists) {
+                            return { success: false, error: 'Wallet not found. Please deposit AURY first.' };
+                        }
+                        const walletData = walletSnap.data();
+                        const auryMultiplier = 1000000000; // lamports
+                        const feeInLamports = Math.round(entryFee * auryMultiplier);
+                        const currentBalance = walletData.balance || 0;
+
+                        if (currentBalance < feeInLamports) {
+                            return { success: false, error: `Insufficient AURY. Need ${entryFee}, have ${(currentBalance / auryMultiplier).toFixed(2)}.` };
+                        }
+                        transaction.update(walletRef, {
+                            balance: admin.firestore.FieldValue.increment(-feeInLamports)
+                        });
+
+                        // Log the transaction
+                        const txRef = walletRef.collection('transactions').doc();
+                        transaction.set(txRef, {
+                            type: 'ygg_event_entry',
+                            amount: -feeInLamports,
+                            currency: 'AURY',
+                            description: `Yggdrasil Event Entry: ${eventData.name}`,
+                            eventId: eventId,
+                            timestamp: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                    }
+                }
+
+                // Increment pool
+                transaction.update(eventRef, {
+                    currentPool: admin.firestore.FieldValue.increment(1)
+                });
+
+                return { success: true };
+            });
+        } catch (error: any) {
+            console.error('JoinYggdrasilEvent Error:', error);
+            throw new HttpsError('internal', error.message || 'Failed to join event.');
+        }
+    }
+);
+
+/**
+ * Claim a Yggdrasil event prize. First player to reach the target altitude wins.
+ */
+export const claimYggdrasilEventPrize = onCall(
+    { cors: true, maxInstances: 10, timeoutSeconds: 15, memory: '256MiB' },
+    async (request) => {
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'You must be logged in.');
+        }
+
+        const { eventId, altitude } = request.data;
+        if (!eventId || typeof eventId !== 'string') {
+            throw new HttpsError('invalid-argument', 'Event ID is required.');
+        }
+        if (typeof altitude !== 'number' || altitude < 0) {
+            throw new HttpsError('invalid-argument', 'Valid altitude is required.');
+        }
+
+        const { uid } = request.auth;
+        const db = admin.firestore();
+
+        try {
+            const eventRef = db.collection('yggdrasil_events').doc(eventId);
+
+            const result = await db.runTransaction(async (transaction: any) => {
+                const eventSnap = await transaction.get(eventRef);
+                if (!eventSnap.exists) {
+                    throw new HttpsError('not-found', 'Event not found.');
+                }
+
+                const eventData = eventSnap.data();
+
+                // Check if event is still open
+                if (eventData.status !== 'open') {
+                    return { 
+                        success: false, 
+                        error: 'Event already claimed.',
+                        winner: eventData.winnerName || 'Unknown'
+                    };
+                }
+
+                // Check if pool target is met (prize is only available when pool is full)
+                if ((eventData.currentPool || 0) < (eventData.targetPool || 1)) {
+                    return { success: false, error: 'Prize pool target not yet met.' };
+                }
+
+                // Check if player reached the target altitude
+                if (altitude < (eventData.targetAltitude || 0)) {
+                    return { success: false, error: 'You have not reached the required altitude.' };
+                }
+
+                // Get user info for the winner record
+                const userRef = db.collection('users').doc(uid);
+                const userSnap = await transaction.get(userRef);
+                const userData = userSnap.exists ? userSnap.data() : {};
+                const winnerName = userData.auroryPlayerName || userData.displayName || 'Unknown Player';
+
+                // Close the event and record the winner
+                transaction.update(eventRef, {
+                    status: 'closed',
+                    winnerId: uid,
+                    winnerName: winnerName,
+                    claimTimestamp: admin.firestore.FieldValue.serverTimestamp()
+                });
+
+                // Add prize to the user's armory (Prizes tab)
+                const prizeRef = userRef.collection('prizes').doc();
+                transaction.set(prizeRef, {
+                    name: eventData.prizeName,
+                    image: eventData.prizeImage,
+                    rarity: eventData.prizeRarity || 'epic',
+                    source: 'yggdrasil_event',
+                    eventId: eventId,
+                    eventName: eventData.name,
+                    status: 'available',
+                    claimedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+
+                // --- NEW: NOTIFY PLAYER ---
+                const notificationRef = userRef.collection('notifications').doc();
+                transaction.set(notificationRef, {
+                    title: '🎁 Yggdrasil Event Won!',
+                    message: `Congratulations! You reached the altitude and won the ${eventData.prizeName}. Go to your Armory to claim it!`,
+                    type: 'gift',
+                    icon: '🏆',
+                    link: '/armory',
+                    read: false,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+
+                return { 
+                    success: true, 
+                    prizeName: eventData.prizeName,
+                    prizeImage: eventData.prizeImage,
+                    prizeRarity: eventData.prizeRarity
+                };
+            });
+
+            // --- NEW: NOTIFY ADMIN ON DISCORD (OUTSIDE TRANSACTION) ---
+            const GENERAL_WEBHOOK_URL = 'https://discord.com/api/webhooks/1492129011391008908/yiO-SAMvjoJXFync1kQoYnwFutN8-3Ig8srB4Ei0FFTPBAxX7WgvVMheObUg6Jaj8kWt';
+            try {
+                const userSnap = await db.collection('users').doc(uid).get();
+                const userData = userSnap.data() || {};
+                const winnerName = userData.auroryPlayerName || userData.displayName || 'Unknown Player';
+                const eventSnap = await db.collection('yggdrasil_events').doc(eventId).get();
+                const eventData = eventSnap.data() || {};
+
+                const embed = {
+                    title: `🏆 YGGDRASIL EVENT WON!`,
+                    description: `**${winnerName}** has reached the target altitude and won the event!`,
+                    color: 0xF1C40F, // Gold
+                    fields: [
+                        { name: 'Event', value: eventData.name || 'Unknown Event', inline: true },
+                        { name: 'Prize', value: eventData.prizeName || 'Unknown Prize', inline: true },
+                        { name: 'Rarity', value: eventData.prizeRarity || 'epic', inline: true },
+                        { name: 'User ID', value: uid, inline: false }
+                    ],
+                    footer: { 
+                        text: 'Asgard • Event Completion',
+                        icon_url: 'https://asgard-duels.web.app/runie-avatar.png'
+                    },
+                    timestamp: new Date().toISOString()
+                };
+
+                await fetch(GENERAL_WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: 'Runie',
+                        avatar_url: 'https://asgard-duels.web.app/runie-avatar.png',
+                        content: `🎊 **A new warrior has conquered the Yggdrasil Event!** 🎊`,
+                        embeds: [embed]
+                    })
+                });
+            } catch (e) {
+                console.error('Discord notify failed on win', e);
+            }
+
+            return result;
+        } catch (error: any) {
+            console.error('ClaimYggdrasilEventPrize Error:', error);
+            throw new HttpsError('internal', error.message || 'Failed to claim prize.');
+        }
+    }
+);
+
+// ─── TRIGGER: NOTIFY ADMIN ON NEW PRIZE CLAIM ───
+// REMOVED: Moved to claimYggdrasilEventPrize on win instead
 
 

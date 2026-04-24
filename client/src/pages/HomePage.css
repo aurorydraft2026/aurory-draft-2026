@@ -3071,6 +3071,12 @@
   box-shadow: 0 0 15px rgba(168, 85, 247, 0.2);
 }
 
+.modal-admin-badge.senior-admin-badge {
+  background: linear-gradient(135deg, #f97316, #ef4444);
+  color: white;
+  box-shadow: 0 0 15px rgba(249, 115, 22, 0.4);
+}
+
 .view-tournament-btn {
 
   width: 100%;
@@ -4735,12 +4741,19 @@
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
   font-size: 0.6rem;
-  color: var(--accent-cyan);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   display: flex;
   align-items: center;
   gap: 3px;
+}
+
+.profile-names .admin-badge.admin-staff {
+  color: var(--accent-cyan);
+}
+
+.profile-names .admin-badge.senior-admin-badge {
+  color: #fb923c;
 }
 
 .aurorian-tag {
