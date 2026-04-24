@@ -62,9 +62,9 @@ function generatePlatforms(count, startY, rng, difficulty) {
     let type = 'standard';
     const roll = rng();
     if (difficulty > 0.1 && roll < 0.15) type = 'boost'; // 1500m
-    else if (difficulty > 0.3 && roll < 0.20) type = 'turbo'; // 4500m (NEW Rare Turbo)
-    else if (difficulty > 0.05 && roll < 0.40) type = 'moving'; // 750m
-    else if (difficulty > 0.08 && roll < 0.60) type = 'fragile'; // 1200m (MORE vanishing plats)
+    else if (difficulty > 0.15 && roll < 0.30) type = 'turbo'; // 2250m (Now more common)
+    else if (difficulty > 0.05 && roll < 0.45) type = 'moving'; // 750m
+    else if (difficulty > 0.08 && roll < 0.65) type = 'fragile'; // 1200m (More common)
 
     // Spawn a rune on ~25% of platforms
     const hasRune = rng() < 0.25;
@@ -85,7 +85,7 @@ const YggdrasilAscender = ({ user }) => {
   const canvasRef = useRef(null);
   const gameRef = useRef(null);
   const animRef = useRef(null);
-  const assetsRef = useRef({ stand: null, jump: null, plat1: null, plat2: null, background: null });
+  const assetsRef = useRef({ stand: null, jump: null, turbo: null, plat1: null, plat2: null, background: null });
   const keysRef = useRef({});
   const touchRef = useRef({ left: false, right: false, jump: false });
   const leftBtnRef = useRef(null);
@@ -141,11 +141,12 @@ const YggdrasilAscender = ({ user }) => {
     Promise.all([
       processImage('/icons/minigames/yggdrasil/hero_stand.png'),
       processImage('/icons/minigames/yggdrasil/hero_jump.png'),
+      processImage('/icons/minigames/yggdrasil/hero_turbo.png'),
       processImage('/icons/minigames/yggdrasil/platform_1.png'),
       processImage('/icons/minigames/yggdrasil/platform_2.png'),
       processImage('/icons/minigames/yggdrasil/background.png')
-    ]).then(([stand, jump, plat1, plat2, background]) => {
-      assetsRef.current = { stand, jump, plat1, plat2, background };
+    ]).then(([stand, jump, turbo, plat1, plat2, background]) => {
+      assetsRef.current = { stand, jump, turbo, plat1, plat2, background };
       setAssetsLoaded(true);
     }).catch(err => {
       console.error('Asset processing failed:', err);
@@ -263,7 +264,8 @@ const YggdrasilAscender = ({ user }) => {
         squash: 1, // squash/stretch factor
         scaleX: 1,
         scaleY: 1,
-        facing: 1 // 1 for right, -1 for left
+        facing: 1, // 1 for right, -1 for left
+        turboTime: 0
       },
       platforms: startPlats,
       camera: 0,
@@ -350,6 +352,7 @@ const YggdrasilAscender = ({ user }) => {
           } else if (plat.type === 'turbo') {
             p.vy = BOOST_FORCE * 1.5; // HUGE TURBO BOOST
             p.isGrounded = false;
+            p.turboTime = 120; // Show turbo sprite for 2 seconds (60fps * 2)
             g.shake = 15; // massive shake
           } else if (plat.type === 'fragile') {
             p.vy = JUMP_FORCE; // bounce off fragile
@@ -425,6 +428,9 @@ const YggdrasilAscender = ({ user }) => {
 
     // Screen shake decay
     if (g.shake > 0) g.shake *= 0.9;
+
+    // Turbo decay
+    if (p.turboTime > 0) p.turboTime -= 1 * dt;
     else g.shake = 0;
 
     // Player squash/stretch lerp
@@ -747,7 +753,10 @@ const YggdrasilAscender = ({ user }) => {
     ctx.translate(-PLAYER_W / 2, -PLAYER_H);
 
     if (assets.stand && assets.jump) {
-      const heroImg = isJumping ? assets.jump : assets.stand;
+      let heroImg = isJumping ? assets.jump : assets.stand;
+      if (p.turboTime > 0 && assets.turbo) {
+        heroImg = assets.turbo;
+      }
       
       // Flip logic
       ctx.save();
