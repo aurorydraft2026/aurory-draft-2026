@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { database } from '../../firebase';
-import { ref, onValue, set, remove, onDisconnect, query, orderByChild, limitToLast } from 'firebase/database';
+import { ref, onValue, set, remove, onDisconnect, query, orderByChild, limitToLast, get } from 'firebase/database';
 import { submitYggdrasilRun } from '../../services/miniGameService';
 import './YggdrasilAscender.css';
 
@@ -8,15 +8,15 @@ import './YggdrasilAscender.css';
 const CANVAS_W = 400;
 const CANVAS_H = 450;
 const GRAVITY = 0.32;
-const JUMP_FORCE = -10.0;
+const JUMP_FORCE = -10;
 const BOOST_FORCE = -17;
-const MOVE_SPEED = 4.0;
+const MOVE_SPEED = 6.5;
 const PLAYER_W = 55;
 const PLAYER_H = 80;
 const PLAT_W = 80;
 const PLAT_H = 16;
-const PLAT_GAP_MIN = 110;
-const PLAT_GAP_MAX = 175;
+const PLAT_GAP_MIN = 100;
+const PLAT_GAP_MAX = 150;
 const RUNE_SIZE = 22;
 
 // No more static milestones, using dynamic run-end rewards instead
@@ -55,24 +55,28 @@ function generatePlatforms(count, startY, rng, difficulty) {
   const platforms = [];
   let y = startY;
   for (let i = 0; i < count; i++) {
-    const gap = Math.min(185, PLAT_GAP_MIN + rng() * (PLAT_GAP_MAX - PLAT_GAP_MIN) * (1 + difficulty * 0.2));
+    const gap = PLAT_GAP_MIN + rng() * (PLAT_GAP_MAX - PLAT_GAP_MIN);
     y -= gap;
     const x = rng() * (CANVAS_W - PLAT_W);
     // Platform type based on difficulty (starts earlier)
     let type = 'standard';
     const roll = rng();
-    if (difficulty > 0.1 && roll < 0.15) type = 'boost'; // 1500m
-    else if (difficulty > 0.15 && roll < 0.30) type = 'turbo'; // 2250m (Now more common)
-    else if (difficulty > 0.05 && roll < 0.45) type = 'moving'; // 750m
-    else if (difficulty > 0.08 && roll < 0.65) type = 'fragile'; // 1200m (More common)
+    if (difficulty > 0.1 && roll < 0.08) type = 'boost'; // 8%
+    else if (difficulty > 0.15 && roll < 0.15) type = 'turbo'; // 7%
+    else if (difficulty > 0.05 && roll < 0.40) type = 'moving'; // 25%
+    else if (difficulty > 0.08 && roll < (difficulty > 0.66 ? 0.85 : 0.60)) type = 'fragile'; // much more common at 10k
 
-    // Spawn a rune on ~25% of platforms
     const hasRune = rng() < 0.25;
     const runeSymbol = RUNE_SYMBOLS[Math.floor(rng() * RUNE_SYMBOLS.length)];
-    platforms.push({ 
-      x, y, w: PLAT_W, h: PLAT_H, type, 
-      broken: false, 
-      moveDir: rng() > 0.5 ? 1 : -1, 
+    const isMoving = type === 'moving' || (type === 'fragile' && difficulty > 0.4 && rng() < 0.3);
+
+    platforms.push({
+      x, y, w: PLAT_W, h: PLAT_H, type,
+      broken: false,
+      moveDir: rng() > 0.5 ? 1 : -1,
+      isMoving,
+      moveType: (difficulty > 0.33 && isMoving && rng() > 0.5) ? 'vertical' : 'horizontal',
+      baseY: y,
       hasRune, runeSymbol, runeCollected: false,
       spawnTime: null, // Set when visible
       activated: false
@@ -104,6 +108,8 @@ const YggdrasilAscender = ({ user }) => {
   const ghostPlayersDataRef = useRef({}); // Avoid stale closure in requestAnimationFrame
   const ghostVisualsRef = useRef({}); // { uid: { x, y, targetX, targetY } }
   const [runesCollected, setRunesCollected] = useState(0);
+  const [turboTime, setTurboTime] = useState(0);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [runStats, setRunStats] = useState(null);
 
   // Load and process assets (remove white background)
@@ -117,17 +123,17 @@ const YggdrasilAscender = ({ user }) => {
         canvas.height = img.height;
         const ctx = canvas.getContext('2d');
         if (!ctx) return res(img);
-        
+
         ctx.drawImage(img, 0, 0);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
-        
+
         // Remove white background (chroma keying)
         for (let i = 0; i < data.length; i += 4) {
-          const r = data[i], g = data[i+1], b = data[i+2];
+          const r = data[i], g = data[i + 1], b = data[i + 2];
           // If pixel is white or very near white
           if (r > 240 && g > 240 && b > 240) {
-            data[i+3] = 0;
+            data[i + 3] = 0;
           }
         }
         ctx.putImageData(imageData, 0, 0);
@@ -150,14 +156,15 @@ const YggdrasilAscender = ({ user }) => {
       setAssetsLoaded(true);
     }).catch(err => {
       console.error('Asset processing failed:', err);
-      setAssetsLoaded(true); 
+      setAssetsLoaded(true);
     });
   }, []);
 
-  // Load best score
+  // Load best score & Detect touch
   useEffect(() => {
     const saved = localStorage.getItem('ygg_best');
     if (saved) setBestScore(parseInt(saved, 10));
+    setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
   }, []);
 
   // Subscribe to ghost players
@@ -225,23 +232,26 @@ const YggdrasilAscender = ({ user }) => {
     const name = user.displayName || 'Viking';
     const seed = gameRef.current?.seed || getDailySeed();
     const scoreData = { name, score: finalScore, t: Date.now() };
+
     // Daily
     const dailyRef = ref(database, `yggdrasil/leaderboard/daily/${seed}/${user.uid}`);
-    onValue(dailyRef, snap => {
+    get(dailyRef).then(snap => {
       if (!snap.exists() || snap.val().score < finalScore) set(dailyRef, scoreData);
-    }, { onlyOnce: true });
+    });
+
     // Weekly
     const now = new Date();
     const weekNum = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 604800000);
     const weeklyRef = ref(database, `yggdrasil/leaderboard/weekly/${now.getFullYear()}_w${weekNum}/${user.uid}`);
-    onValue(weeklyRef, snap => {
+    get(weeklyRef).then(snap => {
       if (!snap.exists() || snap.val().score < finalScore) set(weeklyRef, scoreData);
-    }, { onlyOnce: true });
+    });
+
     // All-time
     const atRef = ref(database, `yggdrasil/leaderboard/alltime/${user.uid}`);
-    onValue(atRef, snap => {
+    get(atRef).then(snap => {
       if (!snap.exists() || snap.val().score < finalScore) set(atRef, scoreData);
-    }, { onlyOnce: true });
+    });
   }, [user]);
 
   // Init game
@@ -282,6 +292,7 @@ const YggdrasilAscender = ({ user }) => {
       rewards: 0,
       shake: 0, // screen shake magnitude
       lastTime: performance.now(),
+      lastHUDTime: 0,
     };
     setRunesCollected(0);
     setRunStats(null);
@@ -320,13 +331,17 @@ const YggdrasilAscender = ({ user }) => {
     if ((keysRef.current['Space'] || keysRef.current['ArrowUp'] || touchRef.current.jump) && p.isGrounded) {
       p.vy = JUMP_FORCE;
       p.isGrounded = false;
-      touchRef.current.jump = false; // consume jump
     }
 
     // Physics
-    p.vy += GRAVITY * dt;
+    if (p.turboTime > 0) {
+      p.vy = BOOST_FORCE * 1.5; // Sustain high speed during turbo
+      p.isGrounded = false;
+    } else {
+      p.vy += GRAVITY * dt;
+    }
     p.y += p.vy * dt;
-    p.isGrounded = false; // Assume falling until collision
+    if (p.turboTime <= 0) p.isGrounded = false; // Only assume falling if not in turbo
 
     // Collision (only when falling)
     if (p.vy >= 0) {
@@ -334,7 +349,7 @@ const YggdrasilAscender = ({ user }) => {
         if (plat.broken) continue;
         const inset = plat.type === 'ground' ? 0 : 20;
         if (
-          p.x + PLAYER_W > plat.x + inset && 
+          p.x + PLAYER_W > plat.x + inset &&
           p.x < plat.x + plat.w - inset &&
           p.y + PLAYER_H >= plat.y + 4 &&
           p.y + PLAYER_H <= plat.y + plat.h + p.vy * dt + 2
@@ -342,9 +357,9 @@ const YggdrasilAscender = ({ user }) => {
           p.y = plat.y + 4 - PLAYER_H;
           p.vy = 0;
           p.isGrounded = true;
-          
+
           if (p.squash === 1) p.squash = 0.6; // squash on landing
-          
+
           if (plat.type === 'boost') {
             p.vy = BOOST_FORCE; // auto boost is fun
             p.isGrounded = false;
@@ -352,12 +367,12 @@ const YggdrasilAscender = ({ user }) => {
           } else if (plat.type === 'turbo') {
             p.vy = BOOST_FORCE * 1.5; // HUGE TURBO BOOST
             p.isGrounded = false;
-            p.turboTime = 120; // Show turbo sprite for 2 seconds (60fps * 2)
-            g.shake = 15; // massive shake
+            p.turboTime = 180; // Show turbo sprite for 3 seconds
           } else if (plat.type === 'fragile') {
-            p.vy = JUMP_FORCE; // bounce off fragile
-            p.isGrounded = false;
-            plat.broken = true;
+            if (!plat.activated) {
+              plat.activated = true;
+              plat.spawnTime = Date.now();
+            }
           } else if (plat.type === 'moving') {
             p.x += plat.moveDir * 1.5 * dt; // stick to moving platform
           }
@@ -396,21 +411,31 @@ const YggdrasilAscender = ({ user }) => {
     // Moving & Vanishing platforms
     for (const plat of g.platforms) {
       if (plat.broken) continue;
-      
+
       // Moving logic
-      if (plat.type === 'moving') {
-        plat.x += plat.moveDir * 1.5 * dt;
-        if (plat.x <= 0 || plat.x + plat.w >= CANVAS_W) plat.moveDir *= -1;
+      if (plat.isMoving) {
+        const speed = 1.5 * (1 + g.difficulty * 2) * dt;
+        if (plat.moveType === 'vertical') {
+          plat.y += plat.moveDir * speed;
+          if (Math.abs(plat.y - plat.baseY) > 60) {
+            plat.moveDir *= -1;
+            plat.y = plat.baseY + (60 * plat.moveDir * -1); // Clamp
+          }
+        } else {
+          plat.x += plat.moveDir * speed;
+          if (plat.x <= 0) {
+            plat.x = 0;
+            plat.moveDir = 1;
+          } else if (plat.x + plat.w >= CANVAS_W) {
+            plat.x = CANVAS_W - plat.w;
+            plat.moveDir = -1;
+          }
+        }
       }
 
       // Vanishing logic (Platform 2 / Fragile)
       if (plat.type === 'fragile') {
-        if (!plat.activated) {
-          if (plat.y < g.camera + CANVAS_H) {
-            plat.activated = true;
-            plat.spawnTime = Date.now();
-          }
-        } else {
+        if (plat.activated) {
           const age = Date.now() - plat.spawnTime;
           if (age > 3000) {
             plat.broken = true; // Vanish!
@@ -427,20 +452,38 @@ const YggdrasilAscender = ({ user }) => {
     g.camera += (g.targetCamera - g.camera) * 0.15 * dt; // smooth interpolation
 
     // Screen shake decay
-    if (g.shake > 0) g.shake *= 0.9;
+    if (g.shake > 0) {
+      g.shake *= 0.9;
+    }
 
     // Turbo decay
-    if (p.turboTime > 0) p.turboTime -= 1 * dt;
-    else g.shake = 0;
+    if (p.turboTime > 0) {
+      p.turboTime -= 1 * dt;
+      // Spawn turbo particles (trail) - Reduced rate for performance
+      if (Math.random() < 0.4) {
+        g.particles.push({
+          x: p.x + PLAYER_W / 2 + (Math.random() - 0.5) * 20,
+          y: p.y + PLAYER_H - 10,
+          vx: (Math.random() - 0.5) * 2,
+          vy: 3 + Math.random() * 3,
+          life: 15,
+          color: Math.random() > 0.5 ? '#ef4444' : '#fbbf24',
+        });
+      }
+    }
 
     // Player squash/stretch lerp
     p.squash += (1 - p.squash) * 0.2;
     p.scaleX = 1 + (1 - p.squash);
     p.scaleY = p.squash;
     // apply stretch based on velocity
-    if (Math.abs(p.vy) > 2) {
-      p.scaleY = Math.max(0.8, 1 + Math.abs(p.vy) * 0.02);
-      p.scaleX = Math.max(0.7, 1 - Math.abs(p.vy) * 0.02);
+    if (p.turboTime > 0) {
+      // Stabilize scale during turbo to prevent pulsing
+      p.scaleY = 1.35;
+      p.scaleX = 0.75;
+    } else if (Math.abs(p.vy) > 2) {
+      p.scaleY = Math.min(1.35, 1 + Math.abs(p.vy) * 0.015);
+      p.scaleX = Math.max(0.75, 1 - Math.abs(p.vy) * 0.015);
     }
 
     // Altitude
@@ -495,7 +538,7 @@ const YggdrasilAscender = ({ user }) => {
       submitScore(g.maxAlt);
       removePresence();
       setGameState('over');
-      
+
       // Request run rewards
       setRunStats({ loading: true });
       submitYggdrasilRun(g.maxAlt, g.runes).then(res => {
@@ -524,11 +567,11 @@ const YggdrasilAscender = ({ user }) => {
       // Draw epic landscape background (Parallax)
       const bg = assets.background;
       const progress = Math.min(1, alt / 10000); // Stretch the art over 10km
-      
+
       // Calculate aspect-correct view
       const canvasAspect = CANVAS_H / CANVAS_W;
       const imgAspect = bg.height / bg.width;
-      
+
       let sw, sh, sx, sy;
       if (imgAspect > canvasAspect) {
         // Image is taller than canvas
@@ -543,7 +586,7 @@ const YggdrasilAscender = ({ user }) => {
         sx = (bg.width - sw) / 2;
         sy = 0;
       }
-      
+
       ctx.drawImage(bg, sx, sy, sw, sh, 0, 0, CANVAS_W, CANVAS_H);
     } else {
       // Fallback background gradient
@@ -595,7 +638,7 @@ const YggdrasilAscender = ({ user }) => {
 
       if (platImg) {
         // Blinking logic for vanishing platforms
-        if (isFragile) {
+        if (isFragile && plat.activated) {
           const age = Date.now() - plat.spawnTime;
           if (age > 2000) {
             // Rapid blink after 2s: 100ms interval
@@ -606,18 +649,10 @@ const YggdrasilAscender = ({ user }) => {
           }
         }
 
-        // Add drop shadow for depth
-        ctx.shadowColor = 'rgba(0,0,0,0.5)';
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetY = 2;
-        
         // Scale platform visual to match collision width
         const rw = plat.w;
-        const rh = rw * (platImg.height / platImg.width); 
+        const rh = rw * (platImg.height / platImg.width);
         ctx.drawImage(platImg, plat.x, plat.y + (plat.h - rh) / 2, rw, rh);
-        
-        ctx.shadowBlur = 0; // Reset
-        ctx.shadowOffsetY = 0;
         ctx.globalAlpha = 1; // Reset alpha
       } else {
         // Fallback vector drawing
@@ -628,28 +663,12 @@ const YggdrasilAscender = ({ user }) => {
           ctx.shadowOffsetY = 2;
           roundRect(ctx, plat.x, plat.y, plat.w, plat.h, 4);
           ctx.fill();
-          // Wood grain line
-          ctx.strokeStyle = '#6B3A1B';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(plat.x + 8, plat.y + plat.h / 2);
-          ctx.lineTo(plat.x + plat.w - 8, plat.y + plat.h / 2);
-          ctx.stroke();
         } else if (plat.type === 'fragile') {
           ctx.fillStyle = '#7dd3fc';
           ctx.globalAlpha = 0.7;
           roundRect(ctx, plat.x, plat.y, plat.w, plat.h, 4);
           ctx.fill();
           ctx.globalAlpha = 1;
-          // Crack lines
-          ctx.strokeStyle = '#bae6fd';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(plat.x + plat.w * 0.3, plat.y);
-          ctx.lineTo(plat.x + plat.w * 0.5, plat.y + plat.h);
-          ctx.moveTo(plat.x + plat.w * 0.7, plat.y);
-          ctx.lineTo(plat.x + plat.w * 0.6, plat.y + plat.h);
-          ctx.stroke();
         } else if (plat.type === 'moving') {
           ctx.fillStyle = '#22c55e';
           ctx.shadowColor = 'rgba(34,197,94,0.4)';
@@ -662,13 +681,19 @@ const YggdrasilAscender = ({ user }) => {
           ctx.shadowBlur = plat.type === 'turbo' ? 20 : 12;
           roundRect(ctx, plat.x, plat.y, plat.w, plat.h, 4);
           ctx.fill();
-          // Lightning icon
-          ctx.fillStyle = plat.type === 'turbo' ? '#fff' : '#92400e';
-          ctx.font = 'bold 10px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.fillText(plat.type === 'turbo' ? '🔥' : '⚡', plat.x + plat.w / 2, plat.y + 11);
         }
       }
+
+      // Draw icons on top of platforms if they are special types
+      if (plat.type === 'boost' || plat.type === 'turbo') {
+        ctx.save();
+        ctx.fillStyle = plat.type === 'turbo' ? '#fff' : '#92400e';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(plat.type === 'turbo' ? '🔥' : '⚡', plat.x + plat.w / 2, plat.y - 20);
+        ctx.restore();
+      }
+
       ctx.restore();
 
       // Draw rune floating above platform
@@ -702,12 +727,12 @@ const YggdrasilAscender = ({ user }) => {
     // Ghost players
     Object.entries(ghostPlayersDataRef.current).forEach(([uid, gp]) => {
       if (gp.x === undefined || gp.y === undefined) return;
-      
+
       // Initialize visual pos if new
       if (!ghostVisualsRef.current[uid]) {
         ghostVisualsRef.current[uid] = { x: gp.x, y: gp.y };
       }
-      
+
       // Lerp visual pos toward target
       const vis = ghostVisualsRef.current[uid];
       vis.x += (gp.x - vis.x) * 0.1;
@@ -715,9 +740,9 @@ const YggdrasilAscender = ({ user }) => {
 
       const gpCanvasY = vis.y;
       if (gpCanvasY < g.camera - 100 || gpCanvasY > g.camera + CANVAS_H + 100) return;
-      
+
       ctx.save();
-      ctx.globalAlpha = 0.4; // reduced opacity for better focus
+      ctx.globalAlpha = 0.6; // increased opacity as requested
       if (assets.stand) {
         const standImg = assets.stand;
         const renderW = PLAYER_H * (standImg.width / standImg.height);
@@ -727,18 +752,18 @@ const YggdrasilAscender = ({ user }) => {
         roundRect(ctx, vis.x, gpCanvasY, PLAYER_W, PLAYER_H, 6);
         ctx.fill();
       }
-      
+
       // Name tag
       // Name tag
       const nameStr = gp.name?.slice(0, 10) || '?';
       ctx.font = 'bold 12px Rajdhani, sans-serif';
       ctx.textAlign = 'center';
-      
+
       // Black outline for high visibility
       ctx.lineWidth = 3;
       ctx.strokeStyle = '#000';
       ctx.strokeText(nameStr, vis.x + PLAYER_W / 2, gpCanvasY - 6);
-      
+
       // White text
       ctx.fillStyle = '#fff';
       ctx.fillText(nameStr, vis.x + PLAYER_W / 2, gpCanvasY - 6);
@@ -757,7 +782,7 @@ const YggdrasilAscender = ({ user }) => {
       if (p.turboTime > 0 && assets.turbo) {
         heroImg = assets.turbo;
       }
-      
+
       // Flip logic
       ctx.save();
       if (p.facing === -1) {
@@ -765,18 +790,12 @@ const YggdrasilAscender = ({ user }) => {
         ctx.translate(-PLAYER_W, 0);
       }
 
-      // Add drop shadow for character
-      ctx.shadowColor = 'rgba(0,0,0,0.4)';
-      ctx.shadowBlur = 6;
-      ctx.shadowOffsetY = 4;
-      
       // Calculate size to maintain aspect ratio
       const renderW = PLAYER_H * (heroImg.width / heroImg.height);
       // Shift drawing down to plant feet on the platform floor (3D depth)
       ctx.drawImage(heroImg, (PLAYER_W - renderW) / 2, 0, renderW, PLAYER_H);
-      
+
       ctx.restore(); // Restore flip scale
-      ctx.shadowBlur = 0; // Reset
     } else {
       // Fallback vector character
       // Body
@@ -817,8 +836,12 @@ const YggdrasilAscender = ({ user }) => {
 
     ctx.restore();
 
-    // Update React state for HUD
-    setScore(alt);
+    // Update React state for HUD (Throttled to 15fps for maximum performance)
+    if (now - g.lastHUDTime > 66) {
+      setScore(alt);
+      setTurboTime(Math.max(0, p.turboTime));
+      g.lastHUDTime = now;
+    }
 
     // Mist at the bottom
     const mistGrad = ctx.createLinearGradient(0, CANVAS_H - 120, 0, CANVAS_H);
@@ -863,13 +886,13 @@ const YggdrasilAscender = ({ user }) => {
 
   // Keyboard
   useEffect(() => {
-    const down = (e) => { 
+    const down = (e) => {
       if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'ArrowDown') e.preventDefault();
-      keysRef.current[e.code] = true; 
+      keysRef.current[e.code] = true;
     };
-    const up = (e) => { 
+    const up = (e) => {
       if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'ArrowDown') e.preventDefault();
-      keysRef.current[e.code] = false; 
+      keysRef.current[e.code] = false;
     };
     window.addEventListener('keydown', down, { passive: false });
     window.addEventListener('keyup', up, { passive: false });
@@ -938,21 +961,21 @@ const YggdrasilAscender = ({ user }) => {
         />
 
         {/* Mobile Controls Overlay */}
-        {gameState === 'playing' && (
+        {gameState === 'playing' && isTouchDevice && (
           <div className="ygg-mobile-controls" style={{
-            position: 'absolute', bottom: '10px', left: 0, right: 0, 
+            position: 'absolute', bottom: '30px', left: 0, right: 0,
             display: 'flex', justifyContent: 'space-between', padding: '0 20px', pointerEvents: 'none'
           }}>
             <div style={{ display: 'flex', gap: '10px', pointerEvents: 'auto' }}>
-              <button 
+              <button
                 ref={leftBtnRef}
                 style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)', color: 'white', fontSize: '24px' }}>◀</button>
-              <button 
+              <button
                 ref={rightBtnRef}
                 style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)', color: 'white', fontSize: '24px' }}>▶</button>
             </div>
             <div style={{ pointerEvents: 'auto' }}>
-              <button 
+              <button
                 ref={jumpBtnRef}
                 style={{ width: '80px', height: '60px', borderRadius: '30px', background: 'rgba(251, 191, 36, 0.4)', border: '2px solid rgba(251, 191, 36, 0.8)', color: 'white', fontSize: '18px', fontWeight: 'bold' }}>JUMP</button>
             </div>
@@ -967,9 +990,23 @@ const YggdrasilAscender = ({ user }) => {
                 <div className="ygg-altitude">
                   {score}m<span> ALTITUDE</span>
                 </div>
+                <div className="ygg-testing-badge-mini">BETA</div>
                 {bestScore > 0 && <div className="ygg-best">Best: {bestScore}m</div>}
                 <div className="ygg-zone-label">{zoneName}</div>
                 {runesCollected > 0 && <div className="ygg-runes-hud">ᚠ {runesCollected}</div>}
+
+                {/* Turbo Indicator */}
+                {turboTime > 0 && (
+                  <div className="ygg-turbo-hud">
+                    <span className="ygg-turbo-icon">🔥</span>
+                    <div className="ygg-turbo-bar">
+                      <div
+                        className="ygg-turbo-progress"
+                        style={{ width: `${(turboTime / 180) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="ygg-hud-right">
                 <div className="ygg-players-pill">
@@ -999,10 +1036,11 @@ const YggdrasilAscender = ({ user }) => {
         {gameState === 'start' && (
           <div className="ygg-start-overlay">
             <div className="ygg-start-title">Yggdrasil Ascender</div>
+            <div className="ygg-testing-badge">STILL UNDER TESTING</div>
             <div className="ygg-start-subtitle">
               Climb the World Tree! Other players appear as ghosts alongside you.
             </div>
-            
+
             <div className="ygg-rules-box" style={{ background: 'rgba(0,0,0,0.5)', padding: '10px 15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid rgba(184,134,11,0.5)', fontSize: '13px', textAlign: 'left' }}>
               <div style={{ color: '#fbbf24', fontWeight: 'bold', marginBottom: '4px' }}>📜 Rules of the Climb:</div>
               <ul style={{ margin: 0, paddingLeft: '16px', lineHeight: '1.4' }}>
@@ -1034,18 +1072,18 @@ const YggdrasilAscender = ({ user }) => {
             <div className={`ygg-gameover-best ${isNewBest ? 'ygg-new-best' : ''}`}>
               {isNewBest ? '🎉 New Personal Best!' : `Best: ${bestScore}m`}
             </div>
-            
+
             <div className="ygg-gameover-stats" style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '15px 0' }}>
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-                <span style={{ background: 'rgba(0,0,0,0.5)', padding: '4px 10px', borderRadius: '4px' }}>⬆️ Base: {Math.floor(score/100)}</span>
+                <span style={{ background: 'rgba(0,0,0,0.5)', padding: '4px 10px', borderRadius: '4px' }}>⬆️ Base: {Math.floor(score / 100)}</span>
                 <span style={{ color: '#fbbf24' }}>✖️</span>
                 <span style={{ background: 'rgba(0,0,0,0.5)', padding: '4px 10px', borderRadius: '4px' }}>ᚠ {runesCollected} Runes</span>
               </div>
-              
+
               {runStats?.loading && <div style={{ color: '#94a3b8', fontSize: '14px' }}>Calculating rewards...</div>}
               {runStats?.error && <div style={{ color: '#ef4444', fontSize: '14px' }}>{runStats.error}</div>}
               {runStats?.limitReached && <div style={{ color: '#ef4444', fontSize: '14px', fontWeight: 'bold' }}>Daily limit reached (No Valcoins)</div>}
-              
+
               {runStats?.success && !runStats?.limitReached && (
                 <div style={{ background: 'rgba(184, 134, 11, 0.2)', border: '1px solid #b8860b', padding: '8px', borderRadius: '8px' }}>
                   <div style={{ color: '#fbbf24', fontWeight: 'bold', fontSize: '18px' }}>+{runStats.reward} Valcoins!</div>
