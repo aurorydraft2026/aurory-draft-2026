@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { database } from '../../firebase';
-import { ref, onValue, set, remove, onDisconnect, query, orderByChild, limitToLast, get } from 'firebase/database';
+import { ref, onValue, set, remove, onDisconnect, get } from 'firebase/database';
 import { submitYggdrasilRun } from '../../services/miniGameService';
 import './YggdrasilAscender.css';
 
@@ -68,18 +68,29 @@ function generatePlatforms(count, startY, rng, difficulty) {
 
     const hasRune = rng() < 0.25;
     const runeSymbol = RUNE_SYMBOLS[Math.floor(rng() * RUNE_SYMBOLS.length)];
-    const isMoving = type === 'moving' || (type === 'fragile' && difficulty > 0.4 && rng() < 0.3);
+    const isMoving = type === 'moving' || (type === 'fragile' && difficulty > 0.5 && rng() < 0.2);
+    let moveType = 'horizontal';
+    if (isMoving) {
+      const moveRoll = rng();
+      if (moveRoll < 0.15 && difficulty > 0.3) moveType = 'vertical';
+      else if (moveRoll < 0.30 && difficulty > 0.5) moveType = 'circular';
+    }
 
     platforms.push({
-      x, y, w: PLAT_W, h: PLAT_H, type,
+      id: Math.random().toString(36).substr(2, 9),
+      x, y, w: PLAT_W, h: PLAT_H, type, 
+      isMoving, 
+      moveType,
+      moveDir: rng() < 0.5 ? 1 : -1,
+      baseX: x, baseY: y,
+      radius: 40 + rng() * 40,
+      angle: rng() * Math.PI * 2,
+      activated: false,
       broken: false,
-      moveDir: rng() > 0.5 ? 1 : -1,
-      isMoving,
-      moveType: (difficulty > 0.33 && isMoving && rng() > 0.5) ? 'vertical' : 'horizontal',
-      baseY: y,
-      hasRune, runeSymbol, runeCollected: false,
-      spawnTime: null, // Set when visible
-      activated: false
+      spawnTime: Date.now(),
+      hasRune,
+      runeSymbol,
+      runeCollected: false
     });
   }
   return platforms;
@@ -111,6 +122,8 @@ const YggdrasilAscender = ({ user }) => {
   const [turboTime, setTurboTime] = useState(0);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [runStats, setRunStats] = useState(null);
+  const zoneNameRef = useRef('MIDGARD');
+  const bestScoreRef = useRef(0);
 
   // Load and process assets (remove white background)
   useEffect(() => {
@@ -163,7 +176,11 @@ const YggdrasilAscender = ({ user }) => {
   // Load best score & Detect touch
   useEffect(() => {
     const saved = localStorage.getItem('ygg_best');
-    if (saved) setBestScore(parseInt(saved, 10));
+    if (saved) {
+      const val = parseInt(saved, 10);
+      setBestScore(val);
+      bestScoreRef.current = val;
+    }
     setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
   }, []);
 
@@ -174,9 +191,9 @@ const YggdrasilAscender = ({ user }) => {
     const unsub = onValue(playersRef, snap => {
       if (snap.exists()) {
         const data = snap.val();
-        delete data[user.uid]; // Don't render self
-        ghostPlayersDataRef.current = data;
-        setPlayerCount(Object.keys(data).length + 1);
+        const { [user.uid]: _, ...others } = data;
+        ghostPlayersDataRef.current = others;
+        setPlayerCount(Object.keys(others).length + 1);
       } else {
         ghostPlayersDataRef.current = {};
         setPlayerCount(1);
@@ -194,13 +211,13 @@ const YggdrasilAscender = ({ user }) => {
       const weekNum = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 604800000);
       path = `yggdrasil/leaderboard/weekly/${now.getFullYear()}_w${weekNum}`;
     } else path = 'yggdrasil/leaderboard/alltime';
-    const lbRef = query(ref(database, path), orderByChild('score'), limitToLast(20));
+    const lbRef = ref(database, path);
     const unsub = onValue(lbRef, snap => {
       if (snap.exists()) {
         const arr = [];
         snap.forEach(child => arr.push({ uid: child.key, ...child.val() }));
         arr.sort((a, b) => b.score - a.score);
-        setLeaderboard(arr);
+        setLeaderboard(arr.slice(0, 20));
       } else {
         setLeaderboard([]);
       }
@@ -296,6 +313,8 @@ const YggdrasilAscender = ({ user }) => {
     };
     setRunesCollected(0);
     setRunStats(null);
+    keysRef.current = {};
+    touchRef.current = { left: false, right: false, jump: false };
   }, []);
 
   // Game loop
@@ -358,7 +377,21 @@ const YggdrasilAscender = ({ user }) => {
           p.vy = 0;
           p.isGrounded = true;
 
-          if (p.squash === 1) p.squash = 0.6; // squash on landing
+          if (p.squash === 1) {
+            p.squash = 0.6; // squash on landing
+            // Spawn landing dust
+            for (let di = 0; di < 6; di++) {
+              g.particles.push({
+                x: p.x + PLAYER_W / 2 + (Math.random() - 0.5) * 30,
+                y: plat.y,
+                vx: (Math.random() - 0.5) * 2,
+                vy: -Math.random() * 1,
+                life: 20,
+                color: 'rgba(255, 255, 255, 0.5)',
+                size: 2 + Math.random() * 2
+              });
+            }
+          }
 
           if (plat.type === 'boost') {
             p.vy = BOOST_FORCE; // auto boost is fun
@@ -367,14 +400,12 @@ const YggdrasilAscender = ({ user }) => {
           } else if (plat.type === 'turbo') {
             p.vy = BOOST_FORCE * 1.5; // HUGE TURBO BOOST
             p.isGrounded = false;
-            p.turboTime = 180; // Show turbo sprite for 3 seconds
+            p.turboTime = 120; // Show turbo sprite for 2 seconds
           } else if (plat.type === 'fragile') {
             if (!plat.activated) {
               plat.activated = true;
               plat.spawnTime = Date.now();
             }
-          } else if (plat.type === 'moving') {
-            p.x += plat.moveDir * 1.5 * dt; // stick to moving platform
           }
           break;
         }
@@ -403,6 +434,7 @@ const YggdrasilAscender = ({ user }) => {
             vy: (Math.random() - 0.5) * 4 - 2,
             life: 30,
             color: '#fbbf24',
+            size: 3
           });
         }
       }
@@ -414,21 +446,40 @@ const YggdrasilAscender = ({ user }) => {
 
       // Moving logic
       if (plat.isMoving) {
-        const speed = 1.5 * (1 + g.difficulty * 2) * dt;
+        const speed = 1.5 * (1 + g.difficulty * 3) * dt;
+        const oldX = plat.x;
+        const oldY = plat.y;
+
         if (plat.moveType === 'vertical') {
           plat.y += plat.moveDir * speed;
-          if (Math.abs(plat.y - plat.baseY) > 60) {
-            plat.moveDir *= -1;
-            plat.y = plat.baseY + (60 * plat.moveDir * -1); // Clamp
+          if (plat.y < plat.baseY - 60) {
+            plat.y = plat.baseY - 60;
+            plat.moveDir = 1;
+          } else if (plat.y > plat.baseY + 60) {
+            plat.y = plat.baseY + 60;
+            plat.moveDir = -1;
           }
+        } else if (plat.moveType === 'circular') {
+          plat.angle += (speed / plat.radius) * plat.moveDir;
+          plat.x = plat.baseX + Math.cos(plat.angle) * plat.radius;
+          plat.y = plat.baseY + Math.sin(plat.angle) * plat.radius;
         } else {
           plat.x += plat.moveDir * speed;
-          if (plat.x <= 0) {
+          if (plat.x < 0) {
             plat.x = 0;
             plat.moveDir = 1;
-          } else if (plat.x + plat.w >= CANVAS_W) {
+          } else if (plat.x + plat.w > CANVAS_W) {
             plat.x = CANVAS_W - plat.w;
             plat.moveDir = -1;
+          }
+        }
+
+        // Robust Ride-along logic: If player is grounded and on this platform, move them by the same delta
+        if (p.isGrounded && p.y + PLAYER_H >= oldY - 5 && p.y + PLAYER_H <= oldY + PLAT_H + 5) {
+          // Check horizontal bounds with a small buffer
+          if (p.x + PLAYER_W * 0.7 > oldX && p.x + PLAYER_W * 0.3 < oldX + plat.w) {
+            p.x += (plat.x - oldX);
+            p.y += (plat.y - oldY);
           }
         }
       }
@@ -437,7 +488,8 @@ const YggdrasilAscender = ({ user }) => {
       if (plat.type === 'fragile') {
         if (plat.activated) {
           const age = Date.now() - plat.spawnTime;
-          if (age > 3000) {
+          const fragileTime = g.difficulty > 0.66 ? 1500 : 2000;
+          if (age > fragileTime) {
             plat.broken = true; // Vanish!
           }
         }
@@ -468,6 +520,7 @@ const YggdrasilAscender = ({ user }) => {
           vy: 3 + Math.random() * 3,
           life: 15,
           color: Math.random() > 0.5 ? '#ef4444' : '#fbbf24',
+          size: 2
         });
       }
     }
@@ -489,17 +542,42 @@ const YggdrasilAscender = ({ user }) => {
     // Altitude
     const alt = Math.max(0, Math.floor(-g.camera / 4));
     if (alt > g.maxAlt) g.maxAlt = alt;
-    g.difficulty = Math.min(1, alt / 15000);
+    g.difficulty = Math.min(1, alt / 12000); // Steeper curve: reaches max at 12k
 
     // Milestones removed; handled on Game Over
 
-    // Wind particles
-    if (alt > 2000 && g.windParticles.length < 15) {
+    // Dynamic Weather Particles
+    const maxWeather = alt > 10000 ? 30 : alt > 5000 ? 25 : 15;
+    if (g.windParticles.length < maxWeather) {
+      let wColor = 'rgba(255,255,255,0.1)';
+      let wSize = 1;
+      let wSpeed = 5 + Math.random() * 5;
+      let wType = 'line';
+
+      if (alt < 2000) { // Midgard Leaves
+        wColor = Math.random() > 0.5 ? 'rgba(34, 197, 94, 0.4)' : 'rgba(21, 128, 61, 0.4)';
+        wType = 'leaf';
+      } else if (alt < 5000) { // Cloud Mist
+        wColor = 'rgba(255, 255, 255, 0.1)';
+        wType = 'mist';
+        wSize = 20 + Math.random() * 40;
+        wSpeed = 1 + Math.random() * 2;
+      } else if (alt < 10000) { // Bifrost Sparks
+        wColor = `hsla(${Math.random() * 360}, 70%, 70%, 0.4)`;
+        wType = 'spark';
+      } else { // Asgard Gold Dust
+        wColor = 'rgba(251, 191, 36, 0.3)';
+        wType = 'dust';
+      }
+
       g.windParticles.push({
         x: Math.random() * CANVAS_W,
         y: g.camera - 100,
-        speed: 5 + Math.random() * 10,
-        len: 20 + Math.random() * 40
+        speed: wSpeed,
+        len: 10 + Math.random() * 20,
+        color: wColor,
+        type: wType,
+        size: wSize
       });
     }
     g.windParticles.forEach(w => w.y += w.speed);
@@ -527,11 +605,11 @@ const YggdrasilAscender = ({ user }) => {
     if (p.y > g.camera + CANVAS_H + 120) {
       setScore(g.maxAlt);
       setRunesCollected(g.runes);
-      const prevBest = parseInt(localStorage.getItem('ygg_best') || '0', 10);
-      if (g.maxAlt > prevBest) {
-        localStorage.setItem('ygg_best', g.maxAlt.toString());
-        setBestScore(g.maxAlt);
+      if (alt > bestScoreRef.current) {
         setIsNewBest(true);
+        setBestScore(alt);
+        bestScoreRef.current = alt;
+        localStorage.setItem('ygg_best', alt.toString());
       } else {
         setIsNewBest(false);
       }
@@ -559,7 +637,10 @@ const YggdrasilAscender = ({ user }) => {
 
     // ═══ RENDER ═══
     const zone = getZone(alt);
-    setZoneName(zone.name);
+    if (zone.name !== zoneNameRef.current) {
+      zoneNameRef.current = zone.name;
+      setZoneName(zone.name);
+    }
 
     const assets = assetsRef.current;
 
@@ -608,14 +689,25 @@ const YggdrasilAscender = ({ user }) => {
       }
     }
 
-    // Wind streaks
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-    ctx.lineWidth = 1;
+    // Weather Particles
     g.windParticles.forEach(w => {
-      ctx.beginPath();
-      ctx.moveTo(w.x, w.y - g.camera);
-      ctx.lineTo(w.x, w.y - g.camera + w.len);
-      ctx.stroke();
+      ctx.fillStyle = w.color;
+      ctx.strokeStyle = w.color;
+      if (w.type === 'leaf') {
+        ctx.fillRect(w.x, w.y - g.camera, 4, 4);
+      } else if (w.type === 'mist') {
+        ctx.beginPath();
+        ctx.arc(w.x, w.y - g.camera, w.size, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (w.type === 'spark' || w.type === 'line') {
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(w.x, w.y - g.camera);
+        ctx.lineTo(w.x, w.y - g.camera + w.len);
+        ctx.stroke();
+      } else if (w.type === 'dust') {
+        ctx.fillRect(w.x, w.y - g.camera, 2, 2);
+      }
     });
 
     ctx.save();
@@ -624,6 +716,28 @@ const YggdrasilAscender = ({ user }) => {
       ctx.translate((Math.random() - 0.5) * g.shake, (Math.random() - 0.5) * g.shake);
     }
     ctx.translate(0, -g.camera);
+
+    // PB Marker line
+    if (bestScoreRef.current > 0) {
+      const pbY = -bestScoreRef.current * 4;
+      // Only draw if within 2 screens of the player
+      if (pbY > g.camera - CANVAS_H && pbY < g.camera + CANVAS_H * 2) {
+        ctx.save();
+        ctx.setLineDash([8, 4]);
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.3)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, pbY);
+        ctx.lineTo(CANVAS_W, pbY);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.6)';
+        ctx.font = 'bold 12px Rajdhani, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('🏆 PERSONAL BEST', 10, pbY - 8);
+        ctx.restore();
+      }
+    }
 
     // Platforms
     for (const plat of g.platforms) {
@@ -640,11 +754,10 @@ const YggdrasilAscender = ({ user }) => {
         // Blinking logic for vanishing platforms
         if (isFragile && plat.activated) {
           const age = Date.now() - plat.spawnTime;
-          if (age > 2000) {
-            // Rapid blink after 2s: 100ms interval
+          const fragileTime = g.difficulty > 0.66 ? 1500 : 2000;
+          if (age > fragileTime * 0.75) {
             if (Math.floor(Date.now() / 100) % 2 === 0) ctx.globalAlpha = 0.3;
-          } else if (age > 1000) {
-            // Slower blink after 1s: 200ms interval
+          } else if (age > fragileTime * 0.5) {
             if (Math.floor(Date.now() / 200) % 2 === 0) ctx.globalAlpha = 0.5;
           }
         }
@@ -658,9 +771,6 @@ const YggdrasilAscender = ({ user }) => {
         // Fallback vector drawing
         if (plat.type === 'standard') {
           ctx.fillStyle = '#8B5A2B';
-          ctx.shadowColor = 'rgba(0,0,0,0.3)';
-          ctx.shadowBlur = 4;
-          ctx.shadowOffsetY = 2;
           roundRect(ctx, plat.x, plat.y, plat.w, plat.h, 4);
           ctx.fill();
         } else if (plat.type === 'fragile') {
@@ -671,14 +781,10 @@ const YggdrasilAscender = ({ user }) => {
           ctx.globalAlpha = 1;
         } else if (plat.type === 'moving') {
           ctx.fillStyle = '#22c55e';
-          ctx.shadowColor = 'rgba(34,197,94,0.4)';
-          ctx.shadowBlur = 8;
           roundRect(ctx, plat.x, plat.y, plat.w, plat.h, 4);
           ctx.fill();
         } else if (plat.type === 'boost' || plat.type === 'turbo') {
           ctx.fillStyle = plat.type === 'turbo' ? '#ef4444' : '#fbbf24';
-          ctx.shadowColor = plat.type === 'turbo' ? 'rgba(239,68,68,0.6)' : 'rgba(251,191,36,0.6)';
-          ctx.shadowBlur = plat.type === 'turbo' ? 20 : 12;
           roundRect(ctx, plat.x, plat.y, plat.w, plat.h, 4);
           ctx.fill();
         }
@@ -702,12 +808,9 @@ const YggdrasilAscender = ({ user }) => {
         const runeY = plat.y - 20 + Math.sin(Date.now() / 300 + plat.x) * 3;
         ctx.save();
         ctx.fillStyle = '#fbbf24';
-        ctx.shadowColor = 'rgba(251,191,36,0.8)';
-        ctx.shadowBlur = 10;
         ctx.font = `bold ${RUNE_SIZE}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        // Add outline for visibility
         ctx.strokeStyle = 'rgba(0,0,0,0.8)';
         ctx.lineWidth = 3;
         ctx.strokeText(plat.runeSymbol, runeX, runeY);
@@ -720,7 +823,8 @@ const YggdrasilAscender = ({ user }) => {
     for (const pt of g.particles) {
       ctx.globalAlpha = pt.life / 30;
       ctx.fillStyle = pt.color;
-      ctx.fillRect(pt.x - 2, pt.y - 2, 4, 4);
+      const s = pt.size || 4;
+      ctx.fillRect(pt.x - s / 2, pt.y - s / 2, s, s);
     }
     ctx.globalAlpha = 1;
 
@@ -753,7 +857,6 @@ const YggdrasilAscender = ({ user }) => {
         ctx.fill();
       }
 
-      // Name tag
       // Name tag
       const nameStr = gp.name?.slice(0, 10) || '?';
       ctx.font = 'bold 12px Rajdhani, sans-serif';
@@ -864,6 +967,8 @@ const YggdrasilAscender = ({ user }) => {
 
   // Start/restart game
   const startGame = useCallback(() => {
+    keysRef.current = {};
+    touchRef.current = { left: false, right: false, jump: false };
     setGameState('playing');
     setIsNewBest(false);
     initGame();
@@ -894,22 +999,52 @@ const YggdrasilAscender = ({ user }) => {
       if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'ArrowDown') e.preventDefault();
       keysRef.current[e.code] = false;
     };
+    const blur = () => {
+      keysRef.current = {};
+      touchRef.current = { left: false, right: false, jump: false };
+    };
     window.addEventListener('keydown', down, { passive: false });
     window.addEventListener('keyup', up, { passive: false });
+    window.addEventListener('blur', blur);
     return () => {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', blur);
     };
   }, []);
 
   // Handle Mobile Touch Events (Passive: False)
   useEffect(() => {
-    const handleLeftStart = (e) => { e.preventDefault(); touchRef.current.left = true; };
-    const handleLeftEnd = (e) => { e.preventDefault(); touchRef.current.left = false; };
-    const handleRightStart = (e) => { e.preventDefault(); touchRef.current.right = true; };
-    const handleRightEnd = (e) => { e.preventDefault(); touchRef.current.right = false; };
-    const handleJumpStart = (e) => { e.preventDefault(); touchRef.current.jump = true; };
-    const handleJumpEnd = (e) => { e.preventDefault(); touchRef.current.jump = false; };
+    const handleLeftStart = (e) => { 
+      if (e.cancelable) e.preventDefault(); 
+      touchRef.current.left = true; 
+      e.currentTarget.classList.add('is-pressed');
+    };
+    const handleLeftEnd = (e) => { 
+      if (e.cancelable) e.preventDefault(); 
+      touchRef.current.left = false; 
+      e.currentTarget.classList.remove('is-pressed');
+    };
+    const handleRightStart = (e) => { 
+      if (e.cancelable) e.preventDefault(); 
+      touchRef.current.right = true; 
+      e.currentTarget.classList.add('is-pressed');
+    };
+    const handleRightEnd = (e) => { 
+      if (e.cancelable) e.preventDefault(); 
+      touchRef.current.right = false; 
+      e.currentTarget.classList.remove('is-pressed');
+    };
+    const handleJumpStart = (e) => { 
+      if (e.cancelable) e.preventDefault(); 
+      touchRef.current.jump = true; 
+      e.currentTarget.classList.add('is-pressed');
+    };
+    const handleJumpEnd = (e) => { 
+      if (e.cancelable) e.preventDefault(); 
+      touchRef.current.jump = false; 
+      e.currentTarget.classList.remove('is-pressed');
+    };
 
     const l = leftBtnRef.current;
     const r = rightBtnRef.current;
@@ -918,28 +1053,34 @@ const YggdrasilAscender = ({ user }) => {
     if (l) {
       l.addEventListener('touchstart', handleLeftStart, { passive: false });
       l.addEventListener('touchend', handleLeftEnd, { passive: false });
+      l.addEventListener('touchcancel', handleLeftEnd, { passive: false });
     }
     if (r) {
       r.addEventListener('touchstart', handleRightStart, { passive: false });
       r.addEventListener('touchend', handleRightEnd, { passive: false });
+      r.addEventListener('touchcancel', handleRightEnd, { passive: false });
     }
     if (j) {
       j.addEventListener('touchstart', handleJumpStart, { passive: false });
       j.addEventListener('touchend', handleJumpEnd, { passive: false });
+      j.addEventListener('touchcancel', handleJumpEnd, { passive: false });
     }
 
     return () => {
       if (l) {
         l.removeEventListener('touchstart', handleLeftStart);
         l.removeEventListener('touchend', handleLeftEnd);
+        l.removeEventListener('touchcancel', handleLeftEnd);
       }
       if (r) {
         r.removeEventListener('touchstart', handleRightStart);
         r.removeEventListener('touchend', handleRightEnd);
+        r.removeEventListener('touchcancel', handleRightEnd);
       }
       if (j) {
         j.removeEventListener('touchstart', handleJumpStart);
         j.removeEventListener('touchend', handleJumpEnd);
+        j.removeEventListener('touchcancel', handleJumpEnd);
       }
     };
   }, [gameState]); // Re-attach when game state changes (buttons mount/unmount)
@@ -969,9 +1110,11 @@ const YggdrasilAscender = ({ user }) => {
             <div style={{ display: 'flex', gap: '10px', pointerEvents: 'auto' }}>
               <button
                 ref={leftBtnRef}
+                className="ygg-btn-dir"
                 style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)', color: 'white', fontSize: '24px' }}>◀</button>
               <button
                 ref={rightBtnRef}
+                className="ygg-btn-dir"
                 style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)', color: 'white', fontSize: '24px' }}>▶</button>
             </div>
             <div style={{ pointerEvents: 'auto' }}>
@@ -990,7 +1133,7 @@ const YggdrasilAscender = ({ user }) => {
                 <div className="ygg-altitude">
                   {score}m<span> ALTITUDE</span>
                 </div>
-                <div className="ygg-testing-badge-mini">BETA</div>
+
                 {bestScore > 0 && <div className="ygg-best">Best: {bestScore}m</div>}
                 <div className="ygg-zone-label">{zoneName}</div>
                 {runesCollected > 0 && <div className="ygg-runes-hud">ᚠ {runesCollected}</div>}
@@ -1002,7 +1145,7 @@ const YggdrasilAscender = ({ user }) => {
                     <div className="ygg-turbo-bar">
                       <div
                         className="ygg-turbo-progress"
-                        style={{ width: `${(turboTime / 180) * 100}%` }}
+                        style={{ width: `${(turboTime / 120) * 100}%` }}
                       />
                     </div>
                   </div>
@@ -1036,7 +1179,6 @@ const YggdrasilAscender = ({ user }) => {
         {gameState === 'start' && (
           <div className="ygg-start-overlay">
             <div className="ygg-start-title">Yggdrasil Ascender</div>
-            <div className="ygg-testing-badge">STILL UNDER TESTING</div>
             <div className="ygg-start-subtitle">
               Climb the World Tree! Other players appear as ghosts alongside you.
             </div>
