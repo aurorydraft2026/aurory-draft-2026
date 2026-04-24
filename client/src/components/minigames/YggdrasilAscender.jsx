@@ -7,10 +7,10 @@ import './YggdrasilAscender.css';
 // ═══ CONSTANTS ═══
 const CANVAS_W = 400;
 const CANVAS_H = 450;
-const GRAVITY = 0.28;
-const JUMP_FORCE = -9.8;
-const BOOST_FORCE = -16;
-const MOVE_SPEED = 3.5;
+const GRAVITY = 0.32;
+const JUMP_FORCE = -10.0;
+const BOOST_FORCE = -17;
+const MOVE_SPEED = 4.0;
 const PLAYER_W = 55;
 const PLAYER_H = 80;
 const PLAT_W = 80;
@@ -62,8 +62,9 @@ function generatePlatforms(count, startY, rng, difficulty) {
     let type = 'standard';
     const roll = rng();
     if (difficulty > 0.1 && roll < 0.15) type = 'boost'; // 1500m
-    else if (difficulty > 0.05 && roll < 0.35) type = 'moving'; // 750m
-    else if (difficulty > 0.1 && roll < 0.45) type = 'fragile'; // 1500m (WAS 3000m)
+    else if (difficulty > 0.3 && roll < 0.20) type = 'turbo'; // 4500m (NEW Rare Turbo)
+    else if (difficulty > 0.05 && roll < 0.40) type = 'moving'; // 750m
+    else if (difficulty > 0.08 && roll < 0.60) type = 'fragile'; // 1200m (MORE vanishing plats)
 
     // Spawn a rune on ~25% of platforms
     const hasRune = rng() < 0.25;
@@ -73,7 +74,8 @@ function generatePlatforms(count, startY, rng, difficulty) {
       broken: false, 
       moveDir: rng() > 0.5 ? 1 : -1, 
       hasRune, runeSymbol, runeCollected: false,
-      spawnTime: Date.now() // Track when it appeared for vanishing logic
+      spawnTime: null, // Set when visible
+      activated: false
     });
   }
   return platforms;
@@ -85,7 +87,10 @@ const YggdrasilAscender = ({ user }) => {
   const animRef = useRef(null);
   const assetsRef = useRef({ stand: null, jump: null, plat1: null, plat2: null, background: null });
   const keysRef = useRef({});
-  const touchRef = useRef({ left: false, right: false });
+  const touchRef = useRef({ left: false, right: false, jump: false });
+  const leftBtnRef = useRef(null);
+  const rightBtnRef = useRef(null);
+  const jumpBtnRef = useRef(null);
 
   const [assetsLoaded, setAssetsLoaded] = useState(false);
   const [gameState, setGameState] = useState('start'); // start, playing, over
@@ -274,6 +279,7 @@ const YggdrasilAscender = ({ user }) => {
       milestonesHit: new Set(),
       rewards: 0,
       shake: 0, // screen shake magnitude
+      lastTime: performance.now(),
     };
     setRunesCollected(0);
     setRunStats(null);
@@ -288,14 +294,18 @@ const YggdrasilAscender = ({ user }) => {
 
     const p = g.player;
 
+    const now = performance.now();
+    const dt = Math.min(3, (now - g.lastTime) / 16.66); // Normalize to 60fps
+    g.lastTime = now;
+
     // Input
     let moveX = 0;
     if (keysRef.current['ArrowLeft'] || keysRef.current['KeyA'] || touchRef.current.left) {
-      moveX = -MOVE_SPEED;
+      moveX = -MOVE_SPEED * dt;
       p.facing = -1;
     }
     if (keysRef.current['ArrowRight'] || keysRef.current['KeyD'] || touchRef.current.right) {
-      moveX = MOVE_SPEED;
+      moveX = MOVE_SPEED * dt;
       p.facing = 1;
     }
     p.x += moveX;
@@ -311,9 +321,9 @@ const YggdrasilAscender = ({ user }) => {
       touchRef.current.jump = false; // consume jump
     }
 
-    // Gravity
-    p.vy += GRAVITY;
-    p.y += p.vy;
+    // Physics
+    p.vy += GRAVITY * dt;
+    p.y += p.vy * dt;
     p.isGrounded = false; // Assume falling until collision
 
     // Collision (only when falling)
@@ -325,7 +335,7 @@ const YggdrasilAscender = ({ user }) => {
           p.x + PLAYER_W > plat.x + inset && 
           p.x < plat.x + plat.w - inset &&
           p.y + PLAYER_H >= plat.y + 4 &&
-          p.y + PLAYER_H <= plat.y + plat.h + p.vy + 2
+          p.y + PLAYER_H <= plat.y + plat.h + p.vy * dt + 2
         ) {
           p.y = plat.y + 4 - PLAYER_H;
           p.vy = 0;
@@ -337,12 +347,16 @@ const YggdrasilAscender = ({ user }) => {
             p.vy = BOOST_FORCE; // auto boost is fun
             p.isGrounded = false;
             g.shake = 8; // big shake
+          } else if (plat.type === 'turbo') {
+            p.vy = BOOST_FORCE * 1.5; // HUGE TURBO BOOST
+            p.isGrounded = false;
+            g.shake = 15; // massive shake
           } else if (plat.type === 'fragile') {
             p.vy = JUMP_FORCE; // bounce off fragile
             p.isGrounded = false;
             plat.broken = true;
           } else if (plat.type === 'moving') {
-            p.x += plat.moveDir * 1.5; // stick to moving platform
+            p.x += plat.moveDir * 1.5 * dt; // stick to moving platform
           }
           break;
         }
@@ -382,15 +396,22 @@ const YggdrasilAscender = ({ user }) => {
       
       // Moving logic
       if (plat.type === 'moving') {
-        plat.x += plat.moveDir * 1.5;
+        plat.x += plat.moveDir * 1.5 * dt;
         if (plat.x <= 0 || plat.x + plat.w >= CANVAS_W) plat.moveDir *= -1;
       }
 
       // Vanishing logic (Platform 2 / Fragile)
       if (plat.type === 'fragile') {
-        const age = Date.now() - plat.spawnTime;
-        if (age > 3000) {
-          plat.broken = true; // Vanish!
+        if (!plat.activated) {
+          if (plat.y < g.camera + CANVAS_H) {
+            plat.activated = true;
+            plat.spawnTime = Date.now();
+          }
+        } else {
+          const age = Date.now() - plat.spawnTime;
+          if (age > 3000) {
+            plat.broken = true; // Vanish!
+          }
         }
       }
     }
@@ -400,7 +421,7 @@ const YggdrasilAscender = ({ user }) => {
     if (p.y < g.targetCamera + altitudeTarget) {
       g.targetCamera = p.y - altitudeTarget;
     }
-    g.camera += (g.targetCamera - g.camera) * 0.15; // smooth interpolation
+    g.camera += (g.targetCamera - g.camera) * 0.15 * dt; // smooth interpolation
 
     // Screen shake decay
     if (g.shake > 0) g.shake *= 0.9;
@@ -482,7 +503,6 @@ const YggdrasilAscender = ({ user }) => {
     }
 
     // Publish presence (throttled ~10/sec)
-    const now = Date.now();
     if (now - g.lastPublish > 100) {
       publishPresence(Math.round(p.x), Math.round(p.y));
       g.lastPublish = now;
@@ -630,17 +650,17 @@ const YggdrasilAscender = ({ user }) => {
           ctx.shadowBlur = 8;
           roundRect(ctx, plat.x, plat.y, plat.w, plat.h, 4);
           ctx.fill();
-        } else if (plat.type === 'boost') {
-          ctx.fillStyle = '#fbbf24';
-          ctx.shadowColor = 'rgba(251,191,36,0.6)';
-          ctx.shadowBlur = 12;
+        } else if (plat.type === 'boost' || plat.type === 'turbo') {
+          ctx.fillStyle = plat.type === 'turbo' ? '#ef4444' : '#fbbf24';
+          ctx.shadowColor = plat.type === 'turbo' ? 'rgba(239,68,68,0.6)' : 'rgba(251,191,36,0.6)';
+          ctx.shadowBlur = plat.type === 'turbo' ? 20 : 12;
           roundRect(ctx, plat.x, plat.y, plat.w, plat.h, 4);
           ctx.fill();
           // Lightning icon
-          ctx.fillStyle = '#92400e';
+          ctx.fillStyle = plat.type === 'turbo' ? '#fff' : '#92400e';
           ctx.font = 'bold 10px sans-serif';
           ctx.textAlign = 'center';
-          ctx.fillText('⚡', plat.x + plat.w / 2, plat.y + 11);
+          ctx.fillText(plat.type === 'turbo' ? '🔥' : '⚡', plat.x + plat.w / 2, plat.y + 11);
         }
       }
       ctx.restore();
@@ -691,11 +711,11 @@ const YggdrasilAscender = ({ user }) => {
       if (gpCanvasY < g.camera - 100 || gpCanvasY > g.camera + CANVAS_H + 100) return;
       
       ctx.save();
-      ctx.globalAlpha = 0.8; // increased opacity for better visibility
+      ctx.globalAlpha = 0.4; // reduced opacity for better focus
       if (assets.stand) {
         const standImg = assets.stand;
         const renderW = PLAYER_H * (standImg.width / standImg.height);
-        ctx.drawImage(standImg, vis.x + (PLAYER_W - renderW) / 2, gpCanvasY + 12, renderW, PLAYER_H);
+        ctx.drawImage(standImg, vis.x + (PLAYER_W - renderW) / 2, gpCanvasY, renderW, PLAYER_H);
       } else {
         ctx.fillStyle = gp.color || '#64748b';
         roundRect(ctx, vis.x, gpCanvasY, PLAYER_W, PLAYER_H, 6);
@@ -850,6 +870,48 @@ const YggdrasilAscender = ({ user }) => {
     };
   }, []);
 
+  // Handle Mobile Touch Events (Passive: False)
+  useEffect(() => {
+    const handleLeftStart = (e) => { e.preventDefault(); touchRef.current.left = true; };
+    const handleLeftEnd = (e) => { e.preventDefault(); touchRef.current.left = false; };
+    const handleRightStart = (e) => { e.preventDefault(); touchRef.current.right = true; };
+    const handleRightEnd = (e) => { e.preventDefault(); touchRef.current.right = false; };
+    const handleJumpStart = (e) => { e.preventDefault(); touchRef.current.jump = true; };
+    const handleJumpEnd = (e) => { e.preventDefault(); touchRef.current.jump = false; };
+
+    const l = leftBtnRef.current;
+    const r = rightBtnRef.current;
+    const j = jumpBtnRef.current;
+
+    if (l) {
+      l.addEventListener('touchstart', handleLeftStart, { passive: false });
+      l.addEventListener('touchend', handleLeftEnd, { passive: false });
+    }
+    if (r) {
+      r.addEventListener('touchstart', handleRightStart, { passive: false });
+      r.addEventListener('touchend', handleRightEnd, { passive: false });
+    }
+    if (j) {
+      j.addEventListener('touchstart', handleJumpStart, { passive: false });
+      j.addEventListener('touchend', handleJumpEnd, { passive: false });
+    }
+
+    return () => {
+      if (l) {
+        l.removeEventListener('touchstart', handleLeftStart);
+        l.removeEventListener('touchend', handleLeftEnd);
+      }
+      if (r) {
+        r.removeEventListener('touchstart', handleRightStart);
+        r.removeEventListener('touchend', handleRightEnd);
+      }
+      if (j) {
+        j.removeEventListener('touchstart', handleJumpStart);
+        j.removeEventListener('touchend', handleJumpEnd);
+      }
+    };
+  }, [gameState]); // Re-attach when game state changes (buttons mount/unmount)
+
   // Canvas sizing
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -874,18 +936,15 @@ const YggdrasilAscender = ({ user }) => {
           }}>
             <div style={{ display: 'flex', gap: '10px', pointerEvents: 'auto' }}>
               <button 
-                onTouchStart={(e) => { e.preventDefault(); touchRef.current.left = true; }} 
-                onTouchEnd={(e) => { e.preventDefault(); touchRef.current.left = false; }}
+                ref={leftBtnRef}
                 style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)', color: 'white', fontSize: '24px' }}>◀</button>
               <button 
-                onTouchStart={(e) => { e.preventDefault(); touchRef.current.right = true; }} 
-                onTouchEnd={(e) => { e.preventDefault(); touchRef.current.right = false; }}
+                ref={rightBtnRef}
                 style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)', color: 'white', fontSize: '24px' }}>▶</button>
             </div>
             <div style={{ pointerEvents: 'auto' }}>
               <button 
-                onTouchStart={(e) => { e.preventDefault(); touchRef.current.jump = true; }} 
-                onTouchEnd={(e) => { e.preventDefault(); touchRef.current.jump = false; }}
+                ref={jumpBtnRef}
                 style={{ width: '80px', height: '60px', borderRadius: '30px', background: 'rgba(251, 191, 36, 0.4)', border: '2px solid rgba(251, 191, 36, 0.8)', color: 'white', fontSize: '18px', fontWeight: 'bold' }}>JUMP</button>
             </div>
           </div>
