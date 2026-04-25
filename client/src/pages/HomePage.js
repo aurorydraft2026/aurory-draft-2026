@@ -1382,6 +1382,7 @@ function HomePage() {
                         <option value="slotMachine">Odin's Fortune</option>
                         <option value="treasureChest">Loot Box</option>
                         <option value="drakkarRace">Drakkar Race</option>
+                        <option value="yggdrasil">Yggdrasil</option>
                         <option value="check-in">Daily Check-in</option>
                       </>
                     )}
@@ -1397,6 +1398,7 @@ function HomePage() {
                         <option value="pvp_tournament">Tournaments</option>
                         <option value="drakkarRace">Drakkar Race</option>
                       </>
+                    )}
                     )}
                   </select>
                 </div>

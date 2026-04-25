@@ -88,7 +88,11 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
   // Prevent background scroll when modal is open
   useEffect(() => {
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
+    document.body.classList.add('minigame-open');
+    return () => { 
+      document.body.style.overflow = '';
+      document.body.classList.remove('minigame-open');
+    };
   }, []);
 
   const handleBackToHub = () => {

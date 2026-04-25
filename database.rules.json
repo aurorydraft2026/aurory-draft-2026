@@ -76,6 +76,14 @@
               ".write": "auth != null && auth.uid == $uid"
             }
           }
+        },
+        "monthly": {
+          "$monthId": {
+            ".indexOn": ["score"],
+            "$uid": {
+              ".write": "auth != null && auth.uid == $uid"
+            }
+          }
         }
       }
     }

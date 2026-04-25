@@ -264,6 +264,7 @@ body {
 .create-matchup-overlay {
   background: var(--overlay-bg-heavy) !important;
   backdrop-filter: blur(10px) !important;
+  z-index: 5000 !important;
 }
 
 .create-modal,

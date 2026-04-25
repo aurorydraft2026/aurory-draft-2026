@@ -6,6 +6,11 @@
   pointer-events: none;
 }
 
+/* Hide chatbot when any minigame is open */
+body.minigame-open .runie-bot-container {
+  display: none !important;
+}
+
 .runie-bot-container * {
   pointer-events: auto;
 }

@@ -33,6 +33,7 @@ import { getRecommendedIcons } from '../services/miniGameService';
 import './AdminPanel.css';
 import { DEFAULT_KNOWLEDGE } from './RunieChatBot';
 import { RARITY_CONFIG } from '../data/cosmetics';
+import ArmoryModal from './ArmoryModal';
 
 const RARITY_ORDER = ['common', 'rare', 'epic', 'legendary', 'mythic'];
 
@@ -135,6 +136,9 @@ function AdminPanel() {
   const [selectedUserForNotifications, setSelectedUserForNotifications] = useState(null);
   const [userNotifications, setUserNotifications] = useState([]);
   const [userNotificationsLoading, setUserNotificationsLoading] = useState(false);
+
+  // User Armory state
+  const [selectedUserForArmory, setSelectedUserForArmory] = useState(null);
 
   // Wallet History Tab State
   const [walletHistoryUserSearch, setWalletHistoryUserSearch] = useState('');
@@ -1076,7 +1080,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   };
 
   const handleTriggerPvpScan = async (resetCheckpoints = false) => {
-    if (!isSuperAdminUser) return;
+    if (!isSeniorAdminUser) return;
 
     if (resetCheckpoints && !window.confirm('⚠️ This will rewind ALL player checkpoints by 7 days and re-scan their entire match history. Any already-rewarded wins will NOT be double-counted (they will be filtered as "old"). Continue?')) {
       return;
@@ -2140,7 +2144,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
   // Reset Mini-Game Leaderboard Stats Handler
   const handleResetLeaderboardStats = async () => {
-    if (!isSuperAdminUser) return;
+    if (!isSeniorAdminUser) return;
     if (resetStatsConfirmText !== 'RESET ALL STATS') {
       return alert('Please type "RESET ALL STATS" to confirm the reset.');
     }
@@ -2756,7 +2760,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
   // Handle Leaderboard Migration (Firestore -> RTDB)
   const handleMigrateLeaderboards = async () => {
-    if (!isSuperAdminUser || wipeAllConfirmText !== 'WIPE ALL') {
+    if (!isSeniorAdminUser || wipeAllConfirmText !== 'WIPE ALL') {
       return alert('Please type "WIPE ALL" in the confirmation box to run the migration.');
     }
 
@@ -3829,7 +3833,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           )}
 
           {/* Games Category (Super Admin & Games Manager) */}
-          {(isSuperAdminUser || isGamesManagerUser) && (
+          {(isSeniorAdminUser || isGamesManagerUser) && (
             <div className={`admin-category ${expandedCategory === 'games' ? 'expanded' : ''}`}>
               <div
                 className="category-title"
@@ -6386,6 +6390,15 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                     >
                                       🔔 Alerts
                                     </button>
+                                    <button
+                                      className="manage-btn"
+                                      onClick={() => {
+                                        setSelectedUserForArmory(u);
+                                      }}
+                                      style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.2)' }}
+                                    >
+                                      🛡️ Armory
+                                    </button>
                                   </div>
                                 )}
                               </div>
@@ -8037,7 +8050,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               <div className="section-header">
                 <h2>🏆 Earners & Plays</h2>
                 <div className="header-actions">
-                  {isSuperAdminUser && (
+                  {isSeniorAdminUser && (
                     <div className="global-reset-control">
                       <div className="wipe-option" style={{ display: 'flex', alignItems: 'center', marginRight: '15px', color: '#94a3b8', fontSize: '0.8em', cursor: 'pointer' }} onClick={() => setResetStatsWipeHistory(!resetStatsWipeHistory)}>
                         <input
@@ -8089,7 +8102,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               </div>
 
               <div className="mini-game-earners-content">
-                {!earnersSelectedUser && isSuperAdminUser && (
+                {!earnersSelectedUser && isSeniorAdminUser && (
                   <div className="admin-status-alert urgent" style={{ marginBottom: '20px' }}>
                     <div className="alert-content">
                       <span className="alert-icon">⚠️</span>
@@ -8259,7 +8272,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     <span className="pvp-timer-label">NEXT REWARDS SCAN:</span>
                     <span className="pvp-timer-countdown">{pvpCountdown}</span>
 
-                    {isSuperAdminUser && (
+                    {isSeniorAdminUser && (
                       <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
                         <button
                           className="admin-secondary-btn"
@@ -8661,6 +8674,15 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             </div>
           </div>
         </div>
+      )}
+
+      {/* User Armory Modal */}
+      {selectedUserForArmory && (
+        <ArmoryModal
+          isOpen={!!selectedUserForArmory}
+          onClose={() => setSelectedUserForArmory(null)}
+          user={{ ...selectedUserForArmory, uid: selectedUserForArmory.id }}
+        />
       )}
     </div>
   );

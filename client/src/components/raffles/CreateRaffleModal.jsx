@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
+import { db } from '../../firebase';
+import { collection, getDocs } from 'firebase/firestore';
 import { createRaffle, updateRaffle } from '../../services/raffleService';
+import { resolveDisplayName, resolveAvatar } from '../../utils/userUtils';
 import './CreateRaffleModal.css';
 
 const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData }) => {
@@ -23,6 +26,14 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
   const [restrictByRegistrationDateBefore, setRestrictByRegistrationDateBefore] = useState(false);
   const [restrictByRegistrationDateAfter, setRestrictByRegistrationDateAfter] = useState(false);
   const [loading, setLoading] = useState(false);
+  
+  // Manual Participant State
+  const [isManual, setIsManual] = useState(false);
+  const [manualParticipants, setManualParticipants] = useState([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
   // Populate fields when editing
   useEffect(() => {
@@ -46,8 +57,77 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
       
       setRegistrationDateAfter(editData.registrationDateAfter ? new Date(editData.registrationDateAfter).toISOString().slice(0, 16) : '');
       setRestrictByRegistrationDateAfter(!!editData.registrationDateAfter);
+      
+      setIsManual(editData.isManual || false);
+      setManualParticipants(editData.participants || []);
     }
   }, [editData]);
+
+  // Fetch all users once when modal opens for efficient local searching
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchAllUsers = async () => {
+      setLoadingUsers(true);
+      try {
+        const usersRef = collection(db, 'users');
+        const snap = await getDocs(usersRef);
+        const users = snap.docs.map(doc => ({ id: doc.id, uid: doc.id, ...doc.data() }));
+        setAllUsers(users);
+      } catch (err) {
+        console.error('Error fetching all users:', err);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    fetchAllUsers();
+  }, [isOpen]);
+
+  // User Search Logic (Local Filtering)
+  useEffect(() => {
+    if (userSearch.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    const results = allUsers.filter(u => {
+      const name = resolveDisplayName(u).toLowerCase();
+      const email = u.email?.toLowerCase() || '';
+      const auroryId = u.auroryPlayerId?.toLowerCase() || '';
+      
+      const searchLower = userSearch.toLowerCase();
+      return name.includes(searchLower) || 
+             email.includes(searchLower) || 
+             auroryId.includes(searchLower);
+    }).slice(0, 20); // Show top 20 matches
+    
+    setSearchResults(results);
+  }, [userSearch, allUsers]);
+
+  const addParticipant = (u) => {
+    if (manualParticipants.some(p => p.uid === u.uid)) {
+      alert('User already added.');
+      return;
+    }
+
+    const participantData = {
+      uid: u.uid,
+      playerName: resolveDisplayName(u),
+      displayName: u.displayName || u.username || '',
+      photoURL: resolveAvatar(u),
+      auroryPlayerId: u.auroryPlayerId || null,
+      joinedAt: new Date().toISOString()
+    };
+
+    setManualParticipants([...manualParticipants, participantData]);
+    setUserSearch('');
+    setSearchResults([]);
+  };
+
+  const removeParticipant = (uid) => {
+    setManualParticipants(manualParticipants.filter(p => p.uid !== uid));
+  };
 
   if (!isOpen) return null;
 
@@ -77,7 +157,9 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
       usdcAmount: isUsdc ? parseFloat(usdcAmount) : 0,
       endDate: endDate ? new Date(endDate).toISOString() : null,
       registrationDateBefore: restrictByRegistrationDateBefore && registrationDateBefore ? new Date(registrationDateBefore).toISOString() : null,
-      registrationDateAfter: restrictByRegistrationDateAfter && registrationDateAfter ? new Date(registrationDateAfter).toISOString() : null
+      registrationDateAfter: restrictByRegistrationDateAfter && registrationDateAfter ? new Date(registrationDateAfter).toISOString() : null,
+      isManual,
+      participants: manualParticipants
     };
 
     if (isEditMode) {
@@ -310,6 +392,67 @@ const CreateRaffleModal = ({ isOpen, onClose, user, onRaffleCreated, editData })
                 </div>
               )}
               <small className="form-help-text" style={{ marginTop: '10px' }}>Prevents "sybil" attacks or targets new/old users specifically.</small>
+            </div>
+
+            <div className="form-divider"></div>
+
+            <div className="form-group manual-raffle-group">
+              <label className="checkbox-label">
+                <input 
+                  type="checkbox" 
+                  checked={isManual} 
+                  onChange={(e) => setIsManual(e.target.checked)} 
+                />
+                🛡️ Manual Participant Entry?
+              </label>
+              <small className="form-help-text">Admins manually add participants. Useful for special events or external draws.</small>
+
+              {isManual && (
+                <div className="manual-participants-manager">
+                  <div className="user-search-container">
+                    <label>🔍 Add Participant</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Search by name, email, or Aurory ID..."
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                    />
+                    {loadingUsers && <div className="search-loading">Syncing user database...</div>}
+                    {searchResults.length > 0 && (
+                      <div className="search-results-dropdown">
+                        {searchResults.map(u => (
+                          <div key={u.uid} className="search-result-item" onClick={() => addParticipant(u)}>
+                            <img src={resolveAvatar(u)} alt="" className="user-mini-avatar" />
+                            <div className="user-search-info">
+                              <span className="user-search-name">{resolveDisplayName(u)}</span>
+                              <span className="user-search-email">{u.email || 'No email'}</span>
+                            </div>
+                            <button type="button" className="add-user-btn">Add</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="added-participants-list">
+                    <label>👥 Added Participants ({manualParticipants.length})</label>
+                    <div className="participants-scroll">
+                      {manualParticipants.length === 0 ? (
+                        <div className="no-participants-added">No participants added yet.</div>
+                      ) : (
+                        manualParticipants.map(p => (
+                          <div key={p.uid} className="added-participant-item">
+                            <img src={p.photoURL} alt="" className="user-mini-avatar" />
+                            <span className="participant-name">{p.playerName}</span>
+                            <button type="button" className="remove-participant-btn" onClick={() => removeParticipant(p.uid)}>✖</button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </form>
         </div>

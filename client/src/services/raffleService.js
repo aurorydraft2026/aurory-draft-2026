@@ -21,11 +21,12 @@ import { TIER_CONFIG } from './tierService';
  */
 export async function createRaffle(raffleData, user) {
   try {
+    const participants = raffleData.participants || [];
     const docRef = await addDoc(collection(db, 'raffles'), {
       ...raffleData,
       status: 'active',
-      participants: [],
-      participantsCount: 0,
+      participants: participants,
+      participantsCount: participants.length,
       totalFeesCollected: 0,
       createdBy: user.uid,
       createdAt: serverTimestamp(),
@@ -36,7 +37,7 @@ export async function createRaffle(raffleData, user) {
       user,
       type: 'ADMIN',
       action: 'create_raffle',
-      metadata: { raffleId: docRef.id, itemType: raffleData.itemType }
+      metadata: { raffleId: docRef.id, itemType: raffleData.itemType, isManual: raffleData.isManual }
     });
 
     return { success: true, id: docRef.id };
@@ -55,10 +56,17 @@ export async function createRaffle(raffleData, user) {
 export async function updateRaffle(raffleId, updates, user) {
   try {
     const raffleRef = doc(db, 'raffles', raffleId);
-    await updateDoc(raffleRef, {
+    
+    const updateData = {
       ...updates,
       updatedAt: serverTimestamp()
-    });
+    };
+
+    if (updates.participants) {
+      updateData.participantsCount = updates.participants.length;
+    }
+
+    await updateDoc(raffleRef, updateData);
 
     logActivity({
       user,

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { database } from '../../firebase';
-import { ref, onValue, set, remove, onDisconnect, get } from 'firebase/database';
+import { database, db } from '../../firebase';
+import { ref, onValue, set, remove, onDisconnect, get, query, orderByChild, limitToLast } from 'firebase/database';
+import { doc, getDoc } from 'firebase/firestore';
 import { submitYggdrasilRun, getYggdrasilEvents, joinYggdrasilEvent, claimYggdrasilEventPrize } from '../../services/miniGameService';
+import { resolveDisplayName } from '../../utils/userUtils';
 import './YggdrasilAscender.css';
 
 // ═══ CONSTANTS ═══
@@ -116,6 +118,9 @@ const YggdrasilAscender = ({ user }) => {
   const [playerCount, setPlayerCount] = useState(1);
   const [lbMode, setLbMode] = useState('daily');
   const [leaderboard, setLeaderboard] = useState([]);
+  const [lbLoading, setLbLoading] = useState(false);
+  const [nameCache, setNameCache] = useState({});
+  const nameCacheRef = useRef({}); // Ref to avoid dependency loop in useEffect
   const ghostPlayersDataRef = useRef({}); // Avoid stale closure in requestAnimationFrame
   const ghostVisualsRef = useRef({}); // { uid: { x, y, targetX, targetY } }
   const [runesCollected, setRunesCollected] = useState(0);
@@ -131,6 +136,7 @@ const YggdrasilAscender = ({ user }) => {
   const activeEventIdRef = useRef(null);
   const [eventPrizeCaught, setEventPrizeCaught] = useState(null);
   const [eventLoading, setEventLoading] = useState(false);
+  const [eventLoadingId, setEventLoadingId] = useState(null);
 
   // Load and process assets (remove white background)
   useEffect(() => {
@@ -216,26 +222,110 @@ const YggdrasilAscender = ({ user }) => {
 
   // Subscribe to leaderboard
   useEffect(() => {
+    setLbLoading(true);
     let path;
-    if (lbMode === 'daily') path = `yggdrasil/leaderboard/daily/${getDailySeed()}`;
-    else if (lbMode === 'weekly') {
-      const now = new Date();
+    const now = new Date();
+    
+    if (lbMode === 'daily') {
+      path = `yggdrasil/leaderboard/daily/${getDailySeed()}`;
+    } else if (lbMode === 'weekly') {
       const weekNum = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 604800000);
       path = `yggdrasil/leaderboard/weekly/${now.getFullYear()}_w${weekNum}`;
-    } else path = 'yggdrasil/leaderboard/alltime';
-    const lbRef = ref(database, path);
-    const unsub = onValue(lbRef, snap => {
+    } else if (lbMode === 'monthly') {
+      const monthId = `${now.getFullYear()}_m${String(now.getMonth() + 1).padStart(2, '0')}`;
+      path = `yggdrasil/leaderboard/monthly/${monthId}`;
+    } else {
+      path = 'yggdrasil/leaderboard/alltime';
+    }
+
+    const lbRef = query(
+      ref(database, path),
+      orderByChild('score'),
+      limitToLast(10)
+    );
+
+    const unsub = onValue(lbRef, async snap => {
+      const arr = [];
       if (snap.exists()) {
-        const arr = [];
-        snap.forEach(child => arr.push({ uid: child.key, ...child.val() }));
-        arr.sort((a, b) => b.score - a.score);
-        setLeaderboard(arr.slice(0, 20));
-      } else {
-        setLeaderboard([]);
+        const uids = [];
+        snap.forEach(child => {
+          const val = child.val();
+          if (val && typeof val.score === 'number') {
+            arr.push({ uid: child.key, ...val });
+            uids.push(child.key);
+          }
+        });
+
+        // Resolve names from Firestore for all top players
+        const currentCache = nameCacheRef.current;
+        const newNames = {};
+        let changed = false;
+
+        await Promise.all(uids.map(async (uid) => {
+          if (uid === user?.uid) {
+            const myName = resolveDisplayName(user);
+            if (currentCache[uid] !== myName) {
+              newNames[uid] = myName;
+              changed = true;
+            }
+            return;
+          }
+          if (!currentCache[uid]) {
+            try {
+              const uDoc = await getDoc(doc(db, 'users', uid));
+              if (uDoc.exists()) {
+                const resolved = resolveDisplayName(uDoc.data());
+                newNames[uid] = resolved;
+                changed = true;
+              }
+            } catch (err) {
+              console.error("Error fetching leaderboard name:", err);
+            }
+          }
+        }));
+
+        if (changed) {
+          const updatedCache = { ...currentCache, ...newNames };
+          nameCacheRef.current = updatedCache;
+          setNameCache(updatedCache);
+        }
+      }
+      setLeaderboard(arr.reverse());
+      setLbLoading(false);
+    }, (error) => {
+      console.error("Leaderboard read error:", error);
+      setLbLoading(false);
+    });
+
+    return () => unsub();
+  }, [lbMode, user]);
+
+  // One-time migration: Populate monthly leaderboard from all-time scores if they are from this month
+  useEffect(() => {
+    if (!user?.uid) return;
+    const now = new Date();
+    const monthId = `${now.getFullYear()}_m${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthlyPath = `yggdrasil/leaderboard/monthly/${monthId}`;
+    
+    // Check if monthly exists
+    get(ref(database, monthlyPath)).then(snap => {
+      if (!snap.exists()) {
+        console.log("Monthly leaderboard empty, migrating from All-time...");
+        get(ref(database, 'yggdrasil/leaderboard/alltime')).then(atSnap => {
+          if (atSnap.exists()) {
+            atSnap.forEach(child => {
+              const data = child.val();
+              const scoreDate = new Date(data.t || 0);
+              // If the score was made in the current month/year
+              if (scoreDate.getFullYear() === now.getFullYear() && scoreDate.getMonth() === now.getMonth()) {
+                set(ref(database, `${monthlyPath}/${child.key}`), data);
+              }
+            });
+          }
+        });
       }
     });
-    return () => unsub();
-  }, [lbMode]);
+  }, [user?.uid]);
 
   // Publish presence
   const publishPresence = useCallback((x, y) => {
@@ -243,7 +333,7 @@ const YggdrasilAscender = ({ user }) => {
     const pRef = ref(database, `yggdrasil/players/${user.uid}`);
     set(pRef, {
       x, y,
-      name: user.displayName || 'Viking',
+      name: resolveDisplayName(user),
       color: '#' + user.uid.slice(0, 6),
       t: Date.now()
     });
@@ -258,17 +348,17 @@ const YggdrasilAscender = ({ user }) => {
   // Submit score
   const submitScore = useCallback((finalScore) => {
     if (!user?.uid || finalScore <= 0) return;
-    const name = user.displayName || 'Viking';
+    const name = resolveDisplayName(user);
     const seed = gameRef.current?.seed || getDailySeed();
     const scoreData = { name, score: finalScore, t: Date.now() };
 
-    // Daily
+    // 1. Daily
     const dailyRef = ref(database, `yggdrasil/leaderboard/daily/${seed}/${user.uid}`);
     get(dailyRef).then(snap => {
       if (!snap.exists() || snap.val().score < finalScore) set(dailyRef, scoreData);
     });
 
-    // Weekly
+    // 2. Weekly
     const now = new Date();
     const weekNum = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 604800000);
     const weeklyRef = ref(database, `yggdrasil/leaderboard/weekly/${now.getFullYear()}_w${weekNum}/${user.uid}`);
@@ -276,7 +366,14 @@ const YggdrasilAscender = ({ user }) => {
       if (!snap.exists() || snap.val().score < finalScore) set(weeklyRef, scoreData);
     });
 
-    // All-time
+    // 3. Monthly
+    const monthId = `${now.getFullYear()}_m${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthlyRef = ref(database, `yggdrasil/leaderboard/monthly/${monthId}/${user.uid}`);
+    get(monthlyRef).then(snap => {
+      if (!snap.exists() || snap.val().score < finalScore) set(monthlyRef, scoreData);
+    });
+
+    // 4. All-time
     const atRef = ref(database, `yggdrasil/leaderboard/alltime/${user.uid}`);
     get(atRef).then(snap => {
       if (!snap.exists() || snap.val().score < finalScore) set(atRef, scoreData);
@@ -1057,14 +1154,22 @@ const YggdrasilAscender = ({ user }) => {
   // Start/restart game
   const startGame = useCallback(async (eventId = null) => {
     if (eventId) {
+      const ev = events.find(e => e.id === eventId);
+      if (!ev) return;
+
+      const confirmJoin = window.confirm(`Join "${ev.name}" for ${ev.entryFee} ${ev.currency}?`);
+      if (!confirmJoin) return;
+
       setEventLoading(true);
+      setEventLoadingId(eventId);
       const res = await joinYggdrasilEvent(eventId);
       setEventLoading(false);
+      setEventLoadingId(null);
+      
       if (!res.success) {
         alert(res.error || 'Failed to join event');
         return;
       }
-      const ev = events.find(e => e.id === eventId);
       setActiveEvent(ev);
       activeEventIdRef.current = eventId;
     } else {
@@ -1304,44 +1409,44 @@ const YggdrasilAscender = ({ user }) => {
                 <button className="ygg-start-btn" onClick={() => startGame()}>Start Free Run</button>
                 
                 {events.length > 0 && (
-                  <div className="ygg-events-container" style={{ marginTop: '20px', width: '100%' }}>
-                    <div style={{ fontSize: '12px', color: '#fbbf24', fontWeight: 'bold', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>🏆 Special Events</div>
-                    <div className="ygg-events-grid" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {events.map(ev => (
-                        <button 
-                          key={ev.id}
-                          className={`ygg-event-btn ${ev.status}`}
-                          disabled={ev.status === 'closed' || eventLoading}
-                          onClick={() => startGame(ev.id)}
-                          style={{
-                            width: '100%',
-                            padding: '10px',
-                            background: ev.status === 'closed' ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, rgba(184,134,11,0.3) 0%, rgba(184,134,11,0.1) 100%)',
-                            border: ev.status === 'closed' ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(184,134,11,0.5)',
-                            borderRadius: '8px',
-                            color: ev.status === 'closed' ? '#64748b' : '#fff',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            cursor: ev.status === 'closed' ? 'default' : 'pointer'
-                          }}
-                        >
-                          <div style={{ textAlign: 'left' }}>
-                            <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{ev.name}</div>
-                            <div style={{ fontSize: '11px', opacity: 0.8 }}>Prize: {ev.prizeName}</div>
-                          </div>
-                          {ev.status === 'closed' ? (
-                            <div style={{ fontSize: '10px', textAlign: 'right' }}>
-                              Ended<br/>
-                              <span style={{ color: '#fbbf24' }}>{ev.winnerName || 'Winner'} got it!</span>
+                  <div className="ygg-events-container">
+                    <div className="ygg-events-header">🏆 Special Events</div>
+                    <div className="ygg-events-list-scroll custom-scrollbar">
+                      <div className="ygg-events-grid">
+                        {events.map(ev => (
+                          <button 
+                            key={ev.id}
+                            className={`ygg-event-btn ${ev.status} ${eventLoadingId === ev.id ? 'loading' : ''}`}
+                            disabled={ev.status === 'closed' || eventLoading}
+                            onClick={() => startGame(ev.id)}
+                          >
+                            <div className="ygg-event-info">
+                              <div className="ygg-event-name">{ev.name}</div>
+                              <div className="ygg-event-prize">Prize: {ev.prizeName}</div>
+                              {ev.status === 'open' && (
+                                <div className="ygg-event-pool">
+                                  Pool: <span className={ev.currentPool >= ev.targetPool ? 'full' : ''}>{ev.currentPool || 0}/{ev.targetPool}</span>
+                                </div>
+                              )}
                             </div>
-                          ) : (
-                            <div style={{ fontWeight: 'bold', color: '#fbbf24' }}>
-                              {ev.entryFee} {ev.currency === 'AURY' ? 'AURY' : 'VC'}
+                            
+                            <div className="ygg-event-action">
+                              {eventLoadingId === ev.id ? (
+                                <div className="ygg-event-joining">Joining...</div>
+                              ) : ev.status === 'closed' ? (
+                                <div className="ygg-event-ended">
+                                  Ended<br/>
+                                  <span className="ygg-winner-name">{ev.winnerName || 'Winner'} got it!</span>
+                                </div>
+                              ) : (
+                                <div className="ygg-event-cost">
+                                  {ev.entryFee} {ev.currency === 'AURY' ? 'AURY' : 'VC'}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </button>
-                      ))}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1423,16 +1528,22 @@ const YggdrasilAscender = ({ user }) => {
           <select className="ygg-lb-dropdown" value={lbMode} onChange={e => setLbMode(e.target.value)}>
             <option value="daily">Today</option>
             <option value="weekly">This Week</option>
+            <option value="monthly">This Month</option>
             <option value="alltime">All Time</option>
           </select>
         </div>
         <div className="ygg-lb-list">
-          {leaderboard.length === 0 ? (
+          {lbLoading ? (
+            <div className="ygg-lb-loading">
+              <div className="viking-spinner"></div>
+              <span>Fetching Ranks...</span>
+            </div>
+          ) : leaderboard.length === 0 ? (
             <div className="ygg-lb-empty">No scores yet. Be the first!</div>
           ) : leaderboard.map((entry, i) => (
             <div key={entry.uid} className={`ygg-lb-row ${entry.uid === user?.uid ? 'is-me' : ''}`}>
               <span className="ygg-lb-rank">#{i + 1}</span>
-              <span className="ygg-lb-name">{entry.name}</span>
+              <span className="ygg-lb-name">{nameCache[entry.uid] || entry.name}</span>
               <span className="ygg-lb-score">{entry.score}m</span>
             </div>
           ))}

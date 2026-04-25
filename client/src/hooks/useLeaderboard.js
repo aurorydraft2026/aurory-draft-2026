@@ -3,6 +3,7 @@ import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { ref, onValue, query as rtdbQuery, orderByChild, limitToLast } from 'firebase/database';
 import { db, database } from '../firebase';
 import { fetchVerifiedMatches, scanAndVerifyCompletedDrafts } from '../services/matchVerificationService';
+import { resolveDisplayName } from '../utils/userUtils';
 
 export const useLeaderboard = (registeredUsers, currentUser = null) => {
     const [matchHistory, setMatchHistory] = useState([]);
@@ -120,7 +121,7 @@ export const useLeaderboard = (registeredUsers, currentUser = null) => {
                                 const userData = registeredUsers.find(u => u.id === p.uid);
                                 return {
                                     uid: p.uid,
-                                    displayName: p.auroryPlayerName || p.displayName || userData?.displayName || 'Player',
+                                    displayName: resolveDisplayName(userData || p),
                                     photoURL: userData?.auroryProfilePicture || userData?.photoURL || null
                                 };
                             })
@@ -177,7 +178,7 @@ export const useLeaderboard = (registeredUsers, currentUser = null) => {
                             const userData = isSelf ? currentUser : registeredUsers.find(u => u.id === uidA);
                             winCounts[uidA] = {
                                 uid: uidA,
-                                displayName: userData?.auroryPlayerName || pA?.auroryPlayerName || pA?.displayName || userData?.displayName || 'Player',
+                                displayName: resolveDisplayName(userData || pA),
                                 photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
                                 equippedCosmetics: userData?.equippedCosmetics || null,
                                 wins: 0,
@@ -195,7 +196,7 @@ export const useLeaderboard = (registeredUsers, currentUser = null) => {
                             const userData = isSelf ? currentUser : registeredUsers.find(u => u.id === uidB);
                             winCounts[uidB] = {
                                 uid: uidB,
-                                displayName: userData?.auroryPlayerName || pB?.auroryPlayerName || pB?.displayName || userData?.displayName || 'Player',
+                                displayName: resolveDisplayName(userData || pB),
                                 photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
                                 equippedCosmetics: userData?.equippedCosmetics || null,
                                 wins: 0,
@@ -223,7 +224,7 @@ export const useLeaderboard = (registeredUsers, currentUser = null) => {
                                 const userData = isSelf ? currentUser : registeredUsers.find(u => u.id === uidA);
                                 winCounts[uidA] = {
                                     uid: uidA,
-                                    displayName: userData?.auroryPlayerName || pA?.displayName || userData?.displayName || 'Player',
+                                    displayName: resolveDisplayName(userData || pA),
                                     photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
                                     equippedCosmetics: userData?.equippedCosmetics || null,
                                     wins: 0,
@@ -247,7 +248,7 @@ export const useLeaderboard = (registeredUsers, currentUser = null) => {
                                 const userData = isSelf ? currentUser : registeredUsers.find(u => u.id === uidB);
                                 winCounts[uidB] = {
                                     uid: uidB,
-                                    displayName: userData?.auroryPlayerName || pB?.displayName || userData?.displayName || 'Player',
+                                    displayName: resolveDisplayName(userData || pB),
                                     photoURL: userData?.auroryProfilePicture || userData?.photoURL || null,
                                     equippedCosmetics: userData?.equippedCosmetics || null,
                                     wins: 0,
@@ -310,7 +311,7 @@ export const useLeaderboard = (registeredUsers, currentUser = null) => {
                             return {
                                 uid: doc.id,
                                 ...data,
-                                displayName: userData.auroryPlayerName || userData.displayName || 'Guest',
+                                displayName: resolveDisplayName(userData),
                                 photoURL: userData.auroryProfilePicture || userData.photoURL || '',
                                 equippedCosmetics: userData.equippedCosmetics || null,
                                 earnedValue: data.points || 0
@@ -334,7 +335,7 @@ export const useLeaderboard = (registeredUsers, currentUser = null) => {
                             // Fallback: If not found in memory, we could fetch, but for now just use data if it exists
                             return {
                                 uid: wDoc.id,
-                                displayName: u?.auroryPlayerName || u?.displayName || 'Guest',
+                                displayName: resolveDisplayName(u),
                                 photoURL: u?.auroryProfilePicture || u?.photoURL || '',
                                 equippedCosmetics: u?.equippedCosmetics || null,
                                 earnedValue: val
@@ -385,8 +386,8 @@ export const useLeaderboard = (registeredUsers, currentUser = null) => {
                     const userData = isSelf ? currentUser : registeredUsers.find(u => u.id === uid);
                     return {
                         uid,
-                        displayName: userData?.auroryPlayerName || val.displayName || 'Guest',
-                        photoURL: userData?.auroryProfilePicture || val.photoURL || '',
+                        displayName: resolveDisplayName(userData || val),
+                        photoURL: userData?.auroryProfilePicture || userData?.photoURL || val.photoURL || '',
                         equippedCosmetics: userData?.equippedCosmetics || val.equippedCosmetics || null,
                         earnedValue: val.score || 0
                     };

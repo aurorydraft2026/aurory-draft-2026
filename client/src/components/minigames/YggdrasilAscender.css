@@ -116,12 +116,13 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  background: rgba(10, 10, 26, 0.85);
-  backdrop-filter: blur(6px);
+  justify-content: flex-start; /* Changed from center to prevent top clipping when scrollable */
+  background: rgba(10, 10, 26, 0.9); /* Slightly darker for readability */
+  backdrop-filter: blur(8px);
   z-index: 20;
   gap: 16px;
-  padding: 20px;
+  padding: 30px 20px; /* Added more top/bottom padding */
+  overflow-y: auto; /* Allow the entire overlay to scroll if content is too tall */
 }
 
 .ygg-start-title {
@@ -216,12 +217,13 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  background: rgba(10, 10, 26, 0.9);
+  justify-content: flex-start;
+  background: rgba(10, 10, 26, 0.95);
   backdrop-filter: blur(8px);
   z-index: 20;
   gap: 12px;
-  padding: 20px;
+  padding: 30px 20px;
+  overflow-y: auto;
   animation: yggFadeIn 0.5s ease-out;
 }
 
@@ -345,6 +347,31 @@
   gap: 4px;
   max-height: 260px;
   overflow-y: auto;
+}
+
+.ygg-lb-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  padding: 40px 0;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: 'Rajdhani', sans-serif;
+  letter-spacing: 1px;
+}
+
+.viking-spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid rgba(212, 175, 55, 0.1);
+  border-top-color: var(--accent-gold, #d4af37);
+  border-radius: 50%;
+  animation: viking-spin 1s linear infinite;
+}
+
+@keyframes viking-spin {
+  to { transform: rotate(360deg); }
 }
 
 .ygg-lb-row {
@@ -576,28 +603,129 @@ body.ygg-gaming-mode .runie-bot-container {
   transform: scale(0.9);
 }
 
+.ygg-events-container {
+  width: 100%;
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ygg-events-header {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.75rem;
+  color: var(--accent-gold);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-align: left;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ygg-events-list-scroll {
+  width: 100%;
+}
+
+.ygg-events-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .ygg-event-btn {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
-  position: relative;
+  width: 100%;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 12px;
+  font-family: 'Rajdhani', sans-serif;
+  cursor: pointer;
+  border: 1px solid rgba(184, 134, 11, 0.3);
+  background: linear-gradient(135deg, rgba(184, 134, 11, 0.15) 0%, rgba(184, 134, 11, 0.05) 100%);
+  color: #fff;
+  transition: all 0.2s;
 }
 
-.ygg-event-btn:not(:disabled):hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 4px 15px rgba(184, 134, 11, 0.3);
-  background: linear-gradient(135deg, rgba(184,134,11,0.4) 0%, rgba(184,134,11,0.2) 100%) !important;
+.ygg-event-btn.open:hover {
+  background: linear-gradient(135deg, rgba(184, 134, 11, 0.25) 0%, rgba(184, 134, 11, 0.15) 100%);
+  border-color: var(--accent-gold);
+  transform: translateX(4px);
 }
 
-.ygg-prize-caught-overlay {
-  animation: fadeIn 0.5s ease-out;
+.ygg-event-btn.closed {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.05);
+  cursor: default;
+  color: #64748b;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.ygg-event-btn.loading {
+  opacity: 0.8;
+  cursor: wait;
 }
 
-@keyframes slideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+.ygg-event-info {
+  text-align: left;
+}
+
+.ygg-event-name {
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: #fff;
+}
+
+.ygg-event-btn.closed .ygg-event-name {
+  color: #64748b;
+}
+
+.ygg-event-prize {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.ygg-event-pool {
+  font-size: 0.7rem;
+  margin-top: 2px;
+  color: #94a3b8;
+}
+
+.ygg-event-pool span {
+  font-weight: 800;
+  color: #e2e8f0;
+}
+
+.ygg-event-pool span.full {
+  color: #22c55e;
+  text-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+
+.ygg-event-action {
+  text-align: right;
+}
+
+.ygg-event-cost {
+  font-weight: 800;
+  color: var(--accent-gold);
+  font-size: 0.9rem;
+}
+
+.ygg-event-joining {
+  color: var(--accent-gold);
+  font-size: 0.8rem;
+  font-weight: 700;
+  animation: yggPulse 1s infinite;
+}
+
+.ygg-event-ended {
+  font-size: 0.65rem;
+  line-height: 1.2;
+}
+
+.ygg-winner-name {
+  color: var(--accent-gold);
+  font-weight: 700;
 }
