@@ -13,8 +13,8 @@ const GRAVITY = 0.32;
 const JUMP_FORCE = -10;
 const BOOST_FORCE = -17;
 const MOVE_SPEED = 6.5;
-const PLAYER_W = 55;
-const PLAYER_H = 80;
+const PLAYER_W = 26;
+const PLAYER_H = 70;
 const PLAT_W = 80;
 const PLAT_H = 16;
 const PLAT_GAP_MIN = 100;
@@ -41,11 +41,11 @@ function getDailySeed() {
 
 // Zone colors
 const ZONES = [
-  { maxAlt: 500, name: 'MIDGARD', bg1: '#0d1b0e', bg2: '#1a3a1c' },
-  { maxAlt: 1000, name: 'CLOUDS', bg1: '#0f1729', bg2: '#1e3a5f' },
-  { maxAlt: 2000, name: 'BIFROST', bg1: '#1a0a2e', bg2: '#2d1b69' },
-  { maxAlt: 3000, name: 'THUNDERSTORM', bg1: '#020617', bg2: '#0f172a' },
-  { maxAlt: 5000, name: 'COSMIC_WINDS', bg1: '#1e1b4b', bg2: '#312e81' },
+  { maxAlt: 1000, name: 'MIDGARD', bg1: '#0d1b0e', bg2: '#1a3a1c' },
+  { maxAlt: 3000, name: 'CLOUDS', bg1: '#0f1729', bg2: '#1e3a5f' },
+  { maxAlt: 5000, name: 'BIFROST', bg1: '#1a0a2e', bg2: '#2d1b69' },
+  { maxAlt: 7000, name: 'THUNDERSTORM', bg1: '#020617', bg2: '#0f172a' },
+  { maxAlt: 9000, name: 'COSMIC_WINDS', bg1: '#1e1b4b', bg2: '#312e81' },
   { maxAlt: Infinity, name: 'ASGARD', bg1: '#1a0a0a', bg2: '#3d1f00' },
 ];
 
@@ -65,10 +65,9 @@ function generatePlatforms(count, startY, rng, difficulty) {
     // Platform type based on difficulty (starts earlier)
     let type = 'standard';
     const roll = rng();
-    if (difficulty > 0.1 && roll < 0.08) type = 'boost'; // 8%
-    else if (difficulty > 0.15 && roll < 0.15) type = 'turbo'; // 7%
-    else if (difficulty > 0.05 && roll < 0.40) type = 'moving'; // 25%
-    else if (difficulty > 0.08 && roll < (difficulty > 0.66 ? 0.85 : 0.60)) type = 'fragile'; // much more common at 10k
+    if (difficulty > 0.1 && roll < 0.1) type = 'boost'; // 10% boost
+    else if (difficulty > 0.05 && roll < 0.40) type = 'moving'; // 25% moving
+    else if (difficulty > 0.08 && roll < (difficulty > 0.66 ? 0.85 : 0.60)) type = 'fragile'; // fragile
 
     const hasRune = rng() < 0.25;
     const runeSymbol = RUNE_SYMBOLS[Math.floor(rng() * RUNE_SYMBOLS.length)];
@@ -94,9 +93,29 @@ function generatePlatforms(count, startY, rng, difficulty) {
       spawnTime: Date.now(),
       hasRune,
       runeSymbol,
-      runeCollected: false
+      runeCollected: false,
+      item: null,
+      itemCollected: false
     });
   }
+
+  // Assign 1 random power-up per 1000m altitude band
+  // Group platforms by which 1000m band they fall in (altitude ≈ -y / 4)
+  const bands = {};
+  for (const plat of platforms) {
+    const alt = Math.floor(-plat.y / 4);
+    const band = Math.floor(alt / 1000);
+    if (!bands[band]) bands[band] = [];
+    bands[band].push(plat);
+  }
+  for (const band of Object.keys(bands)) {
+    const eligible = bands[band].filter(p => p.type === 'standard' || p.type === 'moving');
+    if (eligible.length > 0) {
+      const pick = eligible[Math.floor(rng() * eligible.length)];
+      pick.item = rng() < 0.5 ? 'turbo' : 'doubleJump';
+    }
+  }
+
   return platforms;
 }
 
@@ -118,6 +137,9 @@ const YggdrasilAscender = ({ user }) => {
   const [isNewBest, setIsNewBest] = useState(false);
   const [zoneName, setZoneName] = useState('MIDGARD');
   const [showZoneAnnouncement, setShowZoneAnnouncement] = useState(false);
+  const [turboCharges, setTurboCharges] = useState(1);
+  const [doubleJumpCharges, setDoubleJumpCharges] = useState(1);
+  const zoneNameRef = useRef('MIDGARD');
   const [playerCount, setPlayerCount] = useState(1);
   const [lbMode, setLbMode] = useState('daily');
   const [leaderboard, setLeaderboard] = useState([]);
@@ -132,7 +154,10 @@ const YggdrasilAscender = ({ user }) => {
   const [turboTime, setTurboTime] = useState(0);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [runStats, setRunStats] = useState(null);
-  const zoneNameRef = useRef('MIDGARD');
+  const [showRules, setShowRules] = useState(false);
+  const [turboUsed, setTurboUsed] = useState(false);
+  const [jumpUsed, setJumpUsed] = useState(false);
+  const [yggConfig, setYggConfig] = useState({ maxDailyRuns: 5, runeMultiplier: 1.0 });
   const bestScoreRef = useRef(0);
   
   // Events
@@ -144,6 +169,25 @@ const YggdrasilAscender = ({ user }) => {
   const [eventLoadingId, setEventLoadingId] = useState(null);
   const [fallenMessages, setFallenMessages] = useState([]);
   const prevPlayersRef = useRef({});
+
+  // Fetch admin config for prize calculation display
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const configSnap = await getDoc(doc(db, 'settings', 'mini_games'));
+        if (configSnap.exists()) {
+          const data = configSnap.data()?.yggdrasilAscender || {};
+          setYggConfig({
+            maxDailyRuns: data.maxDailyRuns ?? 5,
+            runeMultiplier: data.runeMultiplier ?? 1.0
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to fetch ygg config, using defaults', err);
+      }
+    };
+    fetchConfig();
+  }, []);
 
   // Load and process assets (remove white background)
   useEffect(() => {
@@ -413,7 +457,10 @@ const YggdrasilAscender = ({ user }) => {
         scaleX: 1,
         scaleY: 1,
         facing: 1, // 1 for right, -1 for left
-        turboTime: 0
+        turboTime: 0,
+        turboCharges: 1,
+        doubleJumpCharges: 1,
+        usedDoubleJumpInAir: false
       },
       platforms: startPlats,
       camera: 0,
@@ -525,21 +572,55 @@ const YggdrasilAscender = ({ user }) => {
     if (p.x > CANVAS_W) p.x = -PLAYER_W;
 
     // Manual jump logic
-    if ((keysRef.current['Space'] || keysRef.current['ArrowUp'] || touchRef.current.jump) && p.isGrounded) {
-      p.vy = JUMP_FORCE;
-      p.isGrounded = false;
+    const jumpPressed = keysRef.current['Space'] || keysRef.current['ArrowUp'] || touchRef.current.jump;
+    const lastJumpPressed = keysRef.current['lastJump'] || false;
+    
+    if (jumpPressed) {
+      if (p.isGrounded) {
+        p.vy = JUMP_FORCE;
+        p.isGrounded = false;
+        p.usedDoubleJumpInAir = false; // reset for fresh jump
+      } else if (!lastJumpPressed && p.doubleJumpCharges > 0 && !p.usedDoubleJumpInAir && p.turboTime <= 0) {
+        p.vy = JUMP_FORCE * 1.1; // HIGH JUMP!
+        p.doubleJumpCharges--;
+        p.usedDoubleJumpInAir = true;
+        setDoubleJumpCharges(p.doubleJumpCharges);
+        setJumpUsed(true);
+        setTimeout(() => setJumpUsed(false), 1000);
+        for (let di = 0; di < 6; di++) {
+          g.particles.push({
+            x: p.x + PLAYER_W/2 + (Math.random()-0.5)*20, y: p.y + PLAYER_H,
+            vx: (Math.random()-0.5)*3, vy: 1 + Math.random()*2,
+            life: 15, color: '#60a5fa', size: 3
+          });
+        }
+      }
     }
+    keysRef.current['lastJump'] = jumpPressed;
+
+    // Turbo activation (anytime)
+    const turboPressed = keysRef.current['ShiftLeft'] || keysRef.current['ShiftRight'] || keysRef.current['KeyE'] || touchRef.current.turbo;
+    const lastTurboPressed = keysRef.current['lastTurbo'] || false;
+
+    if (turboPressed && !lastTurboPressed && p.turboCharges > 0 && p.turboTime <= 0) {
+      p.turboCharges--;
+      setTurboCharges(p.turboCharges);
+      p.turboTime = 120; // 2 seconds
+      g.shake = 10;
+      setTurboUsed(true);
+      setTimeout(() => setTurboUsed(false), 1000);
+    }
+    keysRef.current['lastTurbo'] = turboPressed;
 
     // Physics
     let currentGravity = GRAVITY;
 
-    if (currentAlt >= 5000) {
+    if (currentAlt >= 9000) {
       g.weatherType = 'asgard';
-      // Asgard - Normal gravity but difficulty spikes platform speed later in code
-    } else if (currentAlt >= 3000) {
+    } else if (currentAlt >= 7000) {
       g.weatherType = 'cosmic';
       currentGravity = GRAVITY * 0.6; // Lower gravity
-    } else if (currentAlt >= 2000) {
+    } else if (currentAlt >= 5000) {
       g.weatherType = 'thunderstorm';
       // Thunderclap trigger with 5-7s cooldown
       const cooldown = 5000 + (g.rng ? g.rng() : Math.random()) * 2000;
@@ -550,9 +631,9 @@ const YggdrasilAscender = ({ user }) => {
         g.shake = 15;
         g.lastThunderTime = now;
       }
-    } else if (currentAlt >= 1000) {
+    } else if (currentAlt >= 3000) {
       g.weatherType = 'bifrost';
-    } else if (currentAlt >= 500) {
+    } else if (currentAlt >= 1000) {
       g.weatherType = 'clouds';
     } else {
       g.weatherType = 'clear';
@@ -585,6 +666,7 @@ const YggdrasilAscender = ({ user }) => {
       }
     }
 
+    // Vertical Physics
     if (p.turboTime > 0) {
       p.vy = BOOST_FORCE * 1.5; // Sustain high speed during turbo
       p.isGrounded = false;
@@ -592,25 +674,37 @@ const YggdrasilAscender = ({ user }) => {
       p.vy += currentGravity * dt;
     }
     p.y += p.vy * dt;
-    if (p.turboTime <= 0) p.isGrounded = false; // Only assume falling if not in turbo
+    if (p.turboTime <= 0) p.isGrounded = false;
 
-    // Collision (only when falling)
+    // Platform Collision (only when falling)
     if (p.vy >= 0) {
       for (const plat of g.platforms) {
         if (plat.broken) continue;
-        const inset = plat.type === 'ground' ? 0 : 20;
-        if (
-          p.x + PLAYER_W > plat.x + inset &&
-          p.x < plat.x + plat.w - inset &&
-          p.y + PLAYER_H >= plat.y + 4 &&
-          p.y + PLAYER_H <= plat.y + plat.h + p.vy * dt + 2
-        ) {
-          p.y = plat.y + 4 - PLAYER_H;
-          p.vy = 0;
+        if (p.y + PLAYER_H > plat.y && p.y + PLAYER_H < plat.y + plat.h + 10 &&
+            p.x + PLAYER_W * 0.8 > plat.x && p.x + PLAYER_W * 0.2 < plat.x + plat.w) {
+          
+          p.y = plat.y - PLAYER_H;
           p.isGrounded = true;
+          
+          if (plat.type === 'boost') {
+            p.vy = BOOST_FORCE;
+            p.isGrounded = false;
+            p.squash = 0.5;
+            g.shake = 5;
+          } else {
+            p.vy = 0;
+            p.isGrounded = true;
+            p.usedDoubleJumpInAir = false; // Reset on landing
+            p.squash = 0.9;
+          }
 
+          if (plat.type === 'fragile' && !plat.activated) {
+            plat.activated = true;
+            plat.activatedTime = Date.now(); // Start 2s flicker countdown
+          }
+          
           if (p.squash === 1) {
-            p.squash = 0.6; // squash on landing
+            p.squash = 0.85; // squash on landing
             // Spawn landing dust
             for (let di = 0; di < 6; di++) {
               g.particles.push({
@@ -626,20 +720,41 @@ const YggdrasilAscender = ({ user }) => {
           }
 
           if (plat.type === 'boost') {
-            p.vy = BOOST_FORCE; // auto boost is fun
+            p.vy = BOOST_FORCE;
             p.isGrounded = false;
-            g.shake = 8; // big shake
-          } else if (plat.type === 'turbo') {
-            p.vy = BOOST_FORCE * 1.5; // HUGE TURBO BOOST
-            p.isGrounded = false;
-            p.turboTime = 120; // Show turbo sprite for 2 seconds
-          } else if (plat.type === 'fragile') {
-            if (!plat.activated) {
-              plat.activated = true;
-              plat.spawnTime = Date.now();
-            }
+            g.shake = 8;
           }
           break;
+        }
+      }
+    }
+
+    // Item Collection
+    for (const plat of g.platforms) {
+      if (plat.item && !plat.itemCollected) {
+        // Simple circular collision check with item (assume center of platform)
+        const ix = plat.x + plat.w / 2;
+        const iy = plat.y - 20;
+        const dx = (p.x + PLAYER_W / 2) - ix;
+        const dy = (p.y + PLAYER_H / 2) - iy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist < 40) {
+          plat.itemCollected = true;
+          if (plat.item === 'turbo') {
+            p.turboCharges = (p.turboCharges || 0) + 1;
+            setTurboCharges(p.turboCharges);
+          } else if (plat.item === 'doubleJump') {
+            p.doubleJumpCharges = (p.doubleJumpCharges || 0) + 1;
+            setDoubleJumpCharges(p.doubleJumpCharges);
+          }
+          // Collect effect
+          for(let i=0; i<10; i++) {
+            g.particles.push({
+              x: ix, y: iy, vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5, 
+              life: 20, color: plat.item === 'turbo' ? '#fbbf24' : '#60a5fa', size: 3
+            });
+          }
         }
       }
     }
@@ -753,13 +868,12 @@ const YggdrasilAscender = ({ user }) => {
         }
       }
 
-      // Vanishing logic (Platform 2 / Fragile)
+      // Vanishing logic (Platform 2 / Fragile) - 2s flicker then break
       if (plat.type === 'fragile') {
-        if (plat.activated) {
-          const age = Date.now() - plat.spawnTime;
-          const fragileTime = g.difficulty > 0.66 ? 1500 : 2000;
-          if (age > fragileTime) {
-            plat.broken = true; // Vanish!
+        if (plat.activated && plat.activatedTime) {
+          const age = Date.now() - plat.activatedTime;
+          if (age > 2000) {
+            plat.broken = true; // Vanish after 2 seconds!
           }
         }
       }
@@ -795,17 +909,17 @@ const YggdrasilAscender = ({ user }) => {
     }
 
     // Player squash/stretch lerp
-    p.squash += (1 - p.squash) * 0.2;
+    p.squash += (1 - p.squash) * 0.3;
     p.scaleX = 1 + (1 - p.squash);
     p.scaleY = p.squash;
     // apply stretch based on velocity
     if (p.turboTime > 0) {
       // Stabilize scale during turbo to prevent pulsing
-      p.scaleY = 1.35;
-      p.scaleX = 0.75;
-    } else if (Math.abs(p.vy) > 2) {
-      p.scaleY = Math.min(1.35, 1 + Math.abs(p.vy) * 0.015);
-      p.scaleX = Math.max(0.75, 1 - Math.abs(p.vy) * 0.015);
+      p.scaleY = 1.0;
+      p.scaleX = 1.0;
+    } else {
+      p.scaleY = 1.0;
+      p.scaleX = 1.0;
     }
 
     // Altitude
@@ -1022,13 +1136,18 @@ const YggdrasilAscender = ({ user }) => {
 
       if (platImg) {
         // Blinking logic for vanishing platforms
-        if (isFragile && plat.activated) {
-          const age = Date.now() - plat.spawnTime;
-          const fragileTime = g.difficulty > 0.66 ? 1500 : 2000;
-          if (age > fragileTime * 0.75) {
-            if (Math.floor(Date.now() / 100) % 2 === 0) ctx.globalAlpha = 0.3;
-          } else if (age > fragileTime * 0.5) {
-            if (Math.floor(Date.now() / 200) % 2 === 0) ctx.globalAlpha = 0.5;
+        // Blinking logic for vanishing platforms - flicker over 2s
+        if (isFragile && plat.activated && plat.activatedTime) {
+          const age = Date.now() - plat.activatedTime;
+          if (age > 1500) {
+            // Fast flicker last 0.5s
+            if (Math.floor(Date.now() / 80) % 2 === 0) ctx.globalAlpha = 0.2;
+          } else if (age > 800) {
+            // Medium flicker
+            if (Math.floor(Date.now() / 150) % 2 === 0) ctx.globalAlpha = 0.4;
+          } else {
+            // Slow flicker first 0.8s
+            if (Math.floor(Date.now() / 300) % 2 === 0) ctx.globalAlpha = 0.6;
           }
         }
 
@@ -1060,13 +1179,48 @@ const YggdrasilAscender = ({ user }) => {
         }
       }
 
-      // Draw icons on top of platforms if they are special types
-      if (plat.type === 'boost' || plat.type === 'turbo') {
+      // Draw Power-up Items (Large, glowing, impossible to miss)
+      if (plat.item && !plat.itemCollected) {
         ctx.save();
-        ctx.fillStyle = plat.type === 'turbo' ? '#fff' : '#92400e';
+        const bounce = Math.sin(Date.now() / 200) * 10;
+        const glowPulse = 0.5 + Math.sin(Date.now() / 250) * 0.5;
+        const cx = plat.x + plat.w / 2;
+        const cy = plat.y - 30 + bounce;
+        
+        // Glowing background circle
+        const grad = ctx.createRadialGradient(cx, cy, 5, cx, cy, 28);
+        if (plat.item === 'turbo') {
+          grad.addColorStop(0, 'rgba(251, 191, 36, 0.9)');
+          grad.addColorStop(0.5, 'rgba(251, 191, 36, 0.4)');
+          grad.addColorStop(1, 'rgba(251, 191, 36, 0)');
+        } else {
+          grad.addColorStop(0, 'rgba(96, 165, 250, 0.9)');
+          grad.addColorStop(0.5, 'rgba(96, 165, 250, 0.4)');
+          grad.addColorStop(1, 'rgba(96, 165, 250, 0)');
+        }
+        ctx.globalAlpha = 1.0;
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 28 + glowPulse * 8, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Icon
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '32px sans-serif';
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = plat.item === 'turbo' ? '#fbbf24' : '#60a5fa';
+        ctx.fillText(plat.item === 'turbo' ? '\uD83D\uDE80' : '\uD83D\uDC5F', cx, cy);
+        ctx.restore();
+      }
+
+      // Draw icons on top of platforms if they are special types
+      if (plat.type === 'boost') {
+        ctx.save();
+        ctx.fillStyle = '#92400e';
         ctx.font = 'bold 24px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(plat.type === 'turbo' ? '🔥' : '⚡', plat.x + plat.w / 2, plat.y - 20);
+        ctx.fillText('⚡', plat.x + plat.w / 2, plat.y - 20);
         ctx.restore();
       }
 
@@ -1177,9 +1331,23 @@ const YggdrasilAscender = ({ user }) => {
 
     // Player
     const isJumping = !p.isGrounded;
+    const isTurbo = p.turboTime > 0;
+    
     ctx.save();
-    ctx.translate(p.x + PLAYER_W / 2, p.y + PLAYER_H); // Translate to bottom-center for squash/stretch
-    ctx.scale(p.scaleX, p.scaleY);
+    ctx.translate(p.x + PLAYER_W / 2, p.y + PLAYER_H); 
+    
+    let finalScaleX = p.scaleX;
+    let finalScaleY = p.scaleY;
+
+    if (isTurbo) {
+      finalScaleX *= 0.7;
+      finalScaleY *= 1.1;
+    } else if (isJumping) {
+      finalScaleX *= 1.2;
+      finalScaleY *= 1.0;
+    }
+
+    ctx.scale(finalScaleX, finalScaleY);
     ctx.translate(-PLAYER_W / 2, -PLAYER_H);
 
     if (assets.stand && assets.jump) {
@@ -1196,9 +1364,12 @@ const YggdrasilAscender = ({ user }) => {
       }
 
       // Calculate size to maintain aspect ratio
-      const renderW = PLAYER_H * (heroImg.width / heroImg.height);
-      // Shift drawing down to plant feet on the platform floor (3D depth)
-      ctx.drawImage(heroImg, (PLAYER_W - renderW) / 2, 0, renderW, PLAYER_H);
+      const sizeMult = isJumping ? 1.1 : 1.0; // Slightly boost jumping sprite size
+      const renderH = PLAYER_H * sizeMult;
+      const renderW = renderH * (heroImg.width / heroImg.height);
+      
+      // Shift drawing down to plant feet on the platform floor
+      ctx.drawImage(heroImg, (PLAYER_W - renderW) / 2, PLAYER_H - renderH, renderW, renderH);
 
       ctx.restore(); // Restore flip scale
     } else {
@@ -1335,9 +1506,10 @@ const YggdrasilAscender = ({ user }) => {
     }
 
     keysRef.current = {};
-    touchRef.current = { left: false, right: false, jump: false };
+    touchRef.current = { left: false, right: false, jump: false, turbo: false };
     setGameState('playing');
     setIsNewBest(false);
+
     // Set up disconnect cleanup
     if (user?.uid) {
       const pRef = ref(database, `yggdrasil/players/${user.uid}`);
@@ -1380,38 +1552,38 @@ const YggdrasilAscender = ({ user }) => {
   }, []);
 
   // Handle Mobile Touch Events (Passive: False)
-  useEffect(() => {
-    const handleLeftStart = (e) => { 
-      if (e.cancelable) e.preventDefault(); 
-      touchRef.current.left = true; 
-      e.currentTarget.classList.add('is-pressed');
-    };
-    const handleLeftEnd = (e) => { 
-      if (e.cancelable) e.preventDefault(); 
-      touchRef.current.left = false; 
-      e.currentTarget.classList.remove('is-pressed');
-    };
-    const handleRightStart = (e) => { 
-      if (e.cancelable) e.preventDefault(); 
-      touchRef.current.right = true; 
-      e.currentTarget.classList.add('is-pressed');
-    };
-    const handleRightEnd = (e) => { 
-      if (e.cancelable) e.preventDefault(); 
-      touchRef.current.right = false; 
-      e.currentTarget.classList.remove('is-pressed');
-    };
-    const handleJumpStart = (e) => { 
-      if (e.cancelable) e.preventDefault(); 
-      touchRef.current.jump = true; 
-      e.currentTarget.classList.add('is-pressed');
-    };
-    const handleJumpEnd = (e) => { 
-      if (e.cancelable) e.preventDefault(); 
-      touchRef.current.jump = false; 
-      e.currentTarget.classList.remove('is-pressed');
-    };
+  const handleLeftStart = (e) => { 
+    if (e.cancelable) e.preventDefault(); 
+    touchRef.current.left = true; 
+    e.currentTarget.classList.add('is-pressed');
+  };
+  const handleLeftEnd = (e) => { 
+    if (e.cancelable) e.preventDefault(); 
+    touchRef.current.left = false; 
+    e.currentTarget.classList.remove('is-pressed');
+  };
+  const handleRightStart = (e) => { 
+    if (e.cancelable) e.preventDefault(); 
+    touchRef.current.right = true; 
+    e.currentTarget.classList.add('is-pressed');
+  };
+  const handleRightEnd = (e) => { 
+    if (e.cancelable) e.preventDefault(); 
+    touchRef.current.right = false; 
+    e.currentTarget.classList.remove('is-pressed');
+  };
+  const handleJumpStart = (e) => { 
+    if (e.cancelable) e.preventDefault(); 
+    touchRef.current.jump = true; 
+    e.currentTarget.classList.add('is-pressed');
+  };
+  const handleJumpEnd = (e) => { 
+    if (e.cancelable) e.preventDefault(); 
+    touchRef.current.jump = false; 
+    e.currentTarget.classList.remove('is-pressed');
+  };
 
+  useEffect(() => {
     const l = leftBtnRef.current;
     const r = rightBtnRef.current;
     const j = jumpBtnRef.current;
@@ -1473,23 +1645,37 @@ const YggdrasilAscender = ({ user }) => {
             position: 'absolute', bottom: '30px', left: 0, right: 0,
             display: 'flex', justifyContent: 'space-between', padding: '0 20px', pointerEvents: 'none'
           }}>
-            <div style={{ display: 'flex', gap: '10px', pointerEvents: 'auto' }}>
-              <button
+            <div className="ygg-mobile-controls-row">
+              <button 
                 ref={leftBtnRef}
                 className="ygg-btn-dir"
-                style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)', color: 'white', fontSize: '24px' }}>◀</button>
-              <button
+                onTouchStart={handleLeftStart}
+                onTouchEnd={handleLeftEnd}
+              >◀</button>
+              <button 
                 ref={rightBtnRef}
                 className="ygg-btn-dir"
-                style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)', color: 'white', fontSize: '24px' }}>▶</button>
-            </div>
-            <div style={{ pointerEvents: 'auto' }}>
-              <button
-                ref={jumpBtnRef}
-                style={{ width: '80px', height: '60px', borderRadius: '30px', background: 'rgba(251, 191, 36, 0.4)', border: '2px solid rgba(251, 191, 36, 0.8)', color: 'white', fontSize: '18px', fontWeight: 'bold' }}>JUMP</button>
+                onTouchStart={handleRightStart}
+                onTouchEnd={handleRightEnd}
+              >▶</button>
+              
+              <div className="ygg-mobile-actions">
+                <button 
+                  className="ygg-ctrl-btn turbo-btn"
+                  onTouchStart={(e) => { e.preventDefault(); touchRef.current.turbo = true; }}
+                  onTouchEnd={(e) => { e.preventDefault(); touchRef.current.turbo = false; }}
+                >🚀</button>
+                <button 
+                  ref={jumpBtnRef}
+                  className="ygg-ctrl-btn jump"
+                  onTouchStart={handleJumpStart}
+                  onTouchEnd={handleJumpEnd}
+                >JUMP</button>
+              </div>
             </div>
           </div>
         )}
+
 
         {/* HUD */}
         {gameState === 'playing' && (
@@ -1504,16 +1690,10 @@ const YggdrasilAscender = ({ user }) => {
                 <div className="ygg-zone-label">{zoneName}</div>
                 {runesCollected > 0 && <div className="ygg-runes-hud">ᚠ {runesCollected}</div>}
 
-                {/* Turbo Indicator */}
+                {/* Turbo Active Bar */}
                 {turboTime > 0 && (
-                  <div className="ygg-turbo-hud">
-                    <span className="ygg-turbo-icon">🔥</span>
-                    <div className="ygg-turbo-bar">
-                      <div
-                        className="ygg-turbo-progress"
-                        style={{ width: `${(turboTime / 120) * 100}%` }}
-                      />
-                    </div>
+                  <div className="ygg-turbo-active">
+                    <div className="ygg-turbo-bar-inner" style={{ width: `${(turboTime / 120) * 100}%` }} />
                   </div>
                 )}
 
@@ -1565,6 +1745,22 @@ const YggdrasilAscender = ({ user }) => {
           </>
         )}
 
+        {/* Power-ups HUD (left-center, outside HUD flow) */}
+        {gameState === 'playing' && (
+          <div className="ygg-powerups-hud-center">
+            <div className={`ygg-pu-mini ${turboUsed ? 'pu-used' : ''}`}>
+              <span role="img" aria-label="rocket">&#x1F680;</span>
+              <span>x{turboCharges}</span>
+              {turboUsed && <span className="ygg-pu-float">-1</span>}
+            </div>
+            <div className={`ygg-pu-mini ${jumpUsed ? 'pu-used' : ''}`}>
+              <span role="img" aria-label="shoes">&#x1F45F;</span>
+              <span>x{doubleJumpCharges}</span>
+              {jumpUsed && <span className="ygg-pu-float">-1</span>}
+            </div>
+          </div>
+        )}
+
         {/* Start Screen */}
         {gameState === 'start' && (
           <div className="ygg-start-overlay">
@@ -1574,13 +1770,15 @@ const YggdrasilAscender = ({ user }) => {
             </div>
 
             <div className="ygg-rules-box" style={{ background: 'rgba(0,0,0,0.5)', padding: '10px 15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid rgba(184,134,11,0.5)', fontSize: '13px', textAlign: 'left' }}>
-              <div style={{ color: '#fbbf24', fontWeight: 'bold', marginBottom: '4px' }}>📜 Rules of the Climb:</div>
+              <div style={{ color: '#fbbf24', fontWeight: 'bold', marginBottom: '4px' }}>📜 Prize Calculation:</div>
               <ul style={{ margin: 0, paddingLeft: '16px', lineHeight: '1.4' }}>
-                <li>Your first <b>5 runs per day</b> earn Valcoins!</li>
+                <li>First <b>{yggConfig.maxDailyRuns} runs per day</b> earn Valcoins!</li>
                 <li>Base Reward: <b>1 VC per 100m</b> climbed.</li>
-                <li><b>Runes act as a Multiplier!</b> (Collect 5 runes = 5x total Valcoins).</li>
+                <li><b>Runes</b> multiply your reward! (Rune multiplier: <b>{yggConfig.runeMultiplier}x</b>)</li>
               </ul>
             </div>
+
+            <button className="ygg-rules-btn" onClick={() => setShowRules(true)}>📜 RULES &amp; POWER-UPS</button>
 
             {!assetsLoaded ? (
               <div className="ygg-loading">Loading Assets...</div>
@@ -1747,6 +1945,69 @@ const YggdrasilAscender = ({ user }) => {
           ))}
         </div>
       </div>
+      {/* Rules Modal */}
+      {showRules && (
+        <div className="ygg-tutorial-overlay">
+          <div className="ygg-tutorial-modal ygg-rules-modal">
+            <h2 className="ygg-tutorial-title">RULES &amp; POWER-UPS</h2>
+            
+            <div className="ygg-rules-scroll custom-scrollbar">
+              <div className="ygg-rules-section">
+                <div className="ygg-rules-heading">🎮 Prizes</div>
+                <ul className="ygg-rules-list">
+                  <li>First <b>{yggConfig.maxDailyRuns} runs/day</b> earn Valcoins</li>
+                  <li>Base: <b>1 VC per 100m</b> climbed</li>
+                  <li>Rune multiplier: <b>{yggConfig.runeMultiplier}x</b></li>
+                  <li>Formula: <code>floor(alt/100) × max(1, floor(runes × {yggConfig.runeMultiplier}))</code></li>
+                </ul>
+              </div>
+
+              <div className="ygg-rules-section">
+                <div className="ygg-rules-heading">⚡ Power-ups</div>
+                <div className="ygg-tut-item">
+                  <div className="ygg-tut-icon">&#x1F680;</div>
+                  <div className="ygg-tut-text">
+                    <strong>ROCKET TURBO</strong>
+                    <p>Massive speed boost for 2 seconds.</p>
+                    <span className="ygg-tut-key">PC: [SHIFT] / [E] | Mobile: &#x1F680; Button</span>
+                  </div>
+                </div>
+                <div className="ygg-tut-item">
+                  <div className="ygg-tut-icon">&#x1F45F;</div>
+                  <div className="ygg-tut-text">
+                    <strong>HIGH JUMP</strong>
+                    <p>Jump again mid-air with extra height! One use per jump.</p>
+                    <span className="ygg-tut-key">PC: [SPACE] again | Mobile: Tap JUMP again</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="ygg-rules-section">
+                <div className="ygg-rules-heading">🌍 Weather Zones</div>
+                <ul className="ygg-rules-list">
+                  <li><b>Midgard</b> (0-1km) — Normal</li>
+                  <li><b>Clouds</b> (1-3km) — Slower speed</li>
+                  <li><b>Bifrost</b> (3-5km) — Slippery platforms</li>
+                  <li><b>Thunderstorm</b> (5-7km) — Darkness flickers</li>
+                  <li><b>Cosmic Winds</b> (7-9km) — Low gravity + wind gusts</li>
+                  <li><b>Asgard</b> (9km+) — Faster platforms every 2km</li>
+                </ul>
+              </div>
+
+              <div className="ygg-rules-section">
+                <div className="ygg-rules-heading">🎮 Controls</div>
+                <ul className="ygg-rules-list">
+                  <li>PC: Arrow keys / A,D to move. Space to jump.</li>
+                  <li>Mobile: D-pad + Jump button.</li>
+                  <li>Hold Jump to auto-bounce on platforms.</li>
+                </ul>
+              </div>
+            </div>
+
+            <button className="ygg-tut-close" onClick={() => setShowRules(false)}>GOT IT</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
