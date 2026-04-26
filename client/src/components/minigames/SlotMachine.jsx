@@ -77,8 +77,9 @@ const SlotMachine = ({
   const getReelSymbols = useCallback(() => {
     if (prizes.length === 0) return [];
     const symbols = [];
-    // Repeat prizes 30 times for the 'Safe Zone' loop trick
-    for (let i = 0; i < 30; i++) {
+    // Repeat prizes 100 times for the 'Safe Zone' loop trick
+    // This ensures we have enough headroom for fast/long spins without seeing the edge
+    for (let i = 0; i < 100; i++) {
       prizes.forEach(prize => {
         symbols.push(prize);
       });
@@ -126,8 +127,9 @@ const SlotMachine = ({
     reelRefs.forEach((ref, i) => {
       if (ref.current) {
         // Optimized pre-spin speed (~25 symbols/sec)
+        // Keep farOffset within the 100-repetition buffer (e.g., 60-80)
         const duration = 15000 + (i * 2000); 
-        const farOffset = prizes.length * 60;
+        const farOffset = prizes.length * 80;
         const pos = -(farOffset * symbolHeight) + symbolHeight;
 
         ref.current.style.transition = `transform ${duration}ms linear`;
@@ -195,9 +197,10 @@ const SlotMachine = ({
         const currentIdx = Math.abs(currentY - symbolHeight) / symbolHeight;
         
         // Land at least 3 full rotations away (reduced from 6) for a snappier feel
+        // We must ensure finalIndex doesn't exceed the 100 repetitions (8000 symbols)
         const minLandingIdx = currentIdx + (prizes.length * 3);
         const rotationsNeeded = Math.ceil((minLandingIdx - targetIndices[i]) / prizes.length);
-        const finalIndex = (rotationsNeeded * prizes.length) + targetIndices[i];
+        const finalIndex = Math.min((rotationsNeeded * prizes.length) + targetIndices[i], (prizes.length * 95));
         const finalPosition = -(finalIndex * symbolHeight) + symbolHeight;
 
         // Snappier duration (2.0s - 3.2s instead of 3.0s - 5.0s)

@@ -63,6 +63,7 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
   const [displayedAury, setDisplayedAury] = useState(walletBalance);
   const [displayedUsdc, setDisplayedUsdc] = useState(usdcBalance);
   const [isFrozen, setIsFrozen] = useState(false);
+  const [totalOnlineCount, setTotalOnlineCount] = useState(0);
   const [yggPlayersCount, setYggPlayersCount] = useState(0);
 
   // Sync all displayed balances with real Firestore balances when NOT in a game
@@ -98,6 +99,25 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
   const handleBackToHub = () => {
     setSelectedGame(null);
   };
+
+  // Listen to GLOBAL Minigame Presence Count
+  useEffect(() => {
+    const presenceRef = ref(database, 'mini_games/presence');
+    const unsub = onValue(presenceRef, snap => {
+      if (snap.exists()) {
+        const data = snap.val();
+        const now = Date.now();
+        // Count users active in the last 2 minutes
+        const activeCount = Object.values(data).filter(lastActive => (now - lastActive) < 120000).length;
+        console.log("Hub Global Presence:", activeCount);
+        setTotalOnlineCount(activeCount);
+      } else {
+        console.log("Hub Global Presence: No data found.");
+        setTotalOnlineCount(0);
+      }
+    });
+    return () => unsub();
+  }, []);
 
   // Listen to live player count for Yggdrasil Ascender
   useEffect(() => {
@@ -203,7 +223,11 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
       <div className="minigames-overlay">
         <div className="minigames-modal" onClick={e => e.stopPropagation()}>
           <div className="minigames-modal-header">
-            <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M12 22V12" /><path d="M12 12l8-4" /><path d="M12 12L4 8" /></svg> Asgard Trials</h2>
+            <h2 className="minigames-hub-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M12 22V12" /><path d="M12 12l8-4" /><path d="M12 12L4 8" /></svg> 
+              Asgard Trials
+              {totalOnlineCount >= 0 && <span className="hub-online-count">{totalOnlineCount} Online</span>}
+            </h2>
             <div className="minigames-balances-group">
               <div className="minigames-balance" title="Valcoins">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M8 12h8" /><path d="M12 8v8" /></svg>

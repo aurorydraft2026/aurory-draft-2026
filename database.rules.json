@@ -44,6 +44,12 @@
       "jackpots": {
         ".read": true,
         ".write": false
+      },
+      "presence": {
+        ".read": true,
+        "$uid": {
+          ".write": "auth != null && auth.uid == $uid"
+        }
       }
     },
     "yggdrasil": {

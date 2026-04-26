@@ -925,7 +925,7 @@ body.ygg-gaming-mode .runie-bot-container {
 /* ─── ZONE ANNOUNCEMENT ─── */
 .ygg-zone-announcement {
   position: absolute;
-  top: 80px; /* Top of screen, below primary HUD */
+  top: 45px;
   left: 0;
   right: 0;
   display: flex;
@@ -936,24 +936,38 @@ body.ygg-gaming-mode .runie-bot-container {
 }
 
 .ygg-zone-banner {
-  background: linear-gradient(90deg, transparent, rgba(184, 134, 11, 0.8), transparent);
-  padding: 6px 40px;
+  padding: 8px 50px;
   color: #fff;
   font-family: 'Rajdhani', sans-serif;
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 5px;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  letter-spacing: 6px;
   animation: yggZoneBannerIn 2.5s forwards;
   white-space: nowrap;
 }
 
 @keyframes yggZoneBannerIn {
-  0% { opacity: 0; transform: translateY(-10px); filter: blur(4px); }
-  15% { opacity: 1; transform: translateY(0); filter: blur(0); }
-  85% { opacity: 1; transform: translateY(0); filter: blur(0); }
-  100% { opacity: 0; transform: translateY(-5px); filter: blur(2px); }
+  0% { opacity: 0; transform: translateY(-10px) scale(0.9); filter: blur(4px); }
+  15% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  85% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  100% { opacity: 0; transform: translateY(-5px) scale(0.95); filter: blur(2px); }
+}
+
+/* ─── ZONE CONDITION BADGE ─── */
+.ygg-condition-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 2px;
+  width: fit-content;
 }
 
 /* --- POWERUPS HUD --- */
@@ -1144,18 +1158,32 @@ body.ygg-gaming-mode .runie-bot-container {
 }
 
 .ygg-btn-dir {
-  width: 52px;
-  height: 52px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.15);
   border: 2px solid rgba(255, 255, 255, 0.4);
   color: white;
-  font-size: 22px;
+  font-size: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
+.ygg-btn-action {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 10px;
+  opacity: 0.8;
+}
 
 /* --- HUD TWEAKS --- */
 .ygg-powerup-pill {
@@ -1295,6 +1323,85 @@ body.ygg-gaming-mode .runie-bot-container {
   color: #fbbf24;
 }
 
+/* --- RULES TABLES --- */
+.ygg-rules-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.68rem;
+  margin-top: 4px;
+}
+
+.ygg-rules-table th {
+  color: rgba(251, 191, 36, 0.8);
+  font-weight: 800;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 2px solid rgba(251, 191, 36, 0.2);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.ygg-rules-table td {
+  padding: 8px 10px;
+  color: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  vertical-align: middle;
+}
+
+.ygg-rules-table tbody tr:hover {
+  background: rgba(251, 191, 36, 0.03);
+}
+
+.ygg-rules-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ygg-rules-table tbody tr:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.ygg-rules-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ygg-zone-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+  box-shadow: 0 0 4px currentColor;
+}
+
+.ygg-formula-box {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 8px;
+  border-radius: 6px;
+  margin-top: 8px;
+  border: 1px dashed rgba(251, 191, 36, 0.3);
+  text-align: center;
+}
+
+.ygg-formula-box code {
+  color: #fbbf24;
+  font-size: 0.7rem;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.ygg-max-note {
+  font-size: 0.65rem;
+  color: #fbbf24;
+  font-weight: 500;
+  background: rgba(251, 191, 36, 0.1);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+}
+
 
 /* --- POWER-UP HUD: LEFT-CENTER --- */
 .ygg-powerups-hud-bottom {
@@ -1342,7 +1449,8 @@ body.ygg-gaming-mode .runie-bot-container {
 /* --- INLINE POWER-UP HUD (below runes in HUD) --- */
 .ygg-powerups-hud-inline {
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  gap: 3px;
   margin-top: 3px;
 }
 
@@ -1358,6 +1466,7 @@ body.ygg-gaming-mode .runie-bot-container {
   color: #fff;
   position: relative;
   transition: background 0.3s, border-color 0.3s;
+  width: fit-content;
 }
 
 .ygg-pu-mini-sm span[role="img"] {
@@ -1367,6 +1476,17 @@ body.ygg-gaming-mode .runie-bot-container {
 .ygg-pu-mini-sm.pu-used {
   background: rgba(220, 38, 38, 0.8) !important;
   border-color: #ef4444 !important;
+}
+
+.ygg-pu-mini-sm.pu-max {
+  border-color: rgba(251, 191, 36, 0.9) !important;
+  background: rgba(251, 191, 36, 0.15) !important;
+}
+
+.ygg-pu-mini-sm.pu-max span:last-of-type:not([role="img"]) {
+  color: #fbbf24;
+  font-weight: 800;
+  letter-spacing: 0.5px;
 }
 
 @media (max-width: 600px) {

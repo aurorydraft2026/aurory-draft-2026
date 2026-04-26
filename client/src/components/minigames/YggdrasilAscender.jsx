@@ -41,12 +41,12 @@ function getDailySeed() {
 
 // Zone colors
 const ZONES = [
-  { maxAlt: 1000, name: 'MIDGARD', bg1: '#0d1b0e', bg2: '#1a3a1c' },
-  { maxAlt: 3000, name: 'CLOUDS', bg1: '#0f1729', bg2: '#1e3a5f' },
-  { maxAlt: 5000, name: 'BIFROST', bg1: '#1a0a2e', bg2: '#2d1b69' },
-  { maxAlt: 7000, name: 'THUNDERSTORM', bg1: '#020617', bg2: '#0f172a' },
-  { maxAlt: 9000, name: 'COSMIC_WINDS', bg1: '#1e1b4b', bg2: '#312e81' },
-  { maxAlt: Infinity, name: 'ASGARD', bg1: '#1a0a0a', bg2: '#3d1f00' },
+  { maxAlt: 1000, name: 'MIDGARD', bg1: '#0d1b0e', bg2: '#1a3a1c', color: '#22c55e', condition: 'Normal' },
+  { maxAlt: 3000, name: 'CLOUDS', bg1: '#0f1729', bg2: '#1e3a5f', color: '#60a5fa', condition: 'Dense Air' },
+  { maxAlt: 5000, name: 'BIFROST', bg1: '#1a0a2e', bg2: '#2d1b69', color: '#a78bfa', condition: 'Slippery' },
+  { maxAlt: 7000, name: 'THUNDERSTORM', bg1: '#020617', bg2: '#0f172a', color: '#3b82f6', condition: 'Darkness' },
+  { maxAlt: 9000, name: 'COSMIC_WINDS', bg1: '#1e1b4b', bg2: '#312e81', color: '#fbbf24', condition: 'Low Gravity + Wind' },
+  { maxAlt: Infinity, name: 'ASGARD', bg1: '#1a0a0a', bg2: '#3d1f00', color: '#f472b6', condition: 'Fast Platforms' },
 ];
 
 function getZone(alt) {
@@ -559,9 +559,14 @@ const YggdrasilAscender = ({ user }) => {
 
     // Default friction (snappy stop)
     let friction = 0.25;
-    // Bifrost slippery physics (3k-5k)
-    if (currentAlt >= 3000 && currentAlt < 5000) {
-      friction = 0.035; // Adjusted from 0.025
+    // Bifrost slippery physics (3k-5k) — only when grounded on a platform
+    const inBifrost = currentAlt >= 3000 && currentAlt < 5000;
+    if (inBifrost && p.isGrounded) {
+      friction = 0.04; // Very slippery on platforms
+      // Slight idle drift when standing still
+      if (targetVx === 0 && Math.abs(p.vx) < 0.3) {
+        p.vx += (Math.sin(now / 800) * 0.08) * dt;
+      }
     }
     
     // Cosmic Winds - Wind effect (7k-9k)
@@ -749,20 +754,29 @@ const YggdrasilAscender = ({ user }) => {
         const dist = Math.sqrt(dx * dx + dy * dy);
         
         if (dist < 40) {
-          plat.itemCollected = true;
-          if (plat.item === 'turbo' && (p.turboCharges || 0) < 3) {
-            p.turboCharges = (p.turboCharges || 0) + 1;
-            setTurboCharges(p.turboCharges);
-          } else if (plat.item === 'doubleJump' && (p.doubleJumpCharges || 0) < 3) {
-            p.doubleJumpCharges = (p.doubleJumpCharges || 0) + 1;
-            setDoubleJumpCharges(p.doubleJumpCharges);
-          }
-          // Collect effect
-          for(let i=0; i<10; i++) {
-            g.particles.push({
-              x: ix, y: iy, vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5, 
-              life: 20, color: plat.item === 'turbo' ? '#fbbf24' : '#60a5fa', size: 3
-            });
+          const isTurbo = plat.item === 'turbo';
+          const isJump = plat.item === 'doubleJump';
+          const atMax = isTurbo ? (p.turboCharges || 0) >= 3 : (p.doubleJumpCharges || 0) >= 3;
+          
+          if (atMax) {
+            // Don't collect — item stays visible
+            // Skip collection entirely
+          } else {
+            plat.itemCollected = true;
+            if (isTurbo) {
+              p.turboCharges = (p.turboCharges || 0) + 1;
+              setTurboCharges(p.turboCharges);
+            } else if (isJump) {
+              p.doubleJumpCharges = (p.doubleJumpCharges || 0) + 1;
+              setDoubleJumpCharges(p.doubleJumpCharges);
+            }
+            // Collect effect
+            for(let i=0; i<10; i++) {
+              g.particles.push({
+                x: ix, y: iy, vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5, 
+                life: 20, color: plat.item === 'turbo' ? '#fbbf24' : '#60a5fa', size: 3
+              });
+            }
           }
         }
       }
@@ -1518,6 +1532,11 @@ const YggdrasilAscender = ({ user }) => {
     touchRef.current = { left: false, right: false, jump: false, turbo: false };
     setGameState('playing');
     setIsNewBest(false);
+    // Announce initial zone (Midgard)
+    zoneNameRef.current = 'MIDGARD';
+    setZoneName('MIDGARD');
+    setShowZoneAnnouncement(true);
+    setTimeout(() => setShowZoneAnnouncement(false), 2500);
 
     // Set up disconnect cleanup
     if (user?.uid) {
@@ -1698,19 +1717,27 @@ const YggdrasilAscender = ({ user }) => {
                 </div>
 
                 {bestScore > 0 && <div className="ygg-best">Best: {bestScore}m</div>}
-                <div className="ygg-zone-label">{zoneName}</div>
+                {/* Zone condition badge with color */}
+                {(() => {
+                  const z = getZone(score);
+                  return (
+                    <div className="ygg-condition-badge" style={{ background: z.color, borderColor: z.color, color: '#fff' }}>
+                      {z.condition}
+                    </div>
+                  );
+                })()}
                 {runesCollected > 0 && <div className="ygg-runes-hud">ᚠ {runesCollected}</div>}
 
                 {/* Power-ups HUD (inline, below runes) */}
                 <div className="ygg-powerups-hud-inline">
-                  <div className={`ygg-pu-mini-sm ${turboUsed ? 'pu-used' : ''}`}>
+                  <div className={`ygg-pu-mini-sm ${turboUsed ? 'pu-used' : ''} ${turboCharges >= 3 ? 'pu-max' : ''}`}>
                     <span role="img" aria-label="rocket">&#x1F680;</span>
-                    <span>x{turboCharges}</span>
+                    <span>{turboCharges >= 3 ? 'MAX' : `x${turboCharges}`}</span>
                     {turboUsed && <span className="ygg-pu-float">-1</span>}
                   </div>
-                  <div className={`ygg-pu-mini-sm ${jumpUsed ? 'pu-used' : ''}`}>
+                  <div className={`ygg-pu-mini-sm ${jumpUsed ? 'pu-used' : ''} ${doubleJumpCharges >= 3 ? 'pu-max' : ''}`}>
                     <span role="img" aria-label="shoes">&#x1F45F;</span>
-                    <span>x{doubleJumpCharges}</span>
+                    <span>{doubleJumpCharges >= 3 ? 'MAX' : `x${doubleJumpCharges}`}</span>
                     {jumpUsed && <span className="ygg-pu-float">-1</span>}
                   </div>
                 </div>
@@ -1753,11 +1780,19 @@ const YggdrasilAscender = ({ user }) => {
               </div>
 
             {/* Zone Announcement Overlay */}
-            {showZoneAnnouncement && (
-              <div className="ygg-zone-announcement">
-                <div className="ygg-zone-banner">{zoneName}</div>
-              </div>
-            )}
+            {showZoneAnnouncement && (() => {
+              const z = getZone(score);
+              return (
+                <div className="ygg-zone-announcement">
+                  <div className="ygg-zone-banner" style={{ 
+                    background: `linear-gradient(90deg, transparent, ${z.color}cc, transparent)`,
+                    textShadow: `0 1px 8px ${z.color}88, 0 1px 4px rgba(0,0,0,0.5)`
+                  }}>
+                    {zoneName}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Fallen Messages */}
             <div className="ygg-fallen-messages">
@@ -1964,54 +1999,80 @@ const YggdrasilAscender = ({ user }) => {
             
             <div className="ygg-rules-scroll custom-scrollbar">
               <div className="ygg-rules-section">
-                <div className="ygg-rules-heading">🎮 Prizes</div>
-                <ul className="ygg-rules-list">
-                  <li>First <b>{yggConfig.maxDailyRuns} runs/day</b> earn Valcoins</li>
-                  <li>Base: <b>1 VC per 100m</b> climbed</li>
-                  <li>Rune multiplier: <b>{yggConfig.runeMultiplier}x</b></li>
-                  <li>Formula: <code>floor(alt/100) × max(1, floor(runes × {yggConfig.runeMultiplier}))</code></li>
-                </ul>
+                <div className="ygg-rules-heading">💰 Rewards</div>
+                <table className="ygg-rules-table">
+                  <thead>
+                    <tr><th>Condition</th><th>Bonus</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Daily Limit</td><td><b>{yggConfig.maxDailyRuns}</b> Runs/day</td></tr>
+                    <tr><td>Altitude</td><td><b>1 VC</b> / 100m</td></tr>
+                    <tr><td>Rune Multiplier</td><td><b>{yggConfig.runeMultiplier}x</b> total</td></tr>
+                  </tbody>
+                </table>
+                <div className="ygg-formula-box">
+                  <code>floor(alt/100) × max(1, floor(runes × {yggConfig.runeMultiplier}))</code>
+                </div>
               </div>
 
               <div className="ygg-rules-section">
-                <div className="ygg-rules-heading">⚡ Power-ups</div>
-                <div className="ygg-tut-item">
-                  <div className="ygg-tut-icon">&#x1F680;</div>
-                  <div className="ygg-tut-text">
-                    <strong>ROCKET TURBO</strong>
-                    <p>Massive speed boost for 2 seconds.</p>
-                    <span className="ygg-tut-key">PC: [SHIFT] / [E] | Mobile: &#x1F680; Button</span>
-                  </div>
-                </div>
-                <div className="ygg-tut-item">
-                  <div className="ygg-tut-icon">&#x1F45F;</div>
-                  <div className="ygg-tut-text">
-                    <strong>HIGH JUMP</strong>
-                    <p>Jump again mid-air with extra height! One use per jump.</p>
-                    <span className="ygg-tut-key">PC: [SPACE] again | Mobile: Tap JUMP again</span>
-                  </div>
+                <div className="ygg-rules-heading">⚡ Power-ups <span className="ygg-max-note">(Max 3 Charges each)</span></div>
+                <table className="ygg-rules-table">
+                  <thead>
+                    <tr><th>Item</th><th>Effect</th><th>Activate</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><span style={{ fontSize: '1.2rem' }}>&#x1F680;</span> Turbo</td>
+                      <td>Massive speed boost (2s)</td>
+                      <td style={{ color: '#fbbf24' }}>[SHIFT]/[E] / 🚀</td>
+                    </tr>
+                    <tr>
+                      <td><span style={{ fontSize: '1.2rem' }}>&#x1F45F;</span> High Jump</td>
+                      <td>Double jump mid-air</td>
+                      <td style={{ color: '#fbbf24' }}>[SPACE] / JUMP</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.4)', marginTop: '4px' }}>
+                  Spawns every 2000m. Items won't be collected when at max.
                 </div>
               </div>
 
               <div className="ygg-rules-section">
                 <div className="ygg-rules-heading">🌍 Weather Zones</div>
-                <ul className="ygg-rules-list">
-                  <li><b>Midgard</b> (0–1km) — Normal</li>
-                  <li><b>Clouds</b> (1–3km) — Slower speed</li>
-                  <li><b>Bifrost</b> (3–5km) — Slippery platforms</li>
-                  <li><b>Thunderstorm</b> (5–7km) — Darkness flickers</li>
-                  <li><b>Cosmic Winds</b> (7–9km) — Low gravity + wind gusts</li>
-                  <li><b>Asgard</b> (9km+) — Faster platforms every 2km</li>
-                </ul>
+                <table className="ygg-rules-table ygg-zones-table">
+                  <thead>
+                    <tr><th>Zone</th><th>Altitude</th><th>Condition</th></tr>
+                  </thead>
+                  <tbody>
+                    {ZONES.map((z, i) => {
+                      const prev = i > 0 ? ZONES[i - 1].maxAlt / 1000 : 0;
+                      const altText = z.maxAlt === Infinity ? `${prev}km+` : `${prev}–${z.maxAlt / 1000}km`;
+                      return (
+                        <tr key={z.name}>
+                          <td><span className="ygg-zone-dot" style={{ background: z.color }} />{z.name.replace('_', ' ')}</td>
+                          <td>{altText}</td>
+                          <td style={{ color: z.color, fontWeight: 700 }}>{z.condition}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
 
               <div className="ygg-rules-section">
                 <div className="ygg-rules-heading">🎮 Controls</div>
-                <ul className="ygg-rules-list">
-                  <li>PC: Arrow keys / A,D to move. Space to jump.</li>
-                  <li>Mobile: D-pad + Jump button.</li>
-                  <li>Hold Jump to auto-bounce on platforms.</li>
-                </ul>
+                <table className="ygg-rules-table">
+                  <thead>
+                    <tr><th>Action</th><th>PC</th><th>Mobile</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Move</td><td>← → / A D</td><td>D-pad</td></tr>
+                    <tr><td>Jump</td><td>Space / ↑</td><td>JUMP btn</td></tr>
+                    <tr><td>Turbo</td><td>Shift / E</td><td>🚀 btn</td></tr>
+                  </tbody>
+                </table>
               </div>
             </div>
 
