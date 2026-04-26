@@ -41,9 +41,11 @@ function getDailySeed() {
 
 // Zone colors
 const ZONES = [
-  { maxAlt: 2000, name: 'MIDGARD', bg1: '#0d1b0e', bg2: '#1a3a1c' },
-  { maxAlt: 5000, name: 'CLOUDS', bg1: '#0f1729', bg2: '#1e3a5f' },
-  { maxAlt: 10000, name: 'BIFROST', bg1: '#1a0a2e', bg2: '#2d1b69' },
+  { maxAlt: 500, name: 'MIDGARD', bg1: '#0d1b0e', bg2: '#1a3a1c' },
+  { maxAlt: 1000, name: 'CLOUDS', bg1: '#0f1729', bg2: '#1e3a5f' },
+  { maxAlt: 2000, name: 'BIFROST', bg1: '#1a0a2e', bg2: '#2d1b69' },
+  { maxAlt: 3000, name: 'THUNDERSTORM', bg1: '#020617', bg2: '#0f172a' },
+  { maxAlt: 5000, name: 'COSMIC_WINDS', bg1: '#1e1b4b', bg2: '#312e81' },
   { maxAlt: Infinity, name: 'ASGARD', bg1: '#1a0a0a', bg2: '#3d1f00' },
 ];
 
@@ -115,11 +117,14 @@ const YggdrasilAscender = ({ user }) => {
   const [bestScore, setBestScore] = useState(0);
   const [isNewBest, setIsNewBest] = useState(false);
   const [zoneName, setZoneName] = useState('MIDGARD');
+  const [showZoneAnnouncement, setShowZoneAnnouncement] = useState(false);
   const [playerCount, setPlayerCount] = useState(1);
   const [lbMode, setLbMode] = useState('daily');
   const [leaderboard, setLeaderboard] = useState([]);
   const [lbLoading, setLbLoading] = useState(false);
   const [nameCache, setNameCache] = useState({});
+  const [activeEventId, setActiveEventId] = useState(null);
+  const [eventLiveCounts, setEventLiveCounts] = useState({});
   const nameCacheRef = useRef({}); // Ref to avoid dependency loop in useEffect
   const ghostPlayersDataRef = useRef({}); // Avoid stale closure in requestAnimationFrame
   const ghostVisualsRef = useRef({}); // { uid: { x, y, targetX, targetY } }
@@ -137,6 +142,8 @@ const YggdrasilAscender = ({ user }) => {
   const [eventPrizeCaught, setEventPrizeCaught] = useState(null);
   const [eventLoading, setEventLoading] = useState(false);
   const [eventLoadingId, setEventLoadingId] = useState(null);
+  const [fallenMessages, setFallenMessages] = useState([]);
+  const prevPlayersRef = useRef({});
 
   // Load and process assets (remove white background)
   useEffect(() => {
@@ -207,15 +214,25 @@ const YggdrasilAscender = ({ user }) => {
     if (!user?.uid) return;
     const playersRef = ref(database, 'yggdrasil/players');
     const unsub = onValue(playersRef, snap => {
-      if (snap.exists()) {
-        const data = snap.val();
-        const { [user.uid]: _, ...others } = data;
-        ghostPlayersDataRef.current = others;
-        setPlayerCount(Object.keys(others).length + 1);
-      } else {
-        ghostPlayersDataRef.current = {};
-        setPlayerCount(1);
-      }
+      const data = snap.val() || {};
+      const { [user.uid]: _, ...others } = data;
+      
+      // Detect falls (players who were in prev but not in current)
+      const prevOthers = prevPlayersRef.current;
+      Object.keys(prevOthers).forEach(uid => {
+        if (!others[uid]) {
+          const pName = prevOthers[uid].name || 'A Warrior';
+          const id = Date.now() + Math.random();
+          setFallenMessages(prev => [...prev.slice(-2), { id, name: pName }]);
+          setTimeout(() => {
+            setFallenMessages(prev => prev.filter(m => m.id !== id));
+          }, 4000);
+        }
+      });
+
+      prevPlayersRef.current = others;
+      ghostPlayersDataRef.current = others;
+      setPlayerCount(Object.keys(others).length + 1);
     });
     return () => unsub();
   }, [user?.uid]);
@@ -300,32 +317,6 @@ const YggdrasilAscender = ({ user }) => {
     return () => unsub();
   }, [lbMode, user]);
 
-  // One-time migration: Populate monthly leaderboard from all-time scores if they are from this month
-  useEffect(() => {
-    if (!user?.uid) return;
-    const now = new Date();
-    const monthId = `${now.getFullYear()}_m${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const monthlyPath = `yggdrasil/leaderboard/monthly/${monthId}`;
-    
-    // Check if monthly exists
-    get(ref(database, monthlyPath)).then(snap => {
-      if (!snap.exists()) {
-        console.log("Monthly leaderboard empty, migrating from All-time...");
-        get(ref(database, 'yggdrasil/leaderboard/alltime')).then(atSnap => {
-          if (atSnap.exists()) {
-            atSnap.forEach(child => {
-              const data = child.val();
-              const scoreDate = new Date(data.t || 0);
-              // If the score was made in the current month/year
-              if (scoreDate.getFullYear() === now.getFullYear() && scoreDate.getMonth() === now.getMonth()) {
-                set(ref(database, `${monthlyPath}/${child.key}`), data);
-              }
-            });
-          }
-        });
-      }
-    });
-  }, [user?.uid]);
 
   // Publish presence
   const publishPresence = useCallback((x, y) => {
@@ -335,15 +326,34 @@ const YggdrasilAscender = ({ user }) => {
       x, y,
       name: resolveDisplayName(user),
       color: '#' + user.uid.slice(0, 6),
-      t: Date.now()
+      t: Date.now(),
+      eventId: activeEventId
     });
-  }, [user]);
+  }, [user, activeEventId]);
 
   // Remove presence
   const removePresence = useCallback(() => {
     if (!user?.uid) return;
     remove(ref(database, `yggdrasil/players/${user.uid}`));
   }, [user]);
+
+  // Subscribe to all players to count live participants per event
+  useEffect(() => {
+    const playersRef = ref(database, 'yggdrasil/players');
+    const unsub = onValue(playersRef, snap => {
+      const counts = {};
+      if (snap.exists()) {
+        snap.forEach(child => {
+          const p = child.val();
+          if (p.eventId) {
+            counts[p.eventId] = (counts[p.eventId] || 0) + 1;
+          }
+        });
+      }
+      setEventLiveCounts(counts);
+    });
+    return () => unsub();
+  }, []);
 
   // Submit score
   const submitScore = useCallback((finalScore) => {
@@ -381,13 +391,15 @@ const YggdrasilAscender = ({ user }) => {
   }, [user]);
 
   // Init game
-  const initGame = useCallback(() => {
+  const initGame = useCallback((eventOverride = null) => {
     const seed = getDailySeed();
     const rng = seededRandom(seed);
     const startPlats = generatePlatforms(80, CANVAS_H - 50, rng, 0);
     // Add ground platform (full width, invisible floor)
     startPlats.push({ x: 0, y: CANVAS_H - 15, w: CANVAS_W, h: 20, type: 'ground', broken: false, moveDir: 1 });
     startPlats.sort((a, b) => b.y - a.y);
+
+    const eventToUse = eventOverride || activeEvent;
 
     gameRef.current = {
       seed,
@@ -419,13 +431,24 @@ const YggdrasilAscender = ({ user }) => {
       shake: 0, // screen shake magnitude
       lastTime: performance.now(),
       lastHUDTime: 0,
-      specialPrize: (activeEvent && activeEvent.currentPool >= activeEvent.targetPool) ? {
-        x: CANVAS_W / 2 - 25,
-        y: -activeEvent.targetAltitude * 4,
-        w: 50,
-        h: 50,
+      flashAlpha: 0, // for lightning
+      weatherType: 'clear', // clear, thunderstorm, cosmic
+      thunderState: 'none', // none, warning, flashing
+      thunderTimer: 0,
+      thunderCount: 0,
+      lastThunderTime: 0,
+      stars: Array.from({ length: 40 }, () => ({
+        x: rng() * CANVAS_W,
+        y: rng() * CANVAS_H * 3,
+        size: 1 + rng() * 1
+      })),
+      specialPrize: eventToUse ? {
+        x: CANVAS_W / 2 - 18,
+        y: -eventToUse.targetAltitude * 4,
+        w: 36,
+        h: 36,
         collected: false,
-        name: activeEvent.prizeName,
+        name: eventToUse.prizeName,
         image: null // will be loaded
       } : null
     };
@@ -433,7 +456,7 @@ const YggdrasilAscender = ({ user }) => {
     // Load special prize image if needed
     if (gameRef.current.specialPrize) {
       const prizeImg = new Image();
-      prizeImg.src = activeEvent.prizeImage;
+      prizeImg.src = eventToUse.prizeImage;
       prizeImg.onload = () => {
         if (gameRef.current?.specialPrize) {
           gameRef.current.specialPrize.image = prizeImg;
@@ -460,17 +483,42 @@ const YggdrasilAscender = ({ user }) => {
     const dt = Math.min(3, (now - g.lastTime) / 16.66); // Normalize to 60fps
     g.lastTime = now;
 
-    // Input
-    let moveX = 0;
-    if (keysRef.current['ArrowLeft'] || keysRef.current['KeyA'] || touchRef.current.left) {
-      moveX = -MOVE_SPEED * dt;
-      p.facing = -1;
+    // Horizontal Movement
+    let targetVx = 0;
+    const currentAlt = Math.floor(-p.y / 4);
+    let speedMult = 1.0;
+
+    // Clouds - slow speed
+    if (currentAlt >= 500 && currentAlt < 1000) {
+      speedMult = 0.65;
     }
-    if (keysRef.current['ArrowRight'] || keysRef.current['KeyD'] || touchRef.current.right) {
-      moveX = MOVE_SPEED * dt;
+
+    if (keysRef.current['ArrowLeft'] || keysRef.current['KeyA'] || touchRef.current.left) {
+      targetVx = -MOVE_SPEED * speedMult;
+      p.facing = -1;
+    } else if (keysRef.current['ArrowRight'] || keysRef.current['KeyD'] || touchRef.current.right) {
+      targetVx = MOVE_SPEED * speedMult;
       p.facing = 1;
     }
-    p.x += moveX;
+
+    // Default friction (snappy stop)
+    let friction = 0.25;
+    // Bifrost slippery physics
+    if (currentAlt >= 1000 && currentAlt < 2000) {
+      friction = 0.035; // Adjusted from 0.025
+    }
+    
+    // Cosmic Winds - Wind effect
+    if (currentAlt >= 3000 && currentAlt < 5000) {
+      // Windy weather: Base wind that shifts slowly + chaotic gusts
+      const baseWind = Math.sin(now / 4000) * 0.14; 
+      const gust = Math.sin(now / 500) * 0.12 * (Math.sin(now / 1200) > 0.3 ? 1 : 0);
+      p.vx += (baseWind + gust) * dt;
+      friction = 0.12; // Harder to stabilize in the wind
+    }
+
+    p.vx += (targetVx - p.vx) * friction * dt;
+    p.x += p.vx * dt;
 
     // Screen wrap
     if (p.x + PLAYER_W < 0) p.x = CANVAS_W;
@@ -483,11 +531,65 @@ const YggdrasilAscender = ({ user }) => {
     }
 
     // Physics
+    let currentGravity = GRAVITY;
+
+    if (currentAlt >= 5000) {
+      g.weatherType = 'asgard';
+      // Asgard - Normal gravity but difficulty spikes platform speed later in code
+    } else if (currentAlt >= 3000) {
+      g.weatherType = 'cosmic';
+      currentGravity = GRAVITY * 0.6; // Lower gravity
+    } else if (currentAlt >= 2000) {
+      g.weatherType = 'thunderstorm';
+      // Thunderclap trigger with 5-7s cooldown
+      const cooldown = 5000 + (g.rng ? g.rng() : Math.random()) * 2000;
+      if (now - g.lastThunderTime > cooldown && Math.random() < 0.005 && g.thunderState === 'none') {
+        g.thunderState = 'warning';
+        g.thunderTimer = 0;
+        g.flashAlpha = 0;
+        g.shake = 15;
+        g.lastThunderTime = now;
+      }
+    } else if (currentAlt >= 1000) {
+      g.weatherType = 'bifrost';
+    } else if (currentAlt >= 500) {
+      g.weatherType = 'clouds';
+    } else {
+      g.weatherType = 'clear';
+    }
+
+    // Thunderstorm Flickering logic
+    if (g.thunderState === 'warning') {
+      g.thunderTimer += dt;
+      g.flashAlpha = Math.min(0.85, g.thunderTimer / 60); // Slowly get dark over 1s
+      if (g.flashAlpha >= 0.85) {
+        g.thunderState = 'flashing';
+        g.thunderTimer = 0;
+        g.thunderCount = 0;
+      }
+    } else if (g.thunderState === 'flashing') {
+      g.thunderTimer += dt;
+      // 3 rapid flashes (black to semi-transparent)
+      const flashPeriod = 8; 
+      const isVisible = Math.floor(g.thunderTimer / flashPeriod) % 2 === 0;
+      g.flashAlpha = isVisible ? 0.95 : 0.3;
+      
+      if (g.thunderTimer > flashPeriod * 6) { // 3 cycles (on/off)
+        g.thunderState = 'fade';
+      }
+    } else if (g.thunderState === 'fade') {
+      g.flashAlpha -= 0.02 * dt;
+      if (g.flashAlpha <= 0) {
+        g.flashAlpha = 0;
+        g.thunderState = 'none';
+      }
+    }
+
     if (p.turboTime > 0) {
       p.vy = BOOST_FORCE * 1.5; // Sustain high speed during turbo
       p.isGrounded = false;
     } else {
-      p.vy += GRAVITY * dt;
+      p.vy += currentGravity * dt;
     }
     p.y += p.vy * dt;
     if (p.turboTime <= 0) p.isGrounded = false; // Only assume falling if not in turbo
@@ -606,7 +708,14 @@ const YggdrasilAscender = ({ user }) => {
 
       // Moving logic
       if (plat.isMoving) {
-        const speed = 1.5 * (1 + g.difficulty * 3) * dt;
+        let platSpeedMult = 1.0;
+        // Asgard - Faster platforms every 2k meters
+        if (currentAlt >= 5000) {
+          const asgardProgress = Math.floor((currentAlt - 5000) / 2000);
+          platSpeedMult = 1.0 + (asgardProgress * 0.4); // 40% faster every 2k
+        }
+
+        const speed = 1.5 * (1 + g.difficulty * 3) * platSpeedMult * dt;
         const oldX = plat.x;
         const oldY = plat.y;
 
@@ -714,15 +823,15 @@ const YggdrasilAscender = ({ user }) => {
       let wSpeed = 5 + Math.random() * 5;
       let wType = 'line';
 
-      if (alt < 2000) { // Midgard Leaves
+      if (alt < 500) { // Midgard Leaves
         wColor = Math.random() > 0.5 ? 'rgba(34, 197, 94, 0.4)' : 'rgba(21, 128, 61, 0.4)';
         wType = 'leaf';
-      } else if (alt < 5000) { // Cloud Mist
+      } else if (alt < 1000) { // Cloud Mist
         wColor = 'rgba(255, 255, 255, 0.1)';
         wType = 'mist';
         wSize = 20 + Math.random() * 40;
         wSpeed = 1 + Math.random() * 2;
-      } else if (alt < 10000) { // Bifrost Sparks
+      } else if (alt < 2000) { // Bifrost Sparks
         wColor = `hsla(${Math.random() * 360}, 70%, 70%, 0.4)`;
         wType = 'spark';
       } else { // Asgard Gold Dust
@@ -800,6 +909,9 @@ const YggdrasilAscender = ({ user }) => {
     if (zone.name !== zoneNameRef.current) {
       zoneNameRef.current = zone.name;
       setZoneName(zone.name);
+      // Trigger large announcement
+      setShowZoneAnnouncement(true);
+      setTimeout(() => setShowZoneAnnouncement(false), 2500);
     }
 
     const assets = assetsRef.current;
@@ -838,15 +950,13 @@ const YggdrasilAscender = ({ user }) => {
       ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
     }
 
-    // Stars for high altitudes
-    if (alt > 4000) {
-      ctx.fillStyle = `rgba(255,255,255,${Math.min(0.6, (alt - 4000) / 10000)})`;
-      const starRng = seededRandom(42);
-      for (let i = 0; i < 40; i++) {
-        const sx = starRng() * CANVAS_W;
-        const sy = (starRng() * CANVAS_H * 3 + g.camera * 0.1) % CANVAS_H;
-        ctx.fillRect(sx, sy, 1.5, 1.5);
-      }
+    // Stars for high altitudes (Lowered to 500 for testing)
+    if (alt > 500) {
+      ctx.fillStyle = `rgba(255,255,255,${Math.min(0.6, (alt - 500) / 2000)})`;
+      g.stars.forEach(s => {
+        const sy = (s.y + g.camera * 0.1) % CANVAS_H;
+        ctx.fillRect(s.x, sy, s.size, s.size);
+      });
     }
 
     // Weather Particles
@@ -993,24 +1103,30 @@ const YggdrasilAscender = ({ user }) => {
       const sp = g.specialPrize;
       // Only draw if on screen
       if (sp.y > g.camera - 100 && sp.y < g.camera + CANVAS_H + 100) {
+        const floatY = Math.sin(Date.now() / 400) * 10;
+        
+        ctx.save();
+        // Pulsing glow
+        ctx.shadowBlur = 15 + Math.sin(Date.now() / 200) * 8;
+        ctx.shadowColor = '#fbbf24';
+
         if (sp.image) {
-          ctx.drawImage(sp.image, sp.x, sp.y, sp.w, sp.h);
+          ctx.drawImage(sp.image, sp.x, sp.y + floatY, sp.w, sp.h);
         } else {
           // Glow effect if image not loaded yet
-          ctx.shadowBlur = 15;
-          ctx.shadowColor = '#fbbf24';
           ctx.fillStyle = '#fbbf24';
           ctx.beginPath();
-          ctx.arc(sp.x + sp.w / 2, sp.y + sp.h / 2, sp.w / 2, 0, Math.PI * 2);
+          ctx.arc(sp.x + sp.w / 2, sp.y + sp.h / 2 + floatY, sp.w / 2, 0, Math.PI * 2);
           ctx.fill();
-          ctx.shadowBlur = 0;
         }
 
         // Draw label
+        ctx.shadowBlur = 4; // Smaller glow for text
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 12px Rajdhani';
         ctx.textAlign = 'center';
-        ctx.fillText(sp.name.toUpperCase(), sp.x + sp.w / 2, sp.y - 10);
+        ctx.fillText(sp.name.toUpperCase(), sp.x + sp.w / 2, sp.y + floatY - 12);
+        ctx.restore();
       }
     }
 
@@ -1148,6 +1264,43 @@ const YggdrasilAscender = ({ user }) => {
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
+    // Weather Visuals
+    if (g.weatherType === 'cosmic') {
+      // Shifting Aurora curtains
+      ctx.save();
+      ctx.globalAlpha = 0.2;
+      const hue = (now / 50) % 360;
+      const aurGrad = ctx.createLinearGradient(0, 0, CANVAS_W, 0);
+      aurGrad.addColorStop(0, `hsla(${hue}, 70%, 50%, 0)`);
+      aurGrad.addColorStop(0.5, `hsla(${(hue + 60) % 360}, 70%, 50%, 0.8)`);
+      aurGrad.addColorStop(1, `hsla(${(hue + 120) % 360}, 70%, 50%, 0)`);
+      ctx.fillStyle = aurGrad;
+      for(let i=0; i<2; i++) {
+        const offset = Math.sin(now / 1000 + i) * 50;
+        ctx.fillRect(offset, 0, CANVAS_W, CANVAS_H);
+      }
+      ctx.restore();
+    } else if (g.weatherType === 'bifrost') {
+      // Shifting Rainbow Bridge overlay
+      ctx.save();
+      ctx.globalAlpha = 0.08; // Lowered from 0.15
+      const rainbowGrad = ctx.createLinearGradient(0, 0, CANVAS_W, 0);
+      for(let i=0; i<=6; i++) {
+        const hue = (i * 60 + now / 10) % 360;
+        rainbowGrad.addColorStop(i/6, `hsla(${hue}, 80%, 50%, 1)`);
+      }
+      ctx.fillStyle = rainbowGrad;
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+      ctx.restore();
+    }
+
+    if (g.flashAlpha > 0) {
+      // Thunderclap Darkness flickering
+      const opacity = g.flashAlpha > 0.5 ? g.flashAlpha : g.flashAlpha;
+      ctx.fillStyle = `rgba(0, 0, 0, ${opacity})`;
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    }
+
     animRef.current = requestAnimationFrame(gameLoop);
   }, [publishPresence, removePresence, submitScore]);
 
@@ -1171,17 +1324,20 @@ const YggdrasilAscender = ({ user }) => {
         return;
       }
       setActiveEvent(ev);
+      setActiveEventId(eventId);
       activeEventIdRef.current = eventId;
+      initGame(ev);
     } else {
       setActiveEvent(null);
+      setActiveEventId(null);
       activeEventIdRef.current = null;
+      initGame(null);
     }
 
     keysRef.current = {};
     touchRef.current = { left: false, right: false, jump: false };
     setGameState('playing');
     setIsNewBest(false);
-    initGame();
     // Set up disconnect cleanup
     if (user?.uid) {
       const pRef = ref(database, `yggdrasil/players/${user.uid}`);
@@ -1360,6 +1516,14 @@ const YggdrasilAscender = ({ user }) => {
                     </div>
                   </div>
                 )}
+
+                {/* Event Prize Chasing HUD */}
+                {activeEvent && (
+                  <div className="ygg-chasing">
+                    <img src={activeEvent.prizeImage} alt={activeEvent.prizeName} />
+                    <span>{activeEvent.prizeName}</span>
+                  </div>
+                )}
               </div>
               <div className="ygg-hud-right">
                 <div className="ygg-players-pill">
@@ -1381,6 +1545,22 @@ const YggdrasilAscender = ({ user }) => {
                 <div className="ygg-height-marker" style={{ bottom: '33.3%' }}>5k</div>
                 <div className="ygg-height-marker" style={{ bottom: '66.6%' }}>10k</div>
               </div>
+              </div>
+
+            {/* Zone Announcement Overlay */}
+            {showZoneAnnouncement && (
+              <div className="ygg-zone-announcement">
+                <div className="ygg-zone-banner">{zoneName}</div>
+              </div>
+            )}
+
+            {/* Fallen Messages */}
+            <div className="ygg-fallen-messages">
+              {fallenMessages.map(m => (
+                <div key={m.id} className="ygg-fallen-msg">
+                  💀 <b>{m.name}</b> has fallen!
+                </div>
+              ))}
             </div>
           </>
         )}
@@ -1424,12 +1604,23 @@ const YggdrasilAscender = ({ user }) => {
                               <div className="ygg-event-name">{ev.name}</div>
                               <div className="ygg-event-prize">Prize: {ev.prizeName}</div>
                               {ev.status === 'open' && (
-                                <div className="ygg-event-pool">
-                                  Pool: <span className={ev.currentPool >= ev.targetPool ? 'full' : ''}>{ev.currentPool || 0}/{ev.targetPool}</span>
-                                </div>
+                                <>
+                                  <div className="ygg-event-pool">
+                                    Runs: <span>{ev.currentPool || 0}</span>
+                                  </div>
+                                  <div className="ygg-event-live">
+                                    Running now: <b>{eventLiveCounts[ev.id] || 0}</b>
+                                  </div>
+                                </>
                               )}
                             </div>
-                            
+
+                            {ev.prizeImage && (
+                              <div className="ygg-event-prize-thumb">
+                                <img src={ev.prizeImage} alt="prize" />
+                              </div>
+                            )}
+
                             <div className="ygg-event-action">
                               {eventLoadingId === ev.id ? (
                                 <div className="ygg-event-joining">Joining...</div>
@@ -1491,8 +1682,15 @@ const YggdrasilAscender = ({ user }) => {
 
             <div className="ygg-gameover-btns">
               <button className="ygg-retry-btn" onClick={() => startGame(activeEvent?.id)}>Play Again</button>
+              
+              <button className="ygg-back-btn" onClick={() => setGameState('start')}>
+                Back to Menu
+              </button>
+
               {activeEvent && (
-                <button className="ygg-free-btn" onClick={() => startGame()} style={{ marginTop: '8px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', width: '100%', padding: '10px', borderRadius: '8px' }}>Return to Free Play</button>
+                <button className="ygg-free-btn" onClick={() => startGame()}>
+                  Return to Free Play
+                </button>
               )}
             </div>
           </div>

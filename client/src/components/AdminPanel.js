@@ -1440,6 +1440,29 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     }
   };
 
+  const handleReopenYggEvent = async (eventId) => {
+    if (!window.confirm('Are you sure you want to REOPEN this event? This will clear the previous winner and make the prize claimable again.')) return;
+    
+    setProcessingId('reopen_ygg_event');
+    try {
+      await updateDoc(doc(db, 'yggdrasil_events', eventId), {
+        status: 'open',
+        winner: null,
+        winnerId: null,
+        winnerName: null,
+        claimTimestamp: null,
+        reopenedAt: serverTimestamp(),
+        reopenedBy: user.email
+      });
+      alert('Event reopened successfully!');
+    } catch (error) {
+      console.error('Error reopening event:', error);
+      alert('Failed to reopen: ' + error.message);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   const handleDeleteYggEvent = async (eventId) => {
     if (!window.confirm('Delete this event forever?')) return;
     try {
@@ -8026,6 +8049,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                           <button className="edit-btn" onClick={() => handleStartEditYggEvent(ev)} title="Edit Event">📝</button>
                                           {ev.status === 'open' && (
                                             <button className="edit-btn" onClick={() => handleCloseYggEvent(ev.id)} title="Close Event">🛑</button>
+                                          )}
+                                          {ev.status === 'closed' && (
+                                            <button className="edit-btn" onClick={() => handleReopenYggEvent(ev.id)} title="Reopen Event">🔓</button>
                                           )}
                                           <button className="delete-btn" onClick={() => handleDeleteYggEvent(ev.id)} title="Delete Event">🗑️</button>
                                         </div>

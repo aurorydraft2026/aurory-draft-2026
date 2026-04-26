@@ -141,7 +141,7 @@ async function handleBalance(interaction: any, res: any) {
 
         const userData = usersSnap.docs[0].data();
         const uid = usersSnap.docs[0].id;
-        const displayName = userData.displayName || 'Warrior';
+        const displayName = userData.auroryPlayerName || userData.displayName || 'Warrior';
         const avatar = userData.auroryProfilePicture || userData.photoURL || '';
         
         let title = '';
@@ -521,7 +521,7 @@ async function handleLeaderboard(interaction: any, res: any) {
                         if (p.team === data.overallWinner) {
                             const uid = p.uid || p.id;
                             if (uid) {
-                                if (!winCounts[uid]) winCounts[uid] = { name: p.displayName || p.auroryPlayerName || 'Warrior', wins: 0 };
+                                if (!winCounts[uid]) winCounts[uid] = { name: p.auroryPlayerName || p.displayName || 'Warrior', wins: 0 };
                                 winCounts[uid].wins += 1;
                             }
                         }
@@ -558,7 +558,7 @@ async function handleLeaderboard(interaction: any, res: any) {
             } else {
                 const results = snap.docs.map(doc => {
                     const data = doc.data();
-                    return { name: data.displayName || 'Warrior', score: data.referralCount || 0 };
+                    return { name: data.auroryPlayerName || data.displayName || 'Warrior', score: data.referralCount || 0 };
                 });
                 const validResults = results.filter(r => r.score > 0);
                 if (validResults.length === 0) leaderboardText = '📊 No referrals recorded yet.';

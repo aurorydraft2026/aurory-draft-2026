@@ -9,6 +9,7 @@ import './MiniGamesButton.css';
 const MiniGamesButton = () => {
   const [isHubOpen, setIsHubOpen] = useState(false);
   const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
   const [userPoints, setUserPoints] = useState(0);
 
   // Listen to auth state
@@ -18,6 +19,7 @@ const MiniGamesButton = () => {
         setUser(firebaseUser);
       } else {
         setUser(null);
+        setUserProfile(null);
         setUserPoints(0);
       }
     });
@@ -31,19 +33,34 @@ const MiniGamesButton = () => {
     return () => window.removeEventListener('openMiniGames', handleOpenEvent);
   }, []);
 
-  // Listen to user's points in real time
+  // Listen to user's profile and points in real time
   useEffect(() => {
-    if (!user) return;
+    if (!user?.uid) return;
 
     const userRef = doc(db, 'users', user.uid);
     const unsub = onSnapshot(userRef, (snap) => {
       if (snap.exists()) {
-        setUserPoints(snap.data().points || 0);
+        const data = snap.data();
+        setUserPoints(data.points || 0);
+        
+        // Only update profile state if essential display fields changed
+        setUserProfile(prev => {
+          if (!prev || prev.auroryPlayerName !== data.auroryPlayerName || prev.role !== data.role) {
+            return data;
+          }
+          return prev;
+        });
       }
     });
 
     return () => unsub();
-  }, [user]);
+  }, [user?.uid]);
+
+  // Memoize the merged user object to keep it stable for sub-components
+  const fullUser = React.useMemo(() => {
+    if (!user) return null;
+    return { ...user, ...userProfile };
+  }, [user, userProfile]);
 
   // Listen to global minigames config for Testing Mode
   const [globalConfig, setGlobalConfig] = useState(null);
@@ -91,7 +108,7 @@ const MiniGamesButton = () => {
 
       {isHubOpen && (
         <MiniGamesHub
-          user={user}
+          user={fullUser}
           userPoints={userPoints}
           onClose={() => setIsHubOpen(false)}
         />
