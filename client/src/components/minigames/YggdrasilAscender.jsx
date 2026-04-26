@@ -55,7 +55,8 @@ function getZone(alt) {
 }
 
 // Platform generation
-function generatePlatforms(count, startY, rng, difficulty) {
+// usedBands: Set of band numbers that already have items assigned (prevents duplicates across batches)
+function generatePlatforms(count, startY, rng, difficulty, usedBands) {
   const platforms = [];
   let y = startY;
   for (let i = 0; i < count; i++) {
@@ -99,20 +100,26 @@ function generatePlatforms(count, startY, rng, difficulty) {
     });
   }
 
-  // Assign 1 random power-up per 1000m altitude band
-  // Group platforms by which 1000m band they fall in (altitude ≈ -y / 4)
+  // Assign 1 turbo + 1 doubleJump per 2000m altitude band
+  // Skip bands that already have items from previous generatePlatforms calls
   const bands = {};
   for (const plat of platforms) {
     const alt = Math.floor(-plat.y / 4);
-    const band = Math.floor(alt / 1000);
+    const band = Math.floor(alt / 2000);
     if (!bands[band]) bands[band] = [];
     bands[band].push(plat);
   }
   for (const band of Object.keys(bands)) {
+    const bandNum = parseInt(band);
+    if (usedBands && usedBands.has(bandNum)) continue; // Already assigned in a previous batch
     const eligible = bands[band].filter(p => p.type === 'standard' || p.type === 'moving');
     if (eligible.length > 0) {
-      const pick = eligible[Math.floor(rng() * eligible.length)];
-      pick.item = rng() < 0.5 ? 'turbo' : 'doubleJump';
+      const shuffled = eligible.sort(() => rng() - 0.5);
+      shuffled[0].item = 'turbo';
+      if (shuffled.length > 1) {
+        shuffled[1].item = 'doubleJump';
+      }
+      if (usedBands) usedBands.add(bandNum); // Mark band as used
     }
   }
 
@@ -438,7 +445,8 @@ const YggdrasilAscender = ({ user }) => {
   const initGame = useCallback((eventOverride = null) => {
     const seed = getDailySeed();
     const rng = seededRandom(seed);
-    const startPlats = generatePlatforms(80, CANVAS_H - 50, rng, 0);
+    const itemBandsUsed = new Set();
+    const startPlats = generatePlatforms(80, CANVAS_H - 50, rng, 0, itemBandsUsed);
     // Add ground platform (full width, invisible floor)
     startPlats.push({ x: 0, y: CANVAS_H - 15, w: CANVAS_W, h: 20, type: 'ground', broken: false, moveDir: 1 });
     startPlats.sort((a, b) => b.y - a.y);
@@ -473,6 +481,7 @@ const YggdrasilAscender = ({ user }) => {
       runes: 0,
       particles: [],
       windParticles: [], // decorative wind streaks
+      itemBandsUsed,
       milestonesHit: new Set(),
       rewards: 0,
       shake: 0, // screen shake magnitude
@@ -535,8 +544,8 @@ const YggdrasilAscender = ({ user }) => {
     const currentAlt = Math.floor(-p.y / 4);
     let speedMult = 1.0;
 
-    // Clouds - slow speed
-    if (currentAlt >= 500 && currentAlt < 1000) {
+    // Clouds - slow speed (1k-3k)
+    if (currentAlt >= 1000 && currentAlt < 3000) {
       speedMult = 0.65;
     }
 
@@ -550,13 +559,13 @@ const YggdrasilAscender = ({ user }) => {
 
     // Default friction (snappy stop)
     let friction = 0.25;
-    // Bifrost slippery physics
-    if (currentAlt >= 1000 && currentAlt < 2000) {
+    // Bifrost slippery physics (3k-5k)
+    if (currentAlt >= 3000 && currentAlt < 5000) {
       friction = 0.035; // Adjusted from 0.025
     }
     
-    // Cosmic Winds - Wind effect
-    if (currentAlt >= 3000 && currentAlt < 5000) {
+    // Cosmic Winds - Wind effect (7k-9k)
+    if (currentAlt >= 7000 && currentAlt < 9000) {
       // Windy weather: Base wind that shifts slowly + chaotic gusts
       const baseWind = Math.sin(now / 4000) * 0.14; 
       const gust = Math.sin(now / 500) * 0.12 * (Math.sin(now / 1200) > 0.3 ? 1 : 0);
@@ -636,7 +645,7 @@ const YggdrasilAscender = ({ user }) => {
     } else if (currentAlt >= 1000) {
       g.weatherType = 'clouds';
     } else {
-      g.weatherType = 'clear';
+      g.weatherType = 'clear'; // Midgard (0-1k)
     }
 
     // Thunderstorm Flickering logic
@@ -741,10 +750,10 @@ const YggdrasilAscender = ({ user }) => {
         
         if (dist < 40) {
           plat.itemCollected = true;
-          if (plat.item === 'turbo') {
+          if (plat.item === 'turbo' && (p.turboCharges || 0) < 3) {
             p.turboCharges = (p.turboCharges || 0) + 1;
             setTurboCharges(p.turboCharges);
-          } else if (plat.item === 'doubleJump') {
+          } else if (plat.item === 'doubleJump' && (p.doubleJumpCharges || 0) < 3) {
             p.doubleJumpCharges = (p.doubleJumpCharges || 0) + 1;
             setDoubleJumpCharges(p.doubleJumpCharges);
           }
@@ -824,9 +833,9 @@ const YggdrasilAscender = ({ user }) => {
       // Moving logic
       if (plat.isMoving) {
         let platSpeedMult = 1.0;
-        // Asgard - Faster platforms every 2k meters
-        if (currentAlt >= 5000) {
-          const asgardProgress = Math.floor((currentAlt - 5000) / 2000);
+        // Asgard - Faster platforms every 2k meters (starts at 9k)
+        if (currentAlt >= 9000) {
+          const asgardProgress = Math.floor((currentAlt - 9000) / 2000);
           platSpeedMult = 1.0 + (asgardProgress * 0.4); // 40% faster every 2k
         }
 
@@ -937,18 +946,18 @@ const YggdrasilAscender = ({ user }) => {
       let wSpeed = 5 + Math.random() * 5;
       let wType = 'line';
 
-      if (alt < 500) { // Midgard Leaves
+      if (alt < 1000) { // Midgard Leaves (0-1k)
         wColor = Math.random() > 0.5 ? 'rgba(34, 197, 94, 0.4)' : 'rgba(21, 128, 61, 0.4)';
         wType = 'leaf';
-      } else if (alt < 1000) { // Cloud Mist
+      } else if (alt < 3000) { // Cloud Mist (1k-3k)
         wColor = 'rgba(255, 255, 255, 0.1)';
         wType = 'mist';
         wSize = 20 + Math.random() * 40;
         wSpeed = 1 + Math.random() * 2;
-      } else if (alt < 2000) { // Bifrost Sparks
+      } else if (alt < 5000) { // Bifrost Sparks (3k-5k)
         wColor = `hsla(${Math.random() * 360}, 70%, 70%, 0.4)`;
         wType = 'spark';
-      } else { // Asgard Gold Dust
+      } else { // Thunderstorm+ Gold Dust (5k+)
         wColor = 'rgba(251, 191, 36, 0.3)';
         wType = 'dust';
       }
@@ -976,7 +985,7 @@ const YggdrasilAscender = ({ user }) => {
 
     // Generate more platforms
     while (g.platGenY > g.camera - 200) {
-      const newPlats = generatePlatforms(20, g.platGenY, g.rng, g.difficulty);
+      const newPlats = generatePlatforms(20, g.platGenY, g.rng, g.difficulty, g.itemBandsUsed);
       g.platforms.push(...newPlats);
       g.platGenY = newPlats[newPlats.length - 1].y;
     }
@@ -1643,21 +1652,23 @@ const YggdrasilAscender = ({ user }) => {
         {gameState === 'playing' && isTouchDevice && (
           <div className="ygg-mobile-controls" style={{
             position: 'absolute', bottom: '30px', left: 0, right: 0,
-            display: 'flex', justifyContent: 'space-between', padding: '0 20px', pointerEvents: 'none'
+            display: 'flex', justifyContent: 'space-between', padding: '0 12px', pointerEvents: 'none'
           }}>
             <div className="ygg-mobile-controls-row">
-              <button 
-                ref={leftBtnRef}
-                className="ygg-btn-dir"
-                onTouchStart={handleLeftStart}
-                onTouchEnd={handleLeftEnd}
-              >◀</button>
-              <button 
-                ref={rightBtnRef}
-                className="ygg-btn-dir"
-                onTouchStart={handleRightStart}
-                onTouchEnd={handleRightEnd}
-              >▶</button>
+              <div className="ygg-dpad-group">
+                <button 
+                  ref={leftBtnRef}
+                  className="ygg-btn-dir"
+                  onTouchStart={handleLeftStart}
+                  onTouchEnd={handleLeftEnd}
+                >◀</button>
+                <button 
+                  ref={rightBtnRef}
+                  className="ygg-btn-dir"
+                  onTouchStart={handleRightStart}
+                  onTouchEnd={handleRightEnd}
+                >▶</button>
+              </div>
               
               <div className="ygg-mobile-actions">
                 <button 
@@ -1689,6 +1700,20 @@ const YggdrasilAscender = ({ user }) => {
                 {bestScore > 0 && <div className="ygg-best">Best: {bestScore}m</div>}
                 <div className="ygg-zone-label">{zoneName}</div>
                 {runesCollected > 0 && <div className="ygg-runes-hud">ᚠ {runesCollected}</div>}
+
+                {/* Power-ups HUD (inline, below runes) */}
+                <div className="ygg-powerups-hud-inline">
+                  <div className={`ygg-pu-mini-sm ${turboUsed ? 'pu-used' : ''}`}>
+                    <span role="img" aria-label="rocket">&#x1F680;</span>
+                    <span>x{turboCharges}</span>
+                    {turboUsed && <span className="ygg-pu-float">-1</span>}
+                  </div>
+                  <div className={`ygg-pu-mini-sm ${jumpUsed ? 'pu-used' : ''}`}>
+                    <span role="img" aria-label="shoes">&#x1F45F;</span>
+                    <span>x{doubleJumpCharges}</span>
+                    {jumpUsed && <span className="ygg-pu-float">-1</span>}
+                  </div>
+                </div>
 
                 {/* Turbo Active Bar */}
                 {turboTime > 0 && (
@@ -1745,21 +1770,7 @@ const YggdrasilAscender = ({ user }) => {
           </>
         )}
 
-        {/* Power-ups HUD (left-center, outside HUD flow) */}
-        {gameState === 'playing' && (
-          <div className="ygg-powerups-hud-center">
-            <div className={`ygg-pu-mini ${turboUsed ? 'pu-used' : ''}`}>
-              <span role="img" aria-label="rocket">&#x1F680;</span>
-              <span>x{turboCharges}</span>
-              {turboUsed && <span className="ygg-pu-float">-1</span>}
-            </div>
-            <div className={`ygg-pu-mini ${jumpUsed ? 'pu-used' : ''}`}>
-              <span role="img" aria-label="shoes">&#x1F45F;</span>
-              <span>x{doubleJumpCharges}</span>
-              {jumpUsed && <span className="ygg-pu-float">-1</span>}
-            </div>
-          </div>
-        )}
+
 
         {/* Start Screen */}
         {gameState === 'start' && (
@@ -1985,11 +1996,11 @@ const YggdrasilAscender = ({ user }) => {
               <div className="ygg-rules-section">
                 <div className="ygg-rules-heading">🌍 Weather Zones</div>
                 <ul className="ygg-rules-list">
-                  <li><b>Midgard</b> (0-1km) — Normal</li>
-                  <li><b>Clouds</b> (1-3km) — Slower speed</li>
-                  <li><b>Bifrost</b> (3-5km) — Slippery platforms</li>
-                  <li><b>Thunderstorm</b> (5-7km) — Darkness flickers</li>
-                  <li><b>Cosmic Winds</b> (7-9km) — Low gravity + wind gusts</li>
+                  <li><b>Midgard</b> (0–1km) — Normal</li>
+                  <li><b>Clouds</b> (1–3km) — Slower speed</li>
+                  <li><b>Bifrost</b> (3–5km) — Slippery platforms</li>
+                  <li><b>Thunderstorm</b> (5–7km) — Darkness flickers</li>
+                  <li><b>Cosmic Winds</b> (7–9km) — Low gravity + wind gusts</li>
                   <li><b>Asgard</b> (9km+) — Faster platforms every 2km</li>
                 </ul>
               </div>
