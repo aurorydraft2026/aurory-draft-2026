@@ -31,7 +31,7 @@ import { useProfileModal } from '../context/ProfileModalContext';
 import './HomePage.css';
 
 // Your AURY deposit wallet address (replace with your actual address)
-const DEPOSIT_WALLET_ADDRESS = 'Gx8pDnqYwn7pb5bWQMGsmTVbpB1EPrPEBCgKVZJGKqTo';
+const DEPOSIT_WALLET_ADDRESS = '5toTLiNCWN4uYCkQbJRt2kjiLz57Byn5NTXNRcziS7Gg287wYn6RkavQNL9QKRYmbgf6sLwRWcQjnQw7PBvQsPSn';
 
 
 
@@ -1399,7 +1399,6 @@ function HomePage() {
                         <option value="drakkarRace">Drakkar Race</option>
                       </>
                     )}
-                    )}
                   </select>
                 </div>
               </div>
@@ -2587,7 +2586,7 @@ function HomePage() {
                     {/* Simplified Tax Breakdown */}
                     {withdrawAmount && !isNaN(parseFloat(withdrawAmount)) && (
                       <div className="withdraw-tax-simple">
-                        <p>{parseFloat(withdrawAmount).toFixed(2)} - 2.5% tax = <span className="net-amount">{(parseFloat(withdrawAmount) * 0.975).toFixed(4)} {selectedCurrency}</span> (Available withdrawal)</p>
+                        <p><span className="gross-amount">{parseFloat(withdrawAmount).toFixed(2)}</span> - 2.5% tax = <span className="net-amount">{(parseFloat(withdrawAmount) * 0.975).toFixed(4)} {selectedCurrency}</span> (Available withdrawal)</p>
                       </div>
                     )}
 

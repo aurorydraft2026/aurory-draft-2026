@@ -5327,6 +5327,32 @@
   transform: none;
 }
 
+.withdraw-tax-simple {
+  margin: 12px 0;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border-subtle);
+  text-align: center;
+}
+
+.withdraw-tax-simple p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.gross-amount {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.net-amount {
+  color: var(--accent-gold);
+  font-weight: 700;
+  text-shadow: 0 0 10px var(--accent-gold-glow);
+}
+
 .withdraw-note {
   font-size: 0.72rem;
   color: var(--text-muted);

@@ -175,6 +175,7 @@ const YggdrasilAscender = ({ user }) => {
   const [eventLoading, setEventLoading] = useState(false);
   const [eventLoadingId, setEventLoadingId] = useState(null);
   const [fallenMessages, setFallenMessages] = useState([]);
+  const [globalHistory, setGlobalHistory] = useState([]);
   const prevPlayersRef = useRef({});
 
   // Fetch admin config for prize calculation display
@@ -260,30 +261,67 @@ const YggdrasilAscender = ({ user }) => {
     getYggdrasilEvents().then(setEvents);
   }, [gameState]);
 
-  // Subscribe to ghost players
+  // Subscribe to ghost players and Global History
   useEffect(() => {
     if (!user?.uid) return;
     const playersRef = ref(database, 'yggdrasil/players');
+    
+    const addHistoryEvent = (text, type) => {
+      setGlobalHistory(prev => [{
+        id: Date.now() + Math.random(),
+        text,
+        type,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      }, ...prev].slice(0, 40));
+    };
+
     const unsub = onValue(playersRef, snap => {
       const data = snap.val() || {};
-      const { [user.uid]: _, ...others } = data;
+      const prevData = prevPlayersRef.current;
       
-      // Detect falls (players who were in prev but not in current)
-      const prevOthers = prevPlayersRef.current;
-      Object.keys(prevOthers).forEach(uid => {
-        if (!others[uid]) {
-          const pName = prevOthers[uid].name || 'A Warrior';
-          const id = Date.now() + Math.random();
-          setFallenMessages(prev => [...prev.slice(-2), { id, name: pName }]);
-          setTimeout(() => {
-            setFallenMessages(prev => prev.filter(m => m.id !== id));
-          }, 4000);
+      // Monitor all players
+      Object.keys(data).forEach(uid => {
+        const p = data[uid];
+        const prevP = prevData[uid];
+        
+        if (!prevP) {
+          // Join event
+          addHistoryEvent(`${p.name || 'A Warrior'} has joined the lobby`, 'join');
+        } else {
+          // Zone change
+          if (p.zoneName && p.zoneName !== prevP.zoneName) {
+            addHistoryEvent(`${p.name || 'A Warrior'} has reached ${p.zoneName.replace('_', ' ')}`, 'zone');
+          }
+          // Milestones
+          const prevAlt = prevP.maxAlt || 0;
+          const currAlt = p.maxAlt || 0;
+          [5000, 10000, 15000, 20000, 25000, 30000].forEach(m => {
+            if (currAlt >= m && prevAlt < m) {
+              addHistoryEvent(`${p.name || 'A Warrior'} has reached ${m} meters!`, 'milestone');
+            }
+          });
         }
       });
 
-      prevPlayersRef.current = others;
+      // Fallen events
+      Object.keys(prevData).forEach(uid => {
+        if (!data[uid]) {
+          const prevP = prevData[uid];
+          addHistoryEvent(`${prevP.name || 'A Warrior'} has fallen at ${prevP.maxAlt || 0}m`, 'fall');
+          
+          // Local fallen overlay (only for others)
+          if (uid !== user.uid) {
+            const id = Date.now() + Math.random();
+            setFallenMessages(prev => [...prev.slice(-2), { id, name: prevP.name || 'A Warrior' }]);
+            setTimeout(() => setFallenMessages(prev => prev.filter(m => m.id !== id)), 4000);
+          }
+        }
+      });
+
+      prevPlayersRef.current = data;
+      const { [user.uid]: _, ...others } = data;
       ghostPlayersDataRef.current = others;
-      setPlayerCount(Object.keys(others).length + 1);
+      setPlayerCount(Object.keys(data).length);
     });
     return () => unsub();
   }, [user?.uid]);
@@ -370,11 +408,13 @@ const YggdrasilAscender = ({ user }) => {
 
 
   // Publish presence
-  const publishPresence = useCallback((x, y) => {
+  const publishPresence = useCallback((x, y, maxAlt, zoneName) => {
     if (!user?.uid) return;
     const pRef = ref(database, `yggdrasil/players/${user.uid}`);
     set(pRef, {
       x, y,
+      maxAlt,
+      zoneName,
       name: resolveDisplayName(user),
       color: '#' + user.uid.slice(0, 6),
       t: Date.now(),
@@ -1037,7 +1077,7 @@ const YggdrasilAscender = ({ user }) => {
 
     // Publish presence (throttled ~10/sec)
     if (now - g.lastPublish > 100) {
-      publishPresence(Math.round(p.x), Math.round(p.y));
+      publishPresence(Math.round(p.x), Math.round(p.y), g.maxAlt, getZone(alt).name);
       g.lastPublish = now;
     }
 
@@ -1963,32 +2003,54 @@ const YggdrasilAscender = ({ user }) => {
         )}
       </div>
 
-      {/* Leaderboard */}
-      <div className="ygg-leaderboard">
-        <div className="ygg-lb-header">
-          <span className="ygg-lb-title">Leaderboard</span>
-          <select className="ygg-lb-dropdown" value={lbMode} onChange={e => setLbMode(e.target.value)}>
-            <option value="daily">Today</option>
-            <option value="weekly">This Week</option>
-            <option value="monthly">This Month</option>
-            <option value="alltime">All Time</option>
-          </select>
+      {/* Side Panel: Leaderboard & History */}
+      <div className="ygg-side-panel">
+        {/* Leaderboard */}
+        <div className="ygg-leaderboard">
+          <div className="ygg-lb-header">
+            <span className="ygg-lb-title">Leaderboard</span>
+            <select className="ygg-lb-dropdown" value={lbMode} onChange={e => setLbMode(e.target.value)}>
+              <option value="daily">Today</option>
+              <option value="weekly">This Week</option>
+              <option value="monthly">This Month</option>
+              <option value="alltime">All Time</option>
+            </select>
+          </div>
+          <div className="ygg-lb-list">
+            {lbLoading ? (
+              <div className="ygg-lb-loading">
+                <div className="viking-spinner"></div>
+                <span>Fetching Ranks...</span>
+              </div>
+            ) : leaderboard.length === 0 ? (
+              <div className="ygg-lb-empty">No scores yet. Be the first!</div>
+            ) : leaderboard.map((entry, i) => (
+              <div key={entry.uid} className={`ygg-lb-row ${entry.uid === user?.uid ? 'is-me' : ''}`}>
+                <span className="ygg-lb-rank">#{i + 1}</span>
+                <span className="ygg-lb-name">{nameCache[entry.uid] || entry.name}</span>
+                <span className="ygg-lb-score">{entry.score}m</span>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="ygg-lb-list">
-          {lbLoading ? (
-            <div className="ygg-lb-loading">
-              <div className="viking-spinner"></div>
-              <span>Fetching Ranks...</span>
-            </div>
-          ) : leaderboard.length === 0 ? (
-            <div className="ygg-lb-empty">No scores yet. Be the first!</div>
-          ) : leaderboard.map((entry, i) => (
-            <div key={entry.uid} className={`ygg-lb-row ${entry.uid === user?.uid ? 'is-me' : ''}`}>
-              <span className="ygg-lb-rank">#{i + 1}</span>
-              <span className="ygg-lb-name">{nameCache[entry.uid] || entry.name}</span>
-              <span className="ygg-lb-score">{entry.score}m</span>
-            </div>
-          ))}
+        
+        {/* Global History Feed */}
+        <div className="ygg-history">
+          <div className="ygg-history-header">
+            <span className="ygg-history-title">Global Activity</span>
+          </div>
+          <div className="ygg-history-list custom-scrollbar">
+            {globalHistory.length === 0 ? (
+              <div className="ygg-history-empty">Waiting for activity...</div>
+            ) : (
+              globalHistory.map(event => (
+                <div key={event.id} className={`ygg-history-item ${event.type}`}>
+                  <span className="ygg-history-time">{event.time}</span>
+                  <span className="ygg-history-text">{event.text}</span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
       {/* Rules Modal */}
