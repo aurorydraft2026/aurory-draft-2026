@@ -76,6 +76,12 @@
     overflow: visible !important;
 }
 
+.checkin-btn-text {
+    font-size: 0.85rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
 .daily-checkin-btn:not(:disabled):hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
@@ -90,25 +96,15 @@
 /* Timer Styles */
 .checkin-timer-wrapper {
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
     margin-left: 8px;
-    margin-top: 0;
     padding: 0 12px;
+    height: 32px;
     background: rgba(255, 255, 255, 0.03);
     border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.05);
     animation: fadeIn 0.5s ease-out;
-}
-
-.timer-label {
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: rgba(255, 255, 255, 0.4);
-    font-weight: 600;
-    margin-bottom: 2px;
 }
 
 .timer-value {
@@ -133,17 +129,43 @@
 
 /* Mobile Adjustments for Timer */
 @media (max-width: 768px) {
-    .checkin-timer-wrapper {
-        margin-left: 6px;
-        margin-top: 0;
-        padding: 0 8px;
+    .daily-checkin-btn.compact {
+        height: 24px !important;
+        padding: 0 10px !important;
+        border-radius: 6px !important;
     }
-    
-    .timer-label {
-        font-size: 7px;
+
+    .checkin-btn-text {
+        font-size: 0.65rem !important;
+        letter-spacing: 0.5px;
+    }
+
+    .daily-checkin-btn.compact svg {
+        width: 12px !important;
+        height: 12px !important;
+    }
+
+    .streak-badge-mini.external {
+        padding: 0 8px !important;
+        font-size: 0.65rem !important;
+        height: 24px !important;
+        border-radius: 6px !important;
+        margin-left: 0 !important;
+    }
+
+    .checkin-timer-wrapper {
+        margin-left: 0;
+        margin-top: 0;
+        padding: 0 10px;
+        width: auto;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px !important;
     }
     
     .timer-value {
-        font-size: 9px;
+        font-size: 10px;
     }
 }

@@ -8014,10 +8014,12 @@ input[type="file"] {
   display: flex;
   gap: 8px;
   margin-top: 12px;
+  justify-content: center;
+  align-items: center;
 }
 
 .referral-input {
-  flex: 1;
+  width: 140px;
   padding: 8px 12px;
   background: var(--bg-card);
   border: 1px solid var(--border-default);
@@ -8489,6 +8491,36 @@ input[type="file"] {
   .tier-upgrade-btn {
     width: 100%;
     justify-content: center;
+  }
+
+  .user-header-info {
+    padding: 24px 16px !important;
+    gap: 12px !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+  }
+
+  .user-text-info {
+    align-items: center !important;
+    margin-bottom: 4px;
+  }
+
+  .modal-badges-row {
+    justify-content: center;
+  }
+
+  .profile-checkin-area {
+    margin-left: 0 !important;
+    width: 100% !important;
+    align-items: center !important;
+    margin-top: 4px !important;
+  }
+
+  .profile-checkin-row {
+    width: 100%;
+    justify-content: center;
+    gap: 6px !important;
   }
 }
 
