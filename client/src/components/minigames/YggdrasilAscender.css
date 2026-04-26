@@ -729,7 +729,7 @@
 /* ─── FALLEN MESSAGES ─── */
 .ygg-fallen-messages {
   position: absolute;
-  bottom: 20px;
+  bottom: 80px; /* Moved up to avoid overlapping with lower controls */
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -745,11 +745,11 @@
   background: rgba(239, 68, 68, 0.4);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(239, 68, 68, 0.6);
-  padding: 4px 12px;
+  padding: 3px 10px;
   border-radius: 30px;
   color: #fff;
   font-family: 'Rajdhani', sans-serif;
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   font-weight: 600;
   box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
   animation: yggFallenIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), yggFallenOut 0.5s ease-in 3.5s forwards;
@@ -1262,18 +1262,30 @@ body.ygg-gaming-mode .runie-bot-container {
 }
 
 .ygg-btn-action {
-  width: 70px;
-  height: 70px;
-  border-radius: 50%;
+  width: 90px;
+  height: 64px;
+  border-radius: 32px;
   background: rgba(255, 255, 255, 0.1);
   border: 2px solid rgba(255, 255, 255, 0.3);
   color: white;
-  font-size: 24px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 800;
+  font-size: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: 10px;
-  opacity: 0.8;
+  opacity: 0.9;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.ygg-btn-jump {
+  background: rgba(251, 191, 36, 0.3);
+  border-color: rgba(251, 191, 36, 0.6);
+}
+
+.ygg-btn-turbo {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: rgba(239, 68, 68, 0.6);
 }
 
 /* --- HUD TWEAKS --- */

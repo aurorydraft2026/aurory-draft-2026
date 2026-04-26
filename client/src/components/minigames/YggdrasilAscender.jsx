@@ -177,6 +177,7 @@ const YggdrasilAscender = ({ user }) => {
   const [fallenMessages, setFallenMessages] = useState([]);
   const [globalHistory, setGlobalHistory] = useState([]);
   const prevPlayersRef = useRef({});
+  const containerRef = useRef(null);
 
   // Fetch admin config for prize calculation display
   useEffect(() => {
@@ -286,8 +287,22 @@ const YggdrasilAscender = ({ user }) => {
         
         if (!prevP) {
           // Join event
-          addHistoryEvent(`${p.name || 'A Warrior'} has joined the lobby`, 'join');
+          const pName = p.name || 'A Warrior';
+          if (p.eventId) {
+            const event = events.find(e => e.id === p.eventId);
+            const eventName = event ? event.name : 'an event';
+            addHistoryEvent(`${pName} has joined the ${eventName} event`, 'join');
+          } else {
+            addHistoryEvent(`${pName} has joined the lobby`, 'join');
+          }
         } else {
+          // Detect event join (while already in lobby)
+          if (p.eventId && p.eventId !== prevP.eventId) {
+            const pName = p.name || 'A Warrior';
+            const event = events.find(e => e.id === p.eventId);
+            const eventName = event ? event.name : 'an event';
+            addHistoryEvent(`${pName} has joined the ${eventName} event`, 'join');
+          }
           // Zone change
           if (p.zoneName && p.zoneName !== prevP.zoneName) {
             addHistoryEvent(`${p.name || 'A Warrior'} has reached ${p.zoneName.replace('_', ' ')}`, 'zone');
@@ -324,7 +339,17 @@ const YggdrasilAscender = ({ user }) => {
       setPlayerCount(Object.keys(data).length);
     });
     return () => unsub();
-  }, [user?.uid]);
+  }, [user?.uid, events]);
+
+  // Scroll to game when starting on mobile/short screens
+  useEffect(() => {
+    if (gameState === 'playing' && containerRef.current) {
+      // Small delay to ensure layout has settled
+      setTimeout(() => {
+        containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  }, [gameState]);
 
   // Subscribe to leaderboard
   useEffect(() => {
@@ -538,7 +563,7 @@ const YggdrasilAscender = ({ user }) => {
         y: rng() * CANVAS_H * 3,
         size: 1 + rng() * 1
       })),
-      specialPrize: eventToUse ? {
+      specialPrize: (eventToUse && (eventToUse.currentPool || 0) >= (eventToUse.targetPool || 0)) ? {
         x: CANVAS_W / 2 - 18,
         y: -eventToUse.targetAltitude * 4,
         w: 36,
@@ -1557,10 +1582,11 @@ const YggdrasilAscender = ({ user }) => {
         alert(res.error || 'Failed to join event');
         return;
       }
-      setActiveEvent(ev);
+      const updatedEv = { ...ev, currentPool: (ev.currentPool || 0) + 1 };
+      setActiveEvent(updatedEv);
       setActiveEventId(eventId);
       activeEventIdRef.current = eventId;
-      initGame(ev);
+      initGame(updatedEv);
     } else {
       setActiveEvent(null);
       setActiveEventId(null);
@@ -1701,7 +1727,7 @@ const YggdrasilAscender = ({ user }) => {
   }, []);
 
   return (
-    <div className="ygg-container">
+    <div className="ygg-container" ref={containerRef}>
       <div className="ygg-canvas-wrapper">
         <canvas
           ref={canvasRef}
@@ -1710,7 +1736,7 @@ const YggdrasilAscender = ({ user }) => {
         {/* Mobile Controls Overlay */}
         {gameState === 'playing' && isTouchDevice && (
           <div className="ygg-mobile-controls" style={{
-            position: 'absolute', bottom: '30px', left: 0, right: 0,
+            position: 'absolute', bottom: '12px', left: 0, right: 0,
             display: 'flex', justifyContent: 'space-between', padding: '0 12px', pointerEvents: 'none'
           }}>
             <div className="ygg-mobile-controls-row">
@@ -1792,8 +1818,15 @@ const YggdrasilAscender = ({ user }) => {
                 {/* Event Prize Chasing HUD */}
                 {activeEvent && (
                   <div className="ygg-chasing">
-                    <img src={activeEvent.prizeImage} alt={activeEvent.prizeName} />
-                    <span>{activeEvent.prizeName}</span>
+                    <div style={{ position: 'relative' }}>
+                      <img 
+                        src={activeEvent.prizeImage} 
+                        alt={activeEvent.prizeName} 
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{activeEvent.prizeName}</span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1889,9 +1922,7 @@ const YggdrasilAscender = ({ user }) => {
                               <div className="ygg-event-prize">Prize: {ev.prizeName}</div>
                               {ev.status === 'open' && (
                                 <>
-                                  <div className="ygg-event-pool">
-                                    Runs: <span>{ev.currentPool || 0}</span>
-                                  </div>
+                                  {/* Runs counter removed per request */}
                                   <div className="ygg-event-live">
                                     Running now: <b>{eventLiveCounts[ev.id] || 0}</b>
                                   </div>

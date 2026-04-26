@@ -1572,8 +1572,11 @@ export const claimYggdrasilEventPrize = onCall(
                 }
 
                 // Check if pool target is met (prize is only available when pool is full)
-                if ((eventData.currentPool || 0) < (eventData.targetPool || 1)) {
-                    return { success: false, error: 'Prize pool target not yet met.' };
+                const currentPool = eventData.currentPool || 0;
+                const targetPool = eventData.targetPool || 0;
+                
+                if (currentPool < targetPool) {
+                    return { success: false, error: 'Prize not yet available.' };
                 }
 
                 // Check if player reached the target altitude
