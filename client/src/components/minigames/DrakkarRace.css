@@ -633,22 +633,53 @@
   border: 1px solid var(--border-default);
 }
 
-.dv2-history-title {
-  margin: 0 0 16px 0;
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 1rem;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  font-weight: 800;
+.dv2-tabs {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  gap: 8px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border-default);
+  padding-bottom: 12px;
 }
 
-.dv2-history-title::before {
-  content: '◈';
-  color: var(--accent-gold);
+.dv2-tab {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.dv2-tab:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.dv2-tab.active {
+  background: var(--accent-gold);
+  border-color: var(--accent-gold);
+  color: #000;
+  box-shadow: 0 0 15px var(--accent-gold-glow);
+}
+
+.dv2-tab-content {
+  min-height: 150px;
+}
+
+.dv2-chat-wrapper {
+  height: 300px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .dv2-history-list {

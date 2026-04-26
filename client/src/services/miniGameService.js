@@ -637,10 +637,6 @@ export async function submitRiddleAnswer(riddleId, answerIndex) {
 }
 
 
-// ═══════════════════════════════════════════════════════
-//  AURY FEVER — JACKPOT GAUGE SUBSCRIPTION
-// ═══════════════════════════════════════════════════════
-
 /**
  * Subscribe to the global AURY Fever jackpot gauge for a given game type.
  * @param {'slotMachine' | 'treasureChest'} gameType
@@ -658,3 +654,60 @@ export function subscribeJackpot(gameType, callback) {
   });
   return () => off(jackpotRef);
 }
+
+// ═══════════════════════════════════════════════════════
+//  MINIGAMES CHAT
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Subscribe to a specific chat channel in RTDB.
+ * @param {string} channelId - 'hub', 'drakkar', etc.
+ * @param {Function} callback - Called with an array of messages.
+ * @returns {() => void} unsubscribe function
+ */
+export function subscribeMiniGameChat(channelId, callback) {
+  const chatRef = query(
+    ref(database, `minigame_chats/${channelId}`),
+    limitToLast(50)
+  );
+
+  onValue(chatRef, (snapshot) => {
+    if (snapshot.exists()) {
+      const msgs = [];
+      snapshot.forEach(child => {
+        msgs.push({ id: child.key, ...child.val() });
+      });
+      callback(msgs);
+    } else {
+      callback([]);
+    }
+  });
+
+  return () => off(chatRef);
+}
+
+/**
+ * Send a message to a chat channel.
+ */
+export async function sendMiniGameChatMessage(channelId, user, text) {
+  if (!user || !text.trim()) return;
+
+  const messageData = {
+    uid: user.uid,
+    name: user.auroryPlayerName || user.username || user.displayName || 'Warrior',
+    avatar: user.auroryProfilePicture || user.photoURL || null,
+    text: text.trim().substring(0, 500),
+    timestamp: Date.now()
+  };
+
+  try {
+    const specificMsgRef = ref(database, `minigame_chats/${channelId}/${Date.now()}_${user.uid.substring(0, 5)}`);
+    await set(specificMsgRef, messageData);
+    return { success: true };
+  } catch (err) {
+    console.error('Chat error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+

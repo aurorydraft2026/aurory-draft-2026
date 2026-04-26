@@ -123,8 +123,10 @@
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--text-primary);
-  transition: all 0.3s ease;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
   white-space: nowrap;
+  position: relative;
+  overflow: visible;
 }
 
 .minigames-balance:hover {
@@ -144,6 +146,46 @@
   color: var(--accent-gold);
 }
 
+/* ───────────── BALANCE DELTA ANIMATOR ───────────── */
+.balance-delta {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 800;
+  font-size: 0.85rem;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 10;
+  animation: balanceFloatUp 1s ease-out forwards;
+  will-change: transform, opacity;
+}
+
+.balance-delta.positive {
+  color: #4ade80;
+  text-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
+}
+
+.balance-delta.negative {
+  color: #f87171;
+  text-shadow: 0 0 8px rgba(248, 113, 113, 0.5);
+}
+
+@keyframes balanceFloatUp {
+  0% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-28px);
+  }
+}
+
+/* ───────────── CLOSE / BACK BUTTONS ───────────── */
 .minigames-close-btn {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-default);
@@ -178,46 +220,85 @@
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 1px;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 }
 
-.minigames-back-btn:hover {
-  background: var(--bg-deep);
+.minigames-chat-toggle {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.minigames-chat-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+.minigames-chat-toggle.active {
+  background: rgba(212, 175, 55, 0.15);
   color: var(--accent-gold);
   border-color: var(--accent-gold);
 }
 
-/* ───────────── HUB BODY ───────────── */
+/* ───────────── BODY ───────────── */
 .minigames-hub-body {
-  padding: 32px;
-  overflow-y: auto;
   flex: 1;
-}
-
-.minigames-loading,
-.minigames-empty {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 80px 40px;
-  color: var(--text-secondary);
-  text-align: center;
+  overflow: hidden;
+  position: relative;
 }
 
-.minigames-spinner {
-  width: 48px;
-  height: 48px;
-  border: 3px solid rgba(212, 175, 55, 0.1);
-  border-top-color: var(--accent-gold);
-  border-radius: 50%;
-  animation: mgSpin 1s cubic-bezier(0.5, 0, 0.5, 1) infinite;
-  margin-bottom: 20px;
-  box-shadow: 0 0 15px var(--accent-gold-glow);
+.minigames-hub-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-default) transparent;
 }
 
-@keyframes mgSpin {
-  to { transform: rotate(360deg); }
+.minigames-hub-scroll-area::-webkit-scrollbar {
+  width: 6px;
+}
+
+.minigames-hub-scroll-area::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 10px;
+}
+
+
+@media (min-width: 1200px) {
+  .minigames-modal:has(.chat-open) {
+    max-width: 1100px;
+  }
+}
+
+/* ───────────── COMPASS SPINNER ───────────── */
+.compass-spinner {
+  margin-bottom: 24px;
+  filter: drop-shadow(0 0 12px rgba(212, 175, 55, 0.3));
+}
+
+.compass-needle {
+  transform-origin: 50px 50px;
+  animation: needleSpin 2s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes needleSpin {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(120deg); }
+  50% { transform: rotate(200deg); }
+  75% { transform: rotate(300deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .empty-icon {
@@ -226,6 +307,103 @@
   opacity: 0.5;
 }
 
+/* ───────────── LIVE WINNER TICKER ───────────── */
+.hub-winner-ticker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding: 8px 16px;
+  background: rgba(212, 175, 55, 0.03);
+  border: 1px solid rgba(212, 175, 55, 0.1);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  position: relative;
+}
+
+.hub-ticker-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.7rem;
+  color: #4ade80;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+.hub-ticker-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+  animation: tickerPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes tickerPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px rgba(74, 222, 128, 0.6); }
+  50% { opacity: 0.4; box-shadow: none; }
+}
+
+.hub-ticker-track {
+  display: flex;
+  gap: 24px;
+  animation: hubTickerScroll 30s linear infinite;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+.hub-ticker-track:hover {
+  animation-play-state: paused;
+}
+
+@keyframes hubTickerScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.hub-ticker-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+}
+
+.hub-ticker-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hub-ticker-name {
+  color: var(--text-bright);
+  font-weight: 600;
+}
+
+.hub-ticker-text {
+  color: var(--text-muted);
+}
+
+.hub-ticker-prize {
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hub-ticker-prize-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
+/* ───────────── HUB SECTIONS ───────────── */
 .minigames-hub-sections {
   display: flex;
   flex-direction: column;
@@ -259,6 +437,70 @@
   font-size: 1rem;
 }
 
+/* ───────────── RECENTLY PLAYED PILLS ───────────── */
+.recent-played-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.recent-played-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
+.recent-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px 5px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-default);
+  border-radius: 20px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.5px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.recent-pill:hover {
+  background: rgba(212, 175, 55, 0.08);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.15);
+}
+
+.recent-pill-icon {
+  display: flex;
+  align-items: center;
+  color: var(--accent-gold);
+}
+
+.recent-pill-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.recent-pill-name {
+  line-height: 1;
+}
+
 /* ───────────── GAME CARDS GRID ───────────── */
 .minigames-grid {
   display: grid;
@@ -273,19 +515,32 @@
   border-radius: var(--radius-lg);
   padding: 32px 24px;
   cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+              border-color 0.3s ease,
+              box-shadow 0.4s ease;
   text-align: center;
   position: relative;
   overflow: hidden;
 }
 
+/* Progressive cursor-following glow */
 .minigame-card::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at center, rgba(212, 175, 55, 0.1), transparent 70%);
+  background: radial-gradient(
+    circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(212, 175, 55, 0.12),
+    transparent 70%
+  );
   opacity: 0;
-  transition: opacity 0.4s ease;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.minigame-card:hover::after {
+  opacity: 1;
 }
 
 .minigame-card:hover {
@@ -296,15 +551,117 @@
     0 0 25px rgba(212, 175, 55, 0.15);
 }
 
-.minigame-card:hover::after {
+/* ───────────── INFO TOOLTIP ───────────── */
+.minigame-card-info-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 5;
+  opacity: 0;
+}
+
+.minigame-card:hover .minigame-card-info-btn {
   opacity: 1;
 }
 
+.minigame-card-info-btn:hover {
+  background: rgba(212, 175, 55, 0.15);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+  transform: scale(1.1);
+}
+
+.minigame-card-tooltip {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 15, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: inherit;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  z-index: 4;
+  animation: tooltipFadeIn 0.2s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.minigame-card-tooltip h4 {
+  margin: 0 0 10px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent-gold);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.minigame-card-tooltip p {
+  margin: 0 0 16px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.tooltip-cost {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--accent-gold);
+  background: rgba(212, 175, 55, 0.08);
+  padding: 4px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(212, 175, 55, 0.15);
+  margin-bottom: 16px;
+}
+
+.tooltip-play-btn {
+  padding: 8px 24px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: linear-gradient(135deg, var(--accent-gold), #f59e0b);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.tooltip-play-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4);
+  filter: brightness(1.1);
+}
+
+/* ───────────── CARD CONTENT ───────────── */
 .minigame-card-icon {
   margin-bottom: 20px;
   color: var(--accent-gold);
   filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.4));
   transition: transform 0.4s ease;
+  position: relative;
+  z-index: 1;
 }
 
 .minigame-card:hover .minigame-card-icon {
@@ -319,6 +676,8 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
+  position: relative;
+  z-index: 1;
 }
 
 .minigame-card p {
@@ -326,6 +685,8 @@
   color: var(--text-secondary);
   font-size: 0.9rem;
   line-height: 1.6;
+  position: relative;
+  z-index: 1;
 }
 
 .minigame-card-cost {
@@ -340,6 +701,8 @@
   font-weight: 700;
   color: var(--accent-gold);
   margin-bottom: 12px;
+  position: relative;
+  z-index: 1;
 }
 
 .minigame-card-prizes {
@@ -348,13 +711,15 @@
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 1px;
+  position: relative;
+  z-index: 1;
 }
 
 /* ───────────── GAME CONTENT AREA ───────────── */
 .minigames-game-content {
   flex: 1;
   overflow-y: auto;
-  padding: 16px; /* Reduced from 32px */
+  padding: 16px;
   background: rgba(0, 0, 0, 0.2);
 }
 
@@ -377,8 +742,31 @@
     padding: 24px 16px;
   }
 
+  /* ── Swipeable horizontal grid ── */
   .minigames-grid {
-    grid-template-columns: 1fr;
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 16px;
+    padding-bottom: 12px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .minigames-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .minigame-card {
+    scroll-snap-align: center;
+    min-width: 75vw;
+    flex-shrink: 0;
+    padding: 24px;
+  }
+
+  /* Always show info button on touch devices */
+  .minigame-card-info-btn {
+    opacity: 1;
   }
 
   .minigames-modal-header h2 span {
@@ -403,13 +791,19 @@
     height: 12px;
   }
 
-  .minigame-card {
-    padding: 24px;
+  .hub-winner-ticker {
+    margin-bottom: 16px;
+    padding: 6px 10px;
+  }
+
+  .hub-ticker-item {
+    font-size: 0.7rem;
   }
 }
+
 @media (max-width: 480px) {
   .minigames-modal-header h2 {
-    display: none; /* Hide title on very small screens to save space for balances */
+    display: none;
   }
 
   .minigames-balances-group {
@@ -424,5 +818,13 @@
 
   .minigames-balance span {
     letter-spacing: 0;
+  }
+
+  .balance-delta {
+    font-size: 0.7rem;
+  }
+
+  .minigame-card {
+    min-width: 80vw;
   }
 }

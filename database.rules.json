@@ -5,6 +5,15 @@
       ".write": false,
       ".indexOn": ["timestamp"]
     },
+    "minigame_chats": {
+      ".read": true,
+      "$channelId": {
+        "$messageId": {
+          ".write": "auth != null",
+          ".validate": "newData.hasChildren(['uid', 'name', 'text', 'timestamp']) && newData.child('uid').val() == auth.uid"
+        }
+      }
+    },
     "drakkar_race": {
       ".read": true,
       ".write": false,

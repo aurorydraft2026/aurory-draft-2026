@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ref, onValue } from 'firebase/database';
 import { database } from '../../firebase';
+import MiniGamesChat from './MiniGamesChat';
+
 import {
   ALL_SHIPS,
   ALL_WEATHERS,
@@ -61,6 +63,8 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
   const [timeLeft, setTimeLeft] = useState(0);
   const [showRules, setShowRules] = useState(false);
   const [presence, setPresence] = useState({});
+  const [activeTab, setActiveTab] = useState('history'); // 'history' or 'chat'
+
 
   // Animation
   const animFrameRef = useRef();
@@ -785,38 +789,59 @@ const DrakkarRace = ({ user, userPoints, setFrozen, setDisplayedPoints }) => {
           </div>
         </div>
 
-        {/* ── BOTTOM: Race History ── */}
+        {/* ── BOTTOM: Race History & Chat ── */}
         <div className="dv2-history-panel">
-          <h3 className="dv2-history-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
-            Recent Races
-          </h3>
-          <div className="dv2-history-list">
-            {history.length === 0 ? (
-              <div className="dv2-history-empty">No races yet</div>
+          <div className="dv2-tabs">
+            <button 
+              className={`dv2-tab ${activeTab === 'history' ? 'active' : ''}`}
+              onClick={() => setActiveTab('history')}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+              History
+            </button>
+            <button 
+              className={`dv2-tab ${activeTab === 'chat' ? 'active' : ''}`}
+              onClick={() => setActiveTab('chat')}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Race Chat
+            </button>
+          </div>
+
+          <div className="dv2-tab-content">
+            {activeTab === 'history' ? (
+              <div className="dv2-history-list">
+                {history.length === 0 ? (
+                  <div className="dv2-history-empty">No races yet</div>
+                ) : (
+                  history.map((entry, idx) => (
+                    <div key={idx} className="dv2-history-item">
+                      <div className="dv2-history-winner-row">
+                        <img
+                          src={`${process.env.PUBLIC_URL}/icons/minigames/ships/${entry.winner?.id}.png`}
+                          alt=""
+                          className="dv2-history-ship-icon"
+                          style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}
+                        />
+                        <span className="dv2-history-ship-name" style={{ color: entry.winner?.color }}>
+                          {entry.winner?.name || '???'}
+                        </span>
+                      </div>
+                      <div className="dv2-history-details">
+                        <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+                          {entry.totalPool || 0}
+                        </span>
+                        <span className="dv2-history-multiplier">{entry.payoutMultiplier?.toFixed(1) || '—'}x</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             ) : (
-              history.map((entry, idx) => (
-                <div key={idx} className="dv2-history-item">
-                  <div className="dv2-history-winner-row">
-                    <img
-                      src={`${process.env.PUBLIC_URL}/icons/minigames/ships/${entry.winner?.id}.png`}
-                      alt=""
-                      className="dv2-history-ship-icon"
-                      style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}
-                    />
-                    <span className="dv2-history-ship-name" style={{ color: entry.winner?.color }}>
-                      {entry.winner?.name || '???'}
-                    </span>
-                  </div>
-                  <div className="dv2-history-details">
-                    <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
-                      {entry.totalPool || 0}
-                    </span>
-                    <span className="dv2-history-multiplier">{entry.payoutMultiplier?.toFixed(1) || '—'}x</span>
-                  </div>
-                </div>
-              ))
+              <div className="dv2-chat-wrapper">
+                <MiniGamesChat user={user} channelId="drakkar" integrated={true} />
+              </div>
             )}
           </div>
         </div>
