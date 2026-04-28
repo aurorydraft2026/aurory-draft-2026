@@ -36,7 +36,7 @@ function seededRandom(seed) {
 
 function getDailySeed() {
   const d = new Date();
-  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
 }
 
 // Zone colors
@@ -65,9 +65,12 @@ function generatePlatforms(count, startY, rng, difficulty, usedBands) {
     const x = rng() * (CANVAS_W - PLAT_W);
     // Platform type based on difficulty (starts earlier)
     let type = 'standard';
+    const currentAlt = Math.floor(-y / 4);
+    const isThunderZone = currentAlt >= 5000 && currentAlt < 7000;
     const roll = rng();
     if (difficulty > 0.1 && roll < 0.1) type = 'boost'; // 10% boost
     else if (difficulty > 0.05 && roll < 0.40) type = 'moving'; // 25% moving
+    else if (isThunderZone && roll < 0.85) type = 'fragile'; // 45% fragile in Thunderstorm!
     else if (difficulty > 0.08 && roll < (difficulty > 0.66 ? 0.85 : 0.60)) type = 'fragile'; // fragile
 
     const hasRune = rng() < 0.25;
@@ -100,28 +103,30 @@ function generatePlatforms(count, startY, rng, difficulty, usedBands) {
     });
   }
 
-  // Assign 1 turbo + 1 doubleJump per 2000m altitude band
-  // Skip bands that already have items from previous generatePlatforms calls
-  const bands = {};
-  for (const plat of platforms) {
-    const alt = Math.floor(-plat.y / 4);
-    const band = Math.floor(alt / 2000);
-    if (!bands[band]) bands[band] = [];
-    bands[band].push(plat);
-  }
-  for (const band of Object.keys(bands)) {
-    const bandNum = parseInt(band);
-    if (usedBands && usedBands.has(bandNum)) continue; // Already assigned in a previous batch
-    const eligible = bands[band].filter(p => p.type === 'standard' || p.type === 'moving');
-    if (eligible.length > 0) {
-      const shuffled = eligible.sort(() => rng() - 0.5);
-      shuffled[0].item = 'turbo';
-      if (shuffled.length > 1) {
-        shuffled[1].item = 'doubleJump';
-      }
-      if (usedBands) usedBands.add(bandNum); // Mark band as used
+  // Separate band assignment for different items
+  const assignItem = (type, freq, prefix) => {
+    const bands = {};
+    for (const plat of platforms) {
+      const band = Math.floor(Math.floor(-plat.y / 4) / freq);
+      if (!bands[band]) bands[band] = [];
+      bands[band].push(plat);
     }
-  }
+    for (const band of Object.keys(bands)) {
+      const bandAlt = parseInt(band) * freq;
+      if (bandAlt >= 15000) continue; // No more power-ups above 15k
+      const key = `${prefix}_${band}`;
+      if (usedBands && usedBands.has(key)) continue;
+      const eligible = bands[band].filter(p => (p.type === 'standard' || p.type === 'moving') && !p.item);
+      if (eligible.length > 0) {
+        const shuffled = eligible.sort(() => rng() - 0.5);
+        shuffled[0].item = type;
+        if (usedBands) usedBands.add(key);
+      }
+    }
+  };
+
+  assignItem('turbo', 3000, 'T');
+  assignItem('doubleJump', 2000, 'J');
 
   return platforms;
 }
@@ -166,6 +171,8 @@ const YggdrasilAscender = ({ user }) => {
   const [jumpUsed, setJumpUsed] = useState(false);
   const [yggConfig, setYggConfig] = useState({ maxDailyRuns: 5, runeMultiplier: 1.0 });
   const bestScoreRef = useRef(0);
+  const [doubleJumpDisabled, setDoubleJumpDisabled] = useState(false);
+  const turboMomentumRef = useRef(false);
   
   // Events
   const [events, setEvents] = useState([]);
@@ -360,10 +367,13 @@ const YggdrasilAscender = ({ user }) => {
     if (lbMode === 'daily') {
       path = `yggdrasil/leaderboard/daily/${getDailySeed()}`;
     } else if (lbMode === 'weekly') {
-      const weekNum = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 604800000);
-      path = `yggdrasil/leaderboard/weekly/${now.getFullYear()}_w${weekNum}`;
+      // Weekly logic: Sunday to Sunday (Align with homepage)
+      const sunday = new Date(now);
+      sunday.setDate(now.getDate() - now.getDay());
+      const weekKey = sunday.toISOString().split('T')[0];
+      path = `yggdrasil/leaderboard/weekly/${weekKey}`;
     } else if (lbMode === 'monthly') {
-      const monthId = `${now.getFullYear()}_m${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const monthId = `${now.getUTCFullYear()}_m${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
       path = `yggdrasil/leaderboard/monthly/${monthId}`;
     } else {
       path = 'yggdrasil/leaderboard/alltime';
@@ -486,14 +496,16 @@ const YggdrasilAscender = ({ user }) => {
 
     // 2. Weekly
     const now = new Date();
-    const weekNum = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 604800000);
-    const weeklyRef = ref(database, `yggdrasil/leaderboard/weekly/${now.getFullYear()}_w${weekNum}/${user.uid}`);
+    const sunday = new Date(now);
+    sunday.setDate(now.getDate() - now.getDay());
+    const weekKey = sunday.toISOString().split('T')[0];
+    const weeklyRef = ref(database, `yggdrasil/leaderboard/weekly/${weekKey}/${user.uid}`);
     get(weeklyRef).then(snap => {
       if (!snap.exists() || snap.val().score < finalScore) set(weeklyRef, scoreData);
     });
 
     // 3. Monthly
-    const monthId = `${now.getFullYear()}_m${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthId = `${now.getUTCFullYear()}_m${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
     const monthlyRef = ref(database, `yggdrasil/leaderboard/monthly/${monthId}/${user.uid}`);
     get(monthlyRef).then(snap => {
       if (!snap.exists() || snap.val().score < finalScore) set(monthlyRef, scoreData);
@@ -587,6 +599,8 @@ const YggdrasilAscender = ({ user }) => {
 
     setRunesCollected(0);
     setRunStats(null);
+    setTurboCharges(1);
+    setDoubleJumpCharges(1);
     keysRef.current = {};
     touchRef.current = { left: false, right: false, jump: false };
   }, [activeEvent]);
@@ -659,7 +673,7 @@ const YggdrasilAscender = ({ user }) => {
         p.vy = JUMP_FORCE;
         p.isGrounded = false;
         p.usedDoubleJumpInAir = false; // reset for fresh jump
-      } else if (!lastJumpPressed && p.doubleJumpCharges > 0 && !p.usedDoubleJumpInAir && p.turboTime <= 0) {
+      } else if (!lastJumpPressed && p.doubleJumpCharges > 0 && !p.usedDoubleJumpInAir && !turboMomentumRef.current && p.turboTime <= 0) {
         p.vy = JUMP_FORCE * 1.1; // HIGH JUMP!
         p.doubleJumpCharges--;
         p.usedDoubleJumpInAir = true;
@@ -684,8 +698,9 @@ const YggdrasilAscender = ({ user }) => {
     if (turboPressed && !lastTurboPressed && p.turboCharges > 0 && p.turboTime <= 0) {
       p.turboCharges--;
       setTurboCharges(p.turboCharges);
-      p.turboTime = 120; // 2 seconds
+      p.turboTime = 60; // 1 second
       g.shake = 10;
+      turboMomentumRef.current = true;
       setTurboUsed(true);
       setTimeout(() => setTurboUsed(false), 1000);
     }
@@ -701,9 +716,9 @@ const YggdrasilAscender = ({ user }) => {
       currentGravity = GRAVITY * 0.6; // Lower gravity
     } else if (currentAlt >= 5000) {
       g.weatherType = 'thunderstorm';
-      // Thunderclap trigger with 5-7s cooldown
-      const cooldown = 5000 + (g.rng ? g.rng() : Math.random()) * 2000;
-      if (now - g.lastThunderTime > cooldown && Math.random() < 0.005 && g.thunderState === 'none') {
+      // Thunderclap trigger with 4-6s cooldown (Reduced from 5-7s)
+      const cooldown = 4000 + (g.rng ? g.rng() : Math.random()) * 2000;
+      if (now - g.lastThunderTime > cooldown && Math.random() < 0.01 && g.thunderState === 'none') {
         g.thunderState = 'warning';
         g.thunderTimer = 0;
         g.flashAlpha = 0;
@@ -821,7 +836,7 @@ const YggdrasilAscender = ({ user }) => {
         if (dist < 40) {
           const isTurbo = plat.item === 'turbo';
           const isJump = plat.item === 'doubleJump';
-          const atMax = isTurbo ? (p.turboCharges || 0) >= 3 : (p.doubleJumpCharges || 0) >= 3;
+          const atMax = isTurbo ? (p.turboCharges || 0) >= 3 : (p.doubleJumpCharges || 0) >= 5;
           
           if (atMax) {
             // Don't collect — item stays visible
@@ -915,10 +930,13 @@ const YggdrasilAscender = ({ user }) => {
         // Asgard - Faster platforms every 2k meters (starts at 9k)
         if (currentAlt >= 9000) {
           const asgardProgress = Math.floor((currentAlt - 9000) / 2000);
-          platSpeedMult = 1.0 + (asgardProgress * 0.4); // 40% faster every 2k
+          platSpeedMult = 1.0 + (asgardProgress * 0.15); // Reduced from 0.4
         }
 
-        const speed = 1.5 * (1 + g.difficulty * 3) * platSpeedMult * dt;
+        // Reduced difficulty factor from 3 to 2.5
+        const rawSpeed = 1.5 * (1 + g.difficulty * 2.5) * platSpeedMult;
+        // Hard cap at 6.0 to ensure platforms are catchable (Player MOVE_SPEED is 6.5)
+        const speed = Math.min(6.0, rawSpeed) * dt;
         const oldX = plat.x;
         const oldY = plat.y;
 
@@ -1500,10 +1518,17 @@ const YggdrasilAscender = ({ user }) => {
 
     ctx.restore();
 
+    if (p.vy >= 0 || p.isGrounded) {
+      turboMomentumRef.current = false;
+    }
+
+    const isJumpDisabled = !p.isGrounded && (p.turboTime > 0 || turboMomentumRef.current);
+
     // Update React state for HUD (Throttled to 15fps for maximum performance)
     if (now - g.lastHUDTime > 66) {
       setScore(alt);
       setTurboTime(Math.max(0, p.turboTime));
+      setDoubleJumpDisabled(isJumpDisabled);
       g.lastHUDTime = now;
     }
 
@@ -1523,11 +1548,19 @@ const YggdrasilAscender = ({ user }) => {
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-    // Weather Visuals
-    if (g.weatherType === 'cosmic') {
+    // Weather Visuals with smoothed transitions
+    const getZoneAlpha = (alt, start, end, fade = 500) => {
+      if (alt < start - fade || alt > end + fade) return 0;
+      if (alt >= start && alt <= end) return 1;
+      if (alt < start) return Math.max(0, (alt - (start - fade)) / fade);
+      return Math.max(0, ((end + fade) - alt) / fade);
+    };
+
+    const cosmicAlpha = getZoneAlpha(currentAlt, 7000, 9000);
+    if (cosmicAlpha > 0) {
       // Shifting Aurora curtains
       ctx.save();
-      ctx.globalAlpha = 0.2;
+      ctx.globalAlpha = 0.2 * cosmicAlpha;
       const hue = (now / 50) % 360;
       const aurGrad = ctx.createLinearGradient(0, 0, CANVAS_W, 0);
       aurGrad.addColorStop(0, `hsla(${hue}, 70%, 50%, 0)`);
@@ -1539,10 +1572,13 @@ const YggdrasilAscender = ({ user }) => {
         ctx.fillRect(offset, 0, CANVAS_W, CANVAS_H);
       }
       ctx.restore();
-    } else if (g.weatherType === 'bifrost') {
+    }
+
+    const bifrostAlpha = getZoneAlpha(currentAlt, 3000, 5000);
+    if (bifrostAlpha > 0) {
       // Shifting Rainbow Bridge overlay
       ctx.save();
-      ctx.globalAlpha = 0.08; // Lowered from 0.15
+      ctx.globalAlpha = 0.08 * bifrostAlpha;
       const rainbowGrad = ctx.createLinearGradient(0, 0, CANVAS_W, 0);
       for(let i=0; i<=6; i++) {
         const hue = (i * 60 + now / 10) % 360;
@@ -1801,9 +1837,9 @@ const YggdrasilAscender = ({ user }) => {
                     <span>{turboCharges >= 3 ? 'MAX' : `x${turboCharges}`}</span>
                     {turboUsed && <span className="ygg-pu-float">-1</span>}
                   </div>
-                  <div className={`ygg-pu-mini-sm ${jumpUsed ? 'pu-used' : ''} ${doubleJumpCharges >= 3 ? 'pu-max' : ''}`}>
+                  <div className={`ygg-pu-mini-sm ${jumpUsed ? 'pu-used' : ''} ${doubleJumpCharges >= 5 ? 'pu-max' : ''} ${doubleJumpDisabled ? 'pu-disabled' : ''}`}>
                     <span role="img" aria-label="shoes">&#x1F45F;</span>
-                    <span>{doubleJumpCharges >= 3 ? 'MAX' : `x${doubleJumpCharges}`}</span>
+                    <span>{doubleJumpCharges >= 5 ? 'MAX' : `x${doubleJumpCharges}`}</span>
                     {jumpUsed && <span className="ygg-pu-float">-1</span>}
                   </div>
                 </div>
@@ -1811,7 +1847,7 @@ const YggdrasilAscender = ({ user }) => {
                 {/* Turbo Active Bar */}
                 {turboTime > 0 && (
                   <div className="ygg-turbo-active">
-                    <div className="ygg-turbo-bar-inner" style={{ width: `${(turboTime / 120) * 100}%` }} />
+                    <div className="ygg-turbo-bar-inner" style={{ width: `${(turboTime / 60) * 100}%` }} />
                   </div>
                 )}
 
@@ -2109,7 +2145,7 @@ const YggdrasilAscender = ({ user }) => {
               </div>
 
               <div className="ygg-rules-section">
-                <div className="ygg-rules-heading">⚡ Power-ups <span className="ygg-max-note">(Max 3 Charges each)</span></div>
+                <div className="ygg-rules-heading">⚡ Power-ups <span className="ygg-max-note">(Turbo: Max 3 | High Jump: Max 5)</span></div>
                 <table className="ygg-rules-table">
                   <thead>
                     <tr><th>Item</th><th>Effect</th><th>Activate</th></tr>
@@ -2128,7 +2164,7 @@ const YggdrasilAscender = ({ user }) => {
                   </tbody>
                 </table>
                 <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.4)', marginTop: '4px' }}>
-                  Spawns every 2000m. Items won't be collected when at max.
+                  Turbo spawns every 3000m. High Jump spawns every 2000m. Items won't be collected when at max.
                 </div>
               </div>
 
