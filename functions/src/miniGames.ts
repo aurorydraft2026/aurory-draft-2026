@@ -1363,17 +1363,26 @@ export const submitYggdrasilRun = onCall(
         const { uid } = request.auth;
         const today = new Date().toISOString().split('T')[0];
 
-        // Basic validation
         if (typeof altitude !== 'number' || typeof runes !== 'number' || altitude < 0 || runes < 0) {
             throw new HttpsError('invalid-argument', 'Invalid run data.');
         }
 
         const db = admin.firestore();
+        const rtdb = admin.database();
         const userRef = db.collection('users').doc(uid);
         const runDocRef = userRef.collection('yggdrasil_runs').doc(today);
         const configRef = db.collection('settings').doc('mini_games');
 
         try {
+            // Always increment global ascension goal (even past daily limit)
+            try {
+                await rtdb.ref('yggdrasil/global_goal/current').transaction((current: number | null) => {
+                    return (current || 0) + Math.floor(altitude);
+                });
+            } catch (e) {
+                console.error('Global ascension increment failed:', e);
+            }
+
             return await db.runTransaction(async (transaction: any) => {
                 const [userDoc, runDoc, configDoc] = await Promise.all([
                     transaction.get(userRef),
@@ -1385,28 +1394,30 @@ export const submitYggdrasilRun = onCall(
                     throw new HttpsError('not-found', 'User not found.');
                 }
 
-                // Get config
                 const configData = configDoc.exists ? configDoc.data().yggdrasilAscender || {} : {};
                 const maxDailyRuns = configData.maxDailyRuns ?? 5;
                 const runeMultiplier = configData.runeMultiplier ?? 1.0;
 
-                // Check runs limit
                 const runData = runDoc.exists ? runDoc.data() : { count: 0 };
                 if (runData.count >= maxDailyRuns) {
-                    return { success: true, reward: 0, limitReached: true, runsCompleted: runData.count, maxRuns: maxDailyRuns };
+                    return { success: true, reward: 0, limitReached: true, runesEarned: 0, runsCompleted: runData.count, maxRuns: maxDailyRuns };
                 }
 
-                // Calculate reward
                 const rewardAmount = Math.floor(altitude / 100) * Math.max(1, Math.floor(runes * runeMultiplier));
+                const runesEarned = Math.floor(runes);
 
+                const updateData: any = {};
                 if (rewardAmount > 0) {
-                    transaction.update(userRef, {
-                        points: admin.firestore.FieldValue.increment(rewardAmount),
-                        exp: admin.firestore.FieldValue.increment(rewardAmount)
-                    });
+                    updateData.points = admin.firestore.FieldValue.increment(rewardAmount);
+                    updateData.exp = admin.firestore.FieldValue.increment(rewardAmount);
+                }
+                if (runesEarned > 0) {
+                    updateData.yggRunes = admin.firestore.FieldValue.increment(runesEarned);
+                }
+                if (Object.keys(updateData).length > 0) {
+                    transaction.update(userRef, updateData);
                 }
 
-                // Update runs count
                 transaction.set(runDocRef, {
                     count: runData.count + 1,
                     lastRunTime: admin.firestore.FieldValue.serverTimestamp()
@@ -1414,7 +1425,8 @@ export const submitYggdrasilRun = onCall(
 
                 return { 
                     success: true, 
-                    reward: rewardAmount, 
+                    reward: rewardAmount,
+                    runesEarned,
                     runsCompleted: runData.count + 1,
                     maxRuns: maxDailyRuns
                 };
@@ -1422,6 +1434,214 @@ export const submitYggdrasilRun = onCall(
         } catch (error: any) {
             console.error('SubmitYggdrasilRun Error:', error);
             throw new HttpsError('internal', error.message || 'Failed to submit run.');
+        }
+    }
+);
+
+// ═══════════════════════════════════════════════════════
+//  YGGDRASIL — RUNE SHOP
+// ═══════════════════════════════════════════════════════
+
+// Default shop configuration
+const DEFAULT_SHOP_CONFIG = {
+    magnetismCosts: [50, 150, 400], // Level 1, 2, 3
+    extraPocketsCosts: { turbo: 20, doubleJump: 15 },
+    idunAppleCost: 80,
+    exchangeRates: [
+        { currency: 'Valcoins', rate: 500, enabled: true },
+        { currency: 'AURY', rate: 500, enabled: false },
+        { currency: 'Amiko', rate: 500, enabled: false }
+    ]
+};
+
+/**
+ * Purchase a Rune Shop item.
+ * Items: magnetism (upgrade), extraTurbo (consumable), extraJump (consumable), idunApple (max 1)
+ */
+export const purchaseRuneShopItem = onCall(
+    { cors: true, maxInstances: 10 },
+    async (request) => {
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User must be logged in.');
+        }
+
+        const { itemId } = request.data;
+        const { uid } = request.auth;
+
+        if (!itemId || typeof itemId !== 'string') {
+            throw new HttpsError('invalid-argument', 'Item ID is required.');
+        }
+
+        const db = admin.firestore();
+        const userRef = db.collection('users').doc(uid);
+        const upgradesRef = userRef.collection('yggdrasil_data').doc('upgrades');
+        const configRef = db.collection('settings').doc('mini_games');
+
+        try {
+            return await db.runTransaction(async (transaction: any) => {
+                const [userDoc, upgradesDoc, configDoc] = await Promise.all([
+                    transaction.get(userRef),
+                    transaction.get(upgradesRef),
+                    transaction.get(configRef)
+                ]);
+
+                if (!userDoc.exists) {
+                    throw new HttpsError('not-found', 'User not found.');
+                }
+
+                const userData = userDoc.data();
+                const runeBalance = userData.yggRunes || 0;
+                const upgrades = upgradesDoc.exists ? upgradesDoc.data() : {};
+                const shopConfig = configDoc.exists 
+                    ? { ...DEFAULT_SHOP_CONFIG, ...(configDoc.data().yggdrasilAscender?.shop || {}) }
+                    : DEFAULT_SHOP_CONFIG;
+
+                let cost = 0;
+                const updateUser: any = {};
+                const updateUpgrades: any = {};
+
+                switch (itemId) {
+                    case 'magnetism': {
+                        const currentLevel = upgrades.magnetismLevel || 0;
+                        if (currentLevel >= 3) {
+                            return { success: false, error: 'Rune Magnetism is already at max level.' };
+                        }
+                        cost = shopConfig.magnetismCosts[currentLevel];
+                        updateUpgrades.magnetismLevel = currentLevel + 1;
+                        break;
+                    }
+                    case 'extraTurbo': {
+                        cost = shopConfig.extraPocketsCosts.turbo;
+                        updateUpgrades.extraTurbo = (upgrades.extraTurbo || 0) + 1;
+                        break;
+                    }
+                    case 'extraJump': {
+                        cost = shopConfig.extraPocketsCosts.doubleJump;
+                        updateUpgrades.extraJump = (upgrades.extraJump || 0) + 1;
+                        break;
+                    }
+                    case 'idunApple': {
+                        if (upgrades.hasIdunApple) {
+                            return { success: false, error: 'You already have an Idun\'s Apple. Use it before buying another.' };
+                        }
+                        cost = shopConfig.idunAppleCost;
+                        updateUpgrades.hasIdunApple = true;
+                        break;
+                    }
+                    default:
+                        return { success: false, error: 'Unknown item.' };
+                }
+
+                if (runeBalance < cost) {
+                    return { success: false, error: `Not enough Runes. Need ${cost}, have ${runeBalance}.` };
+                }
+
+                // Deduct runes
+                updateUser.yggRunes = admin.firestore.FieldValue.increment(-cost);
+                transaction.update(userRef, updateUser);
+
+                // Update upgrades
+                transaction.set(upgradesRef, updateUpgrades, { merge: true });
+
+                return { 
+                    success: true, 
+                    cost,
+                    newRuneBalance: runeBalance - cost,
+                    item: itemId
+                };
+            });
+        } catch (error: any) {
+            console.error('PurchaseRuneShopItem Error:', error);
+            throw new HttpsError('internal', error.message || 'Failed to purchase item.');
+        }
+    }
+);
+
+/**
+ * Exchange Runes for another currency (Valcoins, AURY, Amiko, etc.)
+ */
+export const exchangeRunes = onCall(
+    { cors: true, maxInstances: 10 },
+    async (request) => {
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User must be logged in.');
+        }
+
+        const { targetCurrency, runeAmount } = request.data;
+        const { uid } = request.auth;
+
+        if (!targetCurrency || typeof targetCurrency !== 'string') {
+            throw new HttpsError('invalid-argument', 'Target currency is required.');
+        }
+        if (typeof runeAmount !== 'number' || runeAmount <= 0 || !Number.isInteger(runeAmount)) {
+            throw new HttpsError('invalid-argument', 'Rune amount must be a positive integer.');
+        }
+
+        const db = admin.firestore();
+        const userRef = db.collection('users').doc(uid);
+        const configRef = db.collection('settings').doc('mini_games');
+
+        try {
+            return await db.runTransaction(async (transaction: any) => {
+                const [userDoc, configDoc] = await Promise.all([
+                    transaction.get(userRef),
+                    transaction.get(configRef)
+                ]);
+
+                if (!userDoc.exists) {
+                    throw new HttpsError('not-found', 'User not found.');
+                }
+
+                const userData = userDoc.data();
+                const runeBalance = userData.yggRunes || 0;
+
+                if (runeBalance < runeAmount) {
+                    return { success: false, error: `Not enough Runes. Have ${runeBalance}, need ${runeAmount}.` };
+                }
+
+                // Get exchange rates from config
+                const shopConfig = configDoc.exists 
+                    ? { ...DEFAULT_SHOP_CONFIG, ...(configDoc.data().yggdrasilAscender?.shop || {}) }
+                    : DEFAULT_SHOP_CONFIG;
+
+                const rateEntry = shopConfig.exchangeRates.find((r: any) => r.currency === targetCurrency);
+                if (!rateEntry || !rateEntry.enabled) {
+                    return { success: false, error: `Exchange to ${targetCurrency} is not available.` };
+                }
+
+                // rate = how many runes per 1 unit of target currency
+                const outputAmount = runeAmount / rateEntry.rate;
+                if (outputAmount <= 0) {
+                    return { success: false, error: 'Amount too small for exchange.' };
+                }
+
+                const updateData: any = {
+                    yggRunes: admin.firestore.FieldValue.increment(-runeAmount)
+                };
+
+                // Credit target currency
+                if (targetCurrency === 'Valcoins') {
+                    updateData.points = admin.firestore.FieldValue.increment(Math.floor(outputAmount));
+                } else if (targetCurrency === 'AURY') {
+                    updateData.auryBalance = admin.firestore.FieldValue.increment(outputAmount);
+                } else {
+                    // Generic currency field
+                    updateData[`currencies.${targetCurrency}`] = admin.firestore.FieldValue.increment(outputAmount);
+                }
+
+                transaction.update(userRef, updateData);
+
+                return {
+                    success: true,
+                    runesSpent: runeAmount,
+                    received: targetCurrency === 'Valcoins' ? Math.floor(outputAmount) : outputAmount,
+                    currency: targetCurrency,
+                    newRuneBalance: runeBalance - runeAmount
+                };
+            });
+        } catch (error: any) {
+            console.error('ExchangeRunes Error:', error);
+            throw new HttpsError('internal', error.message || 'Failed to exchange runes.');
         }
     }
 );

@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { database, db } from '../../firebase';
 import { ref, onValue, set, remove, onDisconnect, get, query, orderByChild, limitToLast } from 'firebase/database';
 import { doc, getDoc } from 'firebase/firestore';
-import { submitYggdrasilRun, getYggdrasilEvents, joinYggdrasilEvent, claimYggdrasilEventPrize } from '../../services/miniGameService';
+import { submitYggdrasilRun, getYggdrasilEvents, joinYggdrasilEvent, claimYggdrasilEventPrize, getUserYggData, subscribeGlobalGoal } from '../../services/miniGameService';
 import { resolveDisplayName } from '../../utils/userUtils';
+import RuneShop from './RuneShop';
 import './YggdrasilAscender.css';
 
 // ═══ CONSTANTS ═══
@@ -20,6 +21,14 @@ const PLAT_H = 16;
 const PLAT_GAP_MIN = 100;
 const PLAT_GAP_MAX = 150;
 const RUNE_SIZE = 22;
+const NIDHOGG_GRACE_PERIOD = 900; // ~15 seconds at 60fps
+const NIDHOGG_BASE_SPEED = 0.3;
+const NIDHOGG_ACCEL = 0.0001; // Accelerates over time
+const NIDHOGG_STALL_BOOST = 0.15; // Extra speed if player stays low
+const RATATOSKR_W = 20;
+const RATATOSKR_H = 16;
+const RATATOSKR_SPEED = 4;
+const RATATOSKR_RUNE_BONUS = 5;
 
 // No more static milestones, using dynamic run-end rewards instead
 
@@ -149,8 +158,8 @@ const YggdrasilAscender = ({ user }) => {
   const [isNewBest, setIsNewBest] = useState(false);
   const [zoneName, setZoneName] = useState('MIDGARD');
   const [showZoneAnnouncement, setShowZoneAnnouncement] = useState(false);
-  const [turboCharges, setTurboCharges] = useState(1);
-  const [doubleJumpCharges, setDoubleJumpCharges] = useState(1);
+  const [turboCharges, setTurboCharges] = useState(0);
+  const [doubleJumpCharges, setDoubleJumpCharges] = useState(0);
   const zoneNameRef = useRef('MIDGARD');
   const [playerCount, setPlayerCount] = useState(1);
   const [lbMode, setLbMode] = useState('daily');
@@ -171,8 +180,24 @@ const YggdrasilAscender = ({ user }) => {
   const [jumpUsed, setJumpUsed] = useState(false);
   const [yggConfig, setYggConfig] = useState({ maxDailyRuns: 5, runeMultiplier: 1.0 });
   const bestScoreRef = useRef(0);
+  const [nidhoggWarning, setNidhoggWarning] = useState(false);
+  const [ratatoskrNotif, setRatatoskrNotif] = useState(null);
+  const [deathReason, setDeathReason] = useState(null); // 'fall' | 'nidhogg'
+  
+  // ═══ RUNE SHOP STATE ═══
+  const [showShop, setShowShop] = useState(false);
+  const [userUpgrades, setUserUpgrades] = useState({ magnetismLevel: 0, extraTurbo: 0, extraJump: 0, hasIdunApple: false });
+  const [globalGoal, setGlobalGoal] = useState({ target: 1000000, current: 0, rewardMultiplier: 2 });
+  const [appleUsedInRun, setAppleUsedInRun] = useState(false);
   const [doubleJumpDisabled, setDoubleJumpDisabled] = useState(false);
   const turboMomentumRef = useRef(false);
+  
+  // ═══ EMOTES STATE ═══
+  const [showEmoteMenu, setShowEmoteMenu] = useState(false);
+  const [emoteMenuPos, setEmoteMenuPos] = useState({ x: 0, y: 0 });
+  const currentEmoteRef = useRef(null);
+  const holdTimerRef = useRef(null);
+  const EMOTES = ['🔥', '⚔️', '🛡️', '⚡', '🏆', '💀'];
   
   // Events
   const [events, setEvents] = useState([]);
@@ -262,6 +287,40 @@ const YggdrasilAscender = ({ user }) => {
       bestScoreRef.current = val;
     }
     setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  }, []);
+
+  // ═══ RUNE SHOP DATA & GLOBAL GOAL ═══
+  const loadUserShopData = useCallback(async () => {
+    if (!user?.uid) return;
+    const data = await getUserYggData(user.uid);
+    setUserUpgrades(data.upgrades);
+  }, [user]);
+
+  useEffect(() => {
+    if (gameState === 'start') {
+      loadUserShopData();
+    }
+  }, [gameState, loadUserShopData]);
+
+  useEffect(() => {
+    const unsub = subscribeGlobalGoal((data) => {
+      setGlobalGoal(data);
+    });
+    return () => unsub();
+  }, []);
+
+  // Subscribe to Death Spirits
+  useEffect(() => {
+    const sRef = ref(database, 'yggdrasil/spirits');
+    const unsub = onValue(sRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data && gameRef.current) {
+        gameRef.current.globalSpirits = data;
+      } else if (gameRef.current) {
+        gameRef.current.globalSpirits = {};
+      }
+    });
+    return () => unsub();
   }, []);
 
   // Load events
@@ -446,7 +505,8 @@ const YggdrasilAscender = ({ user }) => {
   const publishPresence = useCallback((x, y, maxAlt, zoneName) => {
     if (!user?.uid) return;
     const pRef = ref(database, `yggdrasil/players/${user.uid}`);
-    set(pRef, {
+    
+    const presenceData = {
       x, y,
       maxAlt,
       zoneName,
@@ -454,7 +514,14 @@ const YggdrasilAscender = ({ user }) => {
       color: '#' + user.uid.slice(0, 6),
       t: Date.now(),
       eventId: activeEventId
-    });
+    };
+
+    if (currentEmoteRef.current && Date.now() - currentEmoteRef.current.t < 4000) {
+      presenceData.emote = currentEmoteRef.current.emote;
+      presenceData.emoteTime = currentEmoteRef.current.t;
+    }
+
+    set(pRef, presenceData);
   }, [user, activeEventId]);
 
   // Remove presence
@@ -543,8 +610,8 @@ const YggdrasilAscender = ({ user }) => {
         scaleY: 1,
         facing: 1, // 1 for right, -1 for left
         turboTime: 0,
-        turboCharges: 1,
-        doubleJumpCharges: 1,
+        turboCharges: userUpgrades.extraTurbo || 0,
+        doubleJumpCharges: userUpgrades.extraJump || 0,
         usedDoubleJumpInAir: false
       },
       platforms: startPlats,
@@ -556,6 +623,7 @@ const YggdrasilAscender = ({ user }) => {
       lastPublish: 0,
       difficulty: 0,
       runes: 0,
+      magnetism: (userUpgrades.magnetismLevel || 0) === 1 ? 30 : (userUpgrades.magnetismLevel || 0) === 2 ? 50 : (userUpgrades.magnetismLevel || 0) === 3 ? 80 : 0,
       particles: [],
       windParticles: [], // decorative wind streaks
       itemBandsUsed,
@@ -570,6 +638,18 @@ const YggdrasilAscender = ({ user }) => {
       thunderTimer: 0,
       thunderCount: 0,
       lastThunderTime: 0,
+      // ═══ NIDHOGG'S RISING MIST ═══
+      nidhogg: {
+        y: CANVAS_H + 200, // starts well below screen
+        speed: NIDHOGG_BASE_SPEED,
+        graceTimer: NIDHOGG_GRACE_PERIOD,
+        active: false,
+        mistParticles: []
+      },
+      // ═══ RATATOSKR THE MESSENGER ═══
+      ratatoskr: null, // { x, y, platformId, direction, speed, alive }
+      lastRatatoskrAlt: 0, // altitude of last spawn
+      ratatoskrCooldown: 3000 + Math.floor(rng() * 2000), // 3k-5k alt between spawns
       stars: Array.from({ length: 40 }, () => ({
         x: rng() * CANVAS_W,
         y: rng() * CANVAS_H * 3,
@@ -599,11 +679,15 @@ const YggdrasilAscender = ({ user }) => {
 
     setRunesCollected(0);
     setRunStats(null);
-    setTurboCharges(1);
-    setDoubleJumpCharges(1);
+    setTurboCharges(userUpgrades.extraTurbo || 0);
+    setDoubleJumpCharges(userUpgrades.extraJump || 0);
+    setAppleUsedInRun(false);
+    setNidhoggWarning(false);
+    setRatatoskrNotif(null);
+    setDeathReason(null);
     keysRef.current = {};
     touchRef.current = { left: false, right: false, jump: false };
-  }, [activeEvent]);
+  }, [activeEvent, userUpgrades]);
 
   // Game loop
   const gameLoop = useCallback(() => {
@@ -862,11 +946,38 @@ const YggdrasilAscender = ({ user }) => {
       }
     }
 
-    // Rune collection
+    // Rune collection & Magnetism
     for (const plat of g.platforms) {
       if (!plat.hasRune || plat.runeCollected || plat.broken) continue;
-      const runeX = plat.x + plat.w / 2;
-      const runeY = plat.y - 20;
+      
+      // Initialize rune offsets for magnetism visual
+      if (plat.runeOffX === undefined) {
+        plat.runeOffX = 0;
+        plat.runeOffY = 0;
+      }
+
+      let runeX = plat.x + plat.w / 2 + plat.runeOffX;
+      let runeY = plat.y - 20 + plat.runeOffY;
+
+      // Magnetism pull
+      if (g.magnetism > 0) {
+        const dx = (p.x + PLAYER_W / 2) - runeX;
+        const dy = (p.y + PLAYER_H / 2) - runeY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < g.magnetism) {
+          // Move rune toward player
+          const pullForce = 0.25 * dt;
+          plat.runeOffX += (dx / dist) * pullForce;
+          plat.runeOffY += (dy / dist) * pullForce;
+          runeX = plat.x + plat.w / 2 + plat.runeOffX;
+          runeY = plat.y - 20 + plat.runeOffY;
+        } else {
+          // Snap back slowly if out of range
+          plat.runeOffX *= 0.95;
+          plat.runeOffY *= 0.95;
+        }
+      }
+
       if (
         p.x + PLAYER_W > runeX - RUNE_SIZE / 2 &&
         p.x < runeX + RUNE_SIZE / 2 &&
@@ -886,6 +997,36 @@ const YggdrasilAscender = ({ user }) => {
             color: '#fbbf24',
             size: 3
           });
+        }
+      }
+
+    }
+
+    // Death Spirit collection
+    if (g.globalSpirits) {
+      for (const [id, s] of Object.entries(g.globalSpirits)) {
+        if (s.uid === user?.uid) continue; // Can't collect own spirit
+        const dx = (p.x + PLAYER_W / 2) - s.x;
+        const dy = (p.y + PLAYER_H / 2) - s.y;
+        if (Math.sqrt(dx * dx + dy * dy) < 40) {
+          // Collect!
+          remove(ref(database, `yggdrasil/spirits/${id}`));
+          const isTurbo = Math.random() > 0.5;
+          if (isTurbo) {
+            p.turboCharges = (p.turboCharges || 0) + 1;
+            setTurboCharges(p.turboCharges);
+          } else {
+            p.doubleJumpCharges = (p.doubleJumpCharges || 0) + 1;
+            setDoubleJumpCharges(p.doubleJumpCharges);
+          }
+          setRatatoskrNotif(`Spirit Blessing: +1 ${isTurbo ? 'Turbo' : 'Jump'}!`);
+          setTimeout(() => setRatatoskrNotif(null), 2500);
+          for (let i = 0; i < 15; i++) {
+            g.particles.push({
+              x: s.x, y: s.y, vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8,
+              life: 40, color: '#a855f7', size: 4
+            });
+          }
         }
       }
     }
@@ -1090,10 +1231,100 @@ const YggdrasilAscender = ({ user }) => {
     // Cull old platforms
     g.platforms = g.platforms.filter(pl => pl.y < g.camera + CANVAS_H + 100);
 
-    // Game over
-    if (p.y > g.camera + CANVAS_H + 120) {
+    // ═══ NIDHOGG'S RISING MIST ═══
+    const nh = g.nidhogg;
+    if (nh.graceTimer > 0) {
+      nh.graceTimer -= dt;
+    } else {
+      nh.active = true;
+      nh.speed += NIDHOGG_ACCEL * dt;
+      const distToMist = p.y - nh.y;
+      if (distToMist < 300 && distToMist > 0) {
+        nh.speed += NIDHOGG_STALL_BOOST * dt * (1 - distToMist / 300);
+      }
+      nh.y -= nh.speed * dt;
+      const cameraBottom = g.camera + CANVAS_H;
+      if (nh.y > cameraBottom + 400) {
+        nh.y = cameraBottom + 400;
+      }
+      if (Math.random() < 0.3) {
+        nh.mistParticles.push({
+          x: Math.random() * CANVAS_W,
+          y: nh.y + Math.random() * 40,
+          vx: (Math.random() - 0.5) * 2,
+          vy: -0.5 - Math.random() * 1.5,
+          life: 40 + Math.random() * 30,
+          size: 4 + Math.random() * 8
+        });
+      }
+      nh.mistParticles = nh.mistParticles.filter(mp => {
+        mp.x += mp.vx;
+        mp.y += mp.vy;
+        mp.life--;
+        return mp.life > 0;
+      });
+    }
+    const mistDist = p.y - nh.y;
+    if (nh.active && mistDist < 500 && mistDist > 0) {
+      if (now - g.lastHUDTime > 66) setNidhoggWarning(true);
+    } else {
+      if (now - g.lastHUDTime > 66) setNidhoggWarning(false);
+    }
+
+    // ═══ RATATOSKR THE MESSENGER ═══
+    if (!g.ratatoskr && alt - g.lastRatatoskrAlt >= g.ratatoskrCooldown) {
+      const visiblePlats = g.platforms.filter(pl =>
+        !pl.broken && pl.type !== 'ground' && (pl.type === 'standard' || pl.type === 'moving') &&
+        pl.y > g.camera && pl.y < g.camera + CANVAS_H - 50
+      );
+      if (visiblePlats.length > 0) {
+        const plat = visiblePlats[Math.floor(g.rng() * visiblePlats.length)];
+        const dir = g.rng() < 0.5 ? 1 : -1;
+        g.ratatoskr = {
+          x: dir === 1 ? plat.x - RATATOSKR_W : plat.x + plat.w,
+          y: plat.y - RATATOSKR_H,
+          direction: dir,
+          speed: RATATOSKR_SPEED + g.rng() * 2,
+          alive: true,
+          animFrame: 0
+        };
+        g.lastRatatoskrAlt = alt;
+        g.ratatoskrCooldown = 3000 + Math.floor(g.rng() * 2000);
+      }
+    }
+    if (g.ratatoskr && g.ratatoskr.alive) {
+      const rat = g.ratatoskr;
+      rat.x += rat.direction * rat.speed * dt;
+      rat.animFrame += dt * 0.3;
+      if (rat.x > CANVAS_W + 20 || rat.x < -RATATOSKR_W - 20) {
+        g.ratatoskr = null;
+      } else {
+        const rdx = (p.x + PLAYER_W / 2) - (rat.x + RATATOSKR_W / 2);
+        const rdy = (p.y + PLAYER_H / 2) - (rat.y + RATATOSKR_H / 2);
+        const rdist = Math.sqrt(rdx * rdx + rdy * rdy);
+        if (rdist < 35) {
+          rat.alive = false;
+          g.runes += RATATOSKR_RUNE_BONUS;
+          setRunesCollected(g.runes);
+          setRatatoskrNotif(`+${RATATOSKR_RUNE_BONUS} Runes!`);
+          setTimeout(() => setRatatoskrNotif(null), 2000);
+          for (let i = 0; i < 12; i++) {
+            g.particles.push({
+              x: rat.x + RATATOSKR_W / 2, y: rat.y + RATATOSKR_H / 2,
+              vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6 - 2,
+              life: 25, color: '#fbbf24', size: 3
+            });
+          }
+          g.ratatoskr = null;
+        }
+      }
+    }
+
+    // ═══ GAME OVER ═══
+    const triggerGameOver = (reason) => {
       setScore(g.maxAlt);
       setRunesCollected(g.runes);
+      setDeathReason(reason);
       if (alt > bestScoreRef.current) {
         setIsNewBest(true);
         setBestScore(alt);
@@ -1105,8 +1336,6 @@ const YggdrasilAscender = ({ user }) => {
       submitScore(g.maxAlt);
       removePresence();
       setGameState('over');
-
-      // Request run rewards
       setRunStats({ loading: true });
       submitYggdrasilRun(g.maxAlt, g.runes).then(res => {
         if (res && res.success) {
@@ -1115,8 +1344,33 @@ const YggdrasilAscender = ({ user }) => {
           setRunStats({ error: res?.error || 'Failed to submit' });
         }
       });
+
+      // Spawn Death Spirit
+      if (user?.uid) {
+        const spiritId = `${user.uid}_${Date.now()}`;
+        const spiritRef = ref(database, `yggdrasil/spirits/${spiritId}`);
+        set(spiritRef, {
+          x: Math.floor(p.x + PLAYER_W / 2),
+          y: Math.floor(p.y + PLAYER_H / 2),
+          uid: user.uid,
+          name: resolveDisplayName(user),
+          t: Date.now()
+        });
+        // Auto-cleanup after 15 mins
+        setTimeout(() => remove(spiritRef), 900000);
+      }
+    };
+
+    if (p.y > g.camera + CANVAS_H + 120) {
+      triggerGameOver('fall');
       return;
     }
+    if (nh.active && p.y + PLAYER_H > nh.y) {
+      g.shake = 20;
+      triggerGameOver('nidhogg');
+      return;
+    }
+
 
     // Publish presence (throttled ~10/sec)
     if (now - g.lastPublish > 100) {
@@ -1199,6 +1453,41 @@ const YggdrasilAscender = ({ user }) => {
         ctx.fillRect(w.x, w.y - g.camera, 2, 2);
       }
     });
+
+    // Draw Death Spirits
+    if (g.globalSpirits) {
+      for (const s of Object.values(g.globalSpirits)) {
+        if (s.y < g.camera - 50 || s.y > g.camera + CANVAS_H + 50) continue;
+        const pulse = Math.sin(Date.now() / 400) * 5;
+        ctx.save();
+        ctx.translate(s.x, s.y - g.camera);
+        
+        // Aura
+        const grad = ctx.createRadialGradient(0, 0, 2, 0, 0, 20 + pulse);
+        grad.addColorStop(0, 'rgba(168, 85, 247, 0.6)');
+        grad.addColorStop(1, 'rgba(168, 85, 247, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(0, 0, 20 + pulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Core
+        ctx.fillStyle = '#f3e8ff';
+        ctx.font = '20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#a855f7';
+        ctx.fillText('👻', 0, pulse / 2);
+        
+        // Name
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.font = '10px Rajdhani, sans-serif';
+        ctx.fillText(s.name, 0, 25);
+        
+        ctx.restore();
+      }
+    }
 
     ctx.save();
     // Apply screen shake
@@ -1334,8 +1623,8 @@ const YggdrasilAscender = ({ user }) => {
 
       // Draw rune floating above platform
       if (plat.hasRune && !plat.runeCollected) {
-        const runeX = plat.x + plat.w / 2;
-        const runeY = plat.y - 20 + Math.sin(Date.now() / 300 + plat.x) * 3;
+        const runeX = plat.x + plat.w / 2 + (plat.runeOffX || 0);
+        const runeY = plat.y - 20 + Math.sin(Date.now() / 300 + plat.x) * 3 + (plat.runeOffY || 0);
         ctx.save();
         ctx.fillStyle = '#fbbf24';
         ctx.font = `bold ${RUNE_SIZE}px sans-serif`;
@@ -1357,6 +1646,61 @@ const YggdrasilAscender = ({ user }) => {
       ctx.fillRect(pt.x - s / 2, pt.y - s / 2, s, s);
     }
     ctx.globalAlpha = 1;
+
+    // Draw Ratatoskr
+    if (g.ratatoskr && g.ratatoskr.alive) {
+      const rat = g.ratatoskr;
+      ctx.save();
+      const bounce = Math.sin(rat.animFrame * 8) * 2;
+      const rx = rat.x;
+      const ry = rat.y + bounce;
+      // Body
+      ctx.fillStyle = '#c2410c'; // Orange-brown
+      ctx.beginPath();
+      ctx.ellipse(rx + RATATOSKR_W / 2, ry + RATATOSKR_H / 2, RATATOSKR_W / 2, RATATOSKR_H / 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Tail (fluffy arc)
+      ctx.strokeStyle = '#c2410c';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      const tailDir = rat.direction;
+      ctx.moveTo(rx + (tailDir === 1 ? 0 : RATATOSKR_W), ry + 4);
+      ctx.quadraticCurveTo(
+        rx + (tailDir === 1 ? -12 : RATATOSKR_W + 12), ry - 8,
+        rx + (tailDir === 1 ? -4 : RATATOSKR_W + 4), ry - 14
+      );
+      ctx.stroke();
+      // Ears
+      ctx.fillStyle = '#ea580c';
+      ctx.beginPath();
+      ctx.arc(rx + (tailDir === 1 ? RATATOSKR_W - 2 : 2), ry + 2, 3, 0, Math.PI * 2);
+      ctx.fill();
+      // Eye
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(rx + (tailDir === 1 ? RATATOSKR_W - 4 : 4), ry + RATATOSKR_H / 2 - 2, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      // Glow aura
+      ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 200) * 0.15;
+      const ratGlow = ctx.createRadialGradient(rx + RATATOSKR_W / 2, ry + RATATOSKR_H / 2, 2, rx + RATATOSKR_W / 2, ry + RATATOSKR_H / 2, 25);
+      ratGlow.addColorStop(0, 'rgba(251, 191, 36, 0.6)');
+      ratGlow.addColorStop(1, 'rgba(251, 191, 36, 0)');
+      ctx.fillStyle = ratGlow;
+      ctx.beginPath();
+      ctx.arc(rx + RATATOSKR_W / 2, ry + RATATOSKR_H / 2, 25, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      // Label
+      ctx.font = 'bold 9px Rajdhani, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#fbbf24';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      ctx.strokeText('Ratatoskr', rx + RATATOSKR_W / 2, ry - 8);
+      ctx.fillText('Ratatoskr', rx + RATATOSKR_W / 2, ry - 8);
+      ctx.restore();
+    }
 
     // Draw Special Prize
     if (g.specialPrize && !g.specialPrize.collected) {
@@ -1432,6 +1776,19 @@ const YggdrasilAscender = ({ user }) => {
       // White text
       ctx.fillStyle = '#fff';
       ctx.fillText(nameStr, vis.x + PLAYER_W / 2, gpCanvasY - 6);
+
+      // Emote
+      if (gp.emote && gp.emoteTime && Date.now() - gp.emoteTime < 4000) {
+        const age = Date.now() - gp.emoteTime;
+        const bounce = Math.sin(age / 200) * 5;
+        const opacity = age > 3000 ? (4000 - age) / 1000 : 1;
+        ctx.save();
+        ctx.globalAlpha = opacity;
+        ctx.font = '24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(gp.emote, vis.x + PLAYER_W / 2, gpCanvasY - 25 + bounce);
+        ctx.restore();
+      }
       ctx.restore();
     });
 
@@ -1476,6 +1833,19 @@ const YggdrasilAscender = ({ user }) => {
       
       // Shift drawing down to plant feet on the platform floor
       ctx.drawImage(heroImg, (PLAYER_W - renderW) / 2, PLAYER_H - renderH, renderW, renderH);
+
+      // Draw current emote for local player
+      if (currentEmoteRef.current && Date.now() - currentEmoteRef.current.t < 4000) {
+        const age = Date.now() - currentEmoteRef.current.t;
+        const bounce = Math.sin(age / 200) * 5;
+        const opacity = age > 3000 ? (4000 - age) / 1000 : 1;
+        ctx.save();
+        ctx.globalAlpha = opacity;
+        ctx.font = '24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(currentEmoteRef.current.emote, PLAYER_W / 2, -25 + bounce);
+        ctx.restore();
+      }
 
       ctx.restore(); // Restore flip scale
     } else {
@@ -1596,10 +1966,112 @@ const YggdrasilAscender = ({ user }) => {
       ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
     }
 
+    // ═══ NIDHOGG'S MIST RENDER ═══
+    if (g.nidhogg.active) {
+      const nhRender = g.nidhogg;
+      const mistScreenY = nhRender.y - g.camera;
+      if (mistScreenY < CANVAS_H + 100) {
+        ctx.save();
+        // Main mist gradient (dark purple fog rising from below)
+        const mistGradNh = ctx.createLinearGradient(0, mistScreenY - 60, 0, CANVAS_H + 50);
+        mistGradNh.addColorStop(0, 'rgba(75, 0, 130, 0)');
+        mistGradNh.addColorStop(0.15, 'rgba(75, 0, 130, 0.3)');
+        mistGradNh.addColorStop(0.4, 'rgba(40, 0, 60, 0.7)');
+        mistGradNh.addColorStop(1, 'rgba(10, 0, 15, 0.95)');
+        ctx.fillStyle = mistGradNh;
+        ctx.fillRect(0, Math.max(0, mistScreenY - 60), CANVAS_W, CANVAS_H - Math.max(0, mistScreenY - 60) + 50);
+        // Tendril particles
+        nhRender.mistParticles.forEach(mp => {
+          const mpScreenY = mp.y - g.camera;
+          if (mpScreenY > -20 && mpScreenY < CANVAS_H + 20) {
+            ctx.globalAlpha = (mp.life / 70) * 0.4;
+            ctx.fillStyle = 'rgba(148, 0, 211, 0.5)';
+            ctx.beginPath();
+            ctx.arc(mp.x, mpScreenY, mp.size, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        });
+        ctx.globalAlpha = 1;
+        // Pulsing edge glow
+        const edgeGlow = ctx.createLinearGradient(0, mistScreenY - 30, 0, mistScreenY + 10);
+        edgeGlow.addColorStop(0, 'rgba(148, 0, 211, 0)');
+        edgeGlow.addColorStop(0.5, `rgba(148, 0, 211, ${0.2 + Math.sin(Date.now() / 300) * 0.1})`);
+        edgeGlow.addColorStop(1, 'rgba(148, 0, 211, 0)');
+        ctx.fillStyle = edgeGlow;
+        ctx.fillRect(0, Math.max(0, mistScreenY - 30), CANVAS_W, 40);
+        ctx.restore();
+      }
+    }
+
     animRef.current = requestAnimationFrame(gameLoop);
-  }, [publishPresence, removePresence, submitScore]);
+  }, [publishPresence, removePresence, submitScore, user]);
+
+  // Use Idun's Apple
+  const useApple = useCallback(() => {
+    const g = gameRef.current;
+    if (!g || !userUpgrades.hasIdunApple || appleUsedInRun || gameState !== 'playing') return;
+
+    const p = g.player;
+    p.vy = -15; // Powerful jump
+    p.turboTime = 120; // 2 seconds of turbo
+    g.shake = 15;
+    g.flashAlpha = 0.5; // Golden flash
+    
+    // Particles
+    for (let i = 0; i < 30; i++) {
+      g.particles.push({
+        x: p.x + PLAYER_W / 2, y: p.y + PLAYER_H / 2,
+        vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10,
+        life: 50, color: '#fbbf24', size: 4
+      });
+    }
+
+    setAppleUsedInRun(true);
+
+    // Update persistent state (one-time use)
+    setUserUpgrades(prev => ({ ...prev, hasIdunApple: false }));
+    // We don't need to update Firestore here immediately, it will be handled by the next buy 
+    // but ideally we should update it to prevent double-use across sessions.
+    // However, the "hasIdunApple" is reset in initGame anyway.
+  }, [userUpgrades, appleUsedInRun, gameState]);
 
   // Start/restart game
+  const handleEmoteSelect = useCallback((emote) => {
+    currentEmoteRef.current = { emote, t: Date.now() };
+    setShowEmoteMenu(false);
+  }, []);
+
+  const handlePointerDown = (e) => {
+    if (gameState !== 'playing') return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const cx = clientX - rect.left;
+    const cy = clientY - rect.top;
+    
+    const g = gameRef.current;
+    if (g) {
+      const p = g.player;
+      const px = p.x;
+      const py = p.y - g.camera;
+      const scaleX = rect.width / CANVAS_W;
+      const scaleY = rect.height / CANVAS_H;
+      
+      // Check if near player (scaled to canvas)
+      if (cx > px * scaleX - 50 && cx < (px + PLAYER_W) * scaleX + 50 && 
+          cy > py * scaleY - 50 && cy < (py + PLAYER_H) * scaleY + 50) {
+        holdTimerRef.current = setTimeout(() => {
+          setEmoteMenuPos({ x: cx, y: cy });
+          setShowEmoteMenu(true);
+        }, 450);
+      }
+    }
+  };
+
+  const handlePointerUp = () => {
+    clearTimeout(holdTimerRef.current);
+  };
+
   const startGame = useCallback(async (eventId = null) => {
     if (eventId) {
       const ev = events.find(e => e.id === eventId);
@@ -1764,7 +2236,13 @@ const YggdrasilAscender = ({ user }) => {
 
   return (
     <div className="ygg-container" ref={containerRef}>
-      <div className="ygg-canvas-wrapper">
+      <div 
+        className="ygg-canvas-wrapper"
+        onMouseDown={handlePointerDown}
+        onMouseUp={handlePointerUp}
+        onTouchStart={handlePointerDown}
+        onTouchEnd={handlePointerUp}
+      >
         <canvas
           ref={canvasRef}
         />
@@ -1842,6 +2320,11 @@ const YggdrasilAscender = ({ user }) => {
                     <span>{doubleJumpCharges >= 5 ? 'MAX' : `x${doubleJumpCharges}`}</span>
                     {jumpUsed && <span className="ygg-pu-float">-1</span>}
                   </div>
+                  {userUpgrades.hasIdunApple && !appleUsedInRun && (
+                    <button className="ygg-apple-hud-btn" onClick={useApple} title="Use Iðunn's Apple">
+                      <span role="img" aria-label="apple">🍎</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Turbo Active Bar */}
@@ -1911,6 +2394,21 @@ const YggdrasilAscender = ({ user }) => {
                 </div>
               ))}
             </div>
+
+            {/* Nidhogg Warning */}
+            {nidhoggWarning && (
+              <div className="ygg-nidhogg-warning">
+                <span className="ygg-nidhogg-icon">🐉</span>
+                <span>Níðhöggr rises!</span>
+              </div>
+            )}
+
+            {/* Ratatoskr Notification */}
+            {ratatoskrNotif && (
+              <div className="ygg-ratatoskr-notif">
+                🐿️ {ratatoskrNotif}
+              </div>
+            )}
           </>
         )}
 
@@ -1940,6 +2438,9 @@ const YggdrasilAscender = ({ user }) => {
             ) : (
               <>
                 <button className="ygg-start-btn" onClick={() => startGame()}>Start Free Run</button>
+                <button className="ygg-shop-trigger-btn" onClick={() => setShowShop(true)}>
+                  <span className="rune-icon">ᚠ</span> RUNE SHOP
+                </button>
                 
                 {events.length > 0 && (
                   <div className="ygg-events-container">
@@ -2004,7 +2505,9 @@ const YggdrasilAscender = ({ user }) => {
         {/* Game Over */}
         {gameState === 'over' && (
           <div className="ygg-gameover-overlay">
-            <div className="ygg-gameover-title">Fallen!</div>
+            <div className="ygg-gameover-title" style={deathReason === 'nidhogg' ? { color: '#a855f7' } : {}}>
+              {deathReason === 'nidhogg' ? 'Consumed by Níðhöggr!' : 'Fallen!'}
+            </div>
             <div className="ygg-gameover-score">
               {score}<span>METERS</span>
             </div>
@@ -2021,11 +2524,14 @@ const YggdrasilAscender = ({ user }) => {
 
               {runStats?.loading && <div style={{ color: '#94a3b8', fontSize: '14px' }}>Calculating rewards...</div>}
               {runStats?.error && <div style={{ color: '#ef4444', fontSize: '14px' }}>{runStats.error}</div>}
-              {runStats?.limitReached && <div style={{ color: '#ef4444', fontSize: '14px', fontWeight: 'bold' }}>Daily limit reached (No Valcoins)</div>}
-
+              {runStats?.limitReached && <div style={{ color: '#ef4444', fontSize: '14px', fontWeight: 'bold' }}>Daily limit reached (No Valcoins or Banked Runes)</div>}
+              
               {runStats?.success && !runStats?.limitReached && (
                 <div style={{ background: 'rgba(184, 134, 11, 0.2)', border: '1px solid #b8860b', padding: '8px', borderRadius: '8px' }}>
                   <div style={{ color: '#fbbf24', fontWeight: 'bold', fontSize: '18px' }}>+{runStats.reward} Valcoins!</div>
+                  {runStats.runesEarned > 0 && (
+                    <div style={{ color: '#fbbf24', fontSize: '14px', fontWeight: 'bold', marginTop: '2px' }}>ᚠ {runStats.runesEarned} Runes Banked!</div>
+                  )}
                   <div style={{ color: '#cbd5e1', fontSize: '12px', marginTop: '4px' }}>Runs today: {runStats.runsCompleted}/{runStats.maxRuns}</div>
                 </div>
               )}
@@ -2072,6 +2578,29 @@ const YggdrasilAscender = ({ user }) => {
 
       {/* Side Panel: Leaderboard & History */}
       <div className="ygg-side-panel">
+        {/* Global Ascension Goal */}
+        <div className="ygg-global-goal">
+          <div className="ygg-goal-header">
+            <span className="ygg-goal-title">Global Ascension</span>
+            <span className="ygg-goal-count">
+              {globalGoal.current.toLocaleString()} / {globalGoal.target.toLocaleString()}
+            </span>
+          </div>
+          <div className="ygg-goal-bar">
+            <div 
+              className="ygg-goal-fill" 
+              style={{ width: `${Math.min(100, (globalGoal.current / globalGoal.target) * 100)}%` }}
+            >
+              <div className="ygg-goal-shine"></div>
+            </div>
+          </div>
+          {globalGoal.current >= globalGoal.target && (
+            <div className="ygg-goal-reward">
+              🎉 Goal Met! <b>{globalGoal.rewardMultiplier}x</b> Rewards Active!
+            </div>
+          )}
+        </div>
+
         {/* Leaderboard */}
         <div className="ygg-leaderboard">
           <div className="ygg-lb-header">
@@ -2206,6 +2735,48 @@ const YggdrasilAscender = ({ user }) => {
             </div>
 
             <button className="ygg-tut-close" onClick={() => setShowRules(false)}>GOT IT</button>
+          </div>
+        </div>
+      )}
+
+      {/* Rune Shop Modal */}
+      {showShop && (
+        <RuneShop 
+          user={user} 
+          onClose={() => setShowShop(false)} 
+          onUpdate={loadUserShopData}
+        />
+      )}
+
+      {/* Emote Radial Menu */}
+      {showEmoteMenu && (
+        <div 
+          className="ygg-emote-radial-overlay"
+          onMouseUp={() => setShowEmoteMenu(false)}
+          onTouchEnd={() => setShowEmoteMenu(false)}
+        >
+          <div 
+            className="ygg-emote-radial" 
+            style={{ left: emoteMenuPos.x, top: emoteMenuPos.y }}
+          >
+            {EMOTES.map((e, i) => {
+              const angle = (i / EMOTES.length) * Math.PI * 2;
+              const dist = 70;
+              const ex = Math.cos(angle) * dist;
+              const ey = Math.sin(angle) * dist;
+              return (
+                <button 
+                  key={e} 
+                  className="ygg-emote-option"
+                  style={{ transform: `translate(${ex}px, ${ey}px)` }}
+                  onMouseDown={(ev) => { ev.stopPropagation(); handleEmoteSelect(e); }}
+                  onTouchStart={(ev) => { ev.stopPropagation(); handleEmoteSelect(e); }}
+                >
+                  {e}
+                </button>
+              );
+            })}
+            <div className="ygg-emote-center">ᚠ</div>
           </div>
         </div>
       )}

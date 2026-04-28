@@ -263,6 +263,77 @@ export async function claimYggdrasilEventPrize(eventId, altitude) {
   }
 }
 
+/**
+ * Purchase a Rune Shop item.
+ * @param {string} itemId - 'magnetism', 'extraTurbo', 'extraJump', 'idunApple'
+ */
+export async function purchaseRuneShopItem(itemId) {
+  try {
+    const purchaseFn = httpsCallable(functions, 'purchaseRuneShopItem');
+    const result = await purchaseFn({ itemId });
+    return result.data;
+  } catch (error) {
+    console.error('Error purchasing shop item:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Exchange Runes for another currency.
+ * @param {string} targetCurrency - 'Valcoins', 'AURY', 'Amiko', etc.
+ * @param {number} runeAmount - Number of runes to exchange
+ */
+export async function exchangeRunesService(targetCurrency, runeAmount) {
+  try {
+    const exchangeFn = httpsCallable(functions, 'exchangeRunes');
+    const result = await exchangeFn({ targetCurrency, runeAmount });
+    return result.data;
+  } catch (error) {
+    console.error('Error exchanging runes:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get user's Yggdrasil data (rune balance + upgrades).
+ * @param {string} uid - User ID
+ */
+export async function getUserYggData(uid) {
+  if (!uid) return { runeBalance: 0, upgrades: {} };
+  try {
+    const userSnap = await getDoc(doc(db, 'users', uid));
+    const userData = userSnap.exists() ? userSnap.data() : {};
+    
+    const upgradesSnap = await getDoc(doc(db, 'users', uid, 'yggdrasil_data', 'upgrades'));
+    const upgrades = upgradesSnap.exists() ? upgradesSnap.data() : {};
+
+    return {
+      runeBalance: userData.yggRunes || 0,
+      upgrades
+    };
+  } catch (error) {
+    console.error('Error fetching Ygg data:', error);
+    return { runeBalance: 0, upgrades: {} };
+  }
+}
+
+/**
+ * Subscribe to the Global Ascension Goal in RTDB.
+ * @param {Function} callback - Called with { target, current, rewardMultiplier }
+ * @returns {() => void} unsubscribe function
+ */
+export function subscribeGlobalGoal(callback) {
+  const goalRef = ref(database, 'yggdrasil/global_goal');
+  onValue(goalRef, (snapshot) => {
+    if (snapshot.exists()) {
+      callback(snapshot.val());
+    } else {
+      callback({ target: 1000000, current: 0, rewardMultiplier: 2 });
+    }
+  });
+  return () => off(goalRef);
+}
+
 
 // ═══════════════════════════════════════════════════════
 //  PLAY MINI GAME (Slot Machine / Treasure Chest)

@@ -7342,26 +7342,149 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     )}
 
                     {activeGameType === 'yggdrasilAscender' && (
-                      <div className="form-row">
-                        <div className="form-group">
-                          <label>Max Rewarded Runs / Day</label>
-                          <input
-                            type="number"
-                            value={miniGamesConfig[activeGameType]?.maxDailyRuns ?? 5}
-                            onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { maxDailyRuns: parseInt(e.target.value) || 0 })}
-                            min="0"
-                            max="50"
-                          />
+                      <div className="config-card card" style={{ marginTop: '20px' }}>
+                        <h3>ᚠ Rune Shop & Economy Settings</h3>
+                        
+                        <div className="admin-section-divider">Daily Rewards & Multiplier</div>
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label>Max Rewarded Runs / Day</label>
+                            <input
+                              type="number"
+                              value={miniGamesConfig[activeGameType]?.maxDailyRuns ?? 5}
+                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { maxDailyRuns: parseInt(e.target.value) || 0 })}
+                              min="0"
+                              max="50"
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Rune Multiplier</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={miniGamesConfig[activeGameType]?.runeMultiplier ?? 1.0}
+                              onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { runeMultiplier: parseFloat(e.target.value) || 0 })}
+                              min="0"
+                              max="10"
+                            />
+                          </div>
                         </div>
+
+                        <div className="admin-section-divider">Shop Item Costs (Runes)</div>
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label>Magnetism Lv1</label>
+                            <input
+                              type="number"
+                              value={miniGamesConfig[activeGameType]?.shopCosts?.magnetismLv1 ?? 100}
+                              onChange={(e) => {
+                                const costs = { ...(miniGamesConfig[activeGameType]?.shopCosts || {}) };
+                                costs.magnetismLv1 = parseInt(e.target.value) || 0;
+                                handleUpdateMiniGameConfig(activeGameType, { shopCosts: costs });
+                              }}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Magnetism Lv2</label>
+                            <input
+                              type="number"
+                              value={miniGamesConfig[activeGameType]?.shopCosts?.magnetismLv2 ?? 250}
+                              onChange={(e) => {
+                                const costs = { ...(miniGamesConfig[activeGameType]?.shopCosts || {}) };
+                                costs.magnetismLv2 = parseInt(e.target.value) || 0;
+                                handleUpdateMiniGameConfig(activeGameType, { shopCosts: costs });
+                              }}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Magnetism Lv3</label>
+                            <input
+                              type="number"
+                              value={miniGamesConfig[activeGameType]?.shopCosts?.magnetismLv3 ?? 500}
+                              onChange={(e) => {
+                                const costs = { ...(miniGamesConfig[activeGameType]?.shopCosts || {}) };
+                                costs.magnetismLv3 = parseInt(e.target.value) || 0;
+                                handleUpdateMiniGameConfig(activeGameType, { shopCosts: costs });
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <div className="form-row" style={{ marginTop: '10px' }}>
+                          <div className="form-group">
+                            <label>Extra Turbo Charge</label>
+                            <input
+                              type="number"
+                              value={miniGamesConfig[activeGameType]?.shopCosts?.extraTurbo ?? 50}
+                              onChange={(e) => {
+                                const costs = { ...(miniGamesConfig[activeGameType]?.shopCosts || {}) };
+                                costs.extraTurbo = parseInt(e.target.value) || 0;
+                                handleUpdateMiniGameConfig(activeGameType, { shopCosts: costs });
+                              }}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Extra High Jump</label>
+                            <input
+                              type="number"
+                              value={miniGamesConfig[activeGameType]?.shopCosts?.extraJump ?? 50}
+                              onChange={(e) => {
+                                const costs = { ...(miniGamesConfig[activeGameType]?.shopCosts || {}) };
+                                costs.extraJump = parseInt(e.target.value) || 0;
+                                handleUpdateMiniGameConfig(activeGameType, { shopCosts: costs });
+                              }}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Iðunn’s Apple</label>
+                            <input
+                              type="number"
+                              value={miniGamesConfig[activeGameType]?.shopCosts?.idunApple ?? 500}
+                              onChange={(e) => {
+                                const costs = { ...(miniGamesConfig[activeGameType]?.shopCosts || {}) };
+                                costs.idunApple = parseInt(e.target.value) || 0;
+                                handleUpdateMiniGameConfig(activeGameType, { shopCosts: costs });
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="admin-section-divider">Currency Exchange Rates (1 Rune = X)</div>
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label>Valcoins Rate</label>
+                            <input
+                              type="number"
+                              step="0.001"
+                              value={miniGamesConfig[activeGameType]?.exchangeRates?.valcoins ?? 0.5}
+                              onChange={(e) => {
+                                const rates = { ...(miniGamesConfig[activeGameType]?.exchangeRates || {}) };
+                                rates.valcoins = parseFloat(e.target.value) || 0;
+                                handleUpdateMiniGameConfig(activeGameType, { exchangeRates: rates });
+                              }}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>AURY Rate</label>
+                            <input
+                              type="number"
+                              step="0.0001"
+                              value={miniGamesConfig[activeGameType]?.exchangeRates?.aury ?? 0.01}
+                              onChange={(e) => {
+                                const rates = { ...(miniGamesConfig[activeGameType]?.exchangeRates || {}) };
+                                rates.aury = parseFloat(e.target.value) || 0;
+                                handleUpdateMiniGameConfig(activeGameType, { exchangeRates: rates });
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="admin-section-divider">Global Ascension Goal</div>
                         <div className="form-group">
-                          <label>Rune Multiplier</label>
+                          <label>Global Goal Target (Meters)</label>
                           <input
                             type="number"
-                            step="0.1"
-                            value={miniGamesConfig[activeGameType]?.runeMultiplier ?? 1.0}
-                            onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { runeMultiplier: parseFloat(e.target.value) || 0 })}
-                            min="0"
-                            max="10"
+                            value={miniGamesConfig[activeGameType]?.globalGoalTarget ?? 5000000}
+                            onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { globalGoalTarget: parseInt(e.target.value) || 0 })}
                           />
                         </div>
                       </div>
