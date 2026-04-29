@@ -27,7 +27,7 @@ const NIDHOGG_ACCEL = 0.0001; // Accelerates over time
 const NIDHOGG_STALL_BOOST = 0.15; // Extra speed if player stays low
 const RATATOSKR_W = 20;
 const RATATOSKR_H = 16;
-const RATATOSKR_SPEED = 4;
+const RATATOSKR_SPEED = 2; // Slowed down so players can see and catch it
 const RATATOSKR_RUNE_BONUS = 5;
 
 // No more static milestones, using dynamic run-end rewards instead
@@ -140,6 +140,73 @@ function generatePlatforms(count, startY, rng, difficulty, usedBands) {
   return platforms;
 }
 
+// Generate floating rune patterns
+function generateFloatingRunes(startY, endY, rng) {
+  const runes = [];
+  const patternCount = Math.floor(rng() * 2) + 1; // 1 to 2 patterns per batch
+  
+  for (let i = 0; i < patternCount; i++) {
+    const patternType = Math.floor(rng() * 4); // 0: Line, 1: Sine, 2: V-Shape, 3: Circle
+    const patternY = startY + rng() * (endY - startY);
+    const runeCount = 4 + Math.floor(rng() * 5); // 4 to 8 runes
+    const symbol = RUNE_SYMBOLS[Math.floor(rng() * RUNE_SYMBOLS.length)];
+
+    if (patternType === 0) { // Horizontal line
+      const startX = 50 + rng() * (CANVAS_W - 200);
+      for (let j = 0; j < runeCount; j++) {
+        runes.push({
+          id: `fr_${Math.random()}_${j}`,
+          x: startX + j * 30,
+          y: patternY,
+          symbol,
+          collected: false,
+          offX: 0, offY: 0
+        });
+      }
+    } else if (patternType === 1) { // Sine wave
+      const startX = 50 + rng() * (CANVAS_W - 200);
+      for (let j = 0; j < runeCount; j++) {
+        runes.push({
+          id: `fr_${Math.random()}_${j}`,
+          x: startX + j * 30,
+          y: patternY + Math.sin(j * 0.8) * 40,
+          symbol,
+          collected: false,
+          offX: 0, offY: 0
+        });
+      }
+    } else if (patternType === 2) { // V-Shape
+      const centerX = 100 + rng() * (CANVAS_W - 200);
+      for (let j = 0; j < runeCount; j++) {
+        const offset = (j - Math.floor(runeCount / 2)) * 30;
+        runes.push({
+          id: `fr_${Math.random()}_${j}`,
+          x: centerX + offset,
+          y: patternY - Math.abs(offset),
+          symbol,
+          collected: false,
+          offX: 0, offY: 0
+        });
+      }
+    } else { // Circle
+      const centerX = 100 + rng() * (CANVAS_W - 200);
+      const radius = 40 + rng() * 30;
+      for (let j = 0; j < runeCount; j++) {
+        const angle = (j / runeCount) * Math.PI * 2;
+        runes.push({
+          id: `fr_${Math.random()}_${j}`,
+          x: centerX + Math.cos(angle) * radius,
+          y: patternY + Math.sin(angle) * radius,
+          symbol,
+          collected: false,
+          offX: 0, offY: 0
+        });
+      }
+    }
+  }
+  return runes;
+}
+
 const YggdrasilAscender = ({ user }) => {
   const canvasRef = useRef(null);
   const gameRef = useRef(null);
@@ -191,6 +258,10 @@ const YggdrasilAscender = ({ user }) => {
   const [appleUsedInRun, setAppleUsedInRun] = useState(false);
   const [doubleJumpDisabled, setDoubleJumpDisabled] = useState(false);
   const turboMomentumRef = useRef(false);
+  const [showApplePrompt, setShowApplePrompt] = useState(false);
+  const [appleTimer, setAppleTimer] = useState(10);
+  const appleTimerRef = useRef(null);
+  const appleDeathReasonRef = useRef(null);
   
   // ═══ EMOTES STATE ═══
   const [showEmoteMenu, setShowEmoteMenu] = useState(false);
@@ -595,6 +666,8 @@ const YggdrasilAscender = ({ user }) => {
     startPlats.push({ x: 0, y: CANVAS_H - 15, w: CANVAS_W, h: 20, type: 'ground', broken: false, moveDir: 1 });
     startPlats.sort((a, b) => b.y - a.y);
 
+    const initialFloatingRunes = generateFloatingRunes(CANVAS_H - 1000, startPlats[0].y, rng);
+
     const eventToUse = eventOverride || activeEvent;
 
     gameRef.current = {
@@ -623,7 +696,7 @@ const YggdrasilAscender = ({ user }) => {
       lastPublish: 0,
       difficulty: 0,
       runes: 0,
-      magnetism: (userUpgrades.magnetismLevel || 0) === 1 ? 30 : (userUpgrades.magnetismLevel || 0) === 2 ? 50 : (userUpgrades.magnetismLevel || 0) === 3 ? 80 : 0,
+      magnetism: (userUpgrades.magnetismLevel || 0) === 1 ? 60 : (userUpgrades.magnetismLevel || 0) === 2 ? 100 : (userUpgrades.magnetismLevel || 0) === 3 ? 150 : 0,
       particles: [],
       windParticles: [], // decorative wind streaks
       itemBandsUsed,
@@ -650,6 +723,7 @@ const YggdrasilAscender = ({ user }) => {
       ratatoskr: null, // { x, y, platformId, direction, speed, alive }
       lastRatatoskrAlt: 0, // altitude of last spawn
       ratatoskrCooldown: 3000 + Math.floor(rng() * 2000), // 3k-5k alt between spawns
+      floatingRunes: initialFloatingRunes,
       stars: Array.from({ length: 40 }, () => ({
         x: rng() * CANVAS_W,
         y: rng() * CANVAS_H * 3,
@@ -965,8 +1039,9 @@ const YggdrasilAscender = ({ user }) => {
         const dy = (p.y + PLAYER_H / 2) - runeY;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < g.magnetism) {
-          // Move rune toward player
-          const pullForce = 0.25 * dt;
+          // Move rune toward player — stronger pull when closer
+          const closeness = 1 - (dist / g.magnetism); // 0 at edge, 1 when on top
+          const pullForce = (1.5 + closeness * 3.0) * dt;
           plat.runeOffX += (dx / dist) * pullForce;
           plat.runeOffY += (dy / dist) * pullForce;
           runeX = plat.x + plat.w / 2 + plat.runeOffX;
@@ -1000,6 +1075,51 @@ const YggdrasilAscender = ({ user }) => {
         }
       }
 
+    }
+
+    // Floating Rune collection & Magnetism
+    for (const fr of g.floatingRunes) {
+      if (fr.collected) continue;
+      
+      let runeX = fr.x + (fr.offX || 0);
+      let runeY = fr.y + (fr.offY || 0);
+
+      // Magnetism pull
+      if (g.magnetism > 0) {
+        const dx = (p.x + PLAYER_W / 2) - runeX;
+        const dy = (p.y + PLAYER_H / 2) - runeY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < g.magnetism) {
+          const closeness = 1 - (dist / g.magnetism);
+          const pullForce = (1.5 + closeness * 3.0) * dt;
+          fr.offX = (fr.offX || 0) + (dx / dist) * pullForce;
+          fr.offY = (fr.offY || 0) + (dy / dist) * pullForce;
+          runeX = fr.x + fr.offX;
+          runeY = fr.y + fr.offY;
+        } else {
+          fr.offX = (fr.offX || 0) * 0.95;
+          fr.offY = (fr.offY || 0) * 0.95;
+        }
+      }
+
+      if (
+        p.x + PLAYER_W > runeX - RUNE_SIZE / 2 &&
+        p.x < runeX + RUNE_SIZE / 2 &&
+        p.y + PLAYER_H > runeY - RUNE_SIZE / 2 &&
+        p.y < runeY + RUNE_SIZE / 2
+      ) {
+        fr.collected = true;
+        g.runes++;
+        setRunesCollected(g.runes);
+        for (let pi = 0; pi < 8; pi++) {
+          g.particles.push({
+            x: runeX, y: runeY,
+            vx: (Math.random() - 0.5) * 4,
+            vy: (Math.random() - 0.5) * 4 - 2,
+            life: 30, color: '#fbbf24', size: 3
+          });
+        }
+      }
     }
 
     // Death Spirit collection
@@ -1223,13 +1343,19 @@ const YggdrasilAscender = ({ user }) => {
 
     // Generate more platforms
     while (g.platGenY > g.camera - 200) {
+      const prevGenY = g.platGenY;
       const newPlats = generatePlatforms(20, g.platGenY, g.rng, g.difficulty, g.itemBandsUsed);
       g.platforms.push(...newPlats);
       g.platGenY = newPlats[newPlats.length - 1].y;
+      
+      // Generate floating runes between the previous and new platGenY
+      const newFloatingRunes = generateFloatingRunes(g.platGenY, prevGenY, g.rng);
+      g.floatingRunes.push(...newFloatingRunes);
     }
 
     // Cull old platforms
     g.platforms = g.platforms.filter(pl => pl.y < g.camera + CANVAS_H + 100);
+    g.floatingRunes = g.floatingRunes.filter(fr => fr.y < g.camera + CANVAS_H + 100);
 
     // ═══ NIDHOGG'S RISING MIST ═══
     const nh = g.nidhogg;
@@ -1362,11 +1488,27 @@ const YggdrasilAscender = ({ user }) => {
     };
 
     if (p.y > g.camera + CANVAS_H + 120) {
+      // Check if apple can save the player
+      if (userUpgrades.hasIdunApple && !appleUsedInRun) {
+        // Pause the game loop and show respawn prompt
+        appleDeathReasonRef.current = 'fall';
+        setShowApplePrompt(true);
+        setAppleTimer(10);
+        setGameState('apple_prompt');
+        return;
+      }
       triggerGameOver('fall');
       return;
     }
     if (nh.active && p.y + PLAYER_H > nh.y) {
       g.shake = 20;
+      if (userUpgrades.hasIdunApple && !appleUsedInRun) {
+        appleDeathReasonRef.current = 'nidhogg';
+        setShowApplePrompt(true);
+        setAppleTimer(10);
+        setGameState('apple_prompt');
+        return;
+      }
       triggerGameOver('nidhogg');
       return;
     }
@@ -1634,6 +1776,31 @@ const YggdrasilAscender = ({ user }) => {
         ctx.lineWidth = 3;
         ctx.strokeText(plat.runeSymbol, runeX, runeY);
         ctx.fillText(plat.runeSymbol, runeX, runeY);
+        ctx.restore();
+      }
+    }
+
+    // Draw floating runes
+    for (const fr of g.floatingRunes) {
+      if (fr.collected) continue;
+      const rx = fr.x + (fr.offX || 0);
+      const ry = fr.y - g.camera + Math.sin(Date.now() / 300 + fr.x) * 5 + (fr.offY || 0);
+      
+      // Only draw if on screen
+      if (ry > -50 && ry < CANVAS_H + 50) {
+        ctx.save();
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = `bold ${RUNE_SIZE}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+        ctx.lineWidth = 3;
+        ctx.strokeText(fr.symbol, rx, ry);
+        ctx.fillText(fr.symbol, rx, ry);
+        // Subtle glow effect
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#fbbf24';
+        ctx.fillText(fr.symbol, rx, ry);
         ctx.restore();
       }
     }
@@ -2006,19 +2173,70 @@ const YggdrasilAscender = ({ user }) => {
     animRef.current = requestAnimationFrame(gameLoop);
   }, [publishPresence, removePresence, submitScore, user]);
 
-  // Use Idun's Apple
-  const useApple = useCallback(() => {
-    const g = gameRef.current;
-    if (!g || !userUpgrades.hasIdunApple || appleUsedInRun || gameState !== 'playing') return;
+  // Use Idun's Apple — respawn the player to the highest platform
+  const handleAppleDecision = useCallback((accepted) => {
+    // Clear the timer
+    if (appleTimerRef.current) {
+      clearInterval(appleTimerRef.current);
+      appleTimerRef.current = null;
+    }
+    setShowApplePrompt(false);
 
+    const g = gameRef.current;
+    if (!g) return;
+
+    if (!accepted) {
+      // Player declined or timer ran out — trigger real game over
+      const reason = appleDeathReasonRef.current || 'fall';
+      setScore(g.maxAlt);
+      setRunesCollected(g.runes);
+      setDeathReason(reason);
+      const alt = g.maxAlt;
+      if (alt > bestScoreRef.current) {
+        setIsNewBest(true);
+        setBestScore(alt);
+        bestScoreRef.current = alt;
+        localStorage.setItem('ygg_best', alt.toString());
+      } else {
+        setIsNewBest(false);
+      }
+      submitScore(g.maxAlt);
+      removePresence();
+      setGameState('over');
+      setRunStats({ loading: true });
+      submitYggdrasilRun(g.maxAlt, g.runes).then(res => {
+        if (res && res.success) {
+          setRunStats(res);
+        } else {
+          setRunStats({ error: res?.error || 'Failed to submit' });
+        }
+      });
+      return;
+    }
+
+    // Player accepted — respawn on the highest visible platform
     const p = g.player;
-    p.vy = -15; // Powerful jump
-    p.turboTime = 120; // 2 seconds of turbo
-    g.shake = 15;
-    g.flashAlpha = 0.5; // Golden flash
     
-    // Particles
-    for (let i = 0; i < 30; i++) {
+    // Find the highest (lowest y value) non-broken platform
+    const validPlats = g.platforms.filter(pl => !pl.broken && pl.type !== 'ground');
+    validPlats.sort((a, b) => a.y - b.y);
+    const targetPlat = validPlats[0];
+
+    if (targetPlat) {
+      p.x = targetPlat.x + targetPlat.w / 2 - PLAYER_W / 2;
+      p.y = targetPlat.y - PLAYER_H - 5;
+    } else {
+      // Fallback — just boost up from current camera
+      p.y = g.camera + 100;
+    }
+
+    p.vy = -8; // Gentle upward boost
+    p.vx = 0;
+    g.shake = 15;
+    g.flashAlpha = 0.6; // Golden flash
+
+    // Spawn golden revival particles
+    for (let i = 0; i < 40; i++) {
       g.particles.push({
         x: p.x + PLAYER_W / 2, y: p.y + PLAYER_H / 2,
         vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10,
@@ -2027,13 +2245,13 @@ const YggdrasilAscender = ({ user }) => {
     }
 
     setAppleUsedInRun(true);
-
-    // Update persistent state (one-time use)
     setUserUpgrades(prev => ({ ...prev, hasIdunApple: false }));
-    // We don't need to update Firestore here immediately, it will be handled by the next buy 
-    // but ideally we should update it to prevent double-use across sessions.
-    // However, the "hasIdunApple" is reset in initGame anyway.
-  }, [userUpgrades, appleUsedInRun, gameState]);
+    setGameState('playing');
+
+    // Resume game loop
+    if (animRef.current) cancelAnimationFrame(animRef.current);
+    animRef.current = requestAnimationFrame(gameLoop);
+  }, [gameLoop, submitScore, removePresence]);
 
   // Start/restart game
   const handleEmoteSelect = useCallback((emote) => {
@@ -2128,6 +2346,32 @@ const YggdrasilAscender = ({ user }) => {
       removePresence();
     };
   }, [removePresence]);
+
+  // Apple respawn timer countdown
+  useEffect(() => {
+    if (!showApplePrompt) return;
+    
+    setAppleTimer(10);
+    appleTimerRef.current = setInterval(() => {
+      setAppleTimer(prev => {
+        if (prev <= 1) {
+          // Time's up — decline
+          clearInterval(appleTimerRef.current);
+          appleTimerRef.current = null;
+          handleAppleDecision(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (appleTimerRef.current) {
+        clearInterval(appleTimerRef.current);
+        appleTimerRef.current = null;
+      }
+    };
+  }, [showApplePrompt, handleAppleDecision]);
 
   // Keyboard
   useEffect(() => {
@@ -2321,9 +2565,10 @@ const YggdrasilAscender = ({ user }) => {
                     {jumpUsed && <span className="ygg-pu-float">-1</span>}
                   </div>
                   {userUpgrades.hasIdunApple && !appleUsedInRun && (
-                    <button className="ygg-apple-hud-btn" onClick={useApple} title="Use Iðunn's Apple">
+                    <div className="ygg-apple-hud-indicator" title="Iðunn's Apple — auto-activates on death">
                       <span role="img" aria-label="apple">🍎</span>
-                    </button>
+                      <span style={{ fontSize: '9px', opacity: 0.7 }}>2nd life</span>
+                    </div>
                   )}
                 </div>
 
@@ -2574,6 +2819,46 @@ const YggdrasilAscender = ({ user }) => {
             </button>
           </div>
         )}
+
+        {/* Apple Respawn Prompt */}
+        {showApplePrompt && (
+          <div className="ygg-apple-prompt-overlay" style={{
+            position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.85)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            zIndex: 110, textAlign: 'center', animation: 'fadeIn 0.3s ease-out'
+          }}>
+            <div style={{ fontSize: '50px', marginBottom: '12px', animation: 'pulse 1s infinite' }}>🍎</div>
+            <div style={{ color: '#fbbf24', fontSize: '22px', fontWeight: 'bold', marginBottom: '6px' }}>
+              Iðunn's Apple
+            </div>
+            <div style={{ fontSize: '15px', color: '#cbd5e1', marginBottom: '20px', maxWidth: '280px' }}>
+              You have fallen! Use your apple to respawn at the highest platform?
+            </div>
+            <div style={{ 
+              fontSize: '32px', fontWeight: 'bold', marginBottom: '20px',
+              color: appleTimer <= 3 ? '#ef4444' : '#fbbf24',
+              transition: 'color 0.3s'
+            }}>
+              {appleTimer}s
+            </div>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button 
+                className="ygg-start-btn" 
+                style={{ padding: '10px 28px', fontSize: '16px' }}
+                onClick={() => handleAppleDecision(true)}
+              >
+                🍎 RESPAWN
+              </button>
+              <button 
+                className="ygg-back-btn" 
+                style={{ padding: '10px 28px', fontSize: '14px' }}
+                onClick={() => handleAppleDecision(false)}
+              >
+                DECLINE
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Side Panel: Leaderboard & History */}
@@ -2583,7 +2868,7 @@ const YggdrasilAscender = ({ user }) => {
           <div className="ygg-goal-header">
             <span className="ygg-goal-title">Global Ascension</span>
             <span className="ygg-goal-count">
-              {globalGoal.current.toLocaleString()} / {globalGoal.target.toLocaleString()}
+              {(globalGoal?.current || 0).toLocaleString()} / {(globalGoal?.target || 1000000).toLocaleString()}
             </span>
           </div>
           <div className="ygg-goal-bar">

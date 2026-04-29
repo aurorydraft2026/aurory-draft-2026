@@ -10,7 +10,7 @@ const SHOP_ITEMS = [
     description: 'Runes fly toward you from a distance. Upgrades increase the range.',
     maxLevel: 3,
     type: 'upgrade',
-    levelLabels: ['30px range', '50px range', '80px range'],
+    levelLabels: ['60px range', '100px range', '150px range'],
     defaultCosts: [50, 150, 400]
   },
   {
@@ -33,7 +33,7 @@ const SHOP_ITEMS = [
     id: 'idunApple',
     name: "Iðunn's Apple",
     icon: '🍎',
-    description: 'Revive once per run when you fall. Press to activate. Max 1.',
+    description: 'Auto-activates when you die. Get a 10s prompt to respawn at the highest platform. Max 1.',
     type: 'consumable',
     maxOwn: 1,
     defaultCost: 80

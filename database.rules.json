@@ -62,6 +62,16 @@
       }
     },
     "yggdrasil": {
+      "spirits": {
+        ".read": true,
+        "$spiritId": {
+          ".write": "auth != null"
+        }
+      },
+      "global_goal": {
+        ".read": true,
+        ".write": "auth != null"
+      },
       "players": {
         ".read": "auth != null",
         "$uid": {

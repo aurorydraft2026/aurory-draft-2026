@@ -323,6 +323,11 @@ service cloud.firestore {
         allow create, update, delete: if isAdmin();
       }
 
+      // Subcollection: Yggdrasil Data (Runes, Upgrades)
+      match /yggdrasil_data/{docId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
       // Subcollection: Active Mini-Game Session Persistence
       match /activeSessions/{sessionId} {
         allow read, write: if isOwner(userId) || isAdmin();

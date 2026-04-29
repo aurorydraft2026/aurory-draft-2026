@@ -143,7 +143,7 @@ async function handleBalance(interaction: any, res: any) {
         const uid = usersSnap.docs[0].id;
         const displayName = userData.auroryPlayerName || userData.displayName || 'Warrior';
         const avatar = userData.auroryProfilePicture || userData.photoURL || '';
-        
+
         let title = '';
         let description = '';
         let color = 0xD4AF37;
@@ -234,7 +234,7 @@ async function handleWealth(interaction: any, res: any) {
         const snap = await rtdb.ref(`leaderboards/earnings/valcoins/${gameValue}/all_time/${uid}`).once('value');
         const data = snap.exists() ? snap.val() : null;
         const score = data?.score || 0;
-        
+
         const gameNames: Record<string, string> = {
             slotMachine: '🎰 Slot Machine',
             treasureChest: '📦 Loot Box',
@@ -274,7 +274,7 @@ async function handleLeaderboard(interaction: any, res: any) {
     const options = interaction.data?.options || [];
     const category = options.find((opt: any) => opt.name === 'category')?.value || 'valcoins';
     const timeframe = (options.find((opt: any) => opt.name === 'timeframe')?.value || 'all_time').toString().toLowerCase();
-    
+
     console.log(`[Interaction] /leaderboard category: ${category}, timeframe: ${timeframe}`);
 
     try {
@@ -289,7 +289,7 @@ async function handleLeaderboard(interaction: any, res: any) {
         // ─── 1. Calculate Timeframe Path ───
         let timeframePath = 'all_time';
         let timeframeTitle = 'All Time';
-        
+
         if (timeframe !== 'all_time') {
             const now = new Date();
             if (timeframe === 'daily') {
@@ -319,11 +319,11 @@ async function handleLeaderboard(interaction: any, res: any) {
             }
 
             const entries: { name: string; score: number }[] = [];
-            snapshot.forEach((child: any) => { 
-                entries.push({ 
-                    name: child.val().displayName || 'Unknown', 
-                    score: child.val().score || 0 
-                }); 
+            snapshot.forEach((child: any) => {
+                entries.push({
+                    name: child.val().displayName || 'Unknown',
+                    score: child.val().score || 0
+                });
             });
             entries.sort((a, b) => b.score - a.score);
 
@@ -348,9 +348,9 @@ async function handleLeaderboard(interaction: any, res: any) {
                     title: i === 0 ? `🏆 Top Valcoin Earners — ${timeframeTitle}` : undefined,
                     description: leaderboardText,
                     color: 0xF1C40F, // Gold
-                    footer: i + 25 >= entries.length ? { 
-                        text: 'Runie • Earnings Ranking', 
-                        icon_url: 'https://asgard-duels.web.app/favicon.ico' 
+                    footer: i + 25 >= entries.length ? {
+                        text: 'Runie • Earnings Ranking',
+                        icon_url: 'https://asgard-duels.web.app/favicon.ico'
                     } : undefined,
                     timestamp: i === 0 ? new Date().toISOString() : undefined
                 });
@@ -365,7 +365,7 @@ async function handleLeaderboard(interaction: any, res: any) {
         } else if (category === 'pvp_wins') {
             console.log(`[Interaction] Fetching pvp_wins from ${timeframePath}...`);
             const snapshot = await rtdb.ref(`leaderboards/earnings/wins/pvp/${timeframePath}`).orderByChild('score').limitToLast(100).once('value');
-            
+
             if (!snapshot.exists()) {
                 res.status(200).json({
                     type: CHANNEL_MESSAGE,
@@ -375,11 +375,11 @@ async function handleLeaderboard(interaction: any, res: any) {
             }
 
             const entries: { name: string; score: number }[] = [];
-            snapshot.forEach((child: any) => { 
-                entries.push({ 
-                    name: child.val().displayName || 'Unknown', 
-                    score: child.val().score || 0 
-                }); 
+            snapshot.forEach((child: any) => {
+                entries.push({
+                    name: child.val().displayName || 'Unknown',
+                    score: child.val().score || 0
+                });
             });
             entries.sort((a, b) => b.score - a.score);
 
@@ -404,9 +404,9 @@ async function handleLeaderboard(interaction: any, res: any) {
                     title: i === 0 ? `🔥 Top PvP Warriors — ${timeframeTitle} Wins` : undefined,
                     description: leaderboardText,
                     color: 0xE67E22, // Orange
-                    footer: i + 25 >= entries.length ? { 
-                        text: 'Runie • PvP Ranking', 
-                        icon_url: 'https://asgard-duels.web.app/favicon.ico' 
+                    footer: i + 25 >= entries.length ? {
+                        text: 'Runie • PvP Ranking',
+                        icon_url: 'https://asgard-duels.web.app/favicon.ico'
                     } : undefined,
                     timestamp: i === 0 ? new Date().toISOString() : undefined
                 });
@@ -493,7 +493,7 @@ async function handleLeaderboard(interaction: any, res: any) {
                 }));
                 const validResults = results.filter(r => r.score > 0).sort((a, b) => b.score - a.score).slice(0, 10);
                 if (validResults.length === 0) leaderboardText = '📊 No leaderboard data yet.';
-                else leaderboardText = validResults.map((e, i) => `${i < 3 ? medals[i] : `\`${i + 1}.\``} **${e.name}** — ${e.score.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${category.toUpperCase()}`).join('\n');
+                else leaderboardText = validResults.map((e, i) => `${i < 3 ? medals[i] : `\`${i + 1}.\``} **${e.name}** — ${e.score.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${category.toUpperCase()}`).join('\n');
             }
             title = `💰 Top ${category.toUpperCase()} Balances`;
             color = category === 'aury' ? 0x9B59B6 : 0x2ECC71;
@@ -510,13 +510,13 @@ async function handleLeaderboard(interaction: any, res: any) {
                 leaderboardText = '📊 No tournament data yet.';
             } else {
                 const winCounts: Record<string, { name: string, wins: number }> = {};
-                
+
                 snap.docs.forEach(doc => {
                     const data = doc.data();
                     if (!data.overallWinner || data.overallWinner === 'draw') return;
-                    
-                    const players = data.matchPlayers || (data.finalAssignments ? data.finalAssignments.map((a:any) => ({ team: a.team, uid: a.participant?.uid || a.participant?.id, displayName: a.participant?.displayName || a.participant?.auroryPlayerName })) : []);
-                    
+
+                    const players = data.matchPlayers || (data.finalAssignments ? data.finalAssignments.map((a: any) => ({ team: a.team, uid: a.participant?.uid || a.participant?.id, displayName: a.participant?.displayName || a.participant?.auroryPlayerName })) : []);
+
                     players.forEach((p: any) => {
                         if (p.team === data.overallWinner) {
                             const uid = p.uid || p.id;
