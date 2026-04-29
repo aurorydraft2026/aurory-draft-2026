@@ -246,6 +246,19 @@ function AdminPanel() {
   const [earnersSelectedUser, setEarnersSelectedUser] = useState(null);
   const [isSelectingEarnersUser, setIsSelectingEarnersUser] = useState(false);
   const [earnersLoading, setEarnersLoading] = useState(false);
+  
+  // Yggdrasil Rune Shop Inventory
+  const [newRuneShopItem, setNewRuneShopItem] = useState({
+    name: '',
+    description: '',
+    icon: '🎁',
+    image: '',
+    price: 10,
+    stock: 50,
+    rarity: 'common'
+  });
+  const [isCreatingRuneShopItem, setIsCreatingRuneShopItem] = useState(false);
+  const [editingRuneShopItemId, setEditingRuneShopItemId] = useState(null);
 
   // PvP Rewards state
   const [pvpRewardsConfig, setPvpRewardsConfig] = useState(null);
@@ -7962,6 +7975,155 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   )}
 
                   {activeGameType === 'yggdrasilAscender' && (
+                    <>
+                    <div className="prizes-management-card card" style={{ marginBottom: '20px' }}>
+                      <div className="ygg-shop-management">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                          <h3>🛒 Rune Shop Inventory</h3>
+                          <button 
+                            className={editingRuneShopItemId ? "admin-secondary-btn" : "admin-primary-btn"}
+                            onClick={() => {
+                              if (editingRuneShopItemId) {
+                                setEditingRuneShopItemId(null);
+                                setIsCreatingRuneShopItem(false);
+                                setNewRuneShopItem({ name: '', description: '', icon: '🎁', image: '', price: 10, stock: 50, rarity: 'common' });
+                              } else {
+                                setIsCreatingRuneShopItem(!isCreatingRuneShopItem);
+                              }
+                            }}
+                          >
+                            {editingRuneShopItemId ? '✕ Cancel Edit' : isCreatingRuneShopItem ? '✕ Cancel' : '➕ Add Custom Item'}
+                          </button>
+                        </div>
+
+                        {isCreatingRuneShopItem && (
+                          <div className="new-prize-form card" style={{ marginBottom: '30px', padding: '20px', background: 'rgba(0,0,0,0.2)', border: editingRuneShopItemId ? '1px solid #3b82f6' : 'none' }}>
+                            <h4>{editingRuneShopItemId ? '📝 Edit Item' : '✨ New Shop Item'}</h4>
+                            <div className="form-row">
+                              <div className="form-group flex-2">
+                                <label>Item Name</label>
+                                <input 
+                                  type="text" 
+                                  placeholder="e.g. 500 Amiko Pack" 
+                                  value={newRuneShopItem.name}
+                                  onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, name: e.target.value })}
+                                />
+                              </div>
+                              <div className="form-group flex-1">
+                                <label>Icon (Emoji)</label>
+                                <input 
+                                  type="text" 
+                                  value={newRuneShopItem.icon}
+                                  onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, icon: e.target.value })}
+                                />
+                              </div>
+                            </div>
+                            <div className="form-group">
+                              <label>Description</label>
+                              <input 
+                                type="text" 
+                                placeholder="What does this item give?" 
+                                value={newRuneShopItem.description}
+                                onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, description: e.target.value })}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label>🖼 Image URL (for Armory display)</label>
+                              <input 
+                                type="text" 
+                                placeholder="https://..." 
+                                value={newRuneShopItem.image}
+                                onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, image: e.target.value })}
+                              />
+                            </div>
+                            <div className="form-row">
+                              <div className="form-group">
+                                <label>Price (Runes)</label>
+                                <input 
+                                  type="number" 
+                                  value={newRuneShopItem.price}
+                                  onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, price: parseInt(e.target.value) || 0 })}
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label>Stock</label>
+                                <input 
+                                  type="number" 
+                                  value={newRuneShopItem.stock}
+                                  onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, stock: parseInt(e.target.value) || 0 })}
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label>Rarity</label>
+                                <select 
+                                  value={newRuneShopItem.rarity}
+                                  onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, rarity: e.target.value })}
+                                >
+                                  <option value="common">Common</option>
+                                  <option value="uncommon">Uncommon</option>
+                                  <option value="rare">Rare</option>
+                                  <option value="epic">Epic</option>
+                                  <option value="legendary">Legendary</option>
+                                  <option value="mythic">Mythic</option>
+                                </select>
+                              </div>
+                            </div>
+                            <button 
+                              className="admin-primary-btn" 
+                              style={{ width: '100%', marginTop: '10px' }}
+                              onClick={() => {
+                                if (!newRuneShopItem.name) return alert('Name is required');
+                                const currentItems = miniGamesConfig.yggdrasilAscender?.customShopItems || [];
+                                let updatedItems;
+                                if (editingRuneShopItemId) {
+                                  updatedItems = currentItems.map(item => item.id === editingRuneShopItemId ? { ...newRuneShopItem, id: item.id } : item);
+                                } else {
+                                  updatedItems = [...currentItems, { ...newRuneShopItem, id: `custom_${Date.now()}` }];
+                                }
+                                handleUpdateMiniGameConfig('yggdrasilAscender', { customShopItems: updatedItems });
+                                setIsCreatingRuneShopItem(false);
+                                setEditingRuneShopItemId(null);
+                                setNewRuneShopItem({ name: '', description: '', icon: '🎁', image: '', price: 10, stock: 50, rarity: 'common' });
+                              }}
+                            >
+                              {editingRuneShopItemId ? '💾 Save Changes' : '✅ Add to Shop'}
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="shop-items-list" style={{ display: 'grid', gap: '10px' }}>
+                          {(miniGamesConfig.yggdrasilAscender?.customShopItems || []).length === 0 ? (
+                            <p style={{ opacity: 0.5, textAlign: 'center', padding: '20px' }}>No custom items in shop.</p>
+                          ) : (
+                            miniGamesConfig.yggdrasilAscender.customShopItems.map(item => (
+                              <div key={item.id} className="admin-prize-item" style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                  <div style={{ fontSize: '24px' }}>{item.icon}</div>
+                                  <div>
+                                    <div style={{ fontWeight: 'bold' }}>{item.name} <span style={{ fontSize: '11px', opacity: 0.7, textTransform: 'uppercase' }}>({item.rarity})</span></div>
+                                    <div style={{ fontSize: '12px', opacity: 0.7 }}>Price: {item.price} Runes | Stock: {item.stock}</div>
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <button className="admin-edit-btn" onClick={() => {
+                                    setNewRuneShopItem(item);
+                                    setEditingRuneShopItemId(item.id);
+                                    setIsCreatingRuneShopItem(true);
+                                  }}>Edit</button>
+                                  <button className="admin-delete-btn" onClick={() => {
+                                    if (window.confirm('Remove this item from shop?')) {
+                                      const updated = miniGamesConfig.yggdrasilAscender.customShopItems.filter(i => i.id !== item.id);
+                                      handleUpdateMiniGameConfig('yggdrasilAscender', { customShopItems: updated });
+                                    }
+                                  }}>Remove</button>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="prizes-management-card card">
                       <div className="yggdrasil-events-management">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -8188,6 +8350,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         </div>
                       </div>
                     </div>
+                  </>
                   )}
                 </div>
               )}

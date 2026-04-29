@@ -279,6 +279,20 @@ export async function purchaseRuneShopItem(itemId) {
 }
 
 /**
+ * Consume Iðunn's Apple (mark as used in Firestore).
+ */
+export async function consumeIdunAppleService() {
+  try {
+    const consumeFn = httpsCallable(functions, 'consumeIdunApple');
+    const result = await consumeFn();
+    return result.data;
+  } catch (error) {
+    console.error('Error consuming apple:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Exchange Runes for another currency.
  * @param {string} targetCurrency - 'Valcoins', 'AURY', 'Amiko', etc.
  * @param {number} runeAmount - Number of runes to exchange

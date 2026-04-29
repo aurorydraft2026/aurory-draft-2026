@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { database, db } from '../../firebase';
 import { ref, onValue, set, remove, onDisconnect, get, query, orderByChild, limitToLast } from 'firebase/database';
 import { doc, getDoc } from 'firebase/firestore';
-import { submitYggdrasilRun, getYggdrasilEvents, joinYggdrasilEvent, claimYggdrasilEventPrize, getUserYggData, subscribeGlobalGoal } from '../../services/miniGameService';
+import { submitYggdrasilRun, getYggdrasilEvents, joinYggdrasilEvent, claimYggdrasilEventPrize, getUserYggData, subscribeGlobalGoal, consumeIdunAppleService } from '../../services/miniGameService';
 import { resolveDisplayName } from '../../utils/userUtils';
 import RuneShop from './RuneShop';
 import './YggdrasilAscender.css';
@@ -21,7 +21,7 @@ const PLAT_H = 16;
 const PLAT_GAP_MIN = 100;
 const PLAT_GAP_MAX = 150;
 const RUNE_SIZE = 22;
-const NIDHOGG_GRACE_PERIOD = 900; // ~15 seconds at 60fps
+const NIDHOGG_GRACE_PERIOD = 120; // 2 seconds at 60fps
 const NIDHOGG_BASE_SPEED = 0.3;
 const NIDHOGG_ACCEL = 0.0001; // Accelerates over time
 const NIDHOGG_STALL_BOOST = 0.15; // Extra speed if player stays low
@@ -94,8 +94,8 @@ function generatePlatforms(count, startY, rng, difficulty, usedBands) {
 
     platforms.push({
       id: Math.random().toString(36).substr(2, 9),
-      x, y, w: PLAT_W, h: PLAT_H, type, 
-      isMoving, 
+      x, y, w: PLAT_W, h: PLAT_H, type,
+      isMoving,
       moveType,
       moveDir: rng() < 0.5 ? 1 : -1,
       baseX: x, baseY: y,
@@ -144,7 +144,7 @@ function generatePlatforms(count, startY, rng, difficulty, usedBands) {
 function generateFloatingRunes(startY, endY, rng) {
   const runes = [];
   const patternCount = Math.floor(rng() * 2) + 1; // 1 to 2 patterns per batch
-  
+
   for (let i = 0; i < patternCount; i++) {
     const patternType = Math.floor(rng() * 4); // 0: Line, 1: Sine, 2: V-Shape, 3: Circle
     const patternY = startY + rng() * (endY - startY);
@@ -250,7 +250,7 @@ const YggdrasilAscender = ({ user }) => {
   const [nidhoggWarning, setNidhoggWarning] = useState(false);
   const [ratatoskrNotif, setRatatoskrNotif] = useState(null);
   const [deathReason, setDeathReason] = useState(null); // 'fall' | 'nidhogg'
-  
+
   // ═══ RUNE SHOP STATE ═══
   const [showShop, setShowShop] = useState(false);
   const [userUpgrades, setUserUpgrades] = useState({ magnetismLevel: 0, extraTurbo: 0, extraJump: 0, hasIdunApple: false });
@@ -262,14 +262,14 @@ const YggdrasilAscender = ({ user }) => {
   const [appleTimer, setAppleTimer] = useState(10);
   const appleTimerRef = useRef(null);
   const appleDeathReasonRef = useRef(null);
-  
+
   // ═══ EMOTES STATE ═══
   const [showEmoteMenu, setShowEmoteMenu] = useState(false);
   const [emoteMenuPos, setEmoteMenuPos] = useState({ x: 0, y: 0 });
   const currentEmoteRef = useRef(null);
   const holdTimerRef = useRef(null);
   const EMOTES = ['🔥', '⚔️', '🛡️', '⚡', '🏆', '💀'];
-  
+
   // Events
   const [events, setEvents] = useState([]);
   const [activeEvent, setActiveEvent] = useState(null);
@@ -283,23 +283,27 @@ const YggdrasilAscender = ({ user }) => {
   const containerRef = useRef(null);
 
   // Fetch admin config for prize calculation display
-  useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const configSnap = await getDoc(doc(db, 'settings', 'mini_games'));
-        if (configSnap.exists()) {
-          const data = configSnap.data()?.yggdrasilAscender || {};
-          setYggConfig({
-            maxDailyRuns: data.maxDailyRuns ?? 5,
-            runeMultiplier: data.runeMultiplier ?? 1.0
-          });
-        }
-      } catch (err) {
-        console.warn('Failed to fetch ygg config, using defaults', err);
+  const fetchConfig = useCallback(async () => {
+    try {
+      const configSnap = await getDoc(doc(db, 'settings', 'mini_games'));
+      if (configSnap.exists()) {
+        const data = configSnap.data()?.yggdrasilAscender || {};
+        setYggConfig({
+          maxDailyRuns: data.maxDailyRuns ?? 5,
+          runeMultiplier: data.runeMultiplier ?? 1.0,
+          shopCosts: data.shopCosts || {},
+          exchangeRates: data.exchangeRates || {},
+          customShopItems: data.customShopItems || []
+        });
       }
-    };
-    fetchConfig();
+    } catch (err) {
+      console.warn('Failed to fetch ygg config, using defaults', err);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchConfig();
+  }, [fetchConfig]);
 
   // Load and process assets (remove white background)
   useEffect(() => {
@@ -365,7 +369,8 @@ const YggdrasilAscender = ({ user }) => {
     if (!user?.uid) return;
     const data = await getUserYggData(user.uid);
     setUserUpgrades(data.upgrades);
-  }, [user]);
+    fetchConfig(); // Also refresh global config to update shop stock counts
+  }, [user, fetchConfig]);
 
   useEffect(() => {
     if (gameState === 'start') {
@@ -403,7 +408,7 @@ const YggdrasilAscender = ({ user }) => {
   useEffect(() => {
     if (!user?.uid) return;
     const playersRef = ref(database, 'yggdrasil/players');
-    
+
     const addHistoryEvent = (text, type) => {
       setGlobalHistory(prev => [{
         id: Date.now() + Math.random(),
@@ -416,12 +421,12 @@ const YggdrasilAscender = ({ user }) => {
     const unsub = onValue(playersRef, snap => {
       const data = snap.val() || {};
       const prevData = prevPlayersRef.current;
-      
+
       // Monitor all players
       Object.keys(data).forEach(uid => {
         const p = data[uid];
         const prevP = prevData[uid];
-        
+
         if (!prevP) {
           // Join event
           const pName = p.name || 'A Warrior';
@@ -460,7 +465,7 @@ const YggdrasilAscender = ({ user }) => {
         if (!data[uid]) {
           const prevP = prevData[uid];
           addHistoryEvent(`${prevP.name || 'A Warrior'} has fallen at ${prevP.maxAlt || 0}m`, 'fall');
-          
+
           // Local fallen overlay (only for others)
           if (uid !== user.uid) {
             const id = Date.now() + Math.random();
@@ -493,7 +498,7 @@ const YggdrasilAscender = ({ user }) => {
     setLbLoading(true);
     let path;
     const now = new Date();
-    
+
     if (lbMode === 'daily') {
       path = `yggdrasil/leaderboard/daily/${getDailySeed()}`;
     } else if (lbMode === 'weekly') {
@@ -576,7 +581,7 @@ const YggdrasilAscender = ({ user }) => {
   const publishPresence = useCallback((x, y, maxAlt, zoneName) => {
     if (!user?.uid) return;
     const pRef = ref(database, `yggdrasil/players/${user.uid}`);
-    
+
     const presenceData = {
       x, y,
       maxAlt,
@@ -685,7 +690,8 @@ const YggdrasilAscender = ({ user }) => {
         turboTime: 0,
         turboCharges: userUpgrades.extraTurbo || 0,
         doubleJumpCharges: userUpgrades.extraJump || 0,
-        usedDoubleJumpInAir: false
+        usedDoubleJumpInAir: false,
+        mistTimer: 120 // 2 seconds survival in Nidhogg mist
       },
       platforms: startPlats,
       camera: 0,
@@ -705,12 +711,16 @@ const YggdrasilAscender = ({ user }) => {
       shake: 0, // screen shake magnitude
       lastTime: performance.now(),
       lastHUDTime: 0,
-      flashAlpha: 0, // for lightning
+      flashAlpha: 0, // for lightning/darkness
+      goldenFlashAlpha: 0, // for apple respawn
       weatherType: 'clear', // clear, thunderstorm, cosmic
       thunderState: 'none', // none, warning, flashing
       thunderTimer: 0,
       thunderCount: 0,
       lastThunderTime: 0,
+      hasIdunApple: userUpgrades.hasIdunApple,
+      appleUsedInRun: false,
+      lastRuneAlt: 0, // for floating runes gap
       // ═══ NIDHOGG'S RISING MIST ═══
       nidhogg: {
         y: CANVAS_H + 200, // starts well below screen
@@ -805,11 +815,11 @@ const YggdrasilAscender = ({ user }) => {
         p.vx += (Math.sin(now / 800) * 0.08) * dt;
       }
     }
-    
+
     // Cosmic Winds - Wind effect (7k-9k)
     if (currentAlt >= 7000 && currentAlt < 9000) {
       // Windy weather: Base wind that shifts slowly + chaotic gusts
-      const baseWind = Math.sin(now / 4000) * 0.14; 
+      const baseWind = Math.sin(now / 4000) * 0.14;
       const gust = Math.sin(now / 500) * 0.12 * (Math.sin(now / 1200) > 0.3 ? 1 : 0);
       p.vx += (baseWind + gust) * dt;
       friction = 0.12; // Harder to stabilize in the wind
@@ -825,7 +835,7 @@ const YggdrasilAscender = ({ user }) => {
     // Manual jump logic
     const jumpPressed = keysRef.current['Space'] || keysRef.current['ArrowUp'] || touchRef.current.jump;
     const lastJumpPressed = keysRef.current['lastJump'] || false;
-    
+
     if (jumpPressed) {
       if (p.isGrounded) {
         p.vy = JUMP_FORCE;
@@ -840,8 +850,8 @@ const YggdrasilAscender = ({ user }) => {
         setTimeout(() => setJumpUsed(false), 1000);
         for (let di = 0; di < 6; di++) {
           g.particles.push({
-            x: p.x + PLAYER_W/2 + (Math.random()-0.5)*20, y: p.y + PLAYER_H,
-            vx: (Math.random()-0.5)*3, vy: 1 + Math.random()*2,
+            x: p.x + PLAYER_W / 2 + (Math.random() - 0.5) * 20, y: p.y + PLAYER_H,
+            vx: (Math.random() - 0.5) * 3, vy: 1 + Math.random() * 2,
             life: 15, color: '#60a5fa', size: 3
           });
         }
@@ -903,10 +913,10 @@ const YggdrasilAscender = ({ user }) => {
     } else if (g.thunderState === 'flashing') {
       g.thunderTimer += dt;
       // 3 rapid flashes (black to semi-transparent)
-      const flashPeriod = 8; 
+      const flashPeriod = 8;
       const isVisible = Math.floor(g.thunderTimer / flashPeriod) % 2 === 0;
       g.flashAlpha = isVisible ? 0.95 : 0.3;
-      
+
       if (g.thunderTimer > flashPeriod * 6) { // 3 cycles (on/off)
         g.thunderState = 'fade';
       }
@@ -916,6 +926,12 @@ const YggdrasilAscender = ({ user }) => {
         g.flashAlpha = 0;
         g.thunderState = 'none';
       }
+    }
+
+    // Apple Respawn Golden Flash decrement
+    if (g.goldenFlashAlpha > 0) {
+      g.goldenFlashAlpha -= 0.015 * dt;
+      if (g.goldenFlashAlpha < 0) g.goldenFlashAlpha = 0;
     }
 
     // Vertical Physics
@@ -933,11 +949,11 @@ const YggdrasilAscender = ({ user }) => {
       for (const plat of g.platforms) {
         if (plat.broken) continue;
         if (p.y + PLAYER_H > plat.y && p.y + PLAYER_H < plat.y + plat.h + 10 &&
-            p.x + PLAYER_W * 0.8 > plat.x && p.x + PLAYER_W * 0.2 < plat.x + plat.w) {
-          
+          p.x + PLAYER_W * 0.8 > plat.x && p.x + PLAYER_W * 0.2 < plat.x + plat.w) {
+
           p.y = plat.y - PLAYER_H;
           p.isGrounded = true;
-          
+
           if (plat.type === 'boost') {
             p.vy = BOOST_FORCE;
             p.isGrounded = false;
@@ -954,7 +970,7 @@ const YggdrasilAscender = ({ user }) => {
             plat.activated = true;
             plat.activatedTime = Date.now(); // Start 2s flicker countdown
           }
-          
+
           if (p.squash === 1) {
             p.squash = 0.85; // squash on landing
             // Spawn landing dust
@@ -990,12 +1006,12 @@ const YggdrasilAscender = ({ user }) => {
         const dx = (p.x + PLAYER_W / 2) - ix;
         const dy = (p.y + PLAYER_H / 2) - iy;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        
+
         if (dist < 40) {
           const isTurbo = plat.item === 'turbo';
           const isJump = plat.item === 'doubleJump';
           const atMax = isTurbo ? (p.turboCharges || 0) >= 3 : (p.doubleJumpCharges || 0) >= 5;
-          
+
           if (atMax) {
             // Don't collect — item stays visible
             // Skip collection entirely
@@ -1009,9 +1025,9 @@ const YggdrasilAscender = ({ user }) => {
               setDoubleJumpCharges(p.doubleJumpCharges);
             }
             // Collect effect
-            for(let i=0; i<10; i++) {
+            for (let i = 0; i < 10; i++) {
               g.particles.push({
-                x: ix, y: iy, vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5, 
+                x: ix, y: iy, vx: (Math.random() - 0.5) * 5, vy: (Math.random() - 0.5) * 5,
                 life: 20, color: plat.item === 'turbo' ? '#fbbf24' : '#60a5fa', size: 3
               });
             }
@@ -1023,7 +1039,7 @@ const YggdrasilAscender = ({ user }) => {
     // Rune collection & Magnetism
     for (const plat of g.platforms) {
       if (!plat.hasRune || plat.runeCollected || plat.broken) continue;
-      
+
       // Initialize rune offsets for magnetism visual
       if (plat.runeOffX === undefined) {
         plat.runeOffX = 0;
@@ -1080,7 +1096,7 @@ const YggdrasilAscender = ({ user }) => {
     // Floating Rune collection & Magnetism
     for (const fr of g.floatingRunes) {
       if (fr.collected) continue;
-      
+
       let runeX = fr.x + (fr.offX || 0);
       let runeY = fr.y + (fr.offY || 0);
 
@@ -1347,10 +1363,13 @@ const YggdrasilAscender = ({ user }) => {
       const newPlats = generatePlatforms(20, g.platGenY, g.rng, g.difficulty, g.itemBandsUsed);
       g.platforms.push(...newPlats);
       g.platGenY = newPlats[newPlats.length - 1].y;
-      
-      // Generate floating runes between the previous and new platGenY
-      const newFloatingRunes = generateFloatingRunes(g.platGenY, prevGenY, g.rng);
-      g.floatingRunes.push(...newFloatingRunes);
+
+      // Generate floating runes only at 5,000m+ with 3,000m gaps
+      if (alt >= 5000 && alt - g.lastRuneAlt >= 3000) {
+        const newFloatingRunes = generateFloatingRunes(g.platGenY, prevGenY, g.rng);
+        g.floatingRunes.push(...newFloatingRunes);
+        g.lastRuneAlt = alt;
+      }
     }
 
     // Cull old platforms
@@ -1489,7 +1508,20 @@ const YggdrasilAscender = ({ user }) => {
 
     if (p.y > g.camera + CANVAS_H + 120) {
       // Check if apple can save the player
-      if (userUpgrades.hasIdunApple && !appleUsedInRun) {
+      if (g.hasIdunApple && !g.appleUsedInRun) {
+        // Prepare death states for UI display
+        setScore(g.maxAlt);
+        setRunesCollected(g.runes);
+        setDeathReason('fall');
+        if (alt > bestScoreRef.current) {
+          setIsNewBest(true);
+          setBestScore(alt);
+          bestScoreRef.current = alt;
+          localStorage.setItem('ygg_best', alt.toString());
+        } else {
+          setIsNewBest(false);
+        }
+
         // Pause the game loop and show respawn prompt
         appleDeathReasonRef.current = 'fall';
         setShowApplePrompt(true);
@@ -1502,15 +1534,33 @@ const YggdrasilAscender = ({ user }) => {
     }
     if (nh.active && p.y + PLAYER_H > nh.y) {
       g.shake = 20;
-      if (userUpgrades.hasIdunApple && !appleUsedInRun) {
-        appleDeathReasonRef.current = 'nidhogg';
-        setShowApplePrompt(true);
-        setAppleTimer(10);
-        setGameState('apple_prompt');
+      p.mistTimer -= dt;
+      if (p.mistTimer <= 0) {
+        if (g.hasIdunApple && !g.appleUsedInRun) {
+          // Prepare death states for UI display
+          setScore(g.maxAlt);
+          setRunesCollected(g.runes);
+          setDeathReason('nidhogg');
+          if (alt > bestScoreRef.current) {
+            setIsNewBest(true);
+            setBestScore(alt);
+            bestScoreRef.current = alt;
+            localStorage.setItem('ygg_best', alt.toString());
+          } else {
+            setIsNewBest(false);
+          }
+
+          appleDeathReasonRef.current = 'nidhogg';
+          setShowApplePrompt(true);
+          setAppleTimer(10);
+          setGameState('apple_prompt');
+          return;
+        }
+        triggerGameOver('nidhogg');
         return;
       }
-      triggerGameOver('nidhogg');
-      return;
+    } else {
+      p.mistTimer = 120; // reset
     }
 
 
@@ -1603,7 +1653,7 @@ const YggdrasilAscender = ({ user }) => {
         const pulse = Math.sin(Date.now() / 400) * 5;
         ctx.save();
         ctx.translate(s.x, s.y - g.camera);
-        
+
         // Aura
         const grad = ctx.createRadialGradient(0, 0, 2, 0, 0, 20 + pulse);
         grad.addColorStop(0, 'rgba(168, 85, 247, 0.6)');
@@ -1621,12 +1671,12 @@ const YggdrasilAscender = ({ user }) => {
         ctx.shadowBlur = 10;
         ctx.shadowColor = '#a855f7';
         ctx.fillText('👻', 0, pulse / 2);
-        
+
         // Name
         ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
         ctx.font = '10px Rajdhani, sans-serif';
         ctx.fillText(s.name, 0, 25);
-        
+
         ctx.restore();
       }
     }
@@ -1723,7 +1773,7 @@ const YggdrasilAscender = ({ user }) => {
         const glowPulse = 0.5 + Math.sin(Date.now() / 250) * 0.5;
         const cx = plat.x + plat.w / 2;
         const cy = plat.y - 30 + bounce;
-        
+
         // Glowing background circle
         const grad = ctx.createRadialGradient(cx, cy, 5, cx, cy, 28);
         if (plat.item === 'turbo') {
@@ -1740,7 +1790,7 @@ const YggdrasilAscender = ({ user }) => {
         ctx.beginPath();
         ctx.arc(cx, cy, 28 + glowPulse * 8, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Icon
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -1785,7 +1835,7 @@ const YggdrasilAscender = ({ user }) => {
       if (fr.collected) continue;
       const rx = fr.x + (fr.offX || 0);
       const ry = fr.y - g.camera + Math.sin(Date.now() / 300 + fr.x) * 5 + (fr.offY || 0);
-      
+
       // Only draw if on screen
       if (ry > -50 && ry < CANVAS_H + 50) {
         ctx.save();
@@ -1875,7 +1925,7 @@ const YggdrasilAscender = ({ user }) => {
       // Only draw if on screen
       if (sp.y > g.camera - 100 && sp.y < g.camera + CANVAS_H + 100) {
         const floatY = Math.sin(Date.now() / 400) * 10;
-        
+
         ctx.save();
         // Pulsing glow
         ctx.shadowBlur = 15 + Math.sin(Date.now() / 200) * 8;
@@ -1962,10 +2012,10 @@ const YggdrasilAscender = ({ user }) => {
     // Player
     const isJumping = !p.isGrounded;
     const isTurbo = p.turboTime > 0;
-    
+
     ctx.save();
-    ctx.translate(p.x + PLAYER_W / 2, p.y + PLAYER_H); 
-    
+    ctx.translate(p.x + PLAYER_W / 2, p.y + PLAYER_H);
+
     let finalScaleX = p.scaleX;
     let finalScaleY = p.scaleY;
 
@@ -1997,7 +2047,7 @@ const YggdrasilAscender = ({ user }) => {
       const sizeMult = isJumping ? 1.1 : 1.0; // Slightly boost jumping sprite size
       const renderH = PLAYER_H * sizeMult;
       const renderW = renderH * (heroImg.width / heroImg.height);
-      
+
       // Shift drawing down to plant feet on the platform floor
       ctx.drawImage(heroImg, (PLAYER_W - renderW) / 2, PLAYER_H - renderH, renderW, renderH);
 
@@ -2104,10 +2154,35 @@ const YggdrasilAscender = ({ user }) => {
       aurGrad.addColorStop(0.5, `hsla(${(hue + 60) % 360}, 70%, 50%, 0.8)`);
       aurGrad.addColorStop(1, `hsla(${(hue + 120) % 360}, 70%, 50%, 0)`);
       ctx.fillStyle = aurGrad;
-      for(let i=0; i<2; i++) {
+      for (let i = 0; i < 2; i++) {
         const offset = Math.sin(now / 1000 + i) * 50;
         ctx.fillRect(offset, 0, CANVAS_W, CANVAS_H);
       }
+      ctx.restore();
+    }
+
+    // Nidhogg Mist Survival Countdown
+    if (p.mistTimer < 120 && p.mistTimer > 0 && gameState === 'playing') {
+      const seconds = Math.ceil(p.mistTimer / 60);
+      const bx = p.x + PLAYER_W / 2;
+      const by = p.y - 45 - g.camera;
+
+      // Draw bubble
+      ctx.save();
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.8)'; // Reddish for danger
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(bx, by, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Draw text
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 20px Rajdhani';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(seconds, bx, by);
       ctx.restore();
     }
 
@@ -2117,9 +2192,9 @@ const YggdrasilAscender = ({ user }) => {
       ctx.save();
       ctx.globalAlpha = 0.08 * bifrostAlpha;
       const rainbowGrad = ctx.createLinearGradient(0, 0, CANVAS_W, 0);
-      for(let i=0; i<=6; i++) {
+      for (let i = 0; i <= 6; i++) {
         const hue = (i * 60 + now / 10) % 360;
-        rainbowGrad.addColorStop(i/6, `hsla(${hue}, 80%, 50%, 1)`);
+        rainbowGrad.addColorStop(i / 6, `hsla(${hue}, 80%, 50%, 1)`);
       }
       ctx.fillStyle = rainbowGrad;
       ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
@@ -2128,8 +2203,13 @@ const YggdrasilAscender = ({ user }) => {
 
     if (g.flashAlpha > 0) {
       // Thunderclap Darkness flickering
-      const opacity = g.flashAlpha > 0.5 ? g.flashAlpha : g.flashAlpha;
-      ctx.fillStyle = `rgba(0, 0, 0, ${opacity})`;
+      ctx.fillStyle = `rgba(0, 0, 0, ${g.flashAlpha})`;
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    }
+
+    if (g.goldenFlashAlpha > 0) {
+      // Iðunn's Apple Golden Flash
+      ctx.fillStyle = `rgba(251, 191, 36, ${g.goldenFlashAlpha})`;
       ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
     }
 
@@ -2171,7 +2251,7 @@ const YggdrasilAscender = ({ user }) => {
     }
 
     animRef.current = requestAnimationFrame(gameLoop);
-  }, [publishPresence, removePresence, submitScore, user]);
+  }, [publishPresence, removePresence, submitScore, user, gameState]);
 
   // Use Idun's Apple — respawn the player to the highest platform
   const handleAppleDecision = useCallback((accepted) => {
@@ -2214,26 +2294,42 @@ const YggdrasilAscender = ({ user }) => {
       return;
     }
 
-    // Player accepted — respawn on the highest visible platform
+    // Player accepted — respawn on the highest platform currently on screen
     const p = g.player;
-    
-    // Find the highest (lowest y value) non-broken platform
-    const validPlats = g.platforms.filter(pl => !pl.broken && pl.type !== 'ground');
-    validPlats.sort((a, b) => a.y - b.y);
-    const targetPlat = validPlats[0];
+
+    // Find non-broken platforms within the current camera view
+    const visiblePlats = g.platforms.filter(pl =>
+      !pl.broken &&
+      pl.type !== 'ground' &&
+      pl.y >= g.camera &&
+      pl.y <= g.camera + CANVAS_H
+    );
+
+    // Sort by altitude (lowest y is highest)
+    visiblePlats.sort((a, b) => a.y - b.y);
+    let targetPlat = visiblePlats[0];
+
+    // Fallback: If no platform is on screen, find the closest one above or at the camera
+    if (!targetPlat) {
+      const fallbackPlats = g.platforms.filter(pl => !pl.broken && pl.type !== 'ground' && pl.y <= g.camera + CANVAS_H);
+      fallbackPlats.sort((a, b) => b.y - a.y); // Closest from above
+      targetPlat = fallbackPlats[0];
+    }
 
     if (targetPlat) {
       p.x = targetPlat.x + targetPlat.w / 2 - PLAYER_W / 2;
-      p.y = targetPlat.y - PLAYER_H - 5;
+      p.y = targetPlat.y - PLAYER_H - 10;
     } else {
-      // Fallback — just boost up from current camera
+      // Absolute fallback
       p.y = g.camera + 100;
+      p.x = CANVAS_W / 2 - PLAYER_W / 2;
     }
 
-    p.vy = -8; // Gentle upward boost
+    p.vy = -7; // Gentle upward boost
     p.vx = 0;
     g.shake = 15;
-    g.flashAlpha = 0.6; // Golden flash
+    g.goldenFlashAlpha = 0.8; // Trigger golden flash
+    g.flashAlpha = 0; // Clear any thunderstorm darkness
 
     // Spawn golden revival particles
     for (let i = 0; i < 40; i++) {
@@ -2244,9 +2340,14 @@ const YggdrasilAscender = ({ user }) => {
       });
     }
 
+    g.appleUsedInRun = true;
+    g.hasIdunApple = false;
     setAppleUsedInRun(true);
     setUserUpgrades(prev => ({ ...prev, hasIdunApple: false }));
     setGameState('playing');
+
+    // Consume the apple in Firestore so it's one-time use per purchase
+    consumeIdunAppleService();
 
     // Resume game loop
     if (animRef.current) cancelAnimationFrame(animRef.current);
@@ -2266,7 +2367,7 @@ const YggdrasilAscender = ({ user }) => {
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     const cx = clientX - rect.left;
     const cy = clientY - rect.top;
-    
+
     const g = gameRef.current;
     if (g) {
       const p = g.player;
@@ -2274,10 +2375,10 @@ const YggdrasilAscender = ({ user }) => {
       const py = p.y - g.camera;
       const scaleX = rect.width / CANVAS_W;
       const scaleY = rect.height / CANVAS_H;
-      
+
       // Check if near player (scaled to canvas)
-      if (cx > px * scaleX - 50 && cx < (px + PLAYER_W) * scaleX + 50 && 
-          cy > py * scaleY - 50 && cy < (py + PLAYER_H) * scaleY + 50) {
+      if (cx > px * scaleX - 50 && cx < (px + PLAYER_W) * scaleX + 50 &&
+        cy > py * scaleY - 50 && cy < (py + PLAYER_H) * scaleY + 50) {
         holdTimerRef.current = setTimeout(() => {
           setEmoteMenuPos({ x: cx, y: cy });
           setShowEmoteMenu(true);
@@ -2303,7 +2404,7 @@ const YggdrasilAscender = ({ user }) => {
       const res = await joinYggdrasilEvent(eventId);
       setEventLoading(false);
       setEventLoadingId(null);
-      
+
       if (!res.success) {
         alert(res.error || 'Failed to join event');
         return;
@@ -2324,6 +2425,12 @@ const YggdrasilAscender = ({ user }) => {
     touchRef.current = { left: false, right: false, jump: false, turbo: false };
     setGameState('playing');
     setIsNewBest(false);
+    setScore(0);
+    setRunesCollected(0);
+    setDeathReason(null);
+    setAppleUsedInRun(false);
+    setRunStats(null);
+
     // Announce initial zone (Midgard)
     zoneNameRef.current = 'MIDGARD';
     setZoneName('MIDGARD');
@@ -2350,28 +2457,27 @@ const YggdrasilAscender = ({ user }) => {
   // Apple respawn timer countdown
   useEffect(() => {
     if (!showApplePrompt) return;
-    
+
     setAppleTimer(10);
-    appleTimerRef.current = setInterval(() => {
+    const interval = setInterval(() => {
       setAppleTimer(prev => {
         if (prev <= 1) {
-          // Time's up — decline
-          clearInterval(appleTimerRef.current);
-          appleTimerRef.current = null;
-          handleAppleDecision(false);
+          clearInterval(interval);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
-    return () => {
-      if (appleTimerRef.current) {
-        clearInterval(appleTimerRef.current);
-        appleTimerRef.current = null;
-      }
-    };
-  }, [showApplePrompt, handleAppleDecision]);
+    return () => clearInterval(interval);
+  }, [showApplePrompt]);
+
+  // Handle timer expiration as a side effect to avoid updating parent during render
+  useEffect(() => {
+    if (showApplePrompt && appleTimer === 0) {
+      handleAppleDecision(false);
+    }
+  }, [appleTimer, showApplePrompt, handleAppleDecision]);
 
   // Keyboard
   useEffect(() => {
@@ -2398,34 +2504,34 @@ const YggdrasilAscender = ({ user }) => {
   }, []);
 
   // Handle Mobile Touch Events (Passive: False)
-  const handleLeftStart = (e) => { 
-    if (e.cancelable) e.preventDefault(); 
-    touchRef.current.left = true; 
+  const handleLeftStart = (e) => {
+    if (e.cancelable) e.preventDefault();
+    touchRef.current.left = true;
     e.currentTarget.classList.add('is-pressed');
   };
-  const handleLeftEnd = (e) => { 
-    if (e.cancelable) e.preventDefault(); 
-    touchRef.current.left = false; 
+  const handleLeftEnd = (e) => {
+    if (e.cancelable) e.preventDefault();
+    touchRef.current.left = false;
     e.currentTarget.classList.remove('is-pressed');
   };
-  const handleRightStart = (e) => { 
-    if (e.cancelable) e.preventDefault(); 
-    touchRef.current.right = true; 
+  const handleRightStart = (e) => {
+    if (e.cancelable) e.preventDefault();
+    touchRef.current.right = true;
     e.currentTarget.classList.add('is-pressed');
   };
-  const handleRightEnd = (e) => { 
-    if (e.cancelable) e.preventDefault(); 
-    touchRef.current.right = false; 
+  const handleRightEnd = (e) => {
+    if (e.cancelable) e.preventDefault();
+    touchRef.current.right = false;
     e.currentTarget.classList.remove('is-pressed');
   };
-  const handleJumpStart = (e) => { 
-    if (e.cancelable) e.preventDefault(); 
-    touchRef.current.jump = true; 
+  const handleJumpStart = (e) => {
+    if (e.cancelable) e.preventDefault();
+    touchRef.current.jump = true;
     e.currentTarget.classList.add('is-pressed');
   };
-  const handleJumpEnd = (e) => { 
-    if (e.cancelable) e.preventDefault(); 
-    touchRef.current.jump = false; 
+  const handleJumpEnd = (e) => {
+    if (e.cancelable) e.preventDefault();
+    touchRef.current.jump = false;
     e.currentTarget.classList.remove('is-pressed');
   };
 
@@ -2480,7 +2586,7 @@ const YggdrasilAscender = ({ user }) => {
 
   return (
     <div className="ygg-container" ref={containerRef}>
-      <div 
+      <div
         className="ygg-canvas-wrapper"
         onMouseDown={handlePointerDown}
         onMouseUp={handlePointerUp}
@@ -2499,27 +2605,27 @@ const YggdrasilAscender = ({ user }) => {
           }}>
             <div className="ygg-mobile-controls-row">
               <div className="ygg-dpad-group">
-                <button 
+                <button
                   ref={leftBtnRef}
                   className="ygg-btn-dir"
                   onTouchStart={handleLeftStart}
                   onTouchEnd={handleLeftEnd}
                 >◀</button>
-                <button 
+                <button
                   ref={rightBtnRef}
                   className="ygg-btn-dir"
                   onTouchStart={handleRightStart}
                   onTouchEnd={handleRightEnd}
                 >▶</button>
               </div>
-              
+
               <div className="ygg-mobile-actions">
-                <button 
+                <button
                   className="ygg-ctrl-btn turbo-btn"
                   onTouchStart={(e) => { e.preventDefault(); touchRef.current.turbo = true; }}
                   onTouchEnd={(e) => { e.preventDefault(); touchRef.current.turbo = false; }}
                 >🚀</button>
-                <button 
+                <button
                   ref={jumpBtnRef}
                   className="ygg-ctrl-btn jump"
                   onTouchStart={handleJumpStart}
@@ -2565,9 +2671,9 @@ const YggdrasilAscender = ({ user }) => {
                     {jumpUsed && <span className="ygg-pu-float">-1</span>}
                   </div>
                   {userUpgrades.hasIdunApple && !appleUsedInRun && (
-                    <div className="ygg-apple-hud-indicator" title="Iðunn's Apple — auto-activates on death">
+                    <div className="ygg-pu-mini-sm ygg-apple-badge" title="Iðunn's Apple — auto-activates on death">
                       <span role="img" aria-label="apple">🍎</span>
-                      <span style={{ fontSize: '9px', opacity: 0.7 }}>2nd life</span>
+                      <span>REVIVE</span>
                     </div>
                   )}
                 </div>
@@ -2583,9 +2689,9 @@ const YggdrasilAscender = ({ user }) => {
                 {activeEvent && (
                   <div className="ygg-chasing">
                     <div style={{ position: 'relative' }}>
-                      <img 
-                        src={activeEvent.prizeImage} 
-                        alt={activeEvent.prizeName} 
+                      <img
+                        src={activeEvent.prizeImage}
+                        alt={activeEvent.prizeName}
                       />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -2614,14 +2720,14 @@ const YggdrasilAscender = ({ user }) => {
                 <div className="ygg-height-marker" style={{ bottom: '33.3%' }}>5k</div>
                 <div className="ygg-height-marker" style={{ bottom: '66.6%' }}>10k</div>
               </div>
-              </div>
+            </div>
 
             {/* Zone Announcement Overlay */}
             {showZoneAnnouncement && (() => {
               const z = getZone(score);
               return (
                 <div className="ygg-zone-announcement">
-                  <div className="ygg-zone-banner" style={{ 
+                  <div className="ygg-zone-banner" style={{
                     background: `linear-gradient(90deg, transparent, ${z.color}cc, transparent)`,
                     textShadow: `0 1px 8px ${z.color}88, 0 1px 4px rgba(0,0,0,0.5)`
                   }}>
@@ -2686,14 +2792,14 @@ const YggdrasilAscender = ({ user }) => {
                 <button className="ygg-shop-trigger-btn" onClick={() => setShowShop(true)}>
                   <span className="rune-icon">ᚠ</span> RUNE SHOP
                 </button>
-                
+
                 {events.length > 0 && (
                   <div className="ygg-events-container">
                     <div className="ygg-events-header">🏆 Special Events</div>
                     <div className="ygg-events-list-scroll custom-scrollbar">
                       <div className="ygg-events-grid">
                         {events.map(ev => (
-                          <button 
+                          <button
                             key={ev.id}
                             className={`ygg-event-btn ${ev.status} ${eventLoadingId === ev.id ? 'loading' : ''}`}
                             disabled={ev.status === 'closed' || eventLoading}
@@ -2723,7 +2829,7 @@ const YggdrasilAscender = ({ user }) => {
                                 <div className="ygg-event-joining">Joining...</div>
                               ) : ev.status === 'closed' ? (
                                 <div className="ygg-event-ended">
-                                  Ended<br/>
+                                  Ended<br />
                                   <span className="ygg-winner-name">{ev.winnerName || 'Winner'} got it!</span>
                                 </div>
                               ) : (
@@ -2748,7 +2854,7 @@ const YggdrasilAscender = ({ user }) => {
         )}
 
         {/* Game Over */}
-        {gameState === 'over' && (
+        {(gameState === 'over' || gameState === 'apple_prompt') && (
           <div className="ygg-gameover-overlay">
             <div className="ygg-gameover-title" style={deathReason === 'nidhogg' ? { color: '#a855f7' } : {}}>
               {deathReason === 'nidhogg' ? 'Consumed by Níðhöggr!' : 'Fallen!'}
@@ -2770,7 +2876,7 @@ const YggdrasilAscender = ({ user }) => {
               {runStats?.loading && <div style={{ color: '#94a3b8', fontSize: '14px' }}>Calculating rewards...</div>}
               {runStats?.error && <div style={{ color: '#ef4444', fontSize: '14px' }}>{runStats.error}</div>}
               {runStats?.limitReached && <div style={{ color: '#ef4444', fontSize: '14px', fontWeight: 'bold' }}>Daily limit reached (No Valcoins or Banked Runes)</div>}
-              
+
               {runStats?.success && !runStats?.limitReached && (
                 <div style={{ background: 'rgba(184, 134, 11, 0.2)', border: '1px solid #b8860b', padding: '8px', borderRadius: '8px' }}>
                   <div style={{ color: '#fbbf24', fontWeight: 'bold', fontSize: '18px' }}>+{runStats.reward} Valcoins!</div>
@@ -2783,16 +2889,45 @@ const YggdrasilAscender = ({ user }) => {
             </div>
 
             <div className="ygg-gameover-btns">
-              <button className="ygg-retry-btn" onClick={() => startGame(activeEvent?.id)}>Play Again</button>
-              
-              <button className="ygg-back-btn" onClick={() => setGameState('start')}>
-                Back to Menu
-              </button>
+              {gameState === 'apple_prompt' ? (
+                <div className="ygg-apple-respawn-box">
+                  <div className="ygg-apple-icon">🍎</div>
+                  <div className="ygg-apple-timer" style={{
+                    color: appleTimer <= 3 ? '#ef4444' : '#fbbf24',
+                    textShadow: appleTimer <= 3 ? '0 0 10px rgba(239, 68, 68, 0.5)' : '0 0 10px rgba(251, 191, 36, 0.5)'
+                  }}>
+                    {appleTimer}s
+                  </div>
+                  <div className="ygg-apple-text">Use Iðunn's Apple to respawn?</div>
+                  <div className="ygg-apple-actions">
+                    <button className="ygg-apple-btn-respawn" onClick={() => handleAppleDecision(true)}>
+                      🍎 RESPAWN
+                    </button>
+                    <button className="ygg-apple-btn-restart" onClick={() => {
+                      handleAppleDecision(false);
+                      setTimeout(() => startGame(activeEvent?.id), 100);
+                    }}>
+                      RESTART
+                    </button>
+                    <button className="ygg-apple-btn-decline" onClick={() => handleAppleDecision(false)}>
+                      BACK TO MENU
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <button className="ygg-retry-btn" onClick={() => startGame(activeEvent?.id)}>Play Again</button>
 
-              {activeEvent && (
-                <button className="ygg-free-btn" onClick={() => startGame()}>
-                  Return to Free Play
-                </button>
+                  <button className="ygg-back-btn" onClick={() => setGameState('start')}>
+                    Back to Menu
+                  </button>
+
+                  {activeEvent && (
+                    <button className="ygg-free-btn" onClick={() => startGame()}>
+                      Return to Free Play
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -2808,8 +2943,8 @@ const YggdrasilAscender = ({ user }) => {
             <div style={{ fontSize: '40px', marginBottom: '20px' }}>🎁</div>
             <div style={{ color: '#fbbf24', fontSize: '24px', fontWeight: 'bold', marginBottom: '10px' }}>TREASURE FOUND!</div>
             <div style={{ fontSize: '18px', color: '#fff', marginBottom: '30px' }}>You caught the {eventPrizeCaught}!</div>
-            <button 
-              className="ygg-start-btn" 
+            <button
+              className="ygg-start-btn"
               onClick={() => {
                 setEventPrizeCaught(null);
                 setGameState('over');
@@ -2820,45 +2955,7 @@ const YggdrasilAscender = ({ user }) => {
           </div>
         )}
 
-        {/* Apple Respawn Prompt */}
-        {showApplePrompt && (
-          <div className="ygg-apple-prompt-overlay" style={{
-            position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.85)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            zIndex: 110, textAlign: 'center', animation: 'fadeIn 0.3s ease-out'
-          }}>
-            <div style={{ fontSize: '50px', marginBottom: '12px', animation: 'pulse 1s infinite' }}>🍎</div>
-            <div style={{ color: '#fbbf24', fontSize: '22px', fontWeight: 'bold', marginBottom: '6px' }}>
-              Iðunn's Apple
-            </div>
-            <div style={{ fontSize: '15px', color: '#cbd5e1', marginBottom: '20px', maxWidth: '280px' }}>
-              You have fallen! Use your apple to respawn at the highest platform?
-            </div>
-            <div style={{ 
-              fontSize: '32px', fontWeight: 'bold', marginBottom: '20px',
-              color: appleTimer <= 3 ? '#ef4444' : '#fbbf24',
-              transition: 'color 0.3s'
-            }}>
-              {appleTimer}s
-            </div>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button 
-                className="ygg-start-btn" 
-                style={{ padding: '10px 28px', fontSize: '16px' }}
-                onClick={() => handleAppleDecision(true)}
-              >
-                🍎 RESPAWN
-              </button>
-              <button 
-                className="ygg-back-btn" 
-                style={{ padding: '10px 28px', fontSize: '14px' }}
-                onClick={() => handleAppleDecision(false)}
-              >
-                DECLINE
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Apple Respawn Prompt - Now integrated into Game Over screen */}
       </div>
 
       {/* Side Panel: Leaderboard & History */}
@@ -2872,8 +2969,8 @@ const YggdrasilAscender = ({ user }) => {
             </span>
           </div>
           <div className="ygg-goal-bar">
-            <div 
-              className="ygg-goal-fill" 
+            <div
+              className="ygg-goal-fill"
               style={{ width: `${Math.min(100, (globalGoal.current / globalGoal.target) * 100)}%` }}
             >
               <div className="ygg-goal-shine"></div>
@@ -2914,7 +3011,7 @@ const YggdrasilAscender = ({ user }) => {
             ))}
           </div>
         </div>
-        
+
         {/* Global History Feed */}
         <div className="ygg-history">
           <div className="ygg-history-header">
@@ -2939,7 +3036,7 @@ const YggdrasilAscender = ({ user }) => {
         <div className="ygg-tutorial-overlay">
           <div className="ygg-tutorial-modal ygg-rules-modal">
             <h2 className="ygg-tutorial-title">RULES &amp; POWER-UPS</h2>
-            
+
             <div className="ygg-rules-scroll custom-scrollbar">
               <div className="ygg-rules-section">
                 <div className="ygg-rules-heading">💰 Rewards</div>
@@ -3026,22 +3123,23 @@ const YggdrasilAscender = ({ user }) => {
 
       {/* Rune Shop Modal */}
       {showShop && (
-        <RuneShop 
-          user={user} 
-          onClose={() => setShowShop(false)} 
+        <RuneShop
+          user={user}
+          config={yggConfig}
+          onClose={() => setShowShop(false)}
           onUpdate={loadUserShopData}
         />
       )}
 
       {/* Emote Radial Menu */}
       {showEmoteMenu && (
-        <div 
+        <div
           className="ygg-emote-radial-overlay"
           onMouseUp={() => setShowEmoteMenu(false)}
           onTouchEnd={() => setShowEmoteMenu(false)}
         >
-          <div 
-            className="ygg-emote-radial" 
+          <div
+            className="ygg-emote-radial"
             style={{ left: emoteMenuPos.x, top: emoteMenuPos.y }}
           >
             {EMOTES.map((e, i) => {
@@ -3050,8 +3148,8 @@ const YggdrasilAscender = ({ user }) => {
               const ex = Math.cos(angle) * dist;
               const ey = Math.sin(angle) * dist;
               return (
-                <button 
-                  key={e} 
+                <button
+                  key={e}
                   className="ygg-emote-option"
                   style={{ transform: `translate(${ex}px, ${ey}px)` }}
                   onMouseDown={(ev) => { ev.stopPropagation(); handleEmoteSelect(e); }}

@@ -1492,9 +1492,9 @@ export const purchaseRuneShopItem = onCall(
                 const userData = userDoc.data();
                 const runeBalance = userData.yggRunes || 0;
                 const upgrades = upgradesDoc.exists ? upgradesDoc.data() : {};
-                const shopConfig = configDoc.exists 
-                    ? { ...DEFAULT_SHOP_CONFIG, ...(configDoc.data().yggdrasilAscender?.shop || {}) }
-                    : DEFAULT_SHOP_CONFIG;
+                const configData = configDoc.exists ? configDoc.data() : {};
+                const yggConfig = configData.miniGamesConfig?.yggdrasilAscender || configData.yggdrasilAscender || {};
+                const shopCosts = yggConfig.shopCosts || {};
 
                 let cost = 0;
                 const updateUser: any = {};
@@ -1506,17 +1506,18 @@ export const purchaseRuneShopItem = onCall(
                         if (currentLevel >= 3) {
                             return { success: false, error: 'Rune Magnetism is already at max level.' };
                         }
-                        cost = shopConfig.magnetismCosts[currentLevel];
+                        const costKey = `magnetismLv${currentLevel + 1}`;
+                        cost = shopCosts[costKey] ?? DEFAULT_SHOP_CONFIG.magnetismCosts[currentLevel];
                         updateUpgrades.magnetismLevel = currentLevel + 1;
                         break;
                     }
                     case 'extraTurbo': {
-                        cost = shopConfig.extraPocketsCosts.turbo;
+                        cost = shopCosts.extraTurbo ?? DEFAULT_SHOP_CONFIG.extraPocketsCosts.turbo;
                         updateUpgrades.extraTurbo = (upgrades.extraTurbo || 0) + 1;
                         break;
                     }
                     case 'extraJump': {
-                        cost = shopConfig.extraPocketsCosts.doubleJump;
+                        cost = shopCosts.extraJump ?? DEFAULT_SHOP_CONFIG.extraPocketsCosts.doubleJump;
                         updateUpgrades.extraJump = (upgrades.extraJump || 0) + 1;
                         break;
                     }
@@ -1524,12 +1525,54 @@ export const purchaseRuneShopItem = onCall(
                         if (upgrades.hasIdunApple) {
                             return { success: false, error: 'You already have an Idun\'s Apple. Use it before buying another.' };
                         }
-                        cost = shopConfig.idunAppleCost;
+                        cost = shopCosts.idunApple ?? DEFAULT_SHOP_CONFIG.idunAppleCost;
                         updateUpgrades.hasIdunApple = true;
                         break;
                     }
-                    default:
+                    default: {
+                        if (itemId.startsWith('custom_')) {
+                            const customItems = yggConfig.customShopItems || [];
+                            const customItem = customItems.find((i: any) => i.id === itemId);
+                            
+                            if (!customItem) {
+                                return { success: false, error: 'Custom item not found in shop configuration.' };
+                            }
+                            
+                            if (customItem.stock <= 0) {
+                                return { success: false, error: 'This item is currently out of stock.' };
+                            }
+                            
+                            cost = customItem.price || 0;
+                            
+                            // 1. Create prize record in user's armory
+                            const prizeRef = userRef.collection('prizes').doc();
+                            transaction.set(prizeRef, {
+                                name: customItem.name,
+                                description: customItem.description || '',
+                                icon: customItem.icon || '🎁',
+                                pngUrl: customItem.image || '', // Using pngUrl to match ArmoryModal's image display
+                                rarity: customItem.rarity || 'common',
+                                status: 'unclaimed',
+                                type: 'prize',
+                                source: 'Rune Shop',
+                                createdAt: admin.firestore.FieldValue.serverTimestamp()
+                            });
+                            
+                            // 2. Decrement stock in the config
+                            const updatedItems = customItems.map((i: any) => {
+                                if (i.id === itemId) return { ...i, stock: Math.max(0, i.stock - 1) };
+                                return i;
+                            });
+
+                            const configPath = configData.miniGamesConfig 
+                                ? 'miniGamesConfig.yggdrasilAscender.customShopItems' 
+                                : 'yggdrasilAscender.customShopItems';
+                                
+                            transaction.update(configRef, { [configPath]: updatedItems });
+                            break;
+                        }
                         return { success: false, error: 'Unknown item.' };
+                    }
                 }
 
                 if (runeBalance < cost) {
@@ -1553,6 +1596,30 @@ export const purchaseRuneShopItem = onCall(
         } catch (error: any) {
             console.error('PurchaseRuneShopItem Error:', error);
             throw new HttpsError('internal', error.message || 'Failed to purchase item.');
+        }
+    }
+);
+
+/**
+ * Consume Iðunn's Apple (mark as used).
+ */
+export const consumeIdunApple = onCall(
+    { cors: true, maxInstances: 10 },
+    async (request) => {
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User must be logged in.');
+        }
+
+        const { uid } = request.auth;
+        const db = admin.firestore();
+        const upgradesRef = db.collection('users').doc(uid).collection('yggdrasil_data').doc('upgrades');
+
+        try {
+            await upgradesRef.set({ hasIdunApple: false }, { merge: true });
+            return { success: true };
+        } catch (error: any) {
+            console.error('ConsumeIdunApple Error:', error);
+            throw new HttpsError('internal', error.message || 'Failed to consume apple.');
         }
     }
 );
@@ -1599,18 +1666,22 @@ export const exchangeRunes = onCall(
                     return { success: false, error: `Not enough Runes. Have ${runeBalance}, need ${runeAmount}.` };
                 }
 
-                // Get exchange rates from config
-                const shopConfig = configDoc.exists 
-                    ? { ...DEFAULT_SHOP_CONFIG, ...(configDoc.data().yggdrasilAscender?.shop || {}) }
-                    : DEFAULT_SHOP_CONFIG;
-
-                const rateEntry = shopConfig.exchangeRates.find((r: any) => r.currency === targetCurrency);
-                if (!rateEntry || !rateEntry.enabled) {
-                    return { success: false, error: `Exchange to ${targetCurrency} is not available.` };
+                // Get exchange rates from config (1 Rune = X units)
+                const configData = configDoc.exists ? configDoc.data() : {};
+                const yggConfig = configData.miniGamesConfig?.yggdrasilAscender || configData.yggdrasilAscender || {};
+                const exchangeRatesConfig = yggConfig.exchangeRates || DEFAULT_SHOP_CONFIG.exchangeRates;
+                
+                let rate = 0;
+                if (Array.isArray(exchangeRatesConfig)) {
+                    const found = exchangeRatesConfig.find((r: any) => r.currency === targetCurrency);
+                    rate = found ? found.rate : (targetCurrency === 'Valcoins' ? 100 : 0.01);
+                } else {
+                    // Object format: { valcoins: 100, aury: 0.01 }
+                    const key = targetCurrency.toLowerCase();
+                    rate = exchangeRatesConfig[key] ?? (targetCurrency === 'Valcoins' ? 100 : 0.01);
                 }
 
-                // rate = how many runes per 1 unit of target currency
-                const outputAmount = runeAmount / rateEntry.rate;
+                const outputAmount = runeAmount * rate;
                 if (outputAmount <= 0) {
                     return { success: false, error: 'Amount too small for exchange.' };
                 }

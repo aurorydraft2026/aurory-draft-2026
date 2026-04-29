@@ -40,7 +40,7 @@ const SHOP_ITEMS = [
   }
 ];
 
-const RuneShop = ({ user, onClose, onUpdate }) => {
+const RuneShop = ({ user, config, onClose, onUpdate }) => {
   const [runeBalance, setRuneBalance] = useState(0);
   const [upgrades, setUpgrades] = useState({});
   const [loading, setLoading] = useState(true);
@@ -69,7 +69,11 @@ const RuneShop = ({ user, onClose, onUpdate }) => {
     const result = await purchaseRuneShopItem(itemId);
     if (result.success) {
       setRuneBalance(result.newRuneBalance);
-      setMessage({ type: 'success', text: `Purchased ${itemId}!` });
+      const isCustom = itemId.startsWith('custom_');
+      setMessage({ 
+        type: 'success', 
+        text: isCustom ? `Purchased! Item sent to Warrior's Armory.` : `Purchased ${itemId}!` 
+      });
       await loadData(); // Refresh upgrades
       onUpdate?.();
     } else {
@@ -99,10 +103,19 @@ const RuneShop = ({ user, onClose, onUpdate }) => {
   };
 
   const getItemCost = (item) => {
-    if (item.type === 'upgrade') {
+    const shopCosts = config?.shopCosts || {};
+    
+    if (item.id === 'magnetism') {
       const level = upgrades.magnetismLevel || 0;
-      return level >= item.maxLevel ? null : item.defaultCosts[level];
+      if (level >= item.maxLevel) return null;
+      const key = `magnetismLv${level + 1}`;
+      return shopCosts[key] ?? item.defaultCosts[level];
     }
+    
+    if (item.id === 'extraTurbo') return shopCosts.extraTurbo ?? item.defaultCost;
+    if (item.id === 'extraJump') return shopCosts.extraJump ?? item.defaultCost;
+    if (item.id === 'idunApple') return shopCosts.idunApple ?? item.defaultCost;
+    
     return item.defaultCost;
   };
 
@@ -129,6 +142,11 @@ const RuneShop = ({ user, onClose, onUpdate }) => {
     if (item.id === 'magnetism' && (upgrades.magnetismLevel || 0) >= item.maxLevel) return true;
     const cost = getItemCost(item);
     return cost === null || runeBalance < cost;
+  };
+
+  const getExchangeRateDisplay = () => {
+    const rate = config?.exchangeRates?.[exchangeTarget.toLowerCase()] || (exchangeTarget === 'Valcoins' ? 0.5 : 0.01);
+    return `Rate: 1 Rune = ${rate} ${exchangeTarget}`;
   };
 
   if (loading) {
@@ -166,25 +184,34 @@ const RuneShop = ({ user, onClose, onUpdate }) => {
           {/* Items */}
           <div className="ygg-shop-section-title">⚡ Upgrades & Consumables</div>
           <div className="ygg-shop-items">
-            {SHOP_ITEMS.map(item => {
-              const cost = getItemCost(item);
-              const status = getItemStatus(item);
-              const disabled = isDisabled(item);
+            {[...SHOP_ITEMS, ...(config?.customShopItems || [])].map(item => {
+              const isCustom = item.id.startsWith('custom_');
+              const cost = isCustom ? item.price : getItemCost(item);
+              const status = isCustom ? (item.stock > 0 ? `Stock: ${item.stock}` : 'SOLD OUT') : getItemStatus(item);
+              const disabled = isCustom ? (item.stock <= 0 || runeBalance < cost) : isDisabled(item);
 
               return (
-                <div key={item.id} className={`ygg-shop-item ${disabled ? 'disabled' : ''}`}>
-                  <div className="ygg-shop-item-icon">{item.icon}</div>
+                <div key={item.id} className={`ygg-shop-item ${disabled ? 'disabled' : ''} ${isCustom ? 'custom-item' : ''}`}>
+                  <div className="ygg-shop-item-icon">
+                    {isCustom && item.image ? (
+                      <img src={item.image} alt={item.name} className="ygg-custom-shop-img" />
+                    ) : (
+                      item.icon
+                    )}
+                  </div>
                   <div className="ygg-shop-item-info">
                     <div className="ygg-shop-item-name">{item.name}</div>
                     <div className="ygg-shop-item-desc">{item.description}</div>
-                    <div className="ygg-shop-item-status">{status}</div>
+                    <div className="ygg-shop-item-status" style={{ color: isCustom && item.stock <= 0 ? '#ef4444' : '' }}>
+                      {status}
+                    </div>
                   </div>
                   <button
                     className="ygg-shop-buy-btn"
                     disabled={disabled || purchasing === item.id}
                     onClick={() => handlePurchase(item.id)}
                   >
-                    {purchasing === item.id ? '...' : cost !== null ? `ᚠ ${cost}` : 'MAX'}
+                    {purchasing === item.id ? '...' : (isCustom && item.stock <= 0) ? 'EMPTY' : cost !== null ? `ᚠ ${cost}` : 'MAX'}
                   </button>
                 </div>
               );
@@ -213,7 +240,7 @@ const RuneShop = ({ user, onClose, onUpdate }) => {
               </select>
             </div>
             <div className="ygg-shop-exchange-rate">
-              Rate: 500 Runes = 1 unit (admin configurable)
+              {getExchangeRateDisplay()}
             </div>
             <button
               className="ygg-shop-exchange-btn"

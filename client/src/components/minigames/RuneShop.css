@@ -151,6 +151,17 @@
   font-size: 1.6rem;
   min-width: 36px;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ygg-custom-shop-img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
 }
 
 .ygg-shop-item-info {

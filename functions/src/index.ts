@@ -98,6 +98,10 @@ export { manualPayout, cleanupInactiveGuests, resetMiniGameStats, clearAllGlobal
 // Refund creator when a paid 1v1 tournament is deleted or updated
 import { onTournamentDeleted, onTournamentUpdated } from './refunds';
 export const tournamentRefund = onTournamentDeleted;
+
+// ─── 6. WEEKLY RESET ───
+import { resetGlobalAscension } from './scheduledTasks';
+export { resetGlobalAscension };
 export const tournamentUpdateRefund = onTournamentUpdated;
 
 // ─── 6. TOURNAMENTS ───
@@ -120,8 +124,8 @@ export const runieWelcome = onNewUserWelcome;
 
 // ─── 8. MINI-GAMES ───
 // Secure prize selection and payouts
-import { playMiniGame, refreshDrakkarRace, placeDrakkarBet, answerRiddle, submitYggdrasilRun, joinYggdrasilEvent, claimYggdrasilEventPrize, purchaseRuneShopItem, exchangeRunes } from './miniGames';
-export { playMiniGame, refreshDrakkarRace, placeDrakkarBet, answerRiddle, submitYggdrasilRun, joinYggdrasilEvent, claimYggdrasilEventPrize, purchaseRuneShopItem, exchangeRunes };
+import { playMiniGame, refreshDrakkarRace, placeDrakkarBet, answerRiddle, submitYggdrasilRun, joinYggdrasilEvent, claimYggdrasilEventPrize, purchaseRuneShopItem, consumeIdunApple, exchangeRunes } from './miniGames';
+export { playMiniGame, refreshDrakkarRace, placeDrakkarBet, answerRiddle, submitYggdrasilRun, joinYggdrasilEvent, claimYggdrasilEventPrize, purchaseRuneShopItem, consumeIdunApple, exchangeRunes };
 
 // ─── 9. REWARDS ───
 import { collectDailyReward } from './rewards';
