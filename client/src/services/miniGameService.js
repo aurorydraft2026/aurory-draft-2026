@@ -206,10 +206,10 @@ function getDefaultConfig() {
  * @param {number} altitude - The max altitude reached.
  * @param {number} runes - The number of runes collected.
  */
-export async function submitYggdrasilRun(altitude, runes) {
+export async function submitYggdrasilRun(altitude, runes, turbosUsed = 0, doubleJumpsUsed = 0) {
   try {
     const claimFn = httpsCallable(functions, 'submitYggdrasilRun');
-    const result = await claimFn({ altitude, runes });
+    const result = await claimFn({ altitude, runes, turbosUsed, doubleJumpsUsed });
     return result.data;
   } catch (error) {
     console.error('Error submitting Yggdrasil run:', error);

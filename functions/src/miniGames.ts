@@ -1397,6 +1397,10 @@ export const submitYggdrasilRun = onCall(
                 const configData = configDoc.exists ? configDoc.data().yggdrasilAscender || {} : {};
                 const maxDailyRuns = configData.maxDailyRuns ?? 5;
                 const runeMultiplier = configData.runeMultiplier ?? 1.0;
+                const globalGoalTarget = configData.globalGoalTarget ?? 1000000;
+
+                // Sync target to RTDB so it matches Admin Panel
+                await rtdb.ref('yggdrasil/global_goal/target').set(globalGoalTarget);
 
                 const runData = runDoc.exists ? runDoc.data() : { count: 0 };
                 if (runData.count >= maxDailyRuns) {
@@ -1406,6 +1410,7 @@ export const submitYggdrasilRun = onCall(
                 const rewardAmount = Math.floor(altitude / 100) * Math.max(1, Math.floor(runes * runeMultiplier));
                 const runesEarned = Math.floor(runes);
 
+                const { turbosUsed = 0, doubleJumpsUsed = 0 } = request.data;
                 const updateData: any = {};
                 if (rewardAmount > 0) {
                     updateData.points = admin.firestore.FieldValue.increment(rewardAmount);
@@ -1414,6 +1419,26 @@ export const submitYggdrasilRun = onCall(
                 if (runesEarned > 0) {
                     updateData.yggRunes = admin.firestore.FieldValue.increment(runesEarned);
                 }
+
+                // Deduct consumed power-ups
+                if (turbosUsed > 0 || doubleJumpsUsed > 0) {
+                    const userData = userDoc.data();
+                    const yggdrasilData = userData.yggdrasil || {};
+                    const upgrades = yggdrasilData.upgrades || {};
+                    
+                    const newExtraTurbo = Math.max(0, (upgrades.extraTurbo || 0) - turbosUsed);
+                    const newExtraJump = Math.max(0, (upgrades.extraJump || 0) - doubleJumpsUsed);
+                    
+                    updateData.yggdrasil = {
+                        ...yggdrasilData,
+                        upgrades: {
+                            ...upgrades,
+                            extraTurbo: newExtraTurbo,
+                            extraJump: newExtraJump
+                        }
+                    };
+                }
+
                 if (Object.keys(updateData).length > 0) {
                     transaction.update(userRef, updateData);
                 }
@@ -1512,11 +1537,17 @@ export const purchaseRuneShopItem = onCall(
                         break;
                     }
                     case 'extraTurbo': {
+                        if ((upgrades.extraTurbo || 0) >= 3) {
+                            return { success: false, error: 'You have reached the maximum number of Turbo charges.' };
+                        }
                         cost = shopCosts.extraTurbo ?? DEFAULT_SHOP_CONFIG.extraPocketsCosts.turbo;
                         updateUpgrades.extraTurbo = (upgrades.extraTurbo || 0) + 1;
                         break;
                     }
                     case 'extraJump': {
+                        if ((upgrades.extraJump || 0) >= 5) {
+                            return { success: false, error: 'You have reached the maximum number of Double Jump charges.' };
+                        }
                         cost = shopCosts.extraJump ?? DEFAULT_SHOP_CONFIG.extraPocketsCosts.doubleJump;
                         updateUpgrades.extraJump = (upgrades.extraJump || 0) + 1;
                         break;

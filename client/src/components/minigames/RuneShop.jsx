@@ -17,16 +17,18 @@ const SHOP_ITEMS = [
     id: 'extraTurbo',
     name: 'Extra Turbo',
     icon: '🚀',
-    description: 'Start each run with +1 Turbo Boost charge.',
+    description: 'Start each run with +1 Turbo Boost charge. Max 3.',
     type: 'consumable',
+    maxOwn: 3,
     defaultCost: 20
   },
   {
     id: 'extraJump',
     name: 'Extra High Jump',
     icon: '👟',
-    description: 'Start each run with +1 Double Jump charge.',
+    description: 'Start each run with +1 Double Jump charge. Max 5.',
     type: 'consumable',
+    maxOwn: 5,
     defaultCost: 15
   },
   {
@@ -126,10 +128,12 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
       return `Lv.${level} → Lv.${level + 1}`;
     }
     if (item.id === 'extraTurbo') {
-      return `Owned: ${upgrades.extraTurbo || 0}`;
+      const owned = upgrades.extraTurbo || 0;
+      return owned >= 3 ? 'MAXED OUT' : `Owned: ${owned} / 3`;
     }
     if (item.id === 'extraJump') {
-      return `Owned: ${upgrades.extraJump || 0}`;
+      const owned = upgrades.extraJump || 0;
+      return owned >= 5 ? 'MAXED OUT' : `Owned: ${owned} / 5`;
     }
     if (item.id === 'idunApple') {
       return upgrades.hasIdunApple ? '🍎 In Inventory' : 'Not owned';
@@ -140,6 +144,8 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
   const isDisabled = (item) => {
     if (item.id === 'idunApple' && upgrades.hasIdunApple) return true;
     if (item.id === 'magnetism' && (upgrades.magnetismLevel || 0) >= item.maxLevel) return true;
+    if (item.id === 'extraTurbo' && (upgrades.extraTurbo || 0) >= 3) return true;
+    if (item.id === 'extraJump' && (upgrades.extraJump || 0) >= 5) return true;
     const cost = getItemCost(item);
     return cost === null || runeBalance < cost;
   };

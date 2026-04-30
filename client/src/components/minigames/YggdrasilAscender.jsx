@@ -28,7 +28,6 @@ const NIDHOGG_STALL_BOOST = 0.15; // Extra speed if player stays low
 const RATATOSKR_W = 20;
 const RATATOSKR_H = 16;
 const RATATOSKR_SPEED = 2; // Slowed down so players can see and catch it
-const RATATOSKR_RUNE_BONUS = 5;
 
 // No more static milestones, using dynamic run-end rewards instead
 
@@ -143,66 +142,21 @@ function generatePlatforms(count, startY, rng, difficulty, usedBands) {
 // Generate floating rune patterns
 function generateFloatingRunes(startY, endY, rng) {
   const runes = [];
-  const patternCount = Math.floor(rng() * 2) + 1; // 1 to 2 patterns per batch
+  const runeCount = 1 + Math.floor(rng() * 3); // 1-3 runes together
+  const centerX = 60 + rng() * (CANVAS_W - 120);
+  const patternY = startY + rng() * (endY - startY);
+  const symbol = RUNE_SYMBOLS[Math.floor(rng() * RUNE_SYMBOLS.length)];
 
-  for (let i = 0; i < patternCount; i++) {
-    const patternType = Math.floor(rng() * 4); // 0: Line, 1: Sine, 2: V-Shape, 3: Circle
-    const patternY = startY + rng() * (endY - startY);
-    const runeCount = 4 + Math.floor(rng() * 5); // 4 to 8 runes
-    const symbol = RUNE_SYMBOLS[Math.floor(rng() * RUNE_SYMBOLS.length)];
-
-    if (patternType === 0) { // Horizontal line
-      const startX = 50 + rng() * (CANVAS_W - 200);
-      for (let j = 0; j < runeCount; j++) {
-        runes.push({
-          id: `fr_${Math.random()}_${j}`,
-          x: startX + j * 30,
-          y: patternY,
-          symbol,
-          collected: false,
-          offX: 0, offY: 0
-        });
-      }
-    } else if (patternType === 1) { // Sine wave
-      const startX = 50 + rng() * (CANVAS_W - 200);
-      for (let j = 0; j < runeCount; j++) {
-        runes.push({
-          id: `fr_${Math.random()}_${j}`,
-          x: startX + j * 30,
-          y: patternY + Math.sin(j * 0.8) * 40,
-          symbol,
-          collected: false,
-          offX: 0, offY: 0
-        });
-      }
-    } else if (patternType === 2) { // V-Shape
-      const centerX = 100 + rng() * (CANVAS_W - 200);
-      for (let j = 0; j < runeCount; j++) {
-        const offset = (j - Math.floor(runeCount / 2)) * 30;
-        runes.push({
-          id: `fr_${Math.random()}_${j}`,
-          x: centerX + offset,
-          y: patternY - Math.abs(offset),
-          symbol,
-          collected: false,
-          offX: 0, offY: 0
-        });
-      }
-    } else { // Circle
-      const centerX = 100 + rng() * (CANVAS_W - 200);
-      const radius = 40 + rng() * 30;
-      for (let j = 0; j < runeCount; j++) {
-        const angle = (j / runeCount) * Math.PI * 2;
-        runes.push({
-          id: `fr_${Math.random()}_${j}`,
-          x: centerX + Math.cos(angle) * radius,
-          y: patternY + Math.sin(angle) * radius,
-          symbol,
-          collected: false,
-          offX: 0, offY: 0
-        });
-      }
-    }
+  for (let j = 0; j < runeCount; j++) {
+    runes.push({
+      id: `fr_${Math.random()}_${j}`,
+      x: centerX + (j - Math.floor(runeCount / 2)) * 35,
+      y: patternY,
+      symbol,
+      collected: false,
+      isSpecial: true,
+      offX: 0, offY: 0
+    });
   }
   return runes;
 }
@@ -267,7 +221,7 @@ const YggdrasilAscender = ({ user }) => {
   const [showEmoteMenu, setShowEmoteMenu] = useState(false);
   const [emoteMenuPos, setEmoteMenuPos] = useState({ x: 0, y: 0 });
   const currentEmoteRef = useRef(null);
-  const holdTimerRef = useRef(null);
+  const [selectedEmote, setSelectedEmote] = useState(null);
   const EMOTES = ['🔥', '⚔️', '🛡️', '⚡', '🏆', '💀'];
 
   // Events
@@ -293,7 +247,9 @@ const YggdrasilAscender = ({ user }) => {
           runeMultiplier: data.runeMultiplier ?? 1.0,
           shopCosts: data.shopCosts || {},
           exchangeRates: data.exchangeRates || {},
-          customShopItems: data.customShopItems || []
+          customShopItems: data.customShopItems || [],
+          ratatoskrReward: data.ratatoskrReward ?? 5,
+          globalGoalTarget: data.globalGoalTarget ?? 1000000
         });
       }
     } catch (err) {
@@ -671,7 +627,6 @@ const YggdrasilAscender = ({ user }) => {
     startPlats.push({ x: 0, y: CANVAS_H - 15, w: CANVAS_W, h: 20, type: 'ground', broken: false, moveDir: 1 });
     startPlats.sort((a, b) => b.y - a.y);
 
-    const initialFloatingRunes = generateFloatingRunes(CANVAS_H - 1000, startPlats[0].y, rng);
 
     const eventToUse = eventOverride || activeEvent;
 
@@ -689,7 +644,9 @@ const YggdrasilAscender = ({ user }) => {
         facing: 1, // 1 for right, -1 for left
         turboTime: 0,
         turboCharges: userUpgrades.extraTurbo || 0,
+        turbosUsed: 0,
         doubleJumpCharges: userUpgrades.extraJump || 0,
+        doubleJumpsUsed: 0,
         usedDoubleJumpInAir: false,
         mistTimer: 120 // 2 seconds survival in Nidhogg mist
       },
@@ -720,7 +677,7 @@ const YggdrasilAscender = ({ user }) => {
       lastThunderTime: 0,
       hasIdunApple: userUpgrades.hasIdunApple,
       appleUsedInRun: false,
-      lastRuneAlt: 0, // for floating runes gap
+      lastRuneAlt: 0, // first spawn at 3000m
       // ═══ NIDHOGG'S RISING MIST ═══
       nidhogg: {
         y: CANVAS_H + 200, // starts well below screen
@@ -733,7 +690,7 @@ const YggdrasilAscender = ({ user }) => {
       ratatoskr: null, // { x, y, platformId, direction, speed, alive }
       lastRatatoskrAlt: 0, // altitude of last spawn
       ratatoskrCooldown: 3000 + Math.floor(rng() * 2000), // 3k-5k alt between spawns
-      floatingRunes: initialFloatingRunes,
+      floatingRunes: [],
       stars: Array.from({ length: 40 }, () => ({
         x: rng() * CANVAS_W,
         y: rng() * CANVAS_H * 3,
@@ -844,6 +801,7 @@ const YggdrasilAscender = ({ user }) => {
       } else if (!lastJumpPressed && p.doubleJumpCharges > 0 && !p.usedDoubleJumpInAir && !turboMomentumRef.current && p.turboTime <= 0) {
         p.vy = JUMP_FORCE * 1.1; // HIGH JUMP!
         p.doubleJumpCharges--;
+        p.doubleJumpsUsed = (p.doubleJumpsUsed || 0) + 1;
         p.usedDoubleJumpInAir = true;
         setDoubleJumpCharges(p.doubleJumpCharges);
         setJumpUsed(true);
@@ -865,6 +823,7 @@ const YggdrasilAscender = ({ user }) => {
 
     if (turboPressed && !lastTurboPressed && p.turboCharges > 0 && p.turboTime <= 0) {
       p.turboCharges--;
+      p.turbosUsed = (p.turbosUsed || 0) + 1;
       setTurboCharges(p.turboCharges);
       p.turboTime = 60; // 1 second
       g.shake = 10;
@@ -1125,7 +1084,8 @@ const YggdrasilAscender = ({ user }) => {
         p.y < runeY + RUNE_SIZE / 2
       ) {
         fr.collected = true;
-        g.runes++;
+        const reward = fr.isSpecial ? 2 : 1;
+        g.runes += reward;
         setRunesCollected(g.runes);
         for (let pi = 0; pi < 8; pi++) {
           g.particles.push({
@@ -1364,17 +1324,18 @@ const YggdrasilAscender = ({ user }) => {
       g.platforms.push(...newPlats);
       g.platGenY = newPlats[newPlats.length - 1].y;
 
-      // Generate floating runes only at 5,000m+ with 3,000m gaps
-      if (alt >= 5000 && alt - g.lastRuneAlt >= 3000) {
+      // Generate floating runes based on generator altitude (genAlt)
+      const genAlt = Math.floor(-g.platGenY / 4);
+      if (genAlt >= 3000 && genAlt - g.lastRuneAlt >= 3000) {
         const newFloatingRunes = generateFloatingRunes(g.platGenY, prevGenY, g.rng);
         g.floatingRunes.push(...newFloatingRunes);
-        g.lastRuneAlt = alt;
+        g.lastRuneAlt = genAlt;
       }
     }
 
     // Cull old platforms
     g.platforms = g.platforms.filter(pl => pl.y < g.camera + CANVAS_H + 100);
-    g.floatingRunes = g.floatingRunes.filter(fr => fr.y < g.camera + CANVAS_H + 100);
+    g.floatingRunes = g.floatingRunes.filter(fr => fr.y < g.camera + CANVAS_H + 1000);
 
     // ═══ NIDHOGG'S RISING MIST ═══
     const nh = g.nidhogg;
@@ -1449,9 +1410,10 @@ const YggdrasilAscender = ({ user }) => {
         const rdist = Math.sqrt(rdx * rdx + rdy * rdy);
         if (rdist < 35) {
           rat.alive = false;
-          g.runes += RATATOSKR_RUNE_BONUS;
+          const reward = yggConfig.ratatoskrReward ?? 5;
+          g.runes += reward;
           setRunesCollected(g.runes);
-          setRatatoskrNotif(`+${RATATOSKR_RUNE_BONUS} Runes!`);
+          setRatatoskrNotif(`+${reward} Runes!`);
           setTimeout(() => setRatatoskrNotif(null), 2000);
           for (let i = 0; i < 12; i++) {
             g.particles.push({
@@ -1482,7 +1444,7 @@ const YggdrasilAscender = ({ user }) => {
       removePresence();
       setGameState('over');
       setRunStats({ loading: true });
-      submitYggdrasilRun(g.maxAlt, g.runes).then(res => {
+      submitYggdrasilRun(g.maxAlt, g.runes, g.player.turbosUsed || 0, g.player.doubleJumpsUsed || 0).then(res => {
         if (res && res.success) {
           setRunStats(res);
         } else {
@@ -1839,7 +1801,7 @@ const YggdrasilAscender = ({ user }) => {
       // Only draw if on screen
       if (ry > -50 && ry < CANVAS_H + 50) {
         ctx.save();
-        ctx.fillStyle = '#fbbf24';
+        ctx.fillStyle = fr.isSpecial ? '#ef4444' : '#fbbf24';
         ctx.font = `bold ${RUNE_SIZE}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -1849,7 +1811,7 @@ const YggdrasilAscender = ({ user }) => {
         ctx.fillText(fr.symbol, rx, ry);
         // Subtle glow effect
         ctx.shadowBlur = 10;
-        ctx.shadowColor = '#fbbf24';
+        ctx.shadowColor = fr.isSpecial ? '#ef4444' : '#fbbf24';
         ctx.fillText(fr.symbol, rx, ry);
         ctx.restore();
       }
@@ -1998,7 +1960,7 @@ const YggdrasilAscender = ({ user }) => {
       if (gp.emote && gp.emoteTime && Date.now() - gp.emoteTime < 4000) {
         const age = Date.now() - gp.emoteTime;
         const bounce = Math.sin(age / 200) * 5;
-        const opacity = age > 3000 ? (4000 - age) / 1000 : 1;
+        const opacity = age > 3500 ? (4000 - age) / 500 : 1;
         ctx.save();
         ctx.globalAlpha = opacity;
         ctx.font = '24px sans-serif';
@@ -2051,20 +2013,21 @@ const YggdrasilAscender = ({ user }) => {
       // Shift drawing down to plant feet on the platform floor
       ctx.drawImage(heroImg, (PLAYER_W - renderW) / 2, PLAYER_H - renderH, renderW, renderH);
 
-      // Draw current emote for local player
+      ctx.restore(); // Restore flip scale
+
+      // Draw current emote for local player (outside flip logic)
       if (currentEmoteRef.current && Date.now() - currentEmoteRef.current.t < 4000) {
         const age = Date.now() - currentEmoteRef.current.t;
         const bounce = Math.sin(age / 200) * 5;
-        const opacity = age > 3000 ? (4000 - age) / 1000 : 1;
+        const opacity = age > 3500 ? (4000 - age) / 500 : 1;
         ctx.save();
         ctx.globalAlpha = opacity;
         ctx.font = '24px sans-serif';
         ctx.textAlign = 'center';
+        // Draw relative to player center
         ctx.fillText(currentEmoteRef.current.emote, PLAYER_W / 2, -25 + bounce);
         ctx.restore();
       }
-
-      ctx.restore(); // Restore flip scale
     } else {
       // Fallback vector character
       // Body
@@ -2251,7 +2214,7 @@ const YggdrasilAscender = ({ user }) => {
     }
 
     animRef.current = requestAnimationFrame(gameLoop);
-  }, [publishPresence, removePresence, submitScore, user, gameState]);
+  }, [publishPresence, removePresence, submitScore, user, gameState, yggConfig]);
 
   // Use Idun's Apple — respawn the player to the highest platform
   const handleAppleDecision = useCallback((accepted) => {
@@ -2284,7 +2247,7 @@ const YggdrasilAscender = ({ user }) => {
       removePresence();
       setGameState('over');
       setRunStats({ loading: true });
-      submitYggdrasilRun(g.maxAlt, g.runes).then(res => {
+      submitYggdrasilRun(g.maxAlt, g.runes, g.player.turbosUsed || 0, g.player.doubleJumpsUsed || 0).then(res => {
         if (res && res.success) {
           setRunStats(res);
         } else {
@@ -2354,42 +2317,25 @@ const YggdrasilAscender = ({ user }) => {
     animRef.current = requestAnimationFrame(gameLoop);
   }, [gameLoop, submitScore, removePresence]);
 
-  // Start/restart game
   const handleEmoteSelect = useCallback((emote) => {
+    setSelectedEmote(emote);
     currentEmoteRef.current = { emote, t: Date.now() };
-    setShowEmoteMenu(false);
-  }, []);
-
-  const handlePointerDown = (e) => {
-    if (gameState !== 'playing') return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    const cx = clientX - rect.left;
-    const cy = clientY - rect.top;
-
+    
+    // Immediate broadcast
     const g = gameRef.current;
     if (g) {
-      const p = g.player;
-      const px = p.x;
-      const py = p.y - g.camera;
-      const scaleX = rect.width / CANVAS_W;
-      const scaleY = rect.height / CANVAS_H;
-
-      // Check if near player (scaled to canvas)
-      if (cx > px * scaleX - 50 && cx < (px + PLAYER_W) * scaleX + 50 &&
-        cy > py * scaleY - 50 && cy < (py + PLAYER_H) * scaleY + 50) {
-        holdTimerRef.current = setTimeout(() => {
-          setEmoteMenuPos({ x: cx, y: cy });
-          setShowEmoteMenu(true);
-        }, 450);
-      }
+      const alt = Math.max(0, Math.floor(-g.camera / 4));
+      publishPresence(Math.round(g.player.x), Math.round(g.player.y), g.maxAlt, getZone(alt).name);
     }
-  };
 
-  const handlePointerUp = () => {
-    clearTimeout(holdTimerRef.current);
-  };
+    // Delay closing for visual feedback
+    setTimeout(() => {
+      setShowEmoteMenu(false);
+      setSelectedEmote(null);
+    }, 200);
+  }, [publishPresence]);
+
+
 
   const startGame = useCallback(async (eventId = null) => {
     if (eventId) {
@@ -2588,10 +2534,6 @@ const YggdrasilAscender = ({ user }) => {
     <div className="ygg-container" ref={containerRef}>
       <div
         className="ygg-canvas-wrapper"
-        onMouseDown={handlePointerDown}
-        onMouseUp={handlePointerUp}
-        onTouchStart={handlePointerDown}
-        onTouchEnd={handlePointerUp}
       >
         <canvas
           ref={canvasRef}
@@ -2677,6 +2619,17 @@ const YggdrasilAscender = ({ user }) => {
                     </div>
                   )}
                 </div>
+
+                {/* Emote Button */}
+                <button
+                  className={`ygg-hud-emote-btn ${showEmoteMenu ? 'active' : ''}`}
+                  onClick={() => {
+                    setShowEmoteMenu(prev => !prev);
+                    setEmoteMenuPos({ x: CANVAS_W / 2, y: CANVAS_H / 2 });
+                  }}
+                >
+                  <span role="img" aria-label="emotes">💬</span> Emotes
+                </button>
 
                 {/* Turbo Active Bar */}
                 {turboTime > 0 && (
@@ -3150,7 +3103,7 @@ const YggdrasilAscender = ({ user }) => {
               return (
                 <button
                   key={e}
-                  className="ygg-emote-option"
+                  className={`ygg-emote-option ${selectedEmote === e ? 'selected' : ''}`}
                   style={{ transform: `translate(${ex}px, ${ey}px)` }}
                   onMouseDown={(ev) => { ev.stopPropagation(); handleEmoteSelect(e); }}
                   onTouchStart={(ev) => { ev.stopPropagation(); handleEmoteSelect(e); }}

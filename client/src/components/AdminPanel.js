@@ -7500,6 +7500,16 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { globalGoalTarget: parseInt(e.target.value) || 0 })}
                           />
                         </div>
+
+                        <div className="form-group" style={{ marginTop: '10px' }}>
+                          <label>🐿️ Ratatoskr Rune Reward</label>
+                          <input
+                            type="number"
+                            value={miniGamesConfig[activeGameType]?.ratatoskrReward ?? 5}
+                            onChange={(e) => handleUpdateMiniGameConfig(activeGameType, { ratatoskrReward: parseInt(e.target.value) || 0 })}
+                          />
+                          <p style={{ fontSize: '0.8em', color: '#94a3b8', marginTop: '4px' }}>Runes granted when catching Ratatoskr during a run.</p>
+                        </div>
                       </div>
                     )}
                   </div>
