@@ -1945,7 +1945,10 @@ const YggdrasilAscender = ({ user }) => {
         const runeY = plat.y - 20 + Math.sin(Date.now() / 300 + plat.x) * 3 + (plat.runeOffY || 0);
         ctx.save();
         if (currentAssets.rune) {
-          ctx.drawImage(currentAssets.rune, runeX - 12, runeY - 12, 24, 24);
+          const spinScale = Math.cos(Date.now() / 500);
+          ctx.translate(runeX, runeY);
+          ctx.scale(spinScale, 1);
+          ctx.drawImage(currentAssets.rune, -12, -12, 24, 24);
         } else {
           ctx.fillStyle = '#fbbf24';
           ctx.font = `bold ${RUNE_SIZE}px sans-serif`;
@@ -1972,7 +1975,10 @@ const YggdrasilAscender = ({ user }) => {
         const runeImg = fr.isSpecial ? currentAssets.redRune : currentAssets.rune;
         if (runeImg) {
           const displaySize = fr.isSpecial ? 36 : 28;
-          ctx.drawImage(runeImg, rx - displaySize / 2, ry - displaySize / 2, displaySize, displaySize);
+          const spinScale = Math.cos(Date.now() / 600 + rx); 
+          ctx.translate(rx, ry);
+          ctx.scale(spinScale, 1);
+          ctx.drawImage(runeImg, -displaySize / 2, -displaySize / 2, displaySize, displaySize);
         } else {
           ctx.fillStyle = fr.isSpecial ? '#ef4444' : '#fbbf24';
           const displaySize = fr.isSpecial ? RUNE_SIZE * 1.5 : RUNE_SIZE * 1.2;
