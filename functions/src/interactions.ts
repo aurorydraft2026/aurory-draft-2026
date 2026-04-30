@@ -477,6 +477,131 @@ async function handleLeaderboard(interaction: any, res: any) {
             });
             return;
 
+        } else if (category === 'ygg_runes') {
+            // ─── YGGDRASIL RUNE BALANCES (Top 100) ───
+            console.log(`[Interaction] /leaderboard category: ygg_runes (Top 100)`);
+            const snap = await db.collection('users')
+                .orderBy('yggRunes', 'desc')
+                .limit(100)
+                .get();
+
+            if (snap.empty) {
+                res.status(200).json({
+                    type: CHANNEL_MESSAGE,
+                    data: { content: '📊 No rune data recorded yet.' }
+                });
+                return;
+            }
+
+            const entries = snap.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    name: data.auroryPlayerName || data.displayName || 'Warrior',
+                    score: data.yggRunes || 0
+                };
+            }).filter(e => e.score > 0);
+
+            if (entries.length === 0) {
+                res.status(200).json({
+                    type: CHANNEL_MESSAGE,
+                    data: { content: '📊 No warriors have Runes yet!' }
+                });
+                return;
+            }
+
+            const embeds = [];
+            for (let i = 0; i < entries.length; i += 25) {
+                const chunk = entries.slice(i, i + 25);
+                const leaderboardText = chunk.map((e, idx) => {
+                    const rank = i + idx + 1;
+                    return `\`${rank}.\` **${e.name}** — ${e.score.toLocaleString()} ᚠ`;
+                }).join('\n');
+
+                embeds.push({
+                    title: i === 0 ? '🧗 Asgard\'s Rune Keepers — Top 100 Balances' : undefined,
+                    description: leaderboardText,
+                    color: 0xF1C40F, // Gold
+                    footer: i + 25 >= entries.length ? {
+                        text: 'Runie • Yggdrasil Wealth Ranking',
+                        icon_url: 'https://asgard-duels.web.app/favicon.ico'
+                    } : undefined,
+                    timestamp: i === 0 ? new Date().toISOString() : undefined
+                });
+            }
+
+            res.status(200).json({
+                type: CHANNEL_MESSAGE,
+                data: { embeds }
+            });
+            return;
+
+        } else if (category === 'ygg_altitude') {
+            // ─── YGGDRASIL ALTITUDE LEADERBOARD ───
+            const now = new Date();
+            let yggPath = 'alltime';
+            let timeframeName = 'All Time';
+
+            if (timeframe === 'daily') {
+                const seed = now.getUTCFullYear() * 10000 + (now.getUTCMonth() + 1) * 100 + now.getUTCDate();
+                yggPath = `daily/${seed}`;
+                timeframeName = 'Today\'s';
+            } else if (timeframe === 'weekly') {
+                const sunday = new Date(now);
+                sunday.setDate(now.getDate() - now.getDay());
+                const weekKey = sunday.toISOString().split('T')[0];
+                yggPath = `weekly/${weekKey}`;
+                timeframeName = 'Weekly';
+            } else if (timeframe === 'monthly') {
+                const monthId = `${now.getUTCFullYear()}_m${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+                yggPath = `monthly/${monthId}`;
+                timeframeName = 'Monthly';
+            }
+
+            const snapshot = await rtdb.ref(`yggdrasil/leaderboard/${yggPath}`).orderByChild('score').limitToLast(100).once('value');
+            
+            if (!snapshot.exists()) {
+                res.status(200).json({
+                    type: CHANNEL_MESSAGE,
+                    data: { content: `📊 No Yggdrasil altitude data yet for ${timeframeName}.` }
+                });
+                return;
+            }
+
+            const entries: { name: string; score: number }[] = [];
+            snapshot.forEach((child: any) => {
+                entries.push({
+                    name: child.val().name || 'Unknown',
+                    score: child.val().score || 0
+                });
+            });
+            entries.sort((a, b) => b.score - a.score);
+
+            const embeds = [];
+            for (let i = 0; i < entries.length; i += 25) {
+                const chunk = entries.slice(i, i + 25);
+                const leaderboardText = chunk.map((e, idx) => {
+                    const rank = i + idx + 1;
+                    return `${rank < 4 && i === 0 ? medals[idx] : `\`${rank}.\``} **${e.name}** — ${e.score.toLocaleString()}m`;
+                }).join('\n');
+
+                embeds.push({
+                    title: i === 0 ? `🧗 Yggdrasil Ascenders — ${timeframeName} Top Altitude` : undefined,
+                    description: leaderboardText,
+                    color: 0x3498DB, // Blue
+                    footer: i + 25 >= entries.length ? {
+                        text: 'Runie • World Tree Ranking',
+                        icon_url: 'https://asgard-duels.web.app/favicon.ico'
+                    } : undefined,
+                    timestamp: i === 0 ? new Date().toISOString() : undefined
+                });
+            }
+
+            res.status(200).json({
+                type: CHANNEL_MESSAGE,
+                data: { embeds }
+            });
+            return;
+
         } else if (category === 'aury' || category === 'usdc') {
             const field = category === 'aury' ? 'balance' : 'usdcBalance';
             const divisor = category === 'aury' ? 1e9 : 1e6;

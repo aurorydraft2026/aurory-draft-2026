@@ -159,9 +159,9 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
     return (
       <div className="ygg-shop-overlay">
         <div className="ygg-shop-modal">
-          <div className="ygg-shop-loading">
+          <div className="ygg-shop-loading-container">
             <div className="viking-spinner" />
-            <span>Loading Shop...</span>
+            <span className="ygg-shop-loading-text">Loading Valhalla's Treasures...</span>
           </div>
         </div>
       </div>
@@ -174,9 +174,11 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
         <div className="ygg-shop-header">
           <h2 className="ygg-shop-title">ᚠ Rune Shop</h2>
           <div className="ygg-shop-balance">
-            <span className="ygg-shop-rune-icon">ᚠ</span>
-            <span className="ygg-shop-rune-count">{runeBalance.toLocaleString()}</span>
-            <span className="ygg-shop-rune-label">Runes</span>
+            <span className="ygg-shop-rune-label">Your Current Balance</span>
+            <div className="ygg-shop-balance-row">
+              <span className="ygg-shop-rune-icon">ᚠ</span>
+              <span className="ygg-shop-rune-count">{runeBalance.toLocaleString()}</span>
+            </div>
           </div>
         </div>
 
@@ -187,80 +189,90 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
         )}
 
         <div className="ygg-shop-scroll custom-scrollbar">
-          {/* Items */}
-          <div className="ygg-shop-section-title">⚡ Upgrades & Consumables</div>
-          <div className="ygg-shop-items">
-            {[...SHOP_ITEMS, ...(config?.customShopItems || [])].map(item => {
-              const isCustom = item.id.startsWith('custom_');
-              const cost = isCustom ? item.price : getItemCost(item);
-              const status = isCustom ? (item.stock > 0 ? `Stock: ${item.stock}` : 'SOLD OUT') : getItemStatus(item);
-              const disabled = isCustom ? (item.stock <= 0 || runeBalance < cost) : isDisabled(item);
+          <div className="ygg-shop-main">
+            <div className="ygg-shop-section-title">⚡ Upgrades & Consumables</div>
+            <div className="ygg-shop-items">
+              {[...SHOP_ITEMS, ...(config?.customShopItems || [])].map(item => {
+                const isCustom = item.id.startsWith('custom_');
+                const cost = isCustom ? item.price : getItemCost(item);
+                const status = isCustom ? (item.stock > 0 ? `Stock: ${item.stock}` : 'SOLD OUT') : getItemStatus(item);
+                const disabled = isCustom ? (item.stock <= 0 || runeBalance < cost) : isDisabled(item);
 
-              return (
-                <div key={item.id} className={`ygg-shop-item ${disabled ? 'disabled' : ''} ${isCustom ? 'custom-item' : ''}`}>
-                  <div className="ygg-shop-item-icon">
-                    {isCustom && item.image ? (
-                      <img src={item.image} alt={item.name} className="ygg-custom-shop-img" />
-                    ) : (
-                      item.icon
-                    )}
-                  </div>
-                  <div className="ygg-shop-item-info">
-                    <div className="ygg-shop-item-name">{item.name}</div>
-                    <div className="ygg-shop-item-desc">{item.description}</div>
-                    <div className="ygg-shop-item-status" style={{ color: isCustom && item.stock <= 0 ? '#ef4444' : '' }}>
-                      {status}
+                return (
+                  <div key={item.id} className={`ygg-shop-item ${isCustom ? 'custom-item' : ''} ${disabled ? 'disabled' : ''}`}>
+                    <div className="ygg-shop-item-top">
+                      <div className="ygg-shop-item-icon">
+                        {isCustom && item.image ? (
+                          <img src={item.image} alt={item.name} className="ygg-custom-shop-img" />
+                        ) : (
+                          item.icon
+                        )}
+                      </div>
+                      <div className="ygg-shop-item-info">
+                        <div className="ygg-shop-item-name">{item.name}</div>
+                        <div className="ygg-shop-item-desc">{item.description}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="ygg-shop-item-footer">
+                      <div className="ygg-shop-item-status" style={{ color: isCustom && item.stock <= 0 ? '#ef4444' : '' }}>
+                        {status}
+                      </div>
+                      <button
+                        className="ygg-shop-buy-btn"
+                        disabled={disabled || purchasing === item.id}
+                        onClick={() => handlePurchase(item.id)}
+                      >
+                        {purchasing === item.id ? '...' : (isCustom && item.stock <= 0) ? 'EMPTY' : cost !== null ? `ᚠ ${cost}` : 'MAX'}
+                      </button>
                     </div>
                   </div>
-                  <button
-                    className="ygg-shop-buy-btn"
-                    disabled={disabled || purchasing === item.id}
-                    onClick={() => handlePurchase(item.id)}
-                  >
-                    {purchasing === item.id ? '...' : (isCustom && item.stock <= 0) ? 'EMPTY' : cost !== null ? `ᚠ ${cost}` : 'MAX'}
-                  </button>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
 
-          {/* Exchange */}
-          <div className="ygg-shop-section-title">💱 Rune Exchange</div>
-          <div className="ygg-shop-exchange">
-            <div className="ygg-shop-exchange-row">
-              <input
-                type="number"
-                className="ygg-shop-exchange-input"
-                placeholder="Rune amount"
-                value={exchangeAmount}
-                onChange={e => setExchangeAmount(e.target.value)}
-                min="1"
-              />
-              <span className="ygg-shop-exchange-arrow">→</span>
-              <select
-                className="ygg-shop-exchange-select"
-                value={exchangeTarget}
-                onChange={e => setExchangeTarget(e.target.value)}
+          <div className="ygg-shop-sidebar">
+            <div className="ygg-shop-section-title">💱 Rune Exchange</div>
+            <div className="ygg-shop-exchange">
+              <div className="ygg-exchange-header">Convert Runes</div>
+              <div className="ygg-shop-exchange-row">
+                <input
+                  type="number"
+                  className="ygg-shop-exchange-input"
+                  placeholder="Amount"
+                  value={exchangeAmount}
+                  onChange={e => setExchangeAmount(e.target.value)}
+                  min="1"
+                />
+                <span className="ygg-shop-exchange-arrow">→</span>
+                <select
+                  className="ygg-shop-exchange-select"
+                  value={exchangeTarget}
+                  onChange={e => setExchangeTarget(e.target.value)}
+                >
+                  <option value="Valcoins">Valcoins</option>
+                </select>
+              </div>
+              <div className="ygg-shop-exchange-rate">
+                {getExchangeRateDisplay()}
+              </div>
+              <button
+                className="ygg-shop-exchange-btn"
+                disabled={exchangeLoading || !exchangeAmount}
+                onClick={handleExchange}
               >
-                <option value="Valcoins">Valcoins</option>
-              </select>
+                {exchangeLoading ? 'Exchanging...' : 'Confirm Exchange'}
+              </button>
             </div>
-            <div className="ygg-shop-exchange-rate">
-              {getExchangeRateDisplay()}
-            </div>
-            <button
-              className="ygg-shop-exchange-btn"
-              disabled={exchangeLoading || !exchangeAmount}
-              onClick={handleExchange}
-            >
-              {exchangeLoading ? 'Exchanging...' : 'Exchange'}
-            </button>
           </div>
         </div>
 
-        <button className="ygg-shop-close" onClick={onClose}>
-          CLOSE
-        </button>
+        <div className="ygg-shop-footer">
+          <button className="ygg-shop-close" onClick={onClose}>
+            Close Shop
+          </button>
+        </div>
       </div>
     </div>
   );

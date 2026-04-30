@@ -1372,6 +1372,7 @@ export const submitYggdrasilRun = onCall(
         const userRef = db.collection('users').doc(uid);
         const runDocRef = userRef.collection('yggdrasil_runs').doc(today);
         const configRef = db.collection('settings').doc('mini_games');
+        const upgradesRef = userRef.collection('yggdrasil_data').doc('upgrades');
 
         try {
             // Always increment global ascension goal (even past daily limit)
@@ -1384,10 +1385,11 @@ export const submitYggdrasilRun = onCall(
             }
 
             return await db.runTransaction(async (transaction: any) => {
-                const [userDoc, runDoc, configDoc] = await Promise.all([
+                const [userDoc, runDoc, configDoc, upgradesDoc] = await Promise.all([
                     transaction.get(userRef),
                     transaction.get(runDocRef),
-                    transaction.get(configRef)
+                    transaction.get(configRef),
+                    transaction.get(upgradesRef)
                 ]);
 
                 if (!userDoc.exists) {
@@ -1403,15 +1405,31 @@ export const submitYggdrasilRun = onCall(
                 await rtdb.ref('yggdrasil/global_goal/target').set(globalGoalTarget);
 
                 const runData = runDoc.exists ? runDoc.data() : { count: 0 };
-                if (runData.count >= maxDailyRuns) {
-                    return { success: true, reward: 0, limitReached: true, runesEarned: 0, runsCompleted: runData.count, maxRuns: maxDailyRuns };
-                }
-
                 const rewardAmount = Math.floor(altitude / 100) * Math.max(1, Math.floor(runes * runeMultiplier));
                 const runesEarned = Math.floor(runes);
 
                 const { turbosUsed = 0, doubleJumpsUsed = 0 } = request.data;
                 const updateData: any = {};
+
+                // Deduct consumed power-ups from the correct subcollection (Always happens if used)
+                if (turbosUsed > 0 || doubleJumpsUsed > 0) {
+                    const upgrades = upgradesDoc.exists ? upgradesDoc.data() : {};
+                    
+                    const newExtraTurbo = Math.max(0, (upgrades.extraTurbo || 0) - turbosUsed);
+                    const newExtraJump = Math.max(0, (upgrades.extraJump || 0) - doubleJumpsUsed);
+                    
+                    transaction.set(upgradesRef, {
+                        extraTurbo: newExtraTurbo,
+                        extraJump: newExtraJump
+                    }, { merge: true });
+                }
+
+                if (runData.count >= maxDailyRuns) {
+                    if (Object.keys(updateData).length > 0) {
+                        transaction.update(userRef, updateData);
+                    }
+                    return { success: true, reward: 0, limitReached: true, runesEarned: 0, runsCompleted: runData.count, maxRuns: maxDailyRuns };
+                }
                 if (rewardAmount > 0) {
                     updateData.points = admin.firestore.FieldValue.increment(rewardAmount);
                     updateData.exp = admin.firestore.FieldValue.increment(rewardAmount);
@@ -1420,24 +1438,6 @@ export const submitYggdrasilRun = onCall(
                     updateData.yggRunes = admin.firestore.FieldValue.increment(runesEarned);
                 }
 
-                // Deduct consumed power-ups
-                if (turbosUsed > 0 || doubleJumpsUsed > 0) {
-                    const userData = userDoc.data();
-                    const yggdrasilData = userData.yggdrasil || {};
-                    const upgrades = yggdrasilData.upgrades || {};
-                    
-                    const newExtraTurbo = Math.max(0, (upgrades.extraTurbo || 0) - turbosUsed);
-                    const newExtraJump = Math.max(0, (upgrades.extraJump || 0) - doubleJumpsUsed);
-                    
-                    updateData.yggdrasil = {
-                        ...yggdrasilData,
-                        upgrades: {
-                            ...upgrades,
-                            extraTurbo: newExtraTurbo,
-                            extraJump: newExtraJump
-                        }
-                    };
-                }
 
                 if (Object.keys(updateData).length > 0) {
                     transaction.update(userRef, updateData);

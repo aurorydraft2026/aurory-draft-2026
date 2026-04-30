@@ -58,6 +58,8 @@ const commands = [
           { name: '🎰 Slot Machine Top Earners', value: 'slotMachine' },
           { name: '📦 Loot Box Top Earners', value: 'treasureChest' },
           { name: '⛵ Drakkar Race Top Earners', value: 'drakkarRace' },
+          { name: ' ᚠ Top Rune Balances', value: 'ygg_runes' },
+          { name: '🧗 Yggdrasil Top Altitude', value: 'ygg_altitude' },
           { name: '🔥 PvP Wins', value: 'pvp_wins' },
           { name: '🤝 Top Recruiters', value: 'referral' }
         ]
@@ -99,10 +101,10 @@ const req = https.request(options, (res) => {
   });
   res.on('end', () => {
     if (res.statusCode >= 200 && res.statusCode < 300) {
-        console.log('✅ Successfully registered expanded slash commands!');
+      console.log('✅ Successfully registered expanded slash commands!');
     } else {
-        console.error('❌ Failed to register commands:');
-        console.error(responseBody);
+      console.error('❌ Failed to register commands:');
+      console.error(responseBody);
     }
   });
 });

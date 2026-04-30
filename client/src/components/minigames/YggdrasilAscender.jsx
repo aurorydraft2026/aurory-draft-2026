@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { database, db } from '../../firebase';
 import { ref, onValue, set, remove, onDisconnect, get, query, orderByChild, limitToLast } from 'firebase/database';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query as fsQuery, orderBy, limit, getDocs } from 'firebase/firestore';
 import { submitYggdrasilRun, getYggdrasilEvents, joinYggdrasilEvent, claimYggdrasilEventPrize, getUserYggData, subscribeGlobalGoal, consumeIdunAppleService } from '../../services/miniGameService';
 import { resolveDisplayName } from '../../utils/userUtils';
 import RuneShop from './RuneShop';
@@ -142,7 +142,7 @@ function generatePlatforms(count, startY, rng, difficulty, usedBands) {
 // Generate floating rune patterns
 function generateFloatingRunes(startY, endY, rng) {
   const runes = [];
-  const runeCount = 1 + Math.floor(rng() * 3); // 1-3 runes together
+  const runeCount = 3 + Math.floor(rng() * 4); // 3-6 runes per batch
   const centerX = 60 + rng() * (CANVAS_W - 120);
   const patternY = startY + rng() * (endY - startY);
   const symbol = RUNE_SYMBOLS[Math.floor(rng() * RUNE_SYMBOLS.length)];
@@ -150,11 +150,11 @@ function generateFloatingRunes(startY, endY, rng) {
   for (let j = 0; j < runeCount; j++) {
     runes.push({
       id: `fr_${Math.random()}_${j}`,
-      x: centerX + (j - Math.floor(runeCount / 2)) * 35,
-      y: patternY,
+      x: centerX + (j - Math.floor(runeCount / 2)) * 30,
+      y: patternY + (rng() - 0.5) * 40,
       symbol,
       collected: false,
-      isSpecial: true,
+      isSpecial: rng() > 0.5, // 50% chance red special (2x), 50% gold (1x)
       offX: 0, offY: 0
     });
   }
@@ -179,11 +179,14 @@ const YggdrasilAscender = ({ user }) => {
   const [isNewBest, setIsNewBest] = useState(false);
   const [zoneName, setZoneName] = useState('MIDGARD');
   const [showZoneAnnouncement, setShowZoneAnnouncement] = useState(false);
-  const [turboCharges, setTurboCharges] = useState(0);
-  const [doubleJumpCharges, setDoubleJumpCharges] = useState(0);
+  const [shopTurboCharges, setShopTurboCharges] = useState(0);
+  const [freeTurboCharges, setFreeTurboCharges] = useState(0);
+  const [shopJumpCharges, setShopJumpCharges] = useState(0);
+  const [freeJumpCharges, setFreeJumpCharges] = useState(0);
   const zoneNameRef = useRef('MIDGARD');
   const [playerCount, setPlayerCount] = useState(1);
   const [lbMode, setLbMode] = useState('daily');
+  const [lbMetric, setLbMetric] = useState('altitude'); // 'altitude' or 'runes'
   const [leaderboard, setLeaderboard] = useState([]);
   const [lbLoading, setLbLoading] = useState(false);
   const [nameCache, setNameCache] = useState({});
@@ -219,7 +222,6 @@ const YggdrasilAscender = ({ user }) => {
 
   // ═══ EMOTES STATE ═══
   const [showEmoteMenu, setShowEmoteMenu] = useState(false);
-  const [emoteMenuPos, setEmoteMenuPos] = useState({ x: 0, y: 0 });
   const currentEmoteRef = useRef(null);
   const [selectedEmote, setSelectedEmote] = useState(null);
   const EMOTES = ['🔥', '⚔️', '🛡️', '⚡', '🏆', '💀'];
@@ -322,10 +324,11 @@ const YggdrasilAscender = ({ user }) => {
 
   // ═══ RUNE SHOP DATA & GLOBAL GOAL ═══
   const loadUserShopData = useCallback(async () => {
-    if (!user?.uid) return;
+    if (!user?.uid) return null;
     const data = await getUserYggData(user.uid);
     setUserUpgrades(data.upgrades);
     fetchConfig(); // Also refresh global config to update shop stock counts
+    return data.upgrades;
   }, [user, fetchConfig]);
 
   useEffect(() => {
@@ -452,22 +455,47 @@ const YggdrasilAscender = ({ user }) => {
   // Subscribe to leaderboard
   useEffect(() => {
     setLbLoading(true);
+
+    if (lbMetric === 'runes') {
+      // Fetch Current Balances from Firestore
+      const usersRef = collection(db, 'users');
+      const q = fsQuery(usersRef, orderBy('yggRunes', 'desc'), limit(10));
+      
+      getDocs(q).then(snap => {
+        const arr = snap.docs.map(docSnap => {
+          const data = docSnap.data();
+          return {
+            uid: docSnap.id,
+            name: resolveDisplayName(data),
+            score: data.yggRunes || 0
+          };
+        });
+        setLeaderboard(arr);
+        setLbLoading(false);
+      }).catch(err => {
+        console.error("Firestore Rune LB error:", err);
+        setLbLoading(false);
+      });
+      return;
+    }
+
+    const base = 'leaderboard'; // For altitude
     let path;
     const now = new Date();
 
     if (lbMode === 'daily') {
-      path = `yggdrasil/leaderboard/daily/${getDailySeed()}`;
+      path = `yggdrasil/${base}/daily/${getDailySeed()}`;
     } else if (lbMode === 'weekly') {
       // Weekly logic: Sunday to Sunday (Align with homepage)
       const sunday = new Date(now);
       sunday.setDate(now.getDate() - now.getDay());
       const weekKey = sunday.toISOString().split('T')[0];
-      path = `yggdrasil/leaderboard/weekly/${weekKey}`;
+      path = `yggdrasil/${base}/weekly/${weekKey}`;
     } else if (lbMode === 'monthly') {
       const monthId = `${now.getUTCFullYear()}_m${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-      path = `yggdrasil/leaderboard/monthly/${monthId}`;
+      path = `yggdrasil/${base}/monthly/${monthId}`;
     } else {
-      path = 'yggdrasil/leaderboard/alltime';
+      path = `yggdrasil/${base}/alltime`;
     }
 
     const lbRef = query(
@@ -530,7 +558,7 @@ const YggdrasilAscender = ({ user }) => {
     });
 
     return () => unsub();
-  }, [lbMode, user]);
+  }, [lbMode, lbMetric, user]);
 
 
   // Publish presence
@@ -581,44 +609,51 @@ const YggdrasilAscender = ({ user }) => {
   }, []);
 
   // Submit score
-  const submitScore = useCallback((finalScore) => {
-    if (!user?.uid || finalScore <= 0) return;
+  const submitScore = useCallback((finalScore, finalRunes) => {
+    if (!user?.uid) return;
     const name = resolveDisplayName(user);
-    const seed = gameRef.current?.seed || getDailySeed();
-    const scoreData = { name, score: finalScore, t: Date.now() };
-
-    // 1. Daily
-    const dailyRef = ref(database, `yggdrasil/leaderboard/daily/${seed}/${user.uid}`);
-    get(dailyRef).then(snap => {
-      if (!snap.exists() || snap.val().score < finalScore) set(dailyRef, scoreData);
-    });
-
-    // 2. Weekly
     const now = new Date();
+    
+    // Seed and date keys
+    const seed = gameRef.current?.seed || getDailySeed();
     const sunday = new Date(now);
     sunday.setDate(now.getDate() - now.getDay());
     const weekKey = sunday.toISOString().split('T')[0];
-    const weeklyRef = ref(database, `yggdrasil/leaderboard/weekly/${weekKey}/${user.uid}`);
-    get(weeklyRef).then(snap => {
-      if (!snap.exists() || snap.val().score < finalScore) set(weeklyRef, scoreData);
-    });
-
-    // 3. Monthly
     const monthId = `${now.getUTCFullYear()}_m${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-    const monthlyRef = ref(database, `yggdrasil/leaderboard/monthly/${monthId}/${user.uid}`);
-    get(monthlyRef).then(snap => {
-      if (!snap.exists() || snap.val().score < finalScore) set(monthlyRef, scoreData);
-    });
 
-    // 4. All-time
-    const atRef = ref(database, `yggdrasil/leaderboard/alltime/${user.uid}`);
-    get(atRef).then(snap => {
-      if (!snap.exists() || snap.val().score < finalScore) set(atRef, scoreData);
+    const horizons = [
+      `daily/${seed}`,
+      `weekly/${weekKey}`,
+      `monthly/${monthId}`,
+      `alltime`
+    ];
+
+    const metrics = [
+      { id: 'altitude', val: finalScore, base: 'leaderboard' },
+      { id: 'runes', val: finalRunes, base: 'leaderboard_runes' }
+    ];
+
+    metrics.forEach(m => {
+      if (m.val <= 0) return;
+      
+      horizons.forEach(hPath => {
+        const scoreRef = ref(database, `yggdrasil/${m.base}/${hPath}/${user.uid}`);
+        get(scoreRef).then(snap => {
+          if (!snap.exists() || snap.val().score < m.val) {
+            set(scoreRef, {
+              name,
+              score: m.val,
+              t: Date.now()
+            });
+          }
+        });
+      });
     });
   }, [user]);
 
   // Init game
-  const initGame = useCallback((eventOverride = null) => {
+  const initGame = useCallback((eventOverride = null, upgradesOverride = null) => {
+    const upgradesToUse = upgradesOverride || userUpgrades;
     const seed = getDailySeed();
     const rng = seededRandom(seed);
     const itemBandsUsed = new Set();
@@ -643,10 +678,12 @@ const YggdrasilAscender = ({ user }) => {
         scaleY: 1,
         facing: 1, // 1 for right, -1 for left
         turboTime: 0,
-        turboCharges: userUpgrades.extraTurbo || 0,
-        turbosUsed: 0,
-        doubleJumpCharges: userUpgrades.extraJump || 0,
-        doubleJumpsUsed: 0,
+        shopTurboCharges: upgradesToUse.extraTurbo || 0,
+        freeTurboCharges: 0,
+        shopTurbosUsed: 0,
+        shopJumpCharges: upgradesToUse.extraJump || 0,
+        freeJumpCharges: 0,
+        shopJumpsUsed: 0,
         usedDoubleJumpInAir: false,
         mistTimer: 120 // 2 seconds survival in Nidhogg mist
       },
@@ -659,7 +696,7 @@ const YggdrasilAscender = ({ user }) => {
       lastPublish: 0,
       difficulty: 0,
       runes: 0,
-      magnetism: (userUpgrades.magnetismLevel || 0) === 1 ? 60 : (userUpgrades.magnetismLevel || 0) === 2 ? 100 : (userUpgrades.magnetismLevel || 0) === 3 ? 150 : 0,
+      magnetism: (upgradesToUse.magnetismLevel || 0) === 1 ? 60 : (upgradesToUse.magnetismLevel || 0) === 2 ? 100 : (upgradesToUse.magnetismLevel || 0) === 3 ? 150 : 0,
       particles: [],
       windParticles: [], // decorative wind streaks
       itemBandsUsed,
@@ -675,7 +712,7 @@ const YggdrasilAscender = ({ user }) => {
       thunderTimer: 0,
       thunderCount: 0,
       lastThunderTime: 0,
-      hasIdunApple: userUpgrades.hasIdunApple,
+      hasIdunApple: upgradesToUse.hasIdunApple,
       appleUsedInRun: false,
       lastRuneAlt: 0, // first spawn at 3000m
       // ═══ NIDHOGG'S RISING MIST ═══
@@ -718,10 +755,17 @@ const YggdrasilAscender = ({ user }) => {
       };
     }
 
+    gameRef.current.magnetism = (upgradesToUse.magnetismLevel || 0) === 1 ? 60 : (upgradesToUse.magnetismLevel || 0) === 2 ? 100 : (upgradesToUse.magnetismLevel || 0) === 3 ? 150 : 0;
+    gameRef.current.hasIdunApple = upgradesToUse.hasIdunApple;
+
     setRunesCollected(0);
     setRunStats(null);
-    setTurboCharges(userUpgrades.extraTurbo || 0);
-    setDoubleJumpCharges(userUpgrades.extraJump || 0);
+    
+    setShopTurboCharges(upgradesToUse.extraTurbo || 0);
+    setFreeTurboCharges(0);
+    setShopJumpCharges(upgradesToUse.extraJump || 0);
+    setFreeJumpCharges(0);
+    
     setAppleUsedInRun(false);
     setNidhoggWarning(false);
     setRatatoskrNotif(null);
@@ -798,12 +842,20 @@ const YggdrasilAscender = ({ user }) => {
         p.vy = JUMP_FORCE;
         p.isGrounded = false;
         p.usedDoubleJumpInAir = false; // reset for fresh jump
-      } else if (!lastJumpPressed && p.doubleJumpCharges > 0 && !p.usedDoubleJumpInAir && !turboMomentumRef.current && p.turboTime <= 0) {
+      } else if (!lastJumpPressed && (p.shopJumpCharges > 0 || p.freeJumpCharges > 0) && !p.usedDoubleJumpInAir && !turboMomentumRef.current && p.turboTime <= 0) {
         p.vy = JUMP_FORCE * 1.1; // HIGH JUMP!
-        p.doubleJumpCharges--;
-        p.doubleJumpsUsed = (p.doubleJumpsUsed || 0) + 1;
+        
+        // Prioritize free jumps
+        if (p.freeJumpCharges > 0) {
+          p.freeJumpCharges--;
+          setFreeJumpCharges(p.freeJumpCharges);
+        } else if (p.shopJumpCharges > 0) {
+          p.shopJumpCharges--;
+          p.shopJumpsUsed = (p.shopJumpsUsed || 0) + 1;
+          setShopJumpCharges(p.shopJumpCharges);
+        }
+
         p.usedDoubleJumpInAir = true;
-        setDoubleJumpCharges(p.doubleJumpCharges);
         setJumpUsed(true);
         setTimeout(() => setJumpUsed(false), 1000);
         for (let di = 0; di < 6; di++) {
@@ -821,10 +873,17 @@ const YggdrasilAscender = ({ user }) => {
     const turboPressed = keysRef.current['ShiftLeft'] || keysRef.current['ShiftRight'] || keysRef.current['KeyE'] || touchRef.current.turbo;
     const lastTurboPressed = keysRef.current['lastTurbo'] || false;
 
-    if (turboPressed && !lastTurboPressed && p.turboCharges > 0 && p.turboTime <= 0) {
-      p.turboCharges--;
-      p.turbosUsed = (p.turbosUsed || 0) + 1;
-      setTurboCharges(p.turboCharges);
+    if (turboPressed && !lastTurboPressed && (p.shopTurboCharges > 0 || p.freeTurboCharges > 0) && p.turboTime <= 0) {
+      // Prioritize free turbos
+      if (p.freeTurboCharges > 0) {
+        p.freeTurboCharges--;
+        setFreeTurboCharges(p.freeTurboCharges);
+      } else if (p.shopTurboCharges > 0) {
+        p.shopTurboCharges--;
+        p.shopTurbosUsed = (p.shopTurbosUsed || 0) + 1;
+        setShopTurboCharges(p.shopTurboCharges);
+      }
+      
       p.turboTime = 60; // 1 second
       g.shake = 10;
       turboMomentumRef.current = true;
@@ -969,7 +1028,9 @@ const YggdrasilAscender = ({ user }) => {
         if (dist < 40) {
           const isTurbo = plat.item === 'turbo';
           const isJump = plat.item === 'doubleJump';
-          const atMax = isTurbo ? (p.turboCharges || 0) >= 3 : (p.doubleJumpCharges || 0) >= 5;
+          const atMax = isTurbo 
+            ? (p.shopTurboCharges + p.freeTurboCharges) >= 3 
+            : (p.shopJumpCharges + p.freeJumpCharges) >= 5;
 
           if (atMax) {
             // Don't collect — item stays visible
@@ -977,11 +1038,11 @@ const YggdrasilAscender = ({ user }) => {
           } else {
             plat.itemCollected = true;
             if (isTurbo) {
-              p.turboCharges = (p.turboCharges || 0) + 1;
-              setTurboCharges(p.turboCharges);
+              p.freeTurboCharges = (p.freeTurboCharges || 0) + 1;
+              setFreeTurboCharges(p.freeTurboCharges);
             } else if (isJump) {
-              p.doubleJumpCharges = (p.doubleJumpCharges || 0) + 1;
-              setDoubleJumpCharges(p.doubleJumpCharges);
+              p.freeJumpCharges = (p.freeJumpCharges || 0) + 1;
+              setFreeJumpCharges(p.freeJumpCharges);
             }
             // Collect effect
             for (let i = 0; i < 10; i++) {
@@ -1108,14 +1169,25 @@ const YggdrasilAscender = ({ user }) => {
           // Collect!
           remove(ref(database, `yggdrasil/spirits/${id}`));
           const isTurbo = Math.random() > 0.5;
+          let granted = false;
           if (isTurbo) {
-            p.turboCharges = (p.turboCharges || 0) + 1;
-            setTurboCharges(p.turboCharges);
+            if ((p.shopTurboCharges + p.freeTurboCharges) < 3) {
+              p.freeTurboCharges = (p.freeTurboCharges || 0) + 1;
+              setFreeTurboCharges(p.freeTurboCharges);
+              granted = true;
+            }
           } else {
-            p.doubleJumpCharges = (p.doubleJumpCharges || 0) + 1;
-            setDoubleJumpCharges(p.doubleJumpCharges);
+            if ((p.shopJumpCharges + p.freeJumpCharges) < 5) {
+              p.freeJumpCharges = (p.freeJumpCharges || 0) + 1;
+              setFreeJumpCharges(p.freeJumpCharges);
+              granted = true;
+            }
           }
-          setRatatoskrNotif(`Spirit Blessing: +1 ${isTurbo ? 'Turbo' : 'Jump'}!`);
+          if (granted) {
+            setRatatoskrNotif(`Spirit Blessing: +1 ${isTurbo ? 'Turbo' : 'Jump'}!`);
+          } else {
+            setRatatoskrNotif(`Spirit Absorbed! (${isTurbo ? 'Turbo' : 'Jump'} at MAX)`);
+          }
           setTimeout(() => setRatatoskrNotif(null), 2500);
           for (let i = 0; i < 15; i++) {
             g.particles.push({
@@ -1237,6 +1309,10 @@ const YggdrasilAscender = ({ user }) => {
     // Turbo decay
     if (p.turboTime > 0) {
       p.turboTime -= 1 * dt;
+      // Update React state for the turbo bar HUD (throttled)
+      if (now - g.lastHUDTime > 66) {
+        setTurboTime(p.turboTime);
+      }
       // Spawn turbo particles (trail) - Reduced rate for performance
       if (Math.random() < 0.4) {
         g.particles.push({
@@ -1249,20 +1325,8 @@ const YggdrasilAscender = ({ user }) => {
           size: 2
         });
       }
-    }
-
-    // Player squash/stretch lerp
-    p.squash += (1 - p.squash) * 0.3;
-    p.scaleX = 1 + (1 - p.squash);
-    p.scaleY = p.squash;
-    // apply stretch based on velocity
-    if (p.turboTime > 0) {
-      // Stabilize scale during turbo to prevent pulsing
-      p.scaleY = 1.0;
-      p.scaleX = 1.0;
-    } else {
-      p.scaleY = 1.0;
-      p.scaleX = 1.0;
+    } else if (p.turboTime <= 0 && now - g.lastHUDTime > 66) {
+      setTurboTime(0);
     }
 
     // Altitude
@@ -1326,7 +1390,7 @@ const YggdrasilAscender = ({ user }) => {
 
       // Generate floating runes based on generator altitude (genAlt)
       const genAlt = Math.floor(-g.platGenY / 4);
-      if (genAlt >= 3000 && genAlt - g.lastRuneAlt >= 3000) {
+      if (genAlt >= 1000 && genAlt - g.lastRuneAlt >= 1000) {
         const newFloatingRunes = generateFloatingRunes(g.platGenY, prevGenY, g.rng);
         g.floatingRunes.push(...newFloatingRunes);
         g.lastRuneAlt = genAlt;
@@ -1440,32 +1504,33 @@ const YggdrasilAscender = ({ user }) => {
       } else {
         setIsNewBest(false);
       }
-      submitScore(g.maxAlt);
+      submitScore(g.maxAlt, g.runes);
       removePresence();
       setGameState('over');
       setRunStats({ loading: true });
-      submitYggdrasilRun(g.maxAlt, g.runes, g.player.turbosUsed || 0, g.player.doubleJumpsUsed || 0).then(res => {
+      submitYggdrasilRun(g.maxAlt, g.runes, g.player.shopTurbosUsed || 0, g.player.shopJumpsUsed || 0).then(res => {
+        loadUserShopData(); // Refresh balance after run
         if (res && res.success) {
           setRunStats(res);
+
+          // Only spawn Death Spirit if it was a valid run (not limit reached)
+          if (!res.limitReached && user?.uid) {
+            const spiritId = `${user.uid}_${Date.now()}`;
+            const spiritRef = ref(database, `yggdrasil/spirits/${spiritId}`);
+            set(spiritRef, {
+              x: Math.floor(p.x + PLAYER_W / 2),
+              y: Math.floor(p.y + PLAYER_H / 2),
+              uid: user.uid,
+              name: resolveDisplayName(user),
+              t: Date.now()
+            });
+            // Auto-cleanup after 15 mins
+            setTimeout(() => remove(spiritRef), 900000);
+          }
         } else {
           setRunStats({ error: res?.error || 'Failed to submit' });
         }
       });
-
-      // Spawn Death Spirit
-      if (user?.uid) {
-        const spiritId = `${user.uid}_${Date.now()}`;
-        const spiritRef = ref(database, `yggdrasil/spirits/${spiritId}`);
-        set(spiritRef, {
-          x: Math.floor(p.x + PLAYER_W / 2),
-          y: Math.floor(p.y + PLAYER_H / 2),
-          uid: user.uid,
-          name: resolveDisplayName(user),
-          t: Date.now()
-        });
-        // Auto-cleanup after 15 mins
-        setTimeout(() => remove(spiritRef), 900000);
-      }
     };
 
     if (p.y > g.camera + CANVAS_H + 120) {
@@ -1802,16 +1867,24 @@ const YggdrasilAscender = ({ user }) => {
       if (ry > -50 && ry < CANVAS_H + 50) {
         ctx.save();
         ctx.fillStyle = fr.isSpecial ? '#ef4444' : '#fbbf24';
-        ctx.font = `bold ${RUNE_SIZE}px sans-serif`;
+        const displaySize = fr.isSpecial ? RUNE_SIZE * 1.5 : RUNE_SIZE * 1.2;
+        ctx.font = `bold ${displaySize}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        
+        // Background glow
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = fr.isSpecial ? '#ef4444' : '#fbbf24';
+        
         ctx.strokeStyle = 'rgba(0,0,0,0.8)';
         ctx.lineWidth = 3;
         ctx.strokeText(fr.symbol, rx, ry);
         ctx.fillText(fr.symbol, rx, ry);
-        // Subtle glow effect
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = fr.isSpecial ? '#ef4444' : '#fbbf24';
+        
+        // Secondary pulse glow
+        const pulse = Math.sin(Date.now() / 200) * 0.5 + 0.5;
+        ctx.globalAlpha = 0.3 * pulse;
+        ctx.font = `bold ${displaySize + 10}px sans-serif`;
         ctx.fillText(fr.symbol, rx, ry);
         ctx.restore();
       }
@@ -1832,7 +1905,7 @@ const YggdrasilAscender = ({ user }) => {
       ctx.save();
       const bounce = Math.sin(rat.animFrame * 8) * 2;
       const rx = rat.x;
-      const ry = rat.y + bounce;
+      const ry = rat.y - g.camera + bounce;
       // Body
       ctx.fillStyle = '#c2410c'; // Orange-brown
       ctx.beginPath();
@@ -2214,7 +2287,7 @@ const YggdrasilAscender = ({ user }) => {
     }
 
     animRef.current = requestAnimationFrame(gameLoop);
-  }, [publishPresence, removePresence, submitScore, user, gameState, yggConfig]);
+  }, [publishPresence, removePresence, submitScore, user, gameState, yggConfig, loadUserShopData]);
 
   // Use Idun's Apple — respawn the player to the highest platform
   const handleAppleDecision = useCallback((accepted) => {
@@ -2247,9 +2320,25 @@ const YggdrasilAscender = ({ user }) => {
       removePresence();
       setGameState('over');
       setRunStats({ loading: true });
-      submitYggdrasilRun(g.maxAlt, g.runes, g.player.turbosUsed || 0, g.player.doubleJumpsUsed || 0).then(res => {
+      submitYggdrasilRun(g.maxAlt, g.runes, g.player.shopTurbosUsed || 0, g.player.shopJumpsUsed || 0).then(res => {
+        loadUserShopData(); // Refresh balance after run
         if (res && res.success) {
           setRunStats(res);
+
+          // Only spawn Death Spirit if it was a valid run (not limit reached)
+          if (!res.limitReached && user?.uid) {
+            const spiritId = `${user.uid}_${Date.now()}`;
+            const spiritRef = ref(database, `yggdrasil/spirits/${spiritId}`);
+            set(spiritRef, {
+              x: Math.floor(p.x + PLAYER_W / 2),
+              y: Math.floor(p.y + PLAYER_H / 2),
+              uid: user.uid,
+              name: resolveDisplayName(user),
+              t: Date.now()
+            });
+            // Auto-cleanup after 15 mins
+            setTimeout(() => remove(spiritRef), 900000);
+          }
         } else {
           setRunStats({ error: res?.error || 'Failed to submit' });
         }
@@ -2315,7 +2404,7 @@ const YggdrasilAscender = ({ user }) => {
     // Resume game loop
     if (animRef.current) cancelAnimationFrame(animRef.current);
     animRef.current = requestAnimationFrame(gameLoop);
-  }, [gameLoop, submitScore, removePresence]);
+  }, [gameLoop, submitScore, removePresence, loadUserShopData, user]);
 
   const handleEmoteSelect = useCallback((emote) => {
     setSelectedEmote(emote);
@@ -2359,12 +2448,16 @@ const YggdrasilAscender = ({ user }) => {
       setActiveEvent(updatedEv);
       setActiveEventId(eventId);
       activeEventIdRef.current = eventId;
-      initGame(updatedEv);
+      
+      const freshUpgrades = await loadUserShopData();
+      initGame(updatedEv, freshUpgrades);
     } else {
       setActiveEvent(null);
       setActiveEventId(null);
       activeEventIdRef.current = null;
-      initGame(null);
+      
+      const freshUpgrades = await loadUserShopData();
+      initGame(null, freshUpgrades);
     }
 
     keysRef.current = {};
@@ -2390,7 +2483,7 @@ const YggdrasilAscender = ({ user }) => {
     }
     if (animRef.current) cancelAnimationFrame(animRef.current);
     animRef.current = requestAnimationFrame(gameLoop);
-  }, [initGame, gameLoop, user, events]);
+  }, [initGame, gameLoop, user, events, loadUserShopData]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -2587,8 +2680,8 @@ const YggdrasilAscender = ({ user }) => {
                 <div className="ygg-altitude">
                   {score}m<span> ALTITUDE</span>
                 </div>
-
                 {bestScore > 0 && <div className="ygg-best">Best: {bestScore}m</div>}
+                
                 {/* Zone condition badge with color */}
                 {(() => {
                   const z = getZone(score);
@@ -2598,18 +2691,27 @@ const YggdrasilAscender = ({ user }) => {
                     </div>
                   );
                 })()}
+
                 {runesCollected > 0 && <div className="ygg-runes-hud">ᚠ {runesCollected}</div>}
 
                 {/* Power-ups HUD (inline, below runes) */}
                 <div className="ygg-powerups-hud-inline">
-                  <div className={`ygg-pu-mini-sm ${turboUsed ? 'pu-used' : ''} ${turboCharges >= 3 ? 'pu-max' : ''}`}>
+                  <div className={`ygg-pu-mini-sm ${turboUsed ? 'pu-used' : ''} ${(shopTurboCharges + freeTurboCharges) >= 3 ? 'pu-max' : ''}`}>
                     <span role="img" aria-label="rocket">&#x1F680;</span>
-                    <span>{turboCharges >= 3 ? 'MAX' : `x${turboCharges}`}</span>
+                    <span>
+                      {(shopTurboCharges + freeTurboCharges) >= 3 
+                        ? 'MAX' 
+                        : `x${shopTurboCharges}${freeTurboCharges > 0 ? ` + ${freeTurboCharges}` : ''}`}
+                    </span>
                     {turboUsed && <span className="ygg-pu-float">-1</span>}
                   </div>
-                  <div className={`ygg-pu-mini-sm ${jumpUsed ? 'pu-used' : ''} ${doubleJumpCharges >= 5 ? 'pu-max' : ''} ${doubleJumpDisabled ? 'pu-disabled' : ''}`}>
+                  <div className={`ygg-pu-mini-sm ${jumpUsed ? 'pu-used' : ''} ${(shopJumpCharges + freeJumpCharges) >= 5 ? 'pu-max' : ''} ${doubleJumpDisabled ? 'pu-disabled' : ''}`}>
                     <span role="img" aria-label="shoes">&#x1F45F;</span>
-                    <span>{doubleJumpCharges >= 5 ? 'MAX' : `x${doubleJumpCharges}`}</span>
+                    <span>
+                      {(shopJumpCharges + freeJumpCharges) >= 5 
+                        ? 'MAX' 
+                        : `x${shopJumpCharges}${freeJumpCharges > 0 ? ` + ${freeJumpCharges}` : ''}`}
+                    </span>
                     {jumpUsed && <span className="ygg-pu-float">-1</span>}
                   </div>
                   {userUpgrades.hasIdunApple && !appleUsedInRun && (
@@ -2620,16 +2722,6 @@ const YggdrasilAscender = ({ user }) => {
                   )}
                 </div>
 
-                {/* Emote Button */}
-                <button
-                  className={`ygg-hud-emote-btn ${showEmoteMenu ? 'active' : ''}`}
-                  onClick={() => {
-                    setShowEmoteMenu(prev => !prev);
-                    setEmoteMenuPos({ x: CANVAS_W / 2, y: CANVAS_H / 2 });
-                  }}
-                >
-                  <span role="img" aria-label="emotes">💬</span> Emotes
-                </button>
 
                 {/* Turbo Active Bar */}
                 {turboTime > 0 && (
@@ -2674,6 +2766,34 @@ const YggdrasilAscender = ({ user }) => {
                 <div className="ygg-height-marker" style={{ bottom: '66.6%' }}>10k</div>
               </div>
             </div>
+            
+            {/* Emote Sidebar (Center-Right) */}
+            {gameState === 'playing' && (
+              <div className="ygg-emote-sidebar">
+                <button
+                  className={`ygg-hud-emote-btn-icon ${showEmoteMenu ? 'active' : ''}`}
+                  onClick={() => setShowEmoteMenu(prev => !prev)}
+                  title="Emotes"
+                >
+                  💬
+                </button>
+
+                {/* Emote Dropdown Menu (Side-positioned) */}
+                {showEmoteMenu && (
+                  <div className="ygg-emote-dropdown-side">
+                    {EMOTES.map((e) => (
+                      <button
+                        key={e}
+                        className={`ygg-emote-option-sm ${selectedEmote === e ? 'selected' : ''}`}
+                        onClick={() => handleEmoteSelect(e)}
+                      >
+                        {e}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Zone Announcement Overlay */}
             {showZoneAnnouncement && (() => {
@@ -2940,12 +3060,22 @@ const YggdrasilAscender = ({ user }) => {
         <div className="ygg-leaderboard">
           <div className="ygg-lb-header">
             <span className="ygg-lb-title">Leaderboard</span>
-            <select className="ygg-lb-dropdown" value={lbMode} onChange={e => setLbMode(e.target.value)}>
-              <option value="daily">Today</option>
-              <option value="weekly">This Week</option>
-              <option value="monthly">This Month</option>
-              <option value="alltime">All Time</option>
-            </select>
+            <div className="ygg-lb-controls">
+              <select className="ygg-lb-dropdown" value={lbMetric} onChange={e => setLbMetric(e.target.value)}>
+                <option value="altitude">Altitude</option>
+                <option value="runes">Rune Balances</option>
+              </select>
+              {lbMetric === 'altitude' ? (
+                <select className="ygg-lb-dropdown" value={lbMode} onChange={e => setLbMode(e.target.value)}>
+                  <option value="daily">Today</option>
+                  <option value="weekly">This Week</option>
+                  <option value="monthly">This Month</option>
+                  <option value="alltime">All Time</option>
+                </select>
+              ) : (
+                <span className="ygg-lb-global-label">Global Top</span>
+              )}
+            </div>
           </div>
           <div className="ygg-lb-list">
             {lbLoading ? (
@@ -2959,7 +3089,7 @@ const YggdrasilAscender = ({ user }) => {
               <div key={entry.uid} className={`ygg-lb-row ${entry.uid === user?.uid ? 'is-me' : ''}`}>
                 <span className="ygg-lb-rank">#{i + 1}</span>
                 <span className="ygg-lb-name">{nameCache[entry.uid] || entry.name}</span>
-                <span className="ygg-lb-score">{entry.score}m</span>
+                <span className="ygg-lb-score">{entry.score.toLocaleString()}{lbMetric === 'altitude' ? 'm' : ' ᚠ'}</span>
               </div>
             ))}
           </div>
@@ -3084,38 +3214,6 @@ const YggdrasilAscender = ({ user }) => {
         />
       )}
 
-      {/* Emote Radial Menu */}
-      {showEmoteMenu && (
-        <div
-          className="ygg-emote-radial-overlay"
-          onMouseUp={() => setShowEmoteMenu(false)}
-          onTouchEnd={() => setShowEmoteMenu(false)}
-        >
-          <div
-            className="ygg-emote-radial"
-            style={{ left: emoteMenuPos.x, top: emoteMenuPos.y }}
-          >
-            {EMOTES.map((e, i) => {
-              const angle = (i / EMOTES.length) * Math.PI * 2;
-              const dist = 70;
-              const ex = Math.cos(angle) * dist;
-              const ey = Math.sin(angle) * dist;
-              return (
-                <button
-                  key={e}
-                  className={`ygg-emote-option ${selectedEmote === e ? 'selected' : ''}`}
-                  style={{ transform: `translate(${ex}px, ${ey}px)` }}
-                  onMouseDown={(ev) => { ev.stopPropagation(); handleEmoteSelect(e); }}
-                  onTouchStart={(ev) => { ev.stopPropagation(); handleEmoteSelect(e); }}
-                >
-                  {e}
-                </button>
-              );
-            })}
-            <div className="ygg-emote-center">ᚠ</div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
