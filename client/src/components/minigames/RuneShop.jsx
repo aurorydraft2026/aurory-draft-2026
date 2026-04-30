@@ -6,7 +6,7 @@ const SHOP_ITEMS = [
   {
     id: 'magnetism',
     name: 'Rune Magnetism',
-    icon: '🧲',
+    icon: '/icons/minigames/yggdrasil/magnet.png',
     description: 'Runes fly toward you from a distance. Upgrades increase the range.',
     maxLevel: 3,
     type: 'upgrade',
@@ -16,7 +16,7 @@ const SHOP_ITEMS = [
   {
     id: 'extraTurbo',
     name: 'Extra Turbo',
-    icon: '🚀',
+    icon: '/icons/minigames/yggdrasil/turbo.png',
     description: 'Start each run with +1 Turbo Boost charge. Max 3.',
     type: 'consumable',
     maxOwn: 3,
@@ -25,7 +25,7 @@ const SHOP_ITEMS = [
   {
     id: 'extraJump',
     name: 'Extra High Jump',
-    icon: '👟',
+    icon: '/icons/minigames/yggdrasil/double_jump.png',
     description: 'Start each run with +1 Double Jump charge. Max 5.',
     type: 'consumable',
     maxOwn: 5,
@@ -34,7 +34,7 @@ const SHOP_ITEMS = [
   {
     id: 'idunApple',
     name: "Iðunn's Apple",
-    icon: '🍎',
+    icon: "/icons/minigames/yggdrasil/idunn's_apple.png",
     description: 'Auto-activates when you die. Get a 10s prompt to respawn at the highest platform. Max 1.',
     type: 'consumable',
     maxOwn: 1,
@@ -172,11 +172,14 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
     <div className="ygg-shop-overlay">
       <div className="ygg-shop-modal">
         <div className="ygg-shop-header">
-          <h2 className="ygg-shop-title">ᚠ Rune Shop</h2>
+          <h2 className="ygg-shop-title">
+            <img src="/icons/minigames/yggdrasil/rune.png" alt="rune" className="ygg-shop-header-title-rune-img" />
+            Rune Shop
+          </h2>
           <div className="ygg-shop-balance">
             <span className="ygg-shop-rune-label">Your Current Balance</span>
             <div className="ygg-shop-balance-row">
-              <span className="ygg-shop-rune-icon">ᚠ</span>
+              <img src="/icons/minigames/yggdrasil/rune.png" alt="rune" className="ygg-shop-header-rune-img" />
               <span className="ygg-shop-rune-count">{runeBalance.toLocaleString()}</span>
             </div>
           </div>
@@ -205,7 +208,7 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
                         {isCustom && item.image ? (
                           <img src={item.image} alt={item.name} className="ygg-custom-shop-img" />
                         ) : (
-                          item.icon
+                          <img src={item.icon} alt={item.name} className="ygg-shop-item-img" />
                         )}
                       </div>
                       <div className="ygg-shop-item-info">
@@ -223,7 +226,12 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
                         disabled={disabled || purchasing === item.id}
                         onClick={() => handlePurchase(item.id)}
                       >
-                        {purchasing === item.id ? '...' : (isCustom && item.stock <= 0) ? 'EMPTY' : cost !== null ? `ᚠ ${cost}` : 'MAX'}
+                        {purchasing === item.id ? '...' : (isCustom && item.stock <= 0) ? 'EMPTY' : cost !== null ? (
+                          <div className="ygg-buy-btn-content">
+                            <img src="/icons/minigames/yggdrasil/rune.png" alt="rune" className="ygg-buy-rune-img" />
+                            {cost}
+                          </div>
+                        ) : 'MAX'}
                       </button>
                     </div>
                   </div>

@@ -165,7 +165,10 @@ const YggdrasilAscender = ({ user }) => {
   const canvasRef = useRef(null);
   const gameRef = useRef(null);
   const animRef = useRef(null);
-  const assetsRef = useRef({ stand: null, jump: null, turbo: null, plat1: null, plat2: null, background: null });
+  const assetsRef = useRef({ 
+    stand: null, jump: null, turbo: null, plat1: null, plat2: null, background: null,
+    magnet: null, apple: null, spirit: null, jumpIcon: null, turboIcon: null, rune: null, redRune: null, ratatoskr: null
+  });
   const keysRef = useRef({});
   const touchRef = useRef({ left: false, right: false, jump: false });
   const leftBtnRef = useRef(null);
@@ -198,6 +201,9 @@ const YggdrasilAscender = ({ user }) => {
   const [runesCollected, setRunesCollected] = useState(0);
   const [turboTime, setTurboTime] = useState(0);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [joystickMode, setJoystickMode] = useState(false);
+  const [joystickX, setJoystickX] = useState(0);
+  const [joystickY, setJoystickY] = useState(0);
   const [runStats, setRunStats] = useState(null);
   const [showRules, setShowRules] = useState(false);
   const [turboUsed, setTurboUsed] = useState(false);
@@ -219,6 +225,7 @@ const YggdrasilAscender = ({ user }) => {
   const [appleTimer, setAppleTimer] = useState(10);
   const appleTimerRef = useRef(null);
   const appleDeathReasonRef = useRef(null);
+  const joystickTouchIdRef = useRef(null);
 
   // ═══ EMOTES STATE ═══
   const [showEmoteMenu, setShowEmoteMenu] = useState(false);
@@ -301,9 +308,20 @@ const YggdrasilAscender = ({ user }) => {
       processImage('/icons/minigames/yggdrasil/hero_turbo.png'),
       processImage('/icons/minigames/yggdrasil/platform_1.png'),
       processImage('/icons/minigames/yggdrasil/platform_2.png'),
-      processImage('/icons/minigames/yggdrasil/background.png')
-    ]).then(([stand, jump, turbo, plat1, plat2, background]) => {
-      assetsRef.current = { stand, jump, turbo, plat1, plat2, background };
+      processImage('/icons/minigames/yggdrasil/background.png'),
+      processImage('/icons/minigames/yggdrasil/magnet.png'),
+      processImage("/icons/minigames/yggdrasil/idunn's_apple.png"),
+      processImage('/icons/minigames/yggdrasil/death_spirit.png'),
+      processImage('/icons/minigames/yggdrasil/double_jump.png'),
+      processImage('/icons/minigames/yggdrasil/turbo.png'),
+      processImage('/icons/minigames/yggdrasil/rune.png'),
+      processImage('/icons/minigames/yggdrasil/red_rune.png'),
+      processImage('/icons/minigames/yggdrasil/ratatoskr.png')
+    ]).then(([stand, jump, turbo, plat1, plat2, background, magnet, apple, spirit, jumpIcon, turboIcon, rune, redRune, ratatoskr]) => {
+      assetsRef.current = { 
+        stand, jump, turbo, plat1, plat2, background,
+        magnet, apple, spirit, jumpIcon, turboIcon, rune, redRune, ratatoskr
+      };
       setAssetsLoaded(true);
     }).catch(err => {
       console.error('Asset processing failed:', err);
@@ -772,13 +790,73 @@ const YggdrasilAscender = ({ user }) => {
     setDeathReason(null);
     keysRef.current = {};
     touchRef.current = { left: false, right: false, jump: false };
+    setJoystickX(0);
   }, [activeEvent, userUpgrades]);
+
+  const handleJoystickTouch = (e) => {
+    if (!joystickMode) return;
+    if (e.cancelable) e.preventDefault();
+    
+    let touch = null;
+    if (e.type === 'touchstart') {
+      touch = e.changedTouches[0];
+      joystickTouchIdRef.current = touch.identifier;
+    } else {
+      // Find the touch that matches our joystick finger
+      for (let i = 0; i < e.touches.length; i++) {
+        if (e.touches[i].identifier === joystickTouchIdRef.current) {
+          touch = e.touches[i];
+          break;
+        }
+      }
+    }
+    
+    if (!touch) return;
+
+    const area = e.currentTarget.getBoundingClientRect();
+    const centerX = area.left + area.width / 2;
+    const centerY = area.top + area.height / 2;
+    let dx = touch.clientX - centerX;
+    let dy = touch.clientY - centerY;
+    
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const maxDist = area.width / 2 - 20; 
+    
+    if (dist > maxDist) {
+      dx *= maxDist / dist;
+      dy *= maxDist / dist;
+    }
+    
+    setJoystickX(dx);
+    setJoystickY(dy);
+    
+    if (dx > 10) {
+      touchRef.current.right = true;
+      touchRef.current.left = false;
+    } else if (dx < -10) {
+      touchRef.current.left = true;
+      touchRef.current.right = false;
+    } else {
+      touchRef.current.left = false;
+      touchRef.current.right = false;
+    }
+  };
+
+  const handleJoystickEnd = (e) => {
+    if (e.cancelable) e.preventDefault();
+    joystickTouchIdRef.current = null;
+    setJoystickX(0);
+    setJoystickY(0);
+    touchRef.current.left = false;
+    touchRef.current.right = false;
+  };
 
   // Game loop
   const gameLoop = useCallback(() => {
     const g = gameRef.current;
     const canvas = canvasRef.current;
     if (!g || !canvas) return;
+    const currentAssets = assetsRef.current;
     const ctx = canvas.getContext('2d');
 
     const p = g.player;
@@ -1691,13 +1769,17 @@ const YggdrasilAscender = ({ user }) => {
         ctx.fill();
 
         // Core
-        ctx.fillStyle = '#f3e8ff';
-        ctx.font = '20px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#a855f7';
-        ctx.fillText('👻', 0, pulse / 2);
+        if (currentAssets.spirit) {
+          ctx.drawImage(currentAssets.spirit, -12, -12 + pulse / 2, 24, 24);
+        } else {
+          ctx.fillStyle = '#f3e8ff';
+          ctx.font = '20px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = '#a855f7';
+          ctx.fillText('👻', 0, pulse / 2);
+        }
 
         // Name
         ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
@@ -1769,6 +1851,25 @@ const YggdrasilAscender = ({ user }) => {
         const rw = plat.w;
         const rh = rw * (platImg.height / platImg.width);
         ctx.drawImage(platImg, plat.x, plat.y + (plat.h - rh) / 2, rw, rh);
+
+        // Boost platform tint & glow
+        if (plat.type === 'boost') {
+          ctx.save();
+          ctx.globalCompositeOperation = 'source-atop';
+          ctx.fillStyle = 'rgba(251, 191, 36, 0.4)'; // Gold tint
+          ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
+          ctx.restore();
+
+          ctx.save();
+          ctx.shadowBlur = 15;
+          ctx.shadowColor = '#fbbf24';
+          ctx.strokeStyle = 'rgba(251, 191, 36, 0.8)';
+          ctx.lineWidth = 2;
+          roundRect(ctx, plat.x, plat.y, plat.w, plat.h, 4);
+          ctx.stroke();
+          ctx.restore();
+        }
+
         ctx.globalAlpha = 1; // Reset alpha
       } else {
         // Fallback vector drawing
@@ -1819,24 +1920,22 @@ const YggdrasilAscender = ({ user }) => {
         ctx.fill();
 
         // Icon
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.font = '32px sans-serif';
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = plat.item === 'turbo' ? '#fbbf24' : '#60a5fa';
-        ctx.fillText(plat.item === 'turbo' ? '\uD83D\uDE80' : '\uD83D\uDC5F', cx, cy);
+        if (plat.item === 'turbo' && currentAssets.turboIcon) {
+          ctx.drawImage(currentAssets.turboIcon, cx - 18, cy - 18, 36, 36);
+        } else if (plat.item === 'doubleJump' && currentAssets.jumpIcon) {
+          ctx.drawImage(currentAssets.jumpIcon, cx - 18, cy - 18, 36, 36);
+        } else {
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.font = '32px sans-serif';
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = plat.item === 'turbo' ? '#fbbf24' : '#60a5fa';
+          ctx.fillText(plat.item === 'turbo' ? '\uD83D\uDE80' : '\uD83D\uDC5F', cx, cy);
+        }
         ctx.restore();
       }
 
-      // Draw icons on top of platforms if they are special types
-      if (plat.type === 'boost') {
-        ctx.save();
-        ctx.fillStyle = '#92400e';
-        ctx.font = 'bold 24px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('⚡', plat.x + plat.w / 2, plat.y - 20);
-        ctx.restore();
-      }
+      // Icons on platforms removed for boost types as per request (using platform tint instead)
 
       ctx.restore();
 
@@ -1845,14 +1944,18 @@ const YggdrasilAscender = ({ user }) => {
         const runeX = plat.x + plat.w / 2 + (plat.runeOffX || 0);
         const runeY = plat.y - 20 + Math.sin(Date.now() / 300 + plat.x) * 3 + (plat.runeOffY || 0);
         ctx.save();
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = `bold ${RUNE_SIZE}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-        ctx.lineWidth = 3;
-        ctx.strokeText(plat.runeSymbol, runeX, runeY);
-        ctx.fillText(plat.runeSymbol, runeX, runeY);
+        if (currentAssets.rune) {
+          ctx.drawImage(currentAssets.rune, runeX - 12, runeY - 12, 24, 24);
+        } else {
+          ctx.fillStyle = '#fbbf24';
+          ctx.font = `bold ${RUNE_SIZE}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+          ctx.lineWidth = 3;
+          ctx.strokeText(plat.runeSymbol, runeX, runeY);
+          ctx.fillText(plat.runeSymbol, runeX, runeY);
+        }
         ctx.restore();
       }
     }
@@ -1866,26 +1969,32 @@ const YggdrasilAscender = ({ user }) => {
       // Only draw if on screen
       if (ry > -50 && ry < CANVAS_H + 50) {
         ctx.save();
-        ctx.fillStyle = fr.isSpecial ? '#ef4444' : '#fbbf24';
-        const displaySize = fr.isSpecial ? RUNE_SIZE * 1.5 : RUNE_SIZE * 1.2;
-        ctx.font = `bold ${displaySize}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        
-        // Background glow
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = fr.isSpecial ? '#ef4444' : '#fbbf24';
-        
-        ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-        ctx.lineWidth = 3;
-        ctx.strokeText(fr.symbol, rx, ry);
-        ctx.fillText(fr.symbol, rx, ry);
-        
-        // Secondary pulse glow
-        const pulse = Math.sin(Date.now() / 200) * 0.5 + 0.5;
-        ctx.globalAlpha = 0.3 * pulse;
-        ctx.font = `bold ${displaySize + 10}px sans-serif`;
-        ctx.fillText(fr.symbol, rx, ry);
+        const runeImg = fr.isSpecial ? currentAssets.redRune : currentAssets.rune;
+        if (runeImg) {
+          const displaySize = fr.isSpecial ? 36 : 28;
+          ctx.drawImage(runeImg, rx - displaySize / 2, ry - displaySize / 2, displaySize, displaySize);
+        } else {
+          ctx.fillStyle = fr.isSpecial ? '#ef4444' : '#fbbf24';
+          const displaySize = fr.isSpecial ? RUNE_SIZE * 1.5 : RUNE_SIZE * 1.2;
+          ctx.font = `bold ${displaySize}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          
+          // Background glow
+          ctx.shadowBlur = 15;
+          ctx.shadowColor = fr.isSpecial ? '#ef4444' : '#fbbf24';
+          
+          ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+          ctx.lineWidth = 3;
+          ctx.strokeText(fr.symbol, rx, ry);
+          ctx.fillText(fr.symbol, rx, ry);
+          
+          // Secondary pulse glow
+          const pulse = Math.sin(Date.now() / 200) * 0.5 + 0.5;
+          ctx.globalAlpha = 0.3 * pulse;
+          ctx.font = `bold ${displaySize + 10}px sans-serif`;
+          ctx.fillText(fr.symbol, rx, ry);
+        }
         ctx.restore();
       }
     }
@@ -1906,33 +2015,46 @@ const YggdrasilAscender = ({ user }) => {
       const bounce = Math.sin(rat.animFrame * 8) * 2;
       const rx = rat.x;
       const ry = rat.y - g.camera + bounce;
-      // Body
-      ctx.fillStyle = '#c2410c'; // Orange-brown
-      ctx.beginPath();
-      ctx.ellipse(rx + RATATOSKR_W / 2, ry + RATATOSKR_H / 2, RATATOSKR_W / 2, RATATOSKR_H / 2.5, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // Tail (fluffy arc)
-      ctx.strokeStyle = '#c2410c';
-      ctx.lineWidth = 4;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      const tailDir = rat.direction;
-      ctx.moveTo(rx + (tailDir === 1 ? 0 : RATATOSKR_W), ry + 4);
-      ctx.quadraticCurveTo(
-        rx + (tailDir === 1 ? -12 : RATATOSKR_W + 12), ry - 8,
-        rx + (tailDir === 1 ? -4 : RATATOSKR_W + 4), ry - 14
-      );
-      ctx.stroke();
-      // Ears
-      ctx.fillStyle = '#ea580c';
-      ctx.beginPath();
-      ctx.arc(rx + (tailDir === 1 ? RATATOSKR_W - 2 : 2), ry + 2, 3, 0, Math.PI * 2);
-      ctx.fill();
-      // Eye
-      ctx.fillStyle = '#000';
-      ctx.beginPath();
-      ctx.arc(rx + (tailDir === 1 ? RATATOSKR_W - 4 : 4), ry + RATATOSKR_H / 2 - 2, 1.5, 0, Math.PI * 2);
-      ctx.fill();
+
+      if (currentAssets.ratatoskr) {
+        ctx.save();
+        if (rat.direction === -1) {
+          ctx.scale(-1, 1);
+          ctx.drawImage(currentAssets.ratatoskr, -rx - RATATOSKR_W, ry, RATATOSKR_W, RATATOSKR_H);
+        } else {
+          ctx.drawImage(currentAssets.ratatoskr, rx, ry, RATATOSKR_W, RATATOSKR_H);
+        }
+        ctx.restore();
+      } else {
+        // Body
+        ctx.fillStyle = '#c2410c'; // Orange-brown
+        ctx.beginPath();
+        ctx.ellipse(rx + RATATOSKR_W / 2, ry + RATATOSKR_H / 2, RATATOSKR_W / 2, RATATOSKR_H / 2.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Tail (fluffy arc)
+        ctx.strokeStyle = '#c2410c';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        const tailDir = rat.direction;
+        ctx.moveTo(rx + (tailDir === 1 ? 0 : RATATOSKR_W), ry + 4);
+        ctx.quadraticCurveTo(
+          rx + (tailDir === 1 ? -12 : RATATOSKR_W + 12), ry - 8,
+          rx + (tailDir === 1 ? -4 : RATATOSKR_W + 4), ry - 14
+        );
+        ctx.stroke();
+        // Ears
+        ctx.fillStyle = '#ea580c';
+        ctx.beginPath();
+        ctx.arc(rx + (tailDir === 1 ? RATATOSKR_W - 2 : 2), ry + 2, 3, 0, Math.PI * 2);
+        ctx.fill();
+        // Eye
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(rx + (tailDir === 1 ? RATATOSKR_W - 4 : 4), ry + RATATOSKR_H / 2 - 2, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       // Glow aura
       ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 200) * 0.15;
       const ratGlow = ctx.createRadialGradient(rx + RATATOSKR_W / 2, ry + RATATOSKR_H / 2, 2, rx + RATATOSKR_W / 2, ry + RATATOSKR_H / 2, 25);
@@ -2635,23 +2757,49 @@ const YggdrasilAscender = ({ user }) => {
         {/* Mobile Controls Overlay */}
         {gameState === 'playing' && isTouchDevice && (
           <div className="ygg-mobile-controls" style={{
-            position: 'absolute', bottom: '12px', left: 0, right: 0,
-            display: 'flex', justifyContent: 'space-between', padding: '0 12px', pointerEvents: 'none'
+            position: 'absolute', bottom: '15px', left: 0, right: 0,
+            display: 'flex', justifyContent: 'center', padding: '0 12px', pointerEvents: 'none'
           }}>
             <div className="ygg-mobile-controls-row">
-              <div className="ygg-dpad-group">
-                <button
-                  ref={leftBtnRef}
-                  className="ygg-btn-dir"
-                  onTouchStart={handleLeftStart}
-                  onTouchEnd={handleLeftEnd}
-                >◀</button>
-                <button
-                  ref={rightBtnRef}
-                  className="ygg-btn-dir"
-                  onTouchStart={handleRightStart}
-                  onTouchEnd={handleRightEnd}
-                >▶</button>
+              {joystickMode ? (
+                <div 
+                  className="ygg-joystick-area"
+                  onTouchStart={handleJoystickTouch}
+                  onTouchMove={handleJoystickTouch}
+                  onTouchEnd={handleJoystickEnd}
+                >
+                  <div 
+                    className="ygg-joystick-knob" 
+                    style={{ transform: `translate(${joystickX}px, ${joystickY}px)` }}
+                  />
+                </div>
+              ) : (
+                <div className="ygg-dpad-group">
+                  <button
+                    ref={leftBtnRef}
+                    className="ygg-btn-dir"
+                    onTouchStart={handleLeftStart}
+                    onTouchEnd={handleLeftEnd}
+                  >◀</button>
+                  <button
+                    ref={rightBtnRef}
+                    className="ygg-btn-dir"
+                    onTouchStart={handleRightStart}
+                    onTouchEnd={handleRightEnd}
+                  >▶</button>
+                </div>
+              )}
+
+              <div className="ygg-joystick-mode-toggle">
+                <input 
+                  type="checkbox" 
+                  id="joystick-mode" 
+                  className="ygg-joystick-checkbox"
+                  checked={joystickMode}
+                  onChange={(e) => setJoystickMode(e.target.checked)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <label htmlFor="joystick-mode" className="ygg-joystick-label">Joystick Mode</label>
               </div>
 
               <div className="ygg-mobile-actions">
@@ -2659,7 +2807,9 @@ const YggdrasilAscender = ({ user }) => {
                   className="ygg-ctrl-btn turbo-btn"
                   onTouchStart={(e) => { e.preventDefault(); touchRef.current.turbo = true; }}
                   onTouchEnd={(e) => { e.preventDefault(); touchRef.current.turbo = false; }}
-                >🚀</button>
+                >
+                  <img src="/icons/minigames/yggdrasil/turbo.png" alt="turbo" className="ygg-btn-icon-img" />
+                </button>
                 <button
                   ref={jumpBtnRef}
                   className="ygg-ctrl-btn jump"
@@ -2692,12 +2842,17 @@ const YggdrasilAscender = ({ user }) => {
                   );
                 })()}
 
-                {runesCollected > 0 && <div className="ygg-runes-hud">ᚠ {runesCollected}</div>}
+                {runesCollected > 0 && (
+                  <div className="ygg-runes-hud">
+                    <img src="/icons/minigames/yggdrasil/rune.png" alt="rune" className="ygg-hud-icon-img" />
+                    {runesCollected}
+                  </div>
+                )}
 
                 {/* Power-ups HUD (inline, below runes) */}
                 <div className="ygg-powerups-hud-inline">
                   <div className={`ygg-pu-mini-sm ${turboUsed ? 'pu-used' : ''} ${(shopTurboCharges + freeTurboCharges) >= 3 ? 'pu-max' : ''}`}>
-                    <span role="img" aria-label="rocket">&#x1F680;</span>
+                    <img src="/icons/minigames/yggdrasil/turbo.png" alt="turbo" className="ygg-pu-icon-img" />
                     <span>
                       {(shopTurboCharges + freeTurboCharges) >= 3 
                         ? 'MAX' 
@@ -2706,7 +2861,7 @@ const YggdrasilAscender = ({ user }) => {
                     {turboUsed && <span className="ygg-pu-float">-1</span>}
                   </div>
                   <div className={`ygg-pu-mini-sm ${jumpUsed ? 'pu-used' : ''} ${(shopJumpCharges + freeJumpCharges) >= 5 ? 'pu-max' : ''} ${doubleJumpDisabled ? 'pu-disabled' : ''}`}>
-                    <span role="img" aria-label="shoes">&#x1F45F;</span>
+                    <img src="/icons/minigames/yggdrasil/double_jump.png" alt="jump" className="ygg-pu-icon-img" />
                     <span>
                       {(shopJumpCharges + freeJumpCharges) >= 5 
                         ? 'MAX' 
@@ -2716,7 +2871,7 @@ const YggdrasilAscender = ({ user }) => {
                   </div>
                   {userUpgrades.hasIdunApple && !appleUsedInRun && (
                     <div className="ygg-pu-mini-sm ygg-apple-badge" title="Iðunn's Apple — auto-activates on death">
-                      <span role="img" aria-label="apple">🍎</span>
+                      <img src="/icons/minigames/yggdrasil/idunn's_apple.png" alt="apple" className="ygg-pu-icon-img" />
                       <span>REVIVE</span>
                     </div>
                   )}
@@ -2814,7 +2969,8 @@ const YggdrasilAscender = ({ user }) => {
             <div className="ygg-fallen-messages">
               {fallenMessages.map(m => (
                 <div key={m.id} className="ygg-fallen-msg">
-                  💀 <b>{m.name}</b> has fallen!
+                  <img src="/icons/minigames/yggdrasil/death_spirit.png" alt="spirit" className="ygg-fallen-icon-img" />
+                  <b>{m.name}</b> has fallen!
                 </div>
               ))}
             </div>
@@ -2830,7 +2986,8 @@ const YggdrasilAscender = ({ user }) => {
             {/* Ratatoskr Notification */}
             {ratatoskrNotif && (
               <div className="ygg-ratatoskr-notif">
-                🐿️ {ratatoskrNotif}
+                <img src="/icons/minigames/yggdrasil/ratatoskr.png" alt="ratatoskr" className="ygg-notif-icon-img" />
+                {ratatoskrNotif}
               </div>
             )}
           </>
@@ -2863,7 +3020,8 @@ const YggdrasilAscender = ({ user }) => {
               <>
                 <button className="ygg-start-btn" onClick={() => startGame()}>Start Free Run</button>
                 <button className="ygg-shop-trigger-btn" onClick={() => setShowShop(true)}>
-                  <span className="rune-icon">ᚠ</span> RUNE SHOP
+                  <img src="/icons/minigames/yggdrasil/rune.png" alt="rune" className="ygg-btn-icon-img-inline" />
+                  RUNE SHOP
                 </button>
 
                 {events.length > 0 && (
@@ -2943,7 +3101,10 @@ const YggdrasilAscender = ({ user }) => {
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
                 <span style={{ background: 'rgba(0,0,0,0.5)', padding: '4px 10px', borderRadius: '4px' }}>⬆️ Base: {Math.floor(score / 100)}</span>
                 <span style={{ color: '#fbbf24' }}>✖️</span>
-                <span style={{ background: 'rgba(0,0,0,0.5)', padding: '4px 10px', borderRadius: '4px' }}>ᚠ {runesCollected} Runes</span>
+                <span style={{ background: 'rgba(0,0,0,0.5)', padding: '4px 10px', borderRadius: '4px' }}>
+                  <img src="/icons/minigames/yggdrasil/rune.png" alt="rune" className="ygg-stats-icon-img" />
+                  {runesCollected} Runes
+                </span>
               </div>
 
               {runStats?.loading && <div style={{ color: '#94a3b8', fontSize: '14px' }}>Calculating rewards...</div>}
@@ -2964,7 +3125,9 @@ const YggdrasilAscender = ({ user }) => {
             <div className="ygg-gameover-btns">
               {gameState === 'apple_prompt' ? (
                 <div className="ygg-apple-respawn-box">
-                  <div className="ygg-apple-icon">🍎</div>
+                  <div className="ygg-apple-icon">
+                    <img src="/icons/minigames/yggdrasil/idunn's_apple.png" alt="apple" className="ygg-apple-prompt-img" />
+                  </div>
                   <div className="ygg-apple-timer" style={{
                     color: appleTimer <= 3 ? '#ef4444' : '#fbbf24',
                     textShadow: appleTimer <= 3 ? '0 0 10px rgba(239, 68, 68, 0.5)' : '0 0 10px rgba(251, 191, 36, 0.5)'
@@ -3146,12 +3309,20 @@ const YggdrasilAscender = ({ user }) => {
                   </thead>
                   <tbody>
                     <tr>
-                      <td><span style={{ fontSize: '1.2rem' }}>&#x1F680;</span> Turbo</td>
+                      <td>
+                        <img src="/icons/minigames/yggdrasil/turbo.png" alt="turbo" className="ygg-rules-icon-img" />
+                        Turbo
+                      </td>
                       <td>Massive speed boost (2s)</td>
-                      <td style={{ color: '#fbbf24' }}>[SHIFT]/[E] / 🚀</td>
+                      <td style={{ color: '#fbbf24' }}>
+                        [SHIFT]/[E] / <img src="/icons/minigames/yggdrasil/turbo.png" alt="turbo" className="ygg-rules-icon-img-sm" />
+                      </td>
                     </tr>
                     <tr>
-                      <td><span style={{ fontSize: '1.2rem' }}>&#x1F45F;</span> High Jump</td>
+                      <td>
+                        <img src="/icons/minigames/yggdrasil/double_jump.png" alt="jump" className="ygg-rules-icon-img" />
+                        High Jump
+                      </td>
                       <td>Double jump mid-air</td>
                       <td style={{ color: '#fbbf24' }}>[SPACE] / JUMP</td>
                     </tr>
@@ -3193,7 +3364,9 @@ const YggdrasilAscender = ({ user }) => {
                   <tbody>
                     <tr><td>Move</td><td>← → / A D</td><td>D-pad</td></tr>
                     <tr><td>Jump</td><td>Space / ↑</td><td>JUMP btn</td></tr>
-                    <tr><td>Turbo</td><td>Shift / E</td><td>🚀 btn</td></tr>
+                    <tr><td>Turbo</td><td>Shift / E</td><td>
+                      <img src="/icons/minigames/yggdrasil/turbo.png" alt="turbo" className="ygg-rules-icon-img-sm" />
+                    </td></tr>
                   </tbody>
                 </table>
               </div>

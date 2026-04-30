@@ -516,3 +516,36 @@
   0%, 100% { opacity: 0.5; }
   50% { opacity: 1; }
 }
+
+/* --- ICON REPLACEMENT STYLES --- */
+.ygg-shop-header-rune-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.ygg-shop-item-img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+
+.ygg-buy-btn-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.ygg-buy-rune-img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+.ygg-shop-header-title-rune-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  margin-right: 12px;
+  vertical-align: middle;
+}
