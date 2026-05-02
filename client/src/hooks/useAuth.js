@@ -118,7 +118,7 @@ export const useAuth = (navigate) => {
                         setUser(prevUser => {
                             if (!prevUser || prevUser.uid !== firebaseUser.uid) return prevUser;
                             const merged = { ...prevUser, ...userData };
-                            
+
                             // Proactively fetch metadata for equipped cosmetics to populate global cache
                             if (userData.equippedCosmetics) {
                                 import('../services/cosmeticsService').then(({ fetchCosmeticById }) => {
@@ -126,7 +126,7 @@ export const useAuth = (navigate) => {
                                     if (userData.equippedCosmetics.banner) fetchCosmeticById(userData.equippedCosmetics.banner);
                                 });
                             }
-                            
+
                             return merged;
                         });
                     }
@@ -427,8 +427,8 @@ export const useAuth = (navigate) => {
         const updateTimer = () => {
             const now = new Date();
             const nextReset = new Date(Date.UTC(
-                now.getUTCFullYear(), 
-                now.getUTCMonth(), 
+                now.getUTCFullYear(),
+                now.getUTCMonth(),
                 now.getUTCDate() + 1
             ));
             const diff = Math.max(0, Math.floor((nextReset - now) / 1000));
@@ -469,25 +469,25 @@ export const useAuth = (navigate) => {
                 const result = await upgradeTierCall();
                 if (result.success) {
                     setUnlockedTierData({ ...next, name: `Tier ${next.roman}` });
-                    
+
                     // Trigger Roulette Animation
                     setIsRouletteActive(true);
                     setShowTierUpgradeAnim(true);
-                    
+
                     const tierBadges = [
                         '/Tiers/tier1_loki.png',
                         '/Tiers/tier2_thor.png',
                         '/Tiers/tier3_odin.png'
                     ];
-                    
+
                     let spinCount = 0;
                     const maxSpins = 12;
                     let speed = 80;
-                    
+
                     const spin = () => {
                         spinCount++;
                         setRouletteBadge(tierBadges[spinCount % tierBadges.length]);
-                        
+
                         if (spinCount < maxSpins) {
                             setTimeout(spin, speed);
                             speed += 15;
@@ -501,7 +501,7 @@ export const useAuth = (navigate) => {
                             }, 1000);
                         }
                     };
-                    
+
                     spin();
                 }
             } catch (error) {
@@ -598,22 +598,22 @@ export const useAuth = (navigate) => {
                                 <div className="modal-badges-row">
                                     {isSuperAdminUser ? (
                                         <span className="modal-admin-badge">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
                                             <span className="badge-text">Super Admin</span>
                                         </span>
                                     ) : user.role === 'admin' ? (
                                         <span className="modal-admin-badge admin-staff">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
                                             <span className="badge-text">Admin</span>
                                         </span>
                                     ) : user.role === 'senior_admin' ? (
                                         <span className="modal-admin-badge senior-admin-badge">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
                                             <span className="badge-text">Senior Admin</span>
                                         </span>
                                     ) : isGamesManagerUser ? (
                                         <span className="modal-admin-badge games-manager-badge">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h.01"/><path d="M9 12h.01"/><path d="M15 12h.01"/><path d="M18 12h.01"/></svg>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 12h.01" /><path d="M9 12h.01" /><path d="M15 12h.01" /><path d="M18 12h.01" /></svg>
                                             <span className="badge-text">Games Manager</span>
                                         </span>
                                     ) : null}
@@ -657,7 +657,7 @@ export const useAuth = (navigate) => {
                                 </div>
                                 {!user.auroryPlayerId && (
                                     <div className="checkin-unlinked-warning" style={{ fontSize: '11px', color: '#f43f5e', marginTop: '8px', textAlign: 'center', lineHeight: '1.2' }}>
-                                        Link Aurory account<br/>to claim daily reward.
+                                        Link Aurory account<br />to claim daily reward.
                                     </div>
                                 )}
                             </div>
@@ -668,7 +668,7 @@ export const useAuth = (navigate) => {
                             <div className="valcoins-display">
                                 <img src="/valcoin-icon.jpg" alt="V" className="valcoin-profile-icon" />
                                 <div className="valcoins-info">
-                                    <span className="valcoins-amount">{userPoints.toLocaleString()} <span style={{fontSize: '16px', opacity: 0.7, fontWeight: 500}}>/ {tierConfig.max.toLocaleString()}</span></span>
+                                    <span className="valcoins-amount">{userPoints.toLocaleString()} <span style={{ fontSize: '16px', opacity: 0.7, fontWeight: 500 }}>/ {tierConfig.max.toLocaleString()}</span></span>
                                     <span className="valcoins-label">Valcoins (Wallet)</span>
                                 </div>
                             </div>
@@ -813,7 +813,7 @@ export const useAuth = (navigate) => {
                                 }}
                             >
                                 <span className="btn-icon">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
                                 </span>
                                 <div className="btn-text">
                                     <span className="btn-title">Warrior's Armory</span>
@@ -868,33 +868,33 @@ export const useAuth = (navigate) => {
                             <span>ᚷ</span><span>ᚹ</span><span>ᚺ</span><span>ᚻ</span><span>ᛁ</span><span>ᛃ</span>
                             <span>ᛗ</span><span>ᛚ</span><span>ᛝ</span><span>ᛟ</span><span>ᛞ</span><span>ᛢ</span>
                         </div>
-                        
+
                         {isRouletteActive ? (
                             <div className="roulette-wrapper">
                                 <div className="roulette-glow"></div>
                                 <div className="spinning-badge-container">
-                                    <img 
-                                        src={rouletteBadge} 
-                                        className="spinning-badge badge-rolling" 
-                                        alt="Spinning Tier" 
+                                    <img
+                                        src={rouletteBadge}
+                                        className="spinning-badge badge-rolling"
+                                        alt="Spinning Tier"
                                     />
                                 </div>
                             </div>
                         ) : (
                             <div className="tier-slam-content">
                                 <span className="unlock-label">SAGA UNLOCKED</span>
-                                <img 
-                                    src={unlockedTierData.badge} 
-                                    className="slam-badge-img" 
-                                    alt={unlockedTierData.name} 
+                                <img
+                                    src={unlockedTierData.badge}
+                                    className="slam-badge-img"
+                                    alt={unlockedTierData.name}
                                 />
                                 <div className={`slam-badge-text tier-${unlockedTierData.roman.toLowerCase()}`}>
                                     {unlockedTierData.name}
                                 </div>
                                 <span className="unlock-subtext">Your power grows, Warrior!</span>
-                                
+
                                 <div className="upgrade-actions">
-                                    <button 
+                                    <button
                                         className="btn-primary upgrade-continue-btn"
                                         onClick={() => setShowTierUpgradeAnim(false)}
                                     >
@@ -1057,6 +1057,9 @@ export const useAuth = (navigate) => {
         renderLogoutConfirmModal,
         handleSyncProfile,
         isSyncing,
+        handleDailyCheckIn,
+        secondsUntilReset,
+        bonusEffect,
         profileMenuRef
     };
 };

@@ -10,7 +10,7 @@ const SHOP_ITEMS = [
     description: 'Runes fly toward you from a distance. Upgrades increase the range.',
     maxLevel: 3,
     type: 'upgrade',
-    levelLabels: ['60px range', '100px range', '150px range'],
+    levelLabels: ['100px range', '160px range', '240px range'],
     defaultCosts: [50, 150, 400]
   },
   {

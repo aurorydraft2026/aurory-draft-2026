@@ -714,7 +714,7 @@ const YggdrasilAscender = ({ user }) => {
       lastPublish: 0,
       difficulty: 0,
       runes: 0,
-      magnetism: (upgradesToUse.magnetismLevel || 0) === 1 ? 60 : (upgradesToUse.magnetismLevel || 0) === 2 ? 100 : (upgradesToUse.magnetismLevel || 0) === 3 ? 150 : 0,
+      magnetism: (upgradesToUse.magnetismLevel || 0) === 1 ? 100 : (upgradesToUse.magnetismLevel || 0) === 2 ? 160 : (upgradesToUse.magnetismLevel || 0) === 3 ? 240 : 0,
       particles: [],
       windParticles: [], // decorative wind streaks
       itemBandsUsed,
@@ -773,7 +773,7 @@ const YggdrasilAscender = ({ user }) => {
       };
     }
 
-    gameRef.current.magnetism = (upgradesToUse.magnetismLevel || 0) === 1 ? 60 : (upgradesToUse.magnetismLevel || 0) === 2 ? 100 : (upgradesToUse.magnetismLevel || 0) === 3 ? 150 : 0;
+    gameRef.current.magnetism = (upgradesToUse.magnetismLevel || 0) === 1 ? 100 : (upgradesToUse.magnetismLevel || 0) === 2 ? 160 : (upgradesToUse.magnetismLevel || 0) === 3 ? 240 : 0;
     gameRef.current.hasIdunApple = upgradesToUse.hasIdunApple;
 
     setRunesCollected(0);
@@ -1155,11 +1155,20 @@ const YggdrasilAscender = ({ user }) => {
         if (dist < g.magnetism) {
           // Move rune toward player — stronger pull when closer
           const closeness = 1 - (dist / g.magnetism); // 0 at edge, 1 when on top
-          const pullForce = (1.5 + closeness * 3.0) * dt;
+          const pullForce = (2.5 + closeness * 10.0) * dt;
           plat.runeOffX += (dx / dist) * pullForce;
           plat.runeOffY += (dy / dist) * pullForce;
           runeX = plat.x + plat.w / 2 + plat.runeOffX;
           runeY = plat.y - 20 + plat.runeOffY;
+
+          // Magnetism Sparkles
+          if (Math.random() < 0.15) {
+            g.particles.push({
+              x: runeX, y: runeY,
+              vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2,
+              life: 15, color: '#fbbf24', size: 2
+            });
+          }
         } else {
           // Snap back slowly if out of range
           plat.runeOffX *= 0.95;
@@ -1205,11 +1214,20 @@ const YggdrasilAscender = ({ user }) => {
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < g.magnetism) {
           const closeness = 1 - (dist / g.magnetism);
-          const pullForce = (1.5 + closeness * 3.0) * dt;
+          const pullForce = (2.5 + closeness * 10.0) * dt;
           fr.offX = (fr.offX || 0) + (dx / dist) * pullForce;
           fr.offY = (fr.offY || 0) + (dy / dist) * pullForce;
           runeX = fr.x + fr.offX;
           runeY = fr.y + fr.offY;
+
+          // Magnetism Sparkles
+          if (Math.random() < 0.15) {
+            g.particles.push({
+              x: runeX, y: runeY,
+              vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2,
+              life: 15, color: fr.isSpecial ? '#ef4444' : '#fbbf24', size: 2
+            });
+          }
         } else {
           fr.offX = (fr.offX || 0) * 0.95;
           fr.offY = (fr.offY || 0) * 0.95;
@@ -1241,8 +1259,35 @@ const YggdrasilAscender = ({ user }) => {
     if (g.globalSpirits) {
       for (const [id, s] of Object.entries(g.globalSpirits)) {
         if (s.uid === user?.uid) continue; // Can't collect own spirit
-        const dx = (p.x + PLAYER_W / 2) - s.x;
-        const dy = (p.y + PLAYER_H / 2) - s.y;
+
+        // Magnetism for spirits (80% effective range)
+        let sx = s.x + (s.offX || 0);
+        let sy = s.y + (s.offY || 0);
+        if (g.magnetism > 0) {
+          const dx = (p.x + PLAYER_W / 2) - sx;
+          const dy = (p.y + PLAYER_H / 2) - sy;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < g.magnetism * 0.8) {
+            const closeness = 1 - (dist / (g.magnetism * 0.8));
+            const pullForce = (2.0 + closeness * 6.0) * dt;
+            s.offX = (s.offX || 0) + (dx / dist) * pullForce;
+            s.offY = (s.offY || 0) + (dy / dist) * pullForce;
+            sx = s.x + s.offX;
+            sy = s.y + s.offY;
+            if (Math.random() < 0.1) {
+              g.particles.push({
+                x: sx, y: sy, vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2,
+                life: 15, color: '#a855f7', size: 2
+              });
+            }
+          } else {
+            s.offX = (s.offX || 0) * 0.95;
+            s.offY = (s.offY || 0) * 0.95;
+          }
+        }
+
+        const dx = (p.x + PLAYER_W / 2) - sx;
+        const dy = (p.y + PLAYER_H / 2) - sy;
         if (Math.sqrt(dx * dx + dy * dy) < 40) {
           // Collect!
           remove(ref(database, `yggdrasil/spirits/${id}`));
@@ -1269,7 +1314,7 @@ const YggdrasilAscender = ({ user }) => {
           setTimeout(() => setRatatoskrNotif(null), 2500);
           for (let i = 0; i < 15; i++) {
             g.particles.push({
-              x: s.x, y: s.y, vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8,
+              x: s.x + (s.offX || 0), y: s.y + (s.offY || 0), vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8,
               life: 40, color: '#a855f7', size: 4
             });
           }
@@ -1280,11 +1325,39 @@ const YggdrasilAscender = ({ user }) => {
     // Special Prize collision
     if (g.specialPrize && !g.specialPrize.collected) {
       const sp = g.specialPrize;
+      
+      // Magnetism for Special Prize (50% range)
+      let spx = sp.x + (sp.offX || 0);
+      let spy = sp.y + (sp.offY || 0);
+      if (g.magnetism > 0) {
+        const dx = (p.x + PLAYER_W / 2) - (spx + sp.w / 2);
+        const dy = (p.y + PLAYER_H / 2) - (spy + sp.h / 2);
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < g.magnetism * 0.5) {
+          const closeness = 1 - (dist / (g.magnetism * 0.5));
+          const pullForce = (1.5 + closeness * 5.0) * dt;
+          sp.offX = (sp.offX || 0) + (dx / dist) * pullForce;
+          sp.offY = (sp.offY || 0) + (dy / dist) * pullForce;
+          spx = sp.x + sp.offX;
+          spy = sp.y + sp.offY;
+          if (Math.random() < 0.2) {
+            g.particles.push({
+              x: spx + sp.w / 2, y: spy + sp.h / 2, 
+              vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3,
+              life: 20, color: '#fbbf24', size: 3
+            });
+          }
+        } else {
+          sp.offX = (sp.offX || 0) * 0.95;
+          sp.offY = (sp.offY || 0) * 0.95;
+        }
+      }
+
       if (
-        p.x + PLAYER_W > sp.x &&
-        p.x < sp.x + sp.w &&
-        p.y + PLAYER_H > sp.y &&
-        p.y < sp.y + sp.h
+        p.x + PLAYER_W > spx &&
+        p.x < spx + sp.w &&
+        p.y + PLAYER_H > spy &&
+        p.y < spy + sp.h
       ) {
         sp.collected = true;
         setEventPrizeCaught(sp.name);
@@ -1757,7 +1830,7 @@ const YggdrasilAscender = ({ user }) => {
         if (s.y < g.camera - 50 || s.y > g.camera + CANVAS_H + 50) continue;
         const pulse = Math.sin(Date.now() / 400) * 5;
         ctx.save();
-        ctx.translate(s.x, s.y - g.camera);
+        ctx.translate(s.x + (s.offX || 0), s.y + (s.offY || 0) - g.camera);
 
         // Aura
         const grad = ctx.createRadialGradient(0, 0, 2, 0, 0, 20 + pulse);
@@ -2085,8 +2158,10 @@ const YggdrasilAscender = ({ user }) => {
     // Draw Special Prize
     if (g.specialPrize && !g.specialPrize.collected) {
       const sp = g.specialPrize;
+      const spx = sp.x + (sp.offX || 0);
+      const spy = sp.y + (sp.offY || 0);
       // Only draw if on screen
-      if (sp.y > g.camera - 100 && sp.y < g.camera + CANVAS_H + 100) {
+      if (spy > g.camera - 100 && spy < g.camera + CANVAS_H + 100) {
         const floatY = Math.sin(Date.now() / 400) * 10;
 
         ctx.save();
@@ -2095,12 +2170,12 @@ const YggdrasilAscender = ({ user }) => {
         ctx.shadowColor = '#fbbf24';
 
         if (sp.image) {
-          ctx.drawImage(sp.image, sp.x, sp.y + floatY, sp.w, sp.h);
+          ctx.drawImage(sp.image, spx, spy + floatY, sp.w, sp.h);
         } else {
           // Glow effect if image not loaded yet
           ctx.fillStyle = '#fbbf24';
           ctx.beginPath();
-          ctx.arc(sp.x + sp.w / 2, sp.y + sp.h / 2 + floatY, sp.w / 2, 0, Math.PI * 2);
+          ctx.arc(spx + sp.w / 2, spy + sp.h / 2 + floatY, sp.w / 2, 0, Math.PI * 2);
           ctx.fill();
         }
 
@@ -2857,6 +2932,12 @@ const YggdrasilAscender = ({ user }) => {
 
                 {/* Power-ups HUD (inline, below runes) */}
                 <div className="ygg-powerups-hud-inline">
+                  {userUpgrades.magnetismLevel > 0 && (
+                    <div className="ygg-pu-mini-sm ygg-magnet-badge" title={`Magnetism Level ${userUpgrades.magnetismLevel}`}>
+                      <img src="/icons/minigames/yggdrasil/magnet.png" alt="magnet" className="ygg-pu-icon-img" />
+                      <span>Lv.{userUpgrades.magnetismLevel}</span>
+                    </div>
+                  )}
                   <div className={`ygg-pu-mini-sm ${turboUsed ? 'pu-used' : ''} ${(shopTurboCharges + freeTurboCharges) >= 3 ? 'pu-max' : ''}`}>
                     <img src="/icons/minigames/yggdrasil/turbo.png" alt="turbo" className="ygg-pu-icon-img" />
                     <span>

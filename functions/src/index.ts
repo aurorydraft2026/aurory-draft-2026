@@ -75,7 +75,7 @@ export const verifyMatches = onSchedule(
     {
         schedule: 'every 2 minutes',
         timeoutSeconds: 120,
-        memory: '512MiB',
+        memory: '256MiB',
         region: 'us-central1'
     },
     async () => {
@@ -149,7 +149,7 @@ import { scanPvpWins } from './pvpRewards';
 export const pvpWinRewards = onSchedule(
     {
         schedule: 'every 10 minutes',
-        timeoutSeconds: 120,
+        timeoutSeconds: 540,
         memory: '256MiB',
         region: 'us-central1'
     },

@@ -85,99 +85,44 @@ async function loadSettings(): Promise<PvpSettings> {
 }
 
 /**
- * Fetch recent matches for a player from the Aurory API, paginating until
- * we hit the last known processed match timestamp.
- */
-/**
  * Fetch recent matches for a player from the Aurory API.
- * Handles both DESC (newest first) and ASC (oldest first) sorting inconsistencies.
+ * ⚠️ IMPORTANT: The API currently returns matches in an UNORDERED/RANDOM sequence.
+ * We solve this by fetching a larger window of matches (up to 4 pages) and sorting them locally.
  */
-async function fetchPlayerMatches(playerId: string, lastCheckMs: number): Promise<PvpMatch[]> {
+async function fetchPlayerMatches(playerId: string, lastCheckMs: number, currentEvent: string): Promise<PvpMatch[]> {
   const allMatches: PvpMatch[] = [];
-  const MAX_PAGES_TO_SCAN = 10;
+  const PAGES_TO_FETCH = 4; // Fetch up to 100 matches to find wins even in unordered results
   
   try {
-    // 1. Initial Page Fetch (detect sort order)
-    const url0 = `${AURORY_API}/v1/player-matches?player_id_or_name=${encodeURIComponent(playerId)}&page=0&limit=25`;
-    const res0 = await fetch(url0, { headers: { 'accept': 'application/json' }, timeout: 10000 });
-    if (!res0.ok) return [];
-
-    const json0 = (await res0.json()) as any;
-    const matches0 = (json0?.matches?.data || []) as PvpMatch[];
-    const totalPages = json0?.matches?.total_pages || 0;
-
-    if (matches0.length === 0) return [];
-
-    const time0 = matches0.length > 0 ? new Date(matches0[0].created_at).getTime() : 0;
-    const timeLast = matches0.length > 0 ? new Date(matches0[matches0.length - 1].created_at).getTime() : 0;
-
-    console.log(`  📊 ${playerId}: Page 0 fetched: 25 slots, ${matches0.length} matches. Time0: ${new Date(time0).toISOString()}, TimeLast: ${new Date(timeLast).toISOString()}`);
-
-    // Determine sort order: if the last element in the array is newer than the first, it's ASC.
-    const isAscending = timeLast > time0;
-    const newestInBatch = isAscending ? timeLast : time0;
-    const oldestInBatch = isAscending ? time0 : timeLast;
-
-    console.log(`  📐 ${playerId}: Detected order: ${isAscending ? 'ASC (Oldest First)' : 'DESC (Newest First)'}. Newest in batch: ${new Date(newestInBatch).toISOString()}`);
-
-    // IF ASCENDING OR Page 0 is all "OLD" matches but there are many pages,
-    // we should check the END of the list.
-    if (isAscending || (newestInBatch < lastCheckMs && totalPages > 1)) {
-      console.log(`  🔄 ${playerId}: Index is ASC or current page is stale. Checking last page (${totalPages-1}). lastCheckMs=${new Date(lastCheckMs).toISOString()}`);
-      
-      // Fetch the last page
-      const lastPageIdx = totalPages - 1;
-      const urlLast = `${AURORY_API}/v1/player-matches?player_id_or_name=${encodeURIComponent(playerId)}&page=${lastPageIdx}&limit=25`;
-      const resLast = await fetch(urlLast, { headers: { 'accept': 'application/json' }, timeout: 10000 });
-      
-      if (resLast.ok) {
-        const jsonLast = await resLast.json() as any;
-        const matchesLast = (jsonLast?.matches?.data || []) as PvpMatch[];
-        
-        // If the last page has new matches, scan backwards
-        if (matchesLast.length > 0) {
-          const newestOnLastPage = matchesLast.reduce((max: number, m: any) => {
-            const t = new Date(m.created_at).getTime();
-            return t > max ? t : max;
-          }, 0);
-
-          if (newestOnLastPage > lastCheckMs) {
-            allMatches.push(...matchesLast);
-            // Scan one more page back if needed
-            if (lastPageIdx > 0 && matchesLast[0] && new Date(matchesLast[0].created_at).getTime() > lastCheckMs) {
-              const urlPrev = `${AURORY_API}/v1/player-matches?player_id_or_name=${encodeURIComponent(playerId)}&page=${lastPageIdx - 1}&limit=25`;
-              const resPrev = await fetch(urlPrev);
-              if (resPrev.ok) {
-                const jPrev = await resPrev.json() as any;
-                allMatches.push(...(jPrev?.matches?.data || []));
-              }
-            }
-            return allMatches;
-          }
-        }
-      }
-    }
-
-    // Standard DESC scanning (Newest First)
-    allMatches.push(...matches0);
-    if (timeLast <= lastCheckMs) return allMatches;
-
-    let currentPage = 1;
-    while (currentPage < MAX_PAGES_TO_SCAN) {
-      const url = `${AURORY_API}/v1/player-matches?player_id_or_name=${encodeURIComponent(playerId)}&page=${currentPage}&limit=25`;
+    for (let page = 0; page < PAGES_TO_FETCH; page++) {
+      // Append &event filter to narrow down the search and avoid noise from previous months
+      const url = `${AURORY_API}/v1/player-matches?player_id_or_name=${encodeURIComponent(playerId)}&page=${page}&limit=25&game_mode=pvp&event=${currentEvent}`;
       const res = await fetch(url, { headers: { 'accept': 'application/json' }, timeout: 10000 });
       if (!res.ok) break;
 
-      const j = await res.json() as any;
-      const mArr = (j?.matches?.data || []) as PvpMatch[];
+      const json = (await res.json()) as any;
+      const mArr = (json?.matches?.data || []) as PvpMatch[];
       if (mArr.length === 0) break;
 
       allMatches.push(...mArr);
-      const oldestOnPage = new Date(mArr[mArr.length - 1].created_at).getTime();
-      if (oldestOnPage <= lastCheckMs) break;
       
-      currentPage++;
+      // Stop if we've reached the last page available for this event
+      if ((json?.matches?.total_pages || 0) <= page + 1) break;
     }
+
+    if (allMatches.length === 0) return [];
+
+    // LOCAL SORTING: Crucial because the API returns random order. 
+    // We process newest matches first so our checkpoint logic remains consistent.
+    allMatches.sort((a, b) => {
+      const ta = new Date(a.created_at).getTime();
+      const tb = new Date(b.created_at).getTime();
+      return tb - ta; // Newest first
+    });
+
+    const newest = new Date(allMatches[0].created_at).toISOString();
+    const oldest = new Date(allMatches[allMatches.length - 1].created_at).toISOString();
+    console.log(`  📊 ${playerId}: Fetched ${allMatches.length} matches for ${currentEvent}. Range: ${oldest} to ${newest}`);
 
     return allMatches;
   } catch (err: any) {
@@ -185,6 +130,7 @@ async function fetchPlayerMatches(playerId: string, lastCheckMs: number): Promis
     return allMatches;
   }
 }
+
 
 /**
  * Process a single user — check for new PvP wins and award Valcoins.
@@ -202,6 +148,17 @@ async function processUser(
     return 0;
   }
 
+  // EVENT CHANGE DETECTION: If the event name has changed (monthly reset), 
+  // we must reset the leaderboard processed count, otherwise the player's large
+  // count from last month will block rewards for this month's new wins.
+  const lastEvent = userData.lastPvpEvent || '';
+  let lastLeaderboardWins = userData.lastLeaderboardWins || 0;
+  
+  if (lastEvent !== settings.currentEvent) {
+    console.log(`  🎊 ${displayName}: New event detected (${lastEvent || 'NONE'} -> ${settings.currentEvent}). Resetting leaderboard win tracker.`);
+    lastLeaderboardWins = 0;
+  }
+
   // Determine the cutoff — only process matches after this timestamp
   const lastCheckRaw = userData.lastPvpMatchCheck;
   let lastCheckMs = 0;
@@ -213,14 +170,10 @@ async function processUser(
 
   console.log(`  🔎 ${displayName} (${playerId}): lastCheck=${lastCheckMs ? new Date(lastCheckMs).toISOString() : 'NEVER'}`);
 
-  // 🆕 INITIAL SYNC HANDLING: If this is the first time we've seen this user,
-  // we initialize their checkpoints to "now" so they don't get recompensada
-  // for past matches, keeping the current daily/weekly leaderboards clean.
+  // 🆕 INITIAL SYNC HANDLING
   if (!lastCheckMs) {
-    console.log(`  🆕 ${displayName}: Initial sync. Setting checkpoints to current state and skipping backfill.`);
-    
-    // Fetch current matches just to find the latest timestamp, but don't reward them
-    const matches = await fetchPlayerMatches(playerId, 0); 
+    console.log(`  🆕 ${displayName}: Initial sync. Setting checkpoints to current state.`);
+    const matches = await fetchPlayerMatches(playerId, 0, settings.currentEvent); 
     const currentLeaderboardWins = leaderboardMap.get(playerId) || 0;
 
     const newestTime = matches.reduce((max, m) => {
@@ -231,17 +184,17 @@ async function processUser(
     await admin.firestore().doc(`users/${uid}`).update({
       lastPvpMatchCheck: admin.firestore.Timestamp.fromMillis(newestTime),
       lastLeaderboardWins: currentLeaderboardWins,
+      lastPvpEvent: settings.currentEvent,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
     return 0;
   }
 
-  const matches = await fetchPlayerMatches(playerId, lastCheckMs);
+  const matches = await fetchPlayerMatches(playerId, lastCheckMs, settings.currentEvent);
   
-  // LEADERBOARD FALLBACK: Caching the leaderboard once per scan (Top 1000)
+  // LEADERBOARD FALLBACK
   let leaderboardDelta = 0;
   const currentLeaderboardWins = leaderboardMap.get(playerId) || 0;
-  const lastLeaderboardWins = userData.lastLeaderboardWins || 0;
 
   console.log(`  🏆 ${displayName}: Leaderboard check: Current=${currentLeaderboardWins}, LastProcessed=${lastLeaderboardWins}`);
 
@@ -282,7 +235,7 @@ async function processUser(
     return true;
   });
 
-  console.log(`  📊 ${displayName}: ${qualifyingWins.length} qualifying wins | Filtered out: ${statsNotWin} losses, ${statsCPU} CPU, ${statsPrivate} private, ${statsOld} old, ${statsTooShort} too short`);
+  console.log(`  📊 ${displayName}: ${qualifyingWins.length} qualifying wins | Filtered: ${statsNotWin} losses, ${statsCPU} CPU, ${statsPrivate} private, ${statsOld} old, ${statsTooShort} too short (<${settings.minMatchDuration}s)`);
 
   const matchWins = qualifyingWins.length;
   // If leaderboard delta is higher than match wins, we use the leaderboard delta as a fallback
@@ -300,13 +253,16 @@ async function processUser(
       if (newestTime > lastCheckMs) {
         await admin.firestore().doc(`users/${uid}`).update({
           lastPvpMatchCheck: admin.firestore.Timestamp.fromMillis(newestTime),
+          lastPvpEvent: settings.currentEvent,
           ...(currentLeaderboardWins > 0 ? { lastLeaderboardWins: currentLeaderboardWins } : {})
         });
       }
-    } else if (currentLeaderboardWins > 0) {
-      // If we used leaderboard but found no delta, still update just in case
+    } else if (currentLeaderboardWins > 0 || lastEvent !== settings.currentEvent) {
+      // Even if no matches, update the event and leaderboard count to keep things in sync
       await admin.firestore().doc(`users/${uid}`).update({
-        lastLeaderboardWins: currentLeaderboardWins
+        lastLeaderboardWins: currentLeaderboardWins,
+        lastPvpEvent: settings.currentEvent,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
     }
     return 0;
@@ -391,6 +347,7 @@ async function processUser(
         exp: admin.firestore.FieldValue.increment(totalReward),
         lastPvpMatchCheck: admin.firestore.Timestamp.fromMillis(finalCheckpointTime),
         lastLeaderboardWins: currentLeaderboardWins > 0 ? currentLeaderboardWins : (ud.lastLeaderboardWins || 0),
+        lastPvpEvent: settings.currentEvent,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
@@ -449,9 +406,12 @@ export async function scanPvpWins(): Promise<number> {
     return 0;
   }
 
-  // Query only users who have linked their Aurory account
+  // Query only users who have linked their Aurory account.
+  // We use orderBy updatedAt ASC so that if we have > 1000 users, we rotate through them
+  // fairly over multiple 10-minute scan cycles.
   const snapshot = await admin.firestore().collection('users')
     .where('auroryPlayerId', '!=', '')
+    .orderBy('auroryPlayerId', 'asc')
     .limit(1000)
     .get();
 
@@ -487,9 +447,7 @@ export async function scanPvpWins(): Promise<number> {
     }
   }
 
-  if (totalWins > 0) {
-    console.log(`✅ PvP scan complete: ${totalWins} win(s) rewarded.`);
-  }
+  console.log(`✅ PvP scan complete: ${totalWins} win(s) rewarded across all users.`);
   return totalWins;
 }
 

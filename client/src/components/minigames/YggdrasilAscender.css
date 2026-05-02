@@ -1679,6 +1679,17 @@ body.ygg-gaming-mode .runie-bot-container {
 }
 
 /* --- INLINE POWER-UP HUD (below runes in HUD) --- */
+.ygg-magnet-badge {
+  background: rgba(96, 165, 250, 0.2) !important;
+  border-color: rgba(96, 165, 250, 0.5) !important;
+  box-shadow: 0 0 8px rgba(96, 165, 250, 0.3);
+}
+
+.ygg-magnet-badge span {
+  color: #60a5fa !important;
+  font-weight: 800 !important;
+}
+
 .ygg-powerups-hud-inline {
   display: flex;
   flex-direction: column;
