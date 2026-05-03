@@ -10,6 +10,8 @@ import {
   increment 
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { resolveDisplayName } from '../utils/userUtils';
+import { createNotification } from './notifications';
 
 // Module-level cache to support synchronous helpers for components that haven't transitioned to async fetch
 let COSMETICS_CACHE = {};
@@ -70,10 +72,10 @@ export function updateCosmeticsCache(data) {
  */
 export async function purchaseCosmetic(userId, cosmeticId) {
   try {
-    const userRef = doc(db, 'users', userId);
-    const cosmeticRef = doc(db, 'cosmetics', cosmeticId);
-
     const result = await runTransaction(db, async (transaction) => {
+      const userRef = doc(db, 'users', userId);
+      const cosmeticRef = doc(db, 'cosmetics', cosmeticId);
+      
       const userSnap = await transaction.get(userRef);
       const cosmeticSnap = await transaction.get(cosmeticRef);
 
@@ -82,32 +84,133 @@ export async function purchaseCosmetic(userId, cosmeticId) {
 
       const userData = userSnap.data();
       const cosmeticData = cosmeticSnap.data();
+      const currency = cosmeticData.currency || 'valcoins';
+      const creatorId = cosmeticData.createdBy;
 
-      const currentPoints = userData.points || 0;
       const owned = userData.ownedCosmetics || [];
-
       if (owned.includes(cosmeticId)) {
         throw new Error('You already own this cosmetic.');
       }
 
-      if (currentPoints < cosmeticData.price) {
-        throw new Error(`Not enough Valcoins. Need ${cosmeticData.price.toLocaleString()}, have ${currentPoints.toLocaleString()}.`);
+      let userBalance = 0;
+      let walletRef = null;
+      let creatorWalletRef = null;
+      let shareAmount = 0;
+
+      // 0. Determine decimal factor and price
+      const factor = currency === 'aury' ? 1e9 : (currency === 'usdc' ? 1e6 : 1);
+      
+      // NEW: Items are free for the creator
+      const isCreator = creatorId === userId;
+      const actualPrice = isCreator ? 0 : cosmeticData.price;
+      const priceInSmallestUnit = Math.floor(actualPrice * factor);
+
+      // 1. Resolve Balance & Wallet Refs based on currency (only if not free)
+      if (actualPrice > 0) {
+        if (currency === 'valcoins') {
+          userBalance = userData.points || 0;
+        } else {
+          walletRef = doc(db, 'wallets', userId);
+          const walletSnap = await transaction.get(walletRef);
+          if (!walletSnap.exists()) throw new Error(`You don't have a ${currency.toUpperCase()} wallet yet. Please deposit some first!`);
+          
+          const walletData = walletSnap.data();
+          userBalance = currency === 'aury' ? (walletData.balance || 0) : (walletData.usdcBalance || 0);
+        }
+
+        if (userBalance < priceInSmallestUnit) {
+          const displayBalance = currency === 'valcoins' ? userBalance : (userBalance / factor).toFixed(2);
+          throw new Error(`Insufficient ${currency.toUpperCase()}. Need ${actualPrice} ${currency.toUpperCase()}, have ${displayBalance} ${currency.toUpperCase()}.`);
+        }
       }
 
-      // Deduct points and add to owned
-      transaction.update(userRef, {
-        points: currentPoints - cosmeticData.price,
-        ownedCosmetics: arrayUnion(cosmeticId),
-        updatedAt: serverTimestamp()
-      });
+      // 2. Perform Deductions (if any) and Update Inventory
+      if (actualPrice > 0) {
+        if (currency === 'valcoins') {
+          transaction.update(userRef, {
+            points: increment(-priceInSmallestUnit),
+            ownedCosmetics: arrayUnion(cosmeticId),
+            updatedAt: serverTimestamp()
+          });
+        } else {
+          const fieldToDecrement = currency === 'aury' ? 'balance' : 'usdcBalance';
+          transaction.update(walletRef, {
+            [fieldToDecrement]: increment(-priceInSmallestUnit),
+            updatedAt: serverTimestamp()
+          });
+          transaction.update(userRef, {
+            ownedCosmetics: arrayUnion(cosmeticId),
+            updatedAt: serverTimestamp()
+          });
+        }
+      } else {
+        // Just add to inventory for free
+        transaction.update(userRef, {
+          ownedCosmetics: arrayUnion(cosmeticId),
+          updatedAt: serverTimestamp()
+        });
+      }
 
-      // Increment sale count
+      // 3. Creator Revenue Share (60%) - Only if it wasn't a self-purchase/free claim
+      if (creatorId && creatorId !== userId && actualPrice > 0) {
+        shareAmount = Math.floor(priceInSmallestUnit * 0.6);
+        
+        if (currency === 'valcoins') {
+          const creatorRef = doc(db, 'users', creatorId);
+          transaction.update(creatorRef, {
+            points: increment(shareAmount)
+          });
+        } else {
+          creatorWalletRef = doc(db, 'wallets', creatorId);
+          const fieldToIncrement = currency === 'aury' ? 'balance' : 'usdcBalance';
+          
+          transaction.update(creatorWalletRef, {
+            [fieldToIncrement]: increment(shareAmount),
+            updatedAt: serverTimestamp()
+          });
+        }
+        
+        // Log the commission
+        const commissionRef = doc(collection(db, `users/${creatorId}/pointsHistory`));
+        transaction.set(commissionRef, {
+          amount: currency === 'valcoins' ? shareAmount : (shareAmount / factor),
+          amountSmallestUnit: shareAmount,
+          type: 'cosmetic_commission',
+          description: `60% share from sale of ${cosmeticData.name}`,
+          currency: currency,
+          buyerId: userId,
+          timestamp: serverTimestamp()
+        });
+      }
+
+      // 4. Update Cosmetic Stats
       transaction.update(cosmeticRef, {
         saleCount: increment(1)
       });
 
-      return { newBalance: currentPoints - cosmeticData.price };
+      return { 
+        newBalance: userBalance - priceInSmallestUnit, 
+        currency,
+        shareAmount,
+        buyerName: resolveDisplayName(userData) || 'A player',
+        creatorId,
+        itemName: cosmeticData.name
+      };
     });
+
+    // Send Notification to Creator
+    if (result.creatorId && result.creatorId !== userId && result.shareAmount > 0) {
+      const currencyLabel = result.currency === 'aury' ? 'AURY' : result.currency === 'usdc' ? 'USDC' : 'Valcoins';
+      const factor = result.currency === 'aury' ? 1e9 : (result.currency === 'usdc' ? 1e6 : 1);
+      const displayAmount = result.currency === 'valcoins' ? result.shareAmount : (result.shareAmount / factor).toFixed(2);
+      
+      createNotification(result.creatorId, {
+        type: 'cosmetic_commission',
+        title: '🎨 Item Sold!',
+        message: `${result.buyerName} bought your item "${result.itemName}". ${displayAmount} ${currencyLabel} has been credited to your account.`,
+        link: '/cosmetics'
+      });
+    }
 
     return { success: true, ...result };
   } catch (error) {

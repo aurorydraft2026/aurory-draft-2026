@@ -382,6 +382,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
   // Valhalla's Vault (Shop) Management state
   const [websiteSubTab, setWebsiteSubTab] = useState('maintenance');
+  const [discordCommandsEnabled, setDiscordCommandsEnabled] = useState(true);
   const [shopEnabled, setShopEnabled] = useState(true);
 
   // Shop Inventory Management state
@@ -836,6 +837,26 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     return () => unsub();
   }, [activeTab, isAdmin, isAdminUser]);
 
+  // Fetch Discord Bot config
+  useEffect(() => {
+    if (!isAdmin || activeTab !== 'website_mgmt') return;
+
+    const unsub = onSnapshot(doc(db, 'settings', 'discord_bot'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setDiscordCommandsEnabled(data.enabled !== false); // Default to true if not set
+      } else {
+        // Initialize if doesn't exist
+        setDoc(doc(db, 'settings', 'discord_bot'), {
+          enabled: true,
+          updatedAt: serverTimestamp()
+        });
+      }
+    });
+
+    return () => unsub();
+  }, [activeTab, isAdmin, isAdminUser]);
+
   // Fetch all shop cosmetics (Inventory Management)
   useEffect(() => {
     if (!isAdminUser || activeTab !== 'website_mgmt') return;
@@ -944,21 +965,38 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       };
 
       if (!editingCosmetic) {
+        // 🆕 DUPLICATE CHECK: Prevent adding items with the exact same name
+        const isDuplicate = shopCosmetics.some(c => c.name.toLowerCase().trim() === cosmeticForm.name.toLowerCase().trim());
+        if (isDuplicate) {
+          if (!window.confirm(`⚠️ An item named "${cosmeticForm.name}" already exists in the vault. Do you want to add another one anyway?`)) {
+            setProcessingId('');
+            return;
+          }
+        }
+
         // Create new
         cosmeticData.createdAt = serverTimestamp();
+        cosmeticData.createdBy = user.uid;
+        cosmeticData.createdByName = resolveDisplayName(user) || 'Admin';
         cosmeticData.saleCount = 0;
         await addDoc(collection(db, 'cosmetics'), cosmeticData);
         alert('New cosmetic added successfully!');
       } else {
         // Update existing
         const docRef = doc(db, 'cosmetics', editingCosmetic.id);
+        
+        // If the item has no creator (System), or we want to update it
+        // We persist the original if it exists, otherwise assign current user
+        cosmeticData.createdBy = editingCosmetic.createdBy || user.uid;
+        cosmeticData.createdByName = editingCosmetic.createdByName || (resolveDisplayName(user) || 'Admin');
+        
         await updateDoc(docRef, cosmeticData);
         alert('Cosmetic updated successfully!');
       }
 
       // Reset form
       setCosmeticForm({
-        name: '', type: 'aura', rarity: 'common', price: 1000,
+        name: '', type: 'aura', rarity: 'common', price: 1000, currency: 'valcoins',
         description: '', placement: 'behind', gifUrl: '', pngUrl: '', cssClass: '', style: {}
       });
       setEditingCosmetic(null);
@@ -1866,6 +1904,32 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     } catch (error) {
       console.error('Error saving maintenance settings:', error);
       alert('Error saving maintenance settings: ' + error.message);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleSaveDiscordSettings = async () => {
+    setProcessingId('save_discord');
+    try {
+      await setDoc(doc(db, 'settings', 'discord_bot'), {
+        enabled: discordCommandsEnabled,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.uid,
+        updatedByName: resolveDisplayName(user)
+      }, { merge: true });
+
+      alert('Discord settings saved successfully!');
+
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'update_discord_settings',
+        metadata: { enabled: discordCommandsEnabled }
+      });
+    } catch (error) {
+      console.error('Error saving discord settings:', error);
+      alert('Failed to save discord settings.');
     } finally {
       setProcessingId(null);
     }
@@ -5143,12 +5207,18 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       setWebsiteSubTab('inventory');
                       setEditingCosmetic(null);
                       setCosmeticForm({
-                        name: '', type: 'aura', rarity: 'common', price: 1000,
+                        name: '', type: 'aura', rarity: 'common', price: 1000, currency: 'valcoins',
                         description: '', placement: 'behind', gifUrl: '', pngUrl: '', cssClass: '', style: {}
                       });
                     }}
                   >
                     Inventory Management
+                  </button>
+                  <button
+                    className={`selector-btn ${websiteSubTab === 'discord' ? 'active' : ''}`}
+                    onClick={() => setWebsiteSubTab('discord')}
+                  >
+                    Discord
                   </button>
                 </div>
               </div>
@@ -5272,6 +5342,58 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 </div>
               )}
 
+              {websiteSubTab === 'discord' && (
+                <div className="credit-form">
+                  <div className="section-header" style={{ marginBottom: '25px', paddingBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <h3 style={{ margin: 0, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '24px' }}>🤖</span> Runie Discord Bot
+                    </h3>
+                    <p style={{ margin: '8px 0 0 0', color: '#94a3b8', fontSize: '14px' }}>
+                      Manage the Runie Discord bot integration and slash commands.
+                    </p>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Slash Commands Status</label>
+                    <div className="currency-toggle-group">
+                      <button
+                        className={`toggle-btn ${discordCommandsEnabled ? 'active' : ''}`}
+                        onClick={() => setDiscordCommandsEnabled(true)}
+                        style={{ background: discordCommandsEnabled ? '#5865F2' : '' }}
+                      >ENABLED</button>
+                      <button
+                        className={`toggle-btn ${!discordCommandsEnabled ? 'active' : ''}`}
+                        onClick={() => setDiscordCommandsEnabled(false)}
+                        style={{ background: !discordCommandsEnabled ? '#ef4444' : '' }}
+                      >DISABLED</button>
+                    </div>
+                    <p className="helper-text" style={{ marginTop: '10px', fontSize: '13px', color: discordCommandsEnabled ? '#10b981' : '#ef4444', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '8px' }}>
+                      {discordCommandsEnabled
+                        ? "✅ Runie will respond to /balance, /wealth, and /leaderboard commands in Discord."
+                        : "⚠️ Runie is currently OFFLINE. Users will receive a 'Disabled' message when attempting to use slash commands."}
+                    </p>
+                  </div>
+
+                  <div className="info-box" style={{ marginTop: '20px', padding: '15px', background: 'rgba(88, 101, 242, 0.1)', border: '1px solid rgba(88, 101, 242, 0.2)', borderRadius: '12px' }}>
+                    <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#5865F2' }}>Bot Integration Details</h4>
+                    <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#cbd5e1', lineHeight: '1.6' }}>
+                      <li>Public Key Verified: <code style={{ color: 'var(--accent)' }}>d97d2332...4f9e</code></li>
+                      <li>Region: us-central1 (Cloud Functions v2)</li>
+                      <li>Sync Status: Connected to Production Firestore</li>
+                    </ul>
+                  </div>
+
+                  <button
+                    className="admin-submit-btn"
+                    onClick={handleSaveDiscordSettings}
+                    disabled={processingId === 'save_discord'}
+                    style={{ marginTop: '30px', width: '100%', background: 'linear-gradient(135deg, #5865F2 0%, #4752c4 100%)' }}
+                  >
+                    {processingId === 'save_discord' ? 'Saving...' : '💾 Save Discord Settings'}
+                  </button>
+                </div>
+              )}
+
               {websiteSubTab === 'inventory' && (
                 <div className="inventory-mgmt-container">
                   {/* Item List / Dashboard */}
@@ -5293,6 +5415,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             <th>Name</th>
                             <th>Rarity</th>
                             <th>Price</th>
+                            <th>Creator</th>
                             <th>Sales</th>
                             <th>Actions</th>
                           </tr>
@@ -5318,8 +5441,17 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                               </td>
                               <td>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <img src="/valcoin-icon.jpg" alt="" style={{ width: '12px', height: '12px' }} />
+                                  <img 
+                                    src={item.currency === 'aury' ? '/aury-icon.png' : item.currency === 'usdc' ? '/usdc-icon.png' : '/valcoin-icon.jpg'} 
+                                    alt="" 
+                                    style={{ width: '12px', height: '12px', borderRadius: item.currency === 'valcoins' ? '50%' : '0' }} 
+                                  />
                                   {item.price.toLocaleString()}
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ fontSize: '12px', color: '#cbd5e1' }}>
+                                  {item.createdByName || 'System'}
                                 </div>
                               </td>
                               <td>
@@ -5393,6 +5525,83 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
                     <div className="form-row">
                       <div className="form-group flex-1">
+                        <label>Style Presets (Optional)</label>
+                        <select
+                          onChange={(e) => {
+                            const preset = e.target.value;
+                            if (preset === 'solar_flare') {
+                              setCosmeticForm(prev => ({ 
+                                ...prev, 
+                                cssClass: 'aura-solar-flare',
+                                style: { filter: 'drop-shadow(0 0 15px #f59e0b) brightness(1.2)', animation: 'pulse 2s infinite ease-in-out' }
+                              }));
+                            } else if (preset === 'void_pulse') {
+                              setCosmeticForm(prev => ({ 
+                                ...prev, 
+                                cssClass: 'aura-void-pulse',
+                                style: { filter: 'drop-shadow(0 0 20px #8b5cf6) contrast(1.5)', animation: 'float 4s infinite ease-in-out' }
+                              }));
+                            } else if (preset === 'neon_flicker') {
+                              setCosmeticForm(prev => ({ 
+                                ...prev, 
+                                cssClass: 'aura-neon-flicker',
+                                style: { filter: 'hue-rotate(90deg) drop-shadow(0 0 10px #06b6d4)', opacity: '0.9' }
+                              }));
+                            } else if (preset === 'standard') {
+                              setCosmeticForm(prev => ({ 
+                                ...prev, 
+                                cssClass: '',
+                                style: { filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.4))' }
+                              }));
+                            }
+                          }}
+                          className="credit-input"
+                          style={{ background: 'rgba(255,255,255,0.05)', color: 'white', borderRadius: '8px' }}
+                        >
+                          <option value="">-- Choose a Preset --</option>
+                          <option value="standard">Standard Glow</option>
+                          <option value="solar_flare">🔥 Solar Flare (Gold Pulse)</option>
+                          <option value="void_pulse">✨ Void Pulse (Purple Float)</option>
+                          <option value="neon_flicker">⚡ Neon Flicker (Cyan)</option>
+                        </select>
+                      </div>
+                      <div className="form-group flex-1">
+                        <label>Item Creator</label>
+                        <div style={{ 
+                          padding: '12px', 
+                          background: 'rgba(255,255,255,0.05)', 
+                          borderRadius: '8px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}>
+                          <span style={{ fontSize: '14px', color: '#888' }}>
+                            {editingCosmetic ? (editingCosmetic.createdByName || 'System') : (resolveDisplayName(user) || 'You')}
+                          </span>
+                          {editingCosmetic && !editingCosmetic.createdBy && (
+                            <button 
+                              type="button"
+                              className="admin-badge-btn"
+                              style={{ padding: '4px 8px', fontSize: '11px', background: 'var(--accent-purple)' }}
+                              onClick={() => {
+                                // This will be saved when they click the main Save button
+                                setEditingCosmetic(prev => ({ 
+                                  ...prev, 
+                                  createdBy: user.uid, 
+                                  createdByName: resolveDisplayName(user) || 'Admin' 
+                                }));
+                                alert('Creator updated to you! (Will be saved upon submit)');
+                              }}
+                            >
+                              Claim Item
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group flex-1">
                         <label>Rarity</label>
                         <select
                           value={cosmeticForm.rarity}
@@ -5402,7 +5611,18 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         </select>
                       </div>
                       <div className="form-group flex-1">
-                        <label>Price (Valcoins)</label>
+                        <label>Currency</label>
+                        <select
+                          value={cosmeticForm.currency || 'valcoins'}
+                          onChange={(e) => setCosmeticForm(prev => ({ ...prev, currency: e.target.value }))}
+                        >
+                          <option value="valcoins">Valcoins (Points)</option>
+                          <option value="aury">AURY (Wallet)</option>
+                          <option value="usdc">USDC (Wallet)</option>
+                        </select>
+                      </div>
+                      <div className="form-group flex-1">
+                        <label>Price</label>
                         <input
                           type="number"
                           value={cosmeticForm.price}

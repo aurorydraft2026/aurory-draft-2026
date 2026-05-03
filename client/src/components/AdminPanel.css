@@ -9,6 +9,12 @@
   color: var(--text-primary);
 }
 
+/* Ensure all dropdowns in Admin Panel are readable */
+.admin-wallet select option {
+  background-color: #1a1614 !important;
+  color: white !important;
+}
+
 .admin-wallet-header {
   display: flex;
   align-items: center;

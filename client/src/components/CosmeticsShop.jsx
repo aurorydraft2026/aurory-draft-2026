@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { getAllCosmetics, purchaseCosmetic, equipCosmetic, getEquippedBannerStyle, getBannerStyleFromCosmetic } from '../services/cosmeticsService';
 import { RARITY_CONFIG } from '../data/cosmetics';
 import { resolveDisplayName } from '../utils/userUtils';
+import { useWallet } from '../hooks/useWallet';
 import AvatarWithAura from './AvatarWithAura';
 import './CosmeticsShop.css';
 
@@ -19,6 +20,8 @@ const CosmeticsShop = ({ user }) => {
   const [loadingCardId, setLoadingCardId] = useState(null);
   const [equipping, setEquipping] = useState(null);
   const loadedAnimUrls = useRef(new Set());
+  
+  const { walletBalance, usdcBalance, formatAuryAmount, formatUsdcAmount } = useWallet(user);
 
   const ownedCosmetics = user?.ownedCosmetics || [];
   const equippedAura = user?.equippedCosmetics?.aura || null;
@@ -85,7 +88,15 @@ const CosmeticsShop = ({ user }) => {
     const cosmetic = cosmetics.find(c => c.id === cosmeticId);
     if (!cosmetic) return;
 
-    if (!window.confirm(`⚔️ Purchase "${cosmetic.name}" for ${cosmetic.price.toLocaleString()} Valcoins?`)) return;
+    const currency = cosmetic.currency || 'valcoins';
+    const currencyLabel = currency === 'aury' ? 'AURY' : currency === 'usdc' ? 'USDC' : 'Valcoins';
+    const isCreator = cosmetic.createdBy === user.uid;
+    
+    const confirmMsg = isCreator 
+      ? `🎁 Claim your creation "${cosmetic.name}" for free?`
+      : `⚔️ Purchase "${cosmetic.name}" for ${cosmetic.price.toLocaleString()} ${currencyLabel}?`;
+
+    if (!window.confirm(confirmMsg)) return;
 
     setPurchasing(cosmeticId);
     const result = await purchaseCosmetic(user.uid, cosmeticId);
@@ -209,13 +220,31 @@ const CosmeticsShop = ({ user }) => {
             </span>
           </div>
         </div>
-        <div className="cosmetics-preview-info">
-          <div className="preview-balance">
-            <img src="/valcoin-icon.jpg" alt="VC" className="valcoin-shop-icon" />
-            <span>{(user.points || 0).toLocaleString()}</span>
+          <div className="cosmetics-preview-info">
+            {(() => {
+              const previewItem = previewSlots.aura ? cosmetics.find(c => c.id === previewSlots.aura) : (previewSlots.banner ? cosmetics.find(c => c.id === previewSlots.banner) : null);
+              const currency = previewItem?.currency || 'valcoins';
+              
+              let displayBalance = (user.points || 0).toLocaleString();
+              let icon = "/valcoin-icon.jpg";
+              
+              if (currency === 'aury') {
+                displayBalance = formatAuryAmount(walletBalance);
+                icon = "/aury-icon.png";
+              } else if (currency === 'usdc') {
+                displayBalance = formatUsdcAmount(usdcBalance);
+                icon = "/usdc-icon.png";
+              }
+
+              return (
+                <div className="preview-balance">
+                  <img src={icon} alt={currency} className="valcoin-shop-icon" style={{ borderRadius: currency === 'valcoins' ? '50%' : '0' }} />
+                  <span>{displayBalance}</span>
+                </div>
+              );
+            })()}
+            <span className="preview-owned">{ownedCosmetics.length} / {cosmetics.length} Owned</span>
           </div>
-          <span className="preview-owned">{ownedCosmetics.length} / {cosmetics.length} Owned</span>
-        </div>
         </div>
         );
       })()}
@@ -350,15 +379,29 @@ const CosmeticsShop = ({ user }) => {
                   </button>
                 ) : (
                   <button
-                    className="cosmetic-btn buy-btn"
+                    className={`cosmetic-btn ${cosmetic.createdBy === user.uid ? 'claim-btn' : 'buy-btn'}`}
                     onClick={() => handlePurchase(cosmetic.id)}
-                    disabled={isPurchasing || equipping === cosmetic.id || (user.points || 0) < cosmetic.price}
+                    disabled={isPurchasing || equipping === cosmetic.id || (cosmetic.createdBy !== user.uid && (
+                      cosmetic.currency === 'aury' ? walletBalance < (cosmetic.price * 1e9) :
+                      cosmetic.currency === 'usdc' ? usdcBalance < (cosmetic.price * 1e6) :
+                      (user.points || 0) < cosmetic.price
+                    ))}
                   >
                     {isPurchasing ? (
-                      'Buying...'
+                      'Processing...'
+                    ) : cosmetic.createdBy === user.uid ? (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg>
+                        Claim Free
+                      </>
                     ) : (
                       <>
-                        <img src="/valcoin-icon.jpg" alt="" className="valcoin-btn-icon" />
+                        <img 
+                          src={cosmetic.currency === 'aury' ? '/aury-icon.png' : cosmetic.currency === 'usdc' ? '/usdc-icon.png' : '/valcoin-icon.jpg'} 
+                          alt="" 
+                          className="valcoin-btn-icon" 
+                          style={{ borderRadius: cosmetic.currency === 'valcoins' ? '50%' : '0' }}
+                        />
                         {cosmetic.price.toLocaleString()}
                       </>
                     )}

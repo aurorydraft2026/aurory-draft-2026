@@ -176,6 +176,16 @@
   box-sizing: border-box;
 }
 
+select {
+  background-color: var(--bg-deep) !important;
+  color: var(--text-primary) !important;
+}
+
+select option {
+  background-color: #1a1614 !important;
+  color: #e8e2d8 !important;
+}
+
 /* ── Maintenance Warning Banner ── */
 .maintenance-warning-banner {
   background: rgba(220, 38, 38, 0.95);

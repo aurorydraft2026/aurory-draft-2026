@@ -18,7 +18,7 @@ import { updateLeaderboardStats } from './leaderboardUtils';
 const AURORY_API = 'https://aggregator-api.live.aurory.io';
 
 // ─── DEFAULTS (overridable via settings/pvp_rewards) ───
-const DEFAULT_REWARD   = 20;   // Valcoins per PvP win
+const DEFAULT_REWARD = 20;   // Valcoins per PvP win
 const DEFAULT_MIN_SECS = 120;  // Minimum battle duration in seconds
 
 /**
@@ -63,15 +63,15 @@ interface PvpSettings {
 async function loadSettings(): Promise<PvpSettings> {
   try {
     const snap = await admin.firestore().doc('settings/pvp_rewards').get();
-      if (snap.exists) {
+    if (snap.exists) {
       const d = snap.data()!;
       // Ensure we don't accidentally use 0 or negative rewards from misconfigured settings
       const reward = (typeof d.rewardPerWin === 'number' && d.rewardPerWin > 0) ? d.rewardPerWin : DEFAULT_REWARD;
       return {
-        rewardPerWin:     reward,
+        rewardPerWin: reward,
         minMatchDuration: d.minMatchDuration ?? DEFAULT_MIN_SECS,
-        enabled:          d.enabled          ?? true,
-        currentEvent:     d.currentEvent     ?? getCurrentEventName(),
+        enabled: d.enabled ?? true,
+        currentEvent: d.currentEvent ?? getCurrentEventName(),
       };
     }
   } catch { /* fall through */ }
@@ -92,7 +92,7 @@ async function loadSettings(): Promise<PvpSettings> {
 async function fetchPlayerMatches(playerId: string, lastCheckMs: number, currentEvent: string): Promise<PvpMatch[]> {
   const allMatches: PvpMatch[] = [];
   const PAGES_TO_FETCH = 4; // Fetch up to 100 matches to find wins even in unordered results
-  
+
   try {
     for (let page = 0; page < PAGES_TO_FETCH; page++) {
       // Append &event filter to narrow down the search and avoid noise from previous months
@@ -105,7 +105,7 @@ async function fetchPlayerMatches(playerId: string, lastCheckMs: number, current
       if (mArr.length === 0) break;
 
       allMatches.push(...mArr);
-      
+
       // Stop if we've reached the last page available for this event
       if ((json?.matches?.total_pages || 0) <= page + 1) break;
     }
@@ -120,11 +120,23 @@ async function fetchPlayerMatches(playerId: string, lastCheckMs: number, current
       return tb - ta; // Newest first
     });
 
-    const newest = new Date(allMatches[0].created_at).toISOString();
-    const oldest = new Date(allMatches[allMatches.length - 1].created_at).toISOString();
-    console.log(`  📊 ${playerId}: Fetched ${allMatches.length} matches for ${currentEvent}. Range: ${oldest} to ${newest}`);
+    // 🆕 DE-DUPLICATION: Crucial because the random API pagination often returns the same match on multiple pages.
+    const seenMatchIds = new Set<string>();
+    const uniqueMatches: PvpMatch[] = [];
+    for (const m of allMatches) {
+      // Use battle_code if available, fallback to a composite key of timestamp + opponent
+      const matchId = m.data?.battle_code || `${m.created_at}_${m.opponent?.id || 'unknown'}`;
+      if (!seenMatchIds.has(matchId)) {
+        seenMatchIds.add(matchId);
+        uniqueMatches.push(m);
+      }
+    }
 
-    return allMatches;
+    const newest = new Date(uniqueMatches[0].created_at).toISOString();
+    const oldest = new Date(uniqueMatches[uniqueMatches.length - 1].created_at).toISOString();
+    console.log(`  📊 ${playerId}: Fetched ${allMatches.length} matches, ${uniqueMatches.length} unique. Range: ${oldest} to ${newest}`);
+
+    return uniqueMatches;
   } catch (err: any) {
     console.error(`❌ Fetch error for ${playerId}:`, err.message);
     return allMatches;
@@ -153,7 +165,7 @@ async function processUser(
   // count from last month will block rewards for this month's new wins.
   const lastEvent = userData.lastPvpEvent || '';
   let lastLeaderboardWins = userData.lastLeaderboardWins || 0;
-  
+
   if (lastEvent !== settings.currentEvent) {
     console.log(`  🎊 ${displayName}: New event detected (${lastEvent || 'NONE'} -> ${settings.currentEvent}). Resetting leaderboard win tracker.`);
     lastLeaderboardWins = 0;
@@ -173,7 +185,7 @@ async function processUser(
   // 🆕 INITIAL SYNC HANDLING
   if (!lastCheckMs) {
     console.log(`  🆕 ${displayName}: Initial sync. Setting checkpoints to current state.`);
-    const matches = await fetchPlayerMatches(playerId, 0, settings.currentEvent); 
+    const matches = await fetchPlayerMatches(playerId, 0, settings.currentEvent);
     const currentLeaderboardWins = leaderboardMap.get(playerId) || 0;
 
     const newestTime = matches.reduce((max, m) => {
@@ -190,11 +202,22 @@ async function processUser(
     return 0;
   }
 
-  const matches = await fetchPlayerMatches(playerId, lastCheckMs, settings.currentEvent);
-  
-  // LEADERBOARD FALLBACK
-  let leaderboardDelta = 0;
+  // 🏁 LEADERBOARD CHECK (Fast Path)
+  // If the official leaderboard shows no progress since last check, we can skip the heavy match history fetch.
   const currentLeaderboardWins = leaderboardMap.get(playerId) || 0;
+  let leaderboardDelta = currentLeaderboardWins - lastLeaderboardWins;
+
+  if (leaderboardDelta <= 0 && lastEvent === settings.currentEvent) {
+    // No new wins on leaderboard. We still return 0 but skip the expensive fetchPlayerMatches.
+    return 0;
+  }
+
+  const matches = await fetchPlayerMatches(playerId, lastCheckMs, settings.currentEvent);
+
+  // LEADERBOARD FALLBACK (Recalculate delta in case event changed)
+  if (lastEvent !== settings.currentEvent) {
+    leaderboardDelta = currentLeaderboardWins;
+  }
 
   console.log(`  🏆 ${displayName}: Leaderboard check: Current=${currentLeaderboardWins}, LastProcessed=${lastLeaderboardWins}`);
 
@@ -242,6 +265,10 @@ async function processUser(
   // This helps players whose match history API is stale.
   const totalWinsToReward = Math.max(matchWins, leaderboardDelta);
 
+  if (leaderboardDelta > matchWins) {
+    console.log(`  ⚠️ ${displayName}: Leaderboard fallback active! Delta=${leaderboardDelta}, HistoryWins=${matchWins}. Rewarding ${leaderboardDelta} wins.`);
+  }
+
   if (totalWinsToReward === 0) {
     // Still update the checkpoint if we fetch matches
     if (matches.length > 0) {
@@ -287,9 +314,9 @@ async function processUser(
 
   // ─── METADATA EXTRACTION for Logging ───
   // Find the newest qualifying match for metadata (opponent, duration, etc.)
-  let recentWin = qualifyingWins.length > 0 
-    ? qualifyingWins.reduce((latest, current) => 
-        new Date(current.created_at).getTime() > new Date(latest.created_at).getTime() ? current : latest
+  let recentWin = qualifyingWins.length > 0
+    ? qualifyingWins.reduce((latest, current) =>
+      new Date(current.created_at).getTime() > new Date(latest.created_at).getTime() ? current : latest
       , qualifyingWins[0])
     : null;
 
@@ -305,7 +332,7 @@ async function processUser(
   }
 
   const amikosSet = new Set<string>();
-  
+
   // Collect amikos from all qualifying wins in this batch
   qualifyingWins.forEach(win => {
     const me = win.data?.players_match_data?.find((p: any) => p.player_id === playerId);
@@ -338,7 +365,7 @@ async function processUser(
 
       // If we used a leaderboard fallback, we MUST advance the timestamp to "now"
       // to prevent these wins from being double-counted when they finally show up in history.
-      const finalCheckpointTime = isFallback 
+      const finalCheckpointTime = isFallback
         ? Math.max(newestOverallTime, Date.now() - 60000) // Now minus 1m safety
         : newestOverallTime;
 
@@ -425,25 +452,25 @@ export async function scanPvpWins(): Promise<number> {
   }
 
   console.log(`🔍 Scanning ${snapshot.size} linked user(s) for PvP wins... Current Time: ${new Date().toISOString()}`);
-  
+
   // Fetch leaderboard once per scan to avoid rate limits
   const leaderboardMap = await fetchLeaderboardMap(settings.currentEvent);
   console.log(`  📊 Leaderboard cache populated: ${leaderboardMap.size} players indexed in Top 1000.`);
 
   let totalWins = 0;
 
-  // Process in batches of 5 to respect Aurory API rate limits
+  // Process in batches of 10 to respect Aurory API rate limits while being faster
   const docs = snapshot.docs;
-  for (let i = 0; i < docs.length; i += 5) {
-    const batch = docs.slice(i, i + 5);
+  for (let i = 0; i < docs.length; i += 10) {
+    const batch = docs.slice(i, i + 10);
     const results = await Promise.all(
       batch.map((d) => processUser(d.id, d.data(), settings, leaderboardMap))
     );
     totalWins += results.reduce((a, b) => a + b, 0);
 
     // Small delay between batches to be polite to the API
-    if (i + 5 < docs.length) {
-      await new Promise((r) => setTimeout(r, 1000));
+    if (i + 10 < docs.length) {
+      await new Promise((r) => setTimeout(r, 500));
     }
   }
 
@@ -457,7 +484,7 @@ export async function scanPvpWins(): Promise<number> {
 async function fetchLeaderboardMap(currentEvent: string): Promise<Map<string, number>> {
   const map = new Map<string, number>();
   const url = `${AURORY_API}/v1/leaderboards?mode=pvp&event=${currentEvent}&limit=1000`;
-  
+
   try {
     const res = await fetch(url, { headers: { 'accept': 'application/json' }, timeout: 15000 });
     if (!res.ok) {
@@ -467,7 +494,12 @@ async function fetchLeaderboardMap(currentEvent: string): Promise<Map<string, nu
 
     const json = await res.json() as any;
     const players = json?.players || [];
-    
+
+    // Diagnostic: Log fields available in match_stats to check for overcounting (e.g. if num_wins includes losses)
+    if (players.length > 0) {
+      console.log(`  🔍 [Diagnostic] Leaderboard Stats Sample:`, JSON.stringify(players[0].match_stats));
+    }
+
     players.forEach((p: any) => {
       if (p.player?.player_id) {
         map.set(p.player.player_id, p.match_stats?.num_wins || 0);
@@ -476,6 +508,6 @@ async function fetchLeaderboardMap(currentEvent: string): Promise<Map<string, nu
   } catch (err: any) {
     console.error(`❌ Leaderboard cache fetch error:`, err.message);
   }
-  
+
   return map;
 }

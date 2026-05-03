@@ -73,6 +73,24 @@ export const discordInteraction = onRequest(
             return;
         }
 
+        // ─── GLOBAL ENABLE/DISABLE CHECK ───
+        // Only check for Application Commands (not PINGs)
+        if (interaction.type === APPLICATION_COMMAND) {
+            const botSettings = await admin.firestore().doc('settings/discord_bot').get();
+            const isEnabled = botSettings.exists ? botSettings.data()?.enabled !== false : true;
+
+            if (!isEnabled) {
+                res.status(200).json({
+                    type: CHANNEL_MESSAGE,
+                    data: {
+                        content: '🤖 **Runie is currently resting.**\nAn administrator has temporarily disabled Discord commands. Please try again later!',
+                        flags: 64 // Ephemeral (only visible to the user)
+                    }
+                });
+                return;
+            }
+        }
+
         // Handle slash commands
         if (interaction.type === APPLICATION_COMMAND) {
             const commandName = interaction.data?.name;
