@@ -18,6 +18,14 @@
   border-radius: 50%;
 }
 
+/* 🛡️ Cleanup: Hide standard component borders when an aura is active 
+   Note: Using border-color: transparent instead of border: none to keep layout alignment consistent */
+.avatar-aura-wrapper.has-aura {
+  border-color: transparent !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
 .avatar-aura-img {
   width: 100% !important;
   height: 100% !important;
@@ -26,7 +34,9 @@
   position: relative;
   z-index: 2;
   border: 2px solid transparent;
-  transition: border-color 0.3s ease;
+  transition: border-color 0.3s ease, transform 0.3s ease;
+  /* Profile scale: only applies when aura has a custom profileScale set */
+  transform: scale(var(--profile-scale-factor, 1));
 }
 
 /* Aura containers - base for triple-mode placement */
@@ -37,6 +47,8 @@
   align-items: center;
   justify-content: center;
   overflow: visible;
+  /* Apply aura offset & scale from cosmetic metadata */
+  transform: translate(var(--aura-offset-x, 0px), var(--aura-offset-y, 0px)) scale(var(--aura-scale-factor, 1));
 }
 
 .aura-gif-layer {
@@ -53,17 +65,18 @@
 /* 1. Behind Placement (Z-index 1, significantly larger for glows) */
 .aura-container-behind {
   z-index: 1;
-  inset: -25%; 
+  inset: -20%;
 }
 
 /* 2. On Border Placement (Z-index 3, significantly outset to frame the avatar) */
 .aura-container-border {
   z-index: 3;
-  inset: -12px; 
+  inset: -8px;
 }
 
 .aura-container-border .aura-gif-layer {
-  border-radius: 0; /* Don't clip frame assets */
+  border-radius: 0;
+  /* Don't clip frame assets */
   object-fit: contain;
 }
 
@@ -81,6 +94,16 @@
   z-index: 1;
   pointer-events: none;
 }
-.aura-layer-1 { inset: -3px; }
-.aura-layer-2 { inset: -6px; }
-.aura-layer-3 { inset: -10px; opacity: 0.5; }
+
+.aura-layer-1 {
+  inset: -3px;
+}
+
+.aura-layer-2 {
+  inset: -6px;
+}
+
+.aura-layer-3 {
+  inset: -10px;
+  opacity: 0.5;
+}

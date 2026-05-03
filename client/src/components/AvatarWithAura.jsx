@@ -65,12 +65,23 @@ const AvatarWithAura = ({
   // Determine which image to show for the aura
   const activeAuraUrl = shouldAnimate ? animatedUrl : staticUrl;
 
+  const profileScale = auraData?.profileScale || 100;
+  const auraOffsetX = auraData?.auraOffsetX || 0;
+  const auraOffsetY = auraData?.auraOffsetY || 0;
+  const auraScale = auraData?.auraScale || 100;
+
+  const hasAura = !!auraData;
+
   return (
     <div
-      className={`avatar-aura-wrapper ${auraClass} ${className} placement-${placement} ${shouldAnimate ? 'animating' : ''}`}
+      className={`avatar-aura-wrapper ${auraClass} ${className} placement-${placement} ${shouldAnimate ? 'animating' : ''} ${hasAura ? 'has-aura' : ''}`}
       style={{
         '--avatar-size': `${size}px`,
         '--aura-color': rarityColor || 'rgba(212,175,55,0.6)',
+        '--profile-scale-factor': profileScale / 100,
+        '--aura-offset-x': `${auraOffsetX}px`,
+        '--aura-offset-y': `${auraOffsetY}px`,
+        '--aura-scale-factor': auraScale / 100,
       }}
       onClick={onClick}
       onMouseEnter={() => setIsHovering(true)}

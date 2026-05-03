@@ -818,7 +818,7 @@ function HomePage() {
                   style={getEquippedBannerStyle(user) || {}}
                   title="User Menu"
                 >
-                  <AvatarWithAura user={user} size={34} className="profile-pic-aura" alwaysAnimate />
+                  <AvatarWithAura user={user} size={user?.equippedCosmetics?.aura ? 44 : 34} className="profile-pic-aura" alwaysAnimate />
                   <div className="profile-names">
                     <span className="username">
                       {resolveDisplayName(user)}
@@ -1816,7 +1816,7 @@ function HomePage() {
 
                         <AvatarWithAura
                           user={item}
-                          size={40}
+                          size={48}
                           className="top-player-avatar"
                           forceAnimate={hoveredRowId === 'earner-' + (item.uid || item.id)}
                         />

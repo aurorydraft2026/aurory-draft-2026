@@ -610,6 +610,28 @@ export async function syncAuroryName(userId, playerId) {
 }
 
 /**
+ * Syncs the profile picture from Firebase Auth (Google/Discord) to Firestore.
+ * This overwrites the auroryProfilePicture field with the Auth photoURL.
+ * @param {string} userId - Firebase User ID
+ * @param {string} photoURL - Photo URL from Auth provider
+ */
+export async function syncAuthPhoto(userId, photoURL) {
+  if (!userId || !photoURL) return { success: false, error: 'Missing user ID or photo URL' };
+  try {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      auroryProfilePicture: photoURL,
+      photoURL: photoURL, // Keep both in sync
+      lastPhotoSync: serverTimestamp()
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Error syncing Auth photo:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Verifies a tournament match result using the battle code
  * @param {string} battleCode - The private battle code used for the match
  * @param {string} playerAId - Expected Player A Aurory ID

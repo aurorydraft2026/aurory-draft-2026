@@ -398,6 +398,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     price: 1000,
     description: '',
     placement: 'behind', // behind | overlay | border
+    profileScale: 100, // 50-100, percentage of avatar size relative to aura frame
+    auraOffsetX: 0, // -50 to 50 px
+    auraOffsetY: 0, // -50 to 50 px
+    auraScale: 100, // 50-200, percentage scale of the aura frame
     gifUrl: '',
     pngUrl: '',
     cssClass: '',
@@ -5643,6 +5647,85 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     </div>
 
                     {cosmeticForm.type === 'aura' && (
+                      <>
+                      {/* ── Live Aura Preview ── */}
+                      <div className="form-group" style={{ 
+                        background: 'rgba(255,255,255,0.03)', 
+                        borderRadius: '12px', 
+                        padding: '20px', 
+                        border: '1px solid var(--border-subtle)',
+                        marginBottom: '8px'
+                      }}>
+                        <label style={{ marginBottom: '12px', display: 'block', fontSize: '13px', fontWeight: 600 }}>Live Preview</label>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '24px', flexWrap: 'wrap' }}>
+                          {/* Preview at multiple sizes */}
+                          {[120, 72, 40].map(previewSize => (
+                            <div key={previewSize} style={{ textAlign: 'center' }}>
+                              <div style={{
+                                width: `${previewSize + 40}px`,
+                                height: `${previewSize + 40}px`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: 'rgba(0,0,0,0.3)',
+                                borderRadius: '12px',
+                                border: '1px dashed rgba(255,255,255,0.1)',
+                                position: 'relative',
+                                overflow: 'visible'
+                              }}>
+                                {/* Wrapper for avatar + aura */}
+                                <div style={{
+                                  position: 'relative',
+                                  width: `${previewSize}px`,
+                                  height: `${previewSize}px`,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}>
+                                  {/* Aura layer */}
+                                  {(cosmeticForm.gifUrl || cosmeticForm.pngUrl) && (
+                                    <img
+                                      src={cosmeticForm.gifUrl || cosmeticForm.pngUrl}
+                                      alt=""
+                                      style={{
+                                        position: 'absolute',
+                                        width: `${(cosmeticForm.auraScale || 100)}%`,
+                                        height: `${(cosmeticForm.auraScale || 100)}%`,
+                                        left: `${50 + (cosmeticForm.auraOffsetX || 0) * (100 / previewSize)}%`,
+                                        top: `${50 + (cosmeticForm.auraOffsetY || 0) * (100 / previewSize)}%`,
+                                        transform: 'translate(-50%, -50%)',
+                                        objectFit: cosmeticForm.placement === 'border' ? 'contain' : 'cover',
+                                        borderRadius: cosmeticForm.placement === 'border' ? '0' : '50%',
+                                        zIndex: cosmeticForm.placement === 'behind' ? 1 : 4,
+                                        pointerEvents: 'none',
+                                        opacity: 0.95
+                                      }}
+                                    />
+                                  )}
+                                  {/* Profile picture */}
+                                  <img
+                                    src={resolveAvatar(user)}
+                                    alt=""
+                                    style={{
+                                      width: `${cosmeticForm.profileScale || 100}%`,
+                                      height: `${cosmeticForm.profileScale || 100}%`,
+                                      borderRadius: '50%',
+                                      objectFit: 'cover',
+                                      position: 'relative',
+                                      zIndex: 2,
+                                      border: '2px solid transparent'
+                                    }}
+                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
+                                  />
+                                </div>
+                              </div>
+                              <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>{previewSize}px</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* ── Placement Mode ── */}
                       <div className="form-group">
                         <label>Placement Mode</label>
                         <div className="currency-toggle-group">
@@ -5652,6 +5735,66 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         </div>
                         <p className="helper-text" style={{ fontSize: '11px', marginTop: '5px' }}>Determines where the GIF/Animation is rendered relative to the user picture.</p>
                       </div>
+
+                      {/* ── Profile Picture Scale ── */}
+                      <div className="form-group">
+                        <label>Profile Picture Scale: {cosmeticForm.profileScale || 100}%</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <input type="range" min="50" max="100" step="5"
+                            value={cosmeticForm.profileScale || 100}
+                            onChange={(e) => setCosmeticForm(prev => ({ ...prev, profileScale: parseInt(e.target.value) }))}
+                            style={{ flex: 1, accentColor: 'var(--accent-gold)' }}
+                          />
+                          <span style={{ fontSize: '13px', color: 'var(--text-muted)', minWidth: '40px' }}>{cosmeticForm.profileScale || 100}%</span>
+                        </div>
+                        <p className="helper-text" style={{ fontSize: '11px', marginTop: '5px' }}>Shrink the profile picture to fit inside auras with smaller transparent circles.</p>
+                      </div>
+
+                      {/* ── Aura Position & Scale ── */}
+                      <div className="form-row" style={{ gap: '16px' }}>
+                        <div className="form-group flex-1">
+                          <label>Aura X Offset: {cosmeticForm.auraOffsetX || 0}px</label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>L</span>
+                            <input type="range" min="-50" max="50" step="1"
+                              value={cosmeticForm.auraOffsetX || 0}
+                              onChange={(e) => setCosmeticForm(prev => ({ ...prev, auraOffsetX: parseInt(e.target.value) }))}
+                              style={{ flex: 1, accentColor: 'var(--accent-gold)' }}
+                            />
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>R</span>
+                          </div>
+                        </div>
+                        <div className="form-group flex-1">
+                          <label>Aura Y Offset: {cosmeticForm.auraOffsetY || 0}px</label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>U</span>
+                            <input type="range" min="-50" max="50" step="1"
+                              value={cosmeticForm.auraOffsetY || 0}
+                              onChange={(e) => setCosmeticForm(prev => ({ ...prev, auraOffsetY: parseInt(e.target.value) }))}
+                              style={{ flex: 1, accentColor: 'var(--accent-gold)' }}
+                            />
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>D</span>
+                          </div>
+                        </div>
+                        <div className="form-group flex-1">
+                          <label>Aura Scale: {cosmeticForm.auraScale || 100}%</label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <input type="range" min="50" max="200" step="5"
+                              value={cosmeticForm.auraScale || 100}
+                              onChange={(e) => setCosmeticForm(prev => ({ ...prev, auraScale: parseInt(e.target.value) }))}
+                              style={{ flex: 1, accentColor: 'var(--accent-gold)' }}
+                            />
+                            <span style={{ fontSize: '13px', color: 'var(--text-muted)', minWidth: '40px' }}>{cosmeticForm.auraScale || 100}%</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+                        <button type="button" 
+                          style={{ background: 'transparent', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '4px 12px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}
+                          onClick={() => setCosmeticForm(prev => ({ ...prev, profileScale: 100, auraOffsetX: 0, auraOffsetY: 0, auraScale: 100 }))}
+                        >Reset All to Default</button>
+                      </div>
+                      </>
                     )}
 
                     <div className="form-group">
