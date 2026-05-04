@@ -33,10 +33,42 @@ import { TIER_CONFIG, getTierExp, getTierProgress } from '../services/tierServic
 import './HomePage.css';
 
 // Your AURY deposit wallet address (replace with your actual address)
-const DEPOSIT_WALLET_ADDRESS = '5toTLiNCWN4uYCkQbJRt2kjiLz57Byn5NTXNRcziS7Gg287wYn6RkavQNL9QKRYmbgf6sLwRWcQjnQw7PBvQsPSn';
+const DEPOSIT_WALLET_ADDRESS = '8GDiMDA45Q1BaqbscvgvSa6szTXuNvMgHeonAhd82aT1';
 
 
 
+
+
+// Compass Spinner for Viking Welcome Loading
+const VikingCompass = () => (
+  <div className="viking-welcome-loading">
+    <div className="compass-spinner">
+      <svg viewBox="0 0 100 100" width="80" height="80">
+        <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(212,175,55,0.15)" strokeWidth="1.5" />
+        <circle cx="50" cy="50" r="32" fill="none" stroke="rgba(212,175,55,0.08)" strokeWidth="1" strokeDasharray="4 4" />
+        {[0, 90, 180, 270].map(angle => (
+          <line
+            key={angle}
+            x1="50" y1="8" x2="50" y2="14"
+            stroke="rgba(212,175,55,0.4)"
+            strokeWidth="1.5"
+            transform={`rotate(${angle} 50 50)`}
+          />
+        ))}
+        <text x="50" y="22" textAnchor="middle" fill="rgba(212,175,55,0.5)" fontSize="7" fontFamily="Rajdhani, sans-serif" fontWeight="700">N</text>
+        <text x="50" y="93" textAnchor="middle" fill="rgba(212,175,55,0.3)" fontSize="7" fontFamily="Rajdhani, sans-serif" fontWeight="700">S</text>
+        <text x="9" y="53" textAnchor="middle" fill="rgba(212,175,55,0.3)" fontSize="7" fontFamily="Rajdhani, sans-serif" fontWeight="700">W</text>
+        <text x="91" y="53" textAnchor="middle" fill="rgba(212,175,55,0.3)" fontSize="7" fontFamily="Rajdhani, sans-serif" fontWeight="700">E</text>
+        <g className="compass-needle">
+          <polygon points="50,16 47,50 53,50" fill="rgba(212,175,55,0.85)" />
+          <polygon points="50,84 47,50 53,50" fill="rgba(212,175,55,0.25)" />
+        </g>
+        <circle cx="50" cy="50" r="3.5" fill="var(--accent-gold)" />
+      </svg>
+    </div>
+    <p>Charting your glory...</p>
+  </div>
+);
 
 
 function HomePage() {
@@ -241,6 +273,8 @@ function HomePage() {
       unsubscribeValcoins();
     };
   }, [user?.uid, user?.points]);
+
+  const isWelcomeLoading = user && (userBattleStats.loading || user.points === undefined);
 
   const [majorAnnouncement, setMajorAnnouncement] = useState(null);
   const [showMajorAnnouncement, setShowMajorAnnouncement] = useState(false);
@@ -695,12 +729,12 @@ function HomePage() {
   // Format status text
   const getStatusText = (status) => {
     switch (status) {
-      case 'active': return '🟢 Active';
-      case 'coinFlip': return '🪙 Coin Flip';
-      case 'poolShuffle': return '� Shuffling';
-      case 'assignment': return '📋 Assigning';
-      case 'completed': return '✅ Completed';
-      default: return '⏳ Waiting';
+      case 'active': return 'ðŸŸ¢ Active';
+      case 'coinFlip': return 'ðŸª™ Coin Flip';
+      case 'poolShuffle': return 'ï¿½ Shuffling';
+      case 'assignment': return 'ðŸ“‹ Assigning';
+      case 'completed': return 'âœ… Completed';
+      default: return 'â³ Waiting';
     }
   };
 
@@ -760,13 +794,13 @@ function HomePage() {
                 <div className="admin-quick-alerts">
                   {adminPendingWithdrawals > 0 && (
                     <Link to="/admin/panel" className="admin-alert-badge withdrawal" title={`${adminPendingWithdrawals} Pending Withdrawals`}>
-                      <span className="alert-icon">📤</span>
+                      <span className="alert-icon">ðŸ“¤</span>
                       <span className="alert-count">{adminPendingWithdrawals}</span>
                     </Link>
                   )}
                   {adminPendingDeposits > 0 && (
                     <Link to="/admin/panel" className="admin-alert-badge deposit" title={`${adminPendingDeposits} Pending Deposits`}>
-                      <span className="alert-icon">📥</span>
+                      <span className="alert-icon">ðŸ“¥</span>
                       <span className="alert-count">{adminPendingDeposits}</span>
                     </Link>
                   )}
@@ -824,19 +858,19 @@ function HomePage() {
                       {resolveDisplayName(user)}
                     </span>
                     <div className="profile-badges-row">
-                      {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">🛡️</span>}
+                      {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">ðŸ›¡ï¸</span>}
                       {isSuperAdminUser ? (
-                        <span className="admin-badge">⭐<span className="badge-text">Super Admin</span></span>
+                        <span className="admin-badge">â­<span className="badge-text">Super Admin</span></span>
                       ) : user?.role === 'senior_admin' ? (
-                        <span className="admin-badge senior-admin-badge">⭐<span className="badge-text">Senior Admin</span></span>
+                        <span className="admin-badge senior-admin-badge">â­<span className="badge-text">Senior Admin</span></span>
                       ) : user?.role === 'admin' ? (
-                        <span className="admin-badge admin-staff">⭐<span className="badge-text">Admin</span></span>
+                        <span className="admin-badge admin-staff">â­<span className="badge-text">Admin</span></span>
                       ) : isGamesManagerUser ? (
-                        <span className="admin-badge games-manager-badge">🎮<span className="badge-text">Games Manager</span></span>
+                        <span className="admin-badge games-manager-badge">ðŸŽ®<span className="badge-text">Games Manager</span></span>
                       ) : null}
                     </div>
                   </div>
-                  <span className={`menu-arrow ${showUserModal ? 'active' : ''}`}>▾</span>
+                  <span className={`menu-arrow ${showUserModal ? 'active' : ''}`}>â–¾</span>
                 </div>
               </div>
             </div>
@@ -849,7 +883,7 @@ function HomePage() {
                   title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                 >
                   <span className={`theme-icon ${theme}`}>
-                    {theme === 'dark' ? '☀️' : '🌙'}
+                    {theme === 'dark' ? 'â˜€ï¸' : 'ðŸŒ™'}
                   </span>
                 </button>
               )}
@@ -886,7 +920,7 @@ function HomePage() {
           </div>
           {recentWinners.length > 0 && (
             <div className={`winner-stats-fixed ${showWinnerTicker ? 'visible' : 'hidden'}`}>
-              <span className="announcement-icon">🏆</span>
+              <span className="announcement-icon">ðŸ†</span>
               <div className="stats-scroll-container">
                 <div className="winner-static-content">
                   <span className="winner-name-highlight">{recentWinners[0].winnerName}</span>
@@ -913,36 +947,40 @@ function HomePage() {
             backgroundRepeat: 'no-repeat'
           }}
         >
-          <div className="viking-card-content">
-            <div className="viking-welcome-main">
-              <div className="viking-player-section">
-                <div className="viking-avatar-wrapper">
-                  <AvatarWithAura 
-                    user={user} 
-                    size={user ? 120 : 90} 
-                    className={`viking-hero-avatar ${user?.equippedCosmetics?.aura || user?.equippedCosmetics?.frame ? 'no-border' : ''}`} 
-                    alwaysAnimate 
-                  />
-                  {user && user.isAurorian && <span className="avatar-aurorian-tag">AURORIAN</span>}
-                </div>
-                <div className="viking-text-group">
-                  <div className="viking-hero-main-info">
+          <div className="viking-card-overlay" />
+          
+          {isWelcomeLoading ? (
+            <VikingCompass />
+          ) : (
+            <div className="viking-card-content">
+              <div className="viking-welcome-main">
+
+                {/* LEFT: Identity Column */}
+                <div className="viking-identity">
+                  <div className="viking-avatar-wrapper">
+                    <AvatarWithAura 
+                      user={user} 
+                      size={user ? 110 : 80} 
+                      className={`viking-hero-avatar ${user?.equippedCosmetics?.aura || user?.equippedCosmetics?.frame ? 'no-border' : ''}`} 
+                      alwaysAnimate 
+                    />
+                  </div>
+                  <div className="viking-text-col">
                     <span className="viking-hero-greeting">
                       {user ? randomGreeting : 'Welcome to'}
                     </span>
                     <h1 className="viking-hero-title">
                       {user ? (user.displayName?.split(' ')[0] || 'Viking') : 'Asgard'}
                     </h1>
-                  </div>
-                  
-                  {!user && (
-                    <p className="viking-hero-subtitle">
-                      Your Amiko Legends Hub. Strategize, Battle, and Earn Rewards.
-                    </p>
-                  )}
+                    {user && user.isAurorian && <span className="avatar-aurorian-tag inline-tag">AURORIAN</span>}
 
-                  <div className="viking-hero-progress">
-                    {user ? (
+                    {!user && (
+                      <p className="viking-hero-subtitle">
+                        Your Amiko Legends Hub. Strategize, Battle, and Earn Rewards.
+                      </p>
+                    )}
+
+                    {user && (
                       <div className="banner-tier-row">
                         <img src={TIER_CONFIG[user.tier || 1].badge} alt="" className="banner-tier-badge-mini" />
                         <span className="banner-tier-name-mini">{TIER_CONFIG[user.tier || 1].name}</span>
@@ -956,145 +994,166 @@ function HomePage() {
                           </span>
                         </div>
                       </div>
-                    ) : (
+                    )}
+
+                    {user && (
+                      <div className="banner-checkin-container">
+                        {bonusEffect && (
+                          <div key={bonusEffect.id} className="banner-bonus-effect">
+                            +{bonusEffect.amount} Bonus
+                          </div>
+                        )}
+                        <div className="banner-checkin-row">
+                          <button
+                            className={`banner-checkin-btn ${isCheckedIn ? 'checked-in' : ''}`}
+                            onClick={handleDailyCheckIn}
+                            disabled={isCheckedIn || !user.auroryPlayerId}
+                            title={!user.auroryPlayerId ? 'Connect Aurory account first' : isCheckedIn ? 'Already checked in today' : 'Claim daily reward'}
+                          >
+                            {isCheckedIn ? (
+                              <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Checked</>
+                            ) : (
+                              <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> Check In</>
+                            )}
+                          </button>
+                          
+                          {user.checkInStreak > 0 && (
+                            <div className="banner-streak-badge" title={`${user.checkInStreak} day streak`}>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.256 1.189-3.103.111-.124.32-.303.486-.411.5-.327 1.056-.628 1.639-.815"></path></svg>
+                              <span>{user.checkInStreak}d</span>
+                            </div>
+                          )}
+
+                          {isCheckedIn && (
+                            <div className="banner-checkin-timer" title="Next reset">
+                              {formatTimeRemaining(secondsUntilReset)}
+                            </div>
+                          )}
+                        </div>
+                        {!user.auroryPlayerId && (
+                          <span className="banner-checkin-hint">Link Aurory to claim</span>
+                        )}
+                      </div>
+                    )}
+
+                    {!user && (
                       <div className="viking-hero-badges">
-                        <a href="https://discord.gg/6EK2jwnM" target="_blank" rel="noreferrer" className="viking-badge interactive">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                        <a href="https://discord.gg/6EK2jwnM" target="_blank" rel="noreferrer" className="viking-badge">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
                           Join our Guild
                         </a>
-                        <a href="https://x.com/asgardduel" target="_blank" rel="noreferrer" className="viking-badge interactive">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" /></svg>
+                        <a href="https://x.com/asgardduel" target="_blank" rel="noreferrer" className="viking-badge">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" /></svg>
                           Follow us on X
                         </a>
                       </div>
                     )}
                   </div>
+                </div>
 
-                  {user && (
-                    <div className="banner-checkin-container">
-                      {bonusEffect && (
-                        <div key={bonusEffect.id} className="banner-bonus-effect">
-                          +{bonusEffect.amount} Bonus
+                {/* RIGHT: Stats Dashboard */}
+                <div className="viking-dashboard">
+                  <div className="dashboard-header">
+                    <span className="dashboard-title">{user ? 'Battle Records' : 'Platform Stats'}</span>
+                    <div className="dashboard-line"></div>
+                  </div>
+                  <div className="viking-stats-grid">
+                    {user ? (
+                      <>
+                        <div className="viking-stat-tile" style={{'--delay': 1}}>
+                          <span className="stat-tile-label">Daily Earned</span>
+                          <span className="stat-tile-value">
+                            <span className="stat-tile-icon">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+                            </span>
+                            {userBattleStats.dailyValcoins.toLocaleString()}
+                          </span>
                         </div>
-                      )}
-                      <div className="banner-checkin-row">
-                        <button
-                          className={`banner-checkin-btn ${isCheckedIn ? 'checked-in' : ''}`}
-                          onClick={handleDailyCheckIn}
-                          disabled={isCheckedIn || !user.auroryPlayerId}
-                          title={!user.auroryPlayerId ? 'Connect Aurory account first' : isCheckedIn ? 'Already checked in today' : 'Claim daily reward'}
-                        >
-                          {isCheckedIn ? (
-                            <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Checked</>
-                          ) : (
-                            <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> Check In</>
-                          )}
-                        </button>
-                        
-                        {user.checkInStreak > 0 && (
-                          <div className="banner-streak-badge" title={`${user.checkInStreak} day streak`}>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.256 1.189-3.103.111-.124.32-.303.486-.411.5-.327 1.056-.628 1.639-.815"></path></svg>
-                            <span>{user.checkInStreak}d</span>
-                          </div>
-                        )}
+                        <div className="viking-stat-tile" style={{'--delay': 2}}>
+                          <span className="stat-tile-label">PvP Wins</span>
+                          <span className="stat-tile-value">
+                            <span className="stat-tile-icon">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l3 3"/><path d="M19 13l2 2"/></svg>
+                            </span>
+                            {userBattleStats.pvpWins}
+                          </span>
+                        </div>
+                        <div className="viking-stat-tile" style={{'--delay': 3}}>
+                          <span className="stat-tile-label">Daily Rank</span>
+                          <span className="stat-tile-value gold">
+                            <span className="stat-tile-icon">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+                            </span>
+                            #{userBattleStats.pvpRank || '—'}
+                          </span>
+                        </div>
+                        <div className="viking-stat-tile" style={{'--delay': 4}}>
+                          <span className="stat-tile-label">Wealth Rank</span>
+                          <span className="stat-tile-value gold">
+                            <span className="stat-tile-icon">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            </span>
+                            #{userBattleStats.wealthRank || '—'}
+                          </span>
+                        </div>
+                        <div className="viking-stat-tile" style={{'--delay': 5}}>
+                          <span className="stat-tile-label">Streak</span>
+                          <span className="stat-tile-value cyan">
+                            <span className="stat-tile-icon">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.256 1.189-3.103"/></svg>
+                            </span>
+                            {user.checkInStreak || 0}d
+                          </span>
+                        </div>
+                        <div className="viking-stat-tile" style={{'--delay': 6}}>
+                          <span className="stat-tile-label">Valcoins</span>
+                          <span className="stat-tile-value">
+                            <span className="stat-tile-icon">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                            </span>
+                            {(user.points || 0).toLocaleString()}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="viking-stat-tile" style={{'--delay': 1}}>
+                          <span className="stat-tile-label">Active Warriors</span>
+                          <span className="stat-tile-value">
+                            <span className="stat-tile-icon">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            </span>
+                            {platformStats.activeWarriors}+
+                          </span>
+                        </div>
+                        <div className="viking-stat-tile" style={{'--delay': 2}}>
+                          <span className="stat-tile-label">Total Battles</span>
+                          <span className="stat-tile-value">
+                            <span className="stat-tile-icon">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l3 3"/><path d="M19 13l2 2"/></svg>
+                            </span>
+                            {platformStats.totalBattles}
+                          </span>
+                        </div>
+                        <div className="viking-stat-tile" style={{'--delay': 3}}>
+                          <span className="stat-tile-label">Rewards Issued</span>
+                          <span className="stat-tile-value">
+                            <span className="stat-tile-icon">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+                            </span>
+                            {platformStats.totalRewards.toLocaleString()}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
 
-                        {isCheckedIn && (
-                          <div className="banner-checkin-timer" title="Next reset">
-                            {formatTimeRemaining(secondsUntilReset)}
-                          </div>
-                        )}
-                      </div>
-                      {!user.auroryPlayerId && (
-                        <span className="banner-checkin-hint">Link Aurory to claim</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-                </div>
-
-              {/* Personal Battle Statistics Grid */}
-              <div className="viking-stats-section">
-                <div className="stats-header">
-                  <span className="stats-title">Battle Records</span>
-                  <div className="stats-line"></div>
-                </div>
-                <div className="viking-stats-grid">
-                  {user ? (
-                    <>
-                      <div className="stat-card">
-                        <span className="stat-label">Daily Earned</span>
-                        <span className="stat-value">
-                          <span className="stat-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="21"/><path d="M12 3a9 9 0 0 0 9 9 9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 0 9-9"/></svg>
-                          </span>
-                          {userBattleStats.dailyValcoins.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="stat-card">
-                        <span className="stat-label">Daily PvP Wins</span>
-                        <span className="stat-value">
-                          <span className="stat-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l3 3"/><path d="M19 13l2 2"/></svg>
-                          </span>
-                          {userBattleStats.pvpWins}
-                        </span>
-                      </div>
-                      <div className="stat-card">
-                        <span className="stat-label">Top Daily Rank</span>
-                        <span className="stat-value highlighted">
-                          <span className="stat-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-                          </span>
-                          #{userBattleStats.pvpRank || '...'}
-                        </span>
-                      </div>
-                      <div className="stat-card">
-                        <span className="stat-label">Wealth Rank</span>
-                        <span className="stat-value highlighted">
-                          <span className="stat-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                          </span>
-                          #{userBattleStats.wealthRank || '...'}
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="stat-card">
-                        <span className="stat-label">Active Warriors</span>
-                        <span className="stat-value">
-                          <span className="stat-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                          </span>
-                          {platformStats.activeWarriors}+
-                        </span>
-                      </div>
-                      <div className="stat-card">
-                        <span className="stat-label">Total Battles</span>
-                        <span className="stat-value">
-                          <span className="stat-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l3 3"/><path d="M19 13l2 2"/></svg>
-                          </span>
-                          {platformStats.totalBattles}
-                        </span>
-                      </div>
-                      <div className="stat-card">
-                        <span className="stat-label">Rewards Issued</span>
-                        <span className="stat-value">
-                          <span className="stat-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="21"/><path d="M12 3a9 9 0 0 0 9 9 9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 0 9-9"/></svg>
-                          </span>
-                          {platformStats.totalRewards.toLocaleString()}
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Recent Glory Feed (Desktop Only) - Kept but repositioned if needed */}
+          {/* Recent Glory Feed (Desktop Only, Guest) */}
           {!user && (
             <div className="glory-feed-container desktop-only">
               {gloryFeed.map((glory, idx) => (
@@ -1114,6 +1173,7 @@ function HomePage() {
             </div>
           )}
         </div>
+
 
         <div className="content-wrapper">
           <div className="main-column">
@@ -1156,7 +1216,7 @@ function HomePage() {
                           )}
                           <div className="banner-meta">
                             <span className={`banner-tag ${slide.tag === 'Amiko Legends' ? 'amiko-legends' : ''}`}>{slide.tag}</span>
-                            {slide.date && <span className="banner-date">📅 {slide.date}</span>}
+                            {slide.date && <span className="banner-date">ðŸ“… {slide.date}</span>}
                           </div>
                           <h3 className="banner-title">{slide.title}</h3>
                           <p className="banner-text">{slide.text}</p>
@@ -1426,7 +1486,7 @@ function HomePage() {
                                 ) : (
                                   <>
                                     <span className="ribbon-team">
-                                      {isMyTurn ? '⚡YOUR TURN!' : `${turnName}'s Turn`}
+                                      {isMyTurn ? 'âš¡YOUR TURN!' : `${turnName}'s Turn`}
                                     </span>
                                     <span className="ribbon-timer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>{formatTimer(timer)}</span>
                                   </>
@@ -1537,18 +1597,18 @@ function HomePage() {
                                 if (canJoin) {
                                   return (
                                     <span className="view-btn join-now-btn">
-                                      ⚔️ Join Now →
+                                      âš”ï¸ Join Now â†’
                                     </span>
                                   );
                                 }
                                 if (isJoinable && !user) {
-                                  return <span className="view-btn join-now-btn">⚔️ Join Now →</span>;
+                                  return <span className="view-btn join-now-btn">âš”ï¸ Join Now â†’</span>;
                                 }
                                 if (is1v1Card && tournament.status === 'coinFlip') {
                                   return (
                                     <span className="view-btn starting-btn">
                                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><circle cx="12" cy="12" r="8" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
-                                      Confirming... →
+                                      Confirming... â†’
                                     </span>
                                   );
                                 }
@@ -1556,7 +1616,7 @@ function HomePage() {
                                   return (
                                     <span className="view-btn waiting-btn">
                                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-                                      Awaiting... →
+                                      Awaiting... â†’
                                     </span>
                                   );
                                 }
@@ -1564,14 +1624,14 @@ function HomePage() {
                                   return (
                                     <span className="view-btn starting-btn">
                                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><path d="m11 17 2 2 5-5" /><path d="m18 19 2 2" /><path d="m14 5 8 8-3 3" /><path d="m3 17 2 2" /><path d="m11 8-5 5-4-1 1-4 5-5 3 3z" /></svg>
-                                      Starting... →
+                                      Starting... â†’
                                     </span>
                                   );
                                 }
                                 if (isParticipating) {
-                                  return <span className="view-btn">Enter Draft →</span>;
+                                  return <span className="view-btn">Enter Draft â†’</span>;
                                 }
-                                return <span className="view-btn">Spectate →</span>;
+                                return <span className="view-btn">Spectate â†’</span>;
                               })()}
                             </div>
                           </div>
@@ -1585,8 +1645,8 @@ function HomePage() {
                       onClick={() => setDraftsExpanded(!draftsExpanded)}
                     >
                       {draftsExpanded
-                        ? `▲ Show Less`
-                        : `▼ Show More (${filteredTournaments.length - DRAFTS_PER_PAGE} more)`
+                        ? `â–² Show Less`
+                        : `â–¼ Show More (${filteredTournaments.length - DRAFTS_PER_PAGE} more)`
                       }
                     </button>
                   )}
@@ -1660,13 +1720,13 @@ function HomePage() {
                         <h4 className="news-item-title">{item.title}</h4>
                         <div className="news-item-meta">
                           <span className="news-author">{item.authorName}</span>
-                          <span className="news-dot">•</span>
+                          <span className="news-dot">â€¢</span>
                           <span className="news-date">
                             {item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Recently'}
                           </span>
                           {item.viewCount !== undefined && (
                             <>
-                              <span className="news-dot">•</span>
+                              <span className="news-dot">â€¢</span>
                               <span className="news-views">{item.viewCount || 0} clicks</span>
                             </>
                           )}
@@ -1685,7 +1745,7 @@ function HomePage() {
                   {earnersCurrency === 'valcoins' && <img src="/valcoin-icon.jpg" alt="" className="valcoin-icon" />}
                   {earnersCurrency === 'aury' && <img src="/aury-icon.png" alt="" className="valcoin-icon" />}
                   {earnersCurrency === 'usdc' && <img src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png" alt="" className="valcoin-icon" />}
-                  {earnersCurrency === 'wins' && <span className="valcoin-icon" style={{ fontSize: '1.2rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>⚔️</span>}
+                  {earnersCurrency === 'wins' && <span className="valcoin-icon" style={{ fontSize: '1.2rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>âš”ï¸</span>}
                   {' '}
                   {earnersGameFilter === 'wealth' ? 'Valiant Wealth' :
                     earnersGameFilter === 'pvp_wins' ? 'PvP Earnings' :
@@ -1825,7 +1885,7 @@ function HomePage() {
                           <span className="top-player-name">{resolveDisplayName(item)}</span>
                         </div>
                         <div className="top-player-winrate valcoin-amount" style={{ color: currencyColor, fontWeight: 700, display: 'flex', alignItems: 'center' }}>
-                          {currencyIcon ? <img src={currencyIcon} alt="" className="valcoin-icon small" /> : <span style={{ marginRight: '4px' }}>⚔️</span>}
+                          {currencyIcon ? <img src={currencyIcon} alt="" className="valcoin-icon small" /> : <span style={{ marginRight: '4px' }}>âš”ï¸</span>}
                           {displayValue} <span style={{ fontSize: '0.8em', marginLeft: '4px' }}>{currencyLabel}</span>
                         </div>
                       </div>
@@ -1921,7 +1981,7 @@ function HomePage() {
                           <span className="top-player-name">{isTeam ? item.teamName : resolveDisplayName(item)}</span>
                           <span className="top-player-record">
                             <span className="record-wins">{item.wins}W</span>
-                            <span className="record-sep">·</span>
+                            <span className="record-sep">Â·</span>
                             <span className="record-losses">{item.losses}L</span>
                           </span>
                         </div>
@@ -2042,7 +2102,7 @@ function HomePage() {
                             )}
 
                             <div className="match-summary-title">{match.title}</div>
-                            <span className="expand-icon">{isExpanded ? '▲' : '▼'}</span>
+                            <span className="expand-icon">{isExpanded ? 'â–²' : 'â–¼'}</span>
                           </div>
 
                           {isExpanded && (
@@ -2068,17 +2128,17 @@ function HomePage() {
                                   <div className="battle-detail-header">
                                     <span>{(match.draftType === 'mode3' || match.draftType === 'mode4') ? 'Match' : `Battle ${idx + 1}`}</span>
                                     <span className={`status-badge status-${result.status}`}>
-                                      {result.status === 'verified' && '✅'}
-                                      {(result.status === 'disqualified_A' || result.status === 'disqualified_B') && '⛔ DQ'}
-                                      {result.status === 'both_disqualified' && '⛔ Both DQ'}
-                                      {result.status === 'not_found' && '⏱️'}
+                                      {result.status === 'verified' && 'âœ…'}
+                                      {(result.status === 'disqualified_A' || result.status === 'disqualified_B') && 'â›” DQ'}
+                                      {result.status === 'both_disqualified' && 'â›” Both DQ'}
+                                      {result.status === 'not_found' && 'â±ï¸'}
                                     </span>
                                   </div>
 
                                   {result.playerA && result.playerB && (
                                     <div className="battle-detail-matchup">
                                       <div className={`battle-detail-player ${result.winner === 'A' ? 'winner' : 'loser'}`}>
-                                        <span className="bd-outcome">{result.winner === 'A' ? '🏆' : '💀'}</span>
+                                        <span className="bd-outcome">{result.winner === 'A' ? 'ðŸ†' : 'ðŸ’€'}</span>
                                         <span className="bd-name">{result.playerA.displayName}</span>
                                         {!result.playerA.lineupValid && <span className="dq-mini">DQ</span>}
                                       </div>
@@ -2092,7 +2152,7 @@ function HomePage() {
                                       </div>
                                       <span className="bd-vs">vs</span>
                                       <div className={`battle-detail-player ${result.winner === 'B' ? 'winner' : 'loser'}`}>
-                                        <span className="bd-outcome">{result.winner === 'B' ? '🏆' : '💀'}</span>
+                                        <span className="bd-outcome">{result.winner === 'B' ? 'ðŸ†' : 'ðŸ’€'}</span>
                                         <span className="bd-name">{result.playerB.displayName}</span>
                                         {!result.playerB.lineupValid && <span className="dq-mini">DQ</span>}
                                       </div>
@@ -2108,7 +2168,7 @@ function HomePage() {
                                   )}
 
                                   {result.disqualificationReason && (
-                                    <div className="battle-detail-dq">⚠️ {result.disqualificationReason}</div>
+                                    <div className="battle-detail-dq">âš ï¸ {result.disqualificationReason}</div>
                                   )}
                                 </div>
                               ))}
@@ -2117,7 +2177,7 @@ function HomePage() {
                                 className="view-tournament-btn"
                                 onClick={() => navigate(`/tournament/${match.draftId}`)}
                               >
-                                View Draft →
+                                View Draft â†’
                               </button>
                             </div>
                           )}
@@ -2137,7 +2197,7 @@ function HomePage() {
           <div className="rules-header">
             <div className="rules-header-line"></div>
             <h3 className="rules-title">
-              <span className="rules-icon">📜</span>
+              <span className="rules-icon">ðŸ“œ</span>
               Draft Flow & System
             </h3>
             <div className="rules-header-line"></div>
@@ -2201,8 +2261,8 @@ function HomePage() {
           <div className="modal-overlay">
             <div className="create-modal">
               <div className="modal-header">
-                <h3>➕ Create New Draft</h3>
-                <button className="close-modal" onClick={() => setShowCreateModal(false)}>✖</button>
+                <h3>âž• Create New Draft</h3>
+                <button className="close-modal" onClick={() => setShowCreateModal(false)}>âœ–</button>
               </div>
 
               <div className="modal-body">
@@ -2275,7 +2335,7 @@ function HomePage() {
                         checked={newTournament.isFriendly}
                         onChange={(e) => setNewTournament({ ...newTournament, isFriendly: e.target.checked, poolAmount: '' })}
                       />
-                      <span>🤝 Friendly Match (no cost)</span>
+                      <span>ðŸ¤ Friendly Match (no cost)</span>
                     </label>
                     {!newTournament.isFriendly && (
                       <>
@@ -2287,7 +2347,7 @@ function HomePage() {
                           />
                           <span>Requires Entry Fee (Split Pool)</span>
                         </label>
-                        {newTournament.requiresEntryFee === false && <span className="input-hint" style={{ display: 'block', marginBottom: '10px', color: '#ffd700' }}>🌟 Sponsored: You pay the full pool amount. Players join for free.</span>}
+                        {newTournament.requiresEntryFee === false && <span className="input-hint" style={{ display: 'block', marginBottom: '10px', color: '#ffd700' }}>ðŸŒŸ Sponsored: You pay the full pool amount. Players join for free.</span>}
 
                         <label>Pool Amount (AURY)</label>
                         <div className="pool-input-row">
@@ -2307,7 +2367,7 @@ function HomePage() {
                         <span className="input-hint">
                           {newTournament.poolAmount && parseFloat(newTournament.poolAmount) > 0
                             ? (newTournament.requiresEntryFee !== false
-                              ? `Entry fee: ${(parseFloat(newTournament.poolAmount) / 2).toFixed(2)} AURY per player • Winner takes ${(parseFloat(newTournament.poolAmount)).toFixed(2)} AURY`
+                              ? `Entry fee: ${(parseFloat(newTournament.poolAmount) / 2).toFixed(2)} AURY per player â€¢ Winner takes ${(parseFloat(newTournament.poolAmount)).toFixed(2)} AURY`
                               : `Sponsored: You pay ${(parseFloat(newTournament.poolAmount)).toFixed(2)} AURY. Entry is FREE for players. Winner takes ${(parseFloat(newTournament.poolAmount)).toFixed(2)} AURY`)
                             : (newTournament.requiresEntryFee !== false
                               ? 'Total pool will be split equally. Each player pays half as entry fee.'
@@ -2320,7 +2380,7 @@ function HomePage() {
                               const cost = newTournament.requiresEntryFee !== false
                                 ? ((team1.leader === user?.uid || team2.leader === user?.uid) ? parseFloat(newTournament.poolAmount) / 2 : 0)
                                 : parseFloat(newTournament.poolAmount);
-                              return cost * 1e9 > walletBalance ? ' ⚠️ Insufficient balance' : '';
+                              return cost * 1e9 > walletBalance ? ' âš ï¸ Insufficient balance' : '';
                             })()}
                           </span>
                         )}
@@ -2383,7 +2443,7 @@ function HomePage() {
                 <div className="form-group team-assignment-section">
                   <label>
                     {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4')
-                      ? `Assign Players (${getAssignedCount()}/2 — optional)`
+                      ? `Assign Players (${getAssignedCount()}/2 â€” optional)`
                       : `Assign Teams (${getAssignedCount()}/6 assigned)`}
                     {(newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') && !newTournament.manualTimerStart && <span className="required-text"> *</span>}
                   </label>
@@ -2398,7 +2458,7 @@ function HomePage() {
                     {/* Team 1 */}
                     <div className="team-assignment-panel team-1">
                       <div className="team-header-editable">
-                        <span className="team-color-badge blue">🔵</span>
+                        <span className="team-color-badge blue">ðŸ”µ</span>
                         {(newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') && (
                           <input
                             type="text"
@@ -2424,11 +2484,11 @@ function HomePage() {
                                   type="button"
                                   className="remove-banner-btn"
                                   onClick={(e) => { e.preventDefault(); setTeam1Banner(null); }}
-                                >✖</button>
+                                >âœ–</button>
                               </div>
                             ) : (
                               <div className="banner-placeholder">
-                                <span>📷</span>
+                                <span>ðŸ“·</span>
                                 <span>Upload Banner</span>
                               </div>
                             )}
@@ -2448,7 +2508,7 @@ function HomePage() {
 
                       {/* Leader Slot */}
                       <div className="assignment-slot">
-                        <span className="slot-label">{(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? '👤 Player' : '👑 Leader'}</span>
+                        <span className="slot-label">{(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? 'ðŸ‘¤ Player' : 'ðŸ‘‘ Leader'}</span>
                         {team1.leader ? (
                           <div className="assigned-user">
                             <img
@@ -2457,7 +2517,7 @@ function HomePage() {
                               onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                             />
                             <span>{getUserById(team1.leader)?.displayName || 'Unknown'}</span>
-                            <button className="remove-btn" onClick={() => removeFromSlot(1, 'leader')}>✖</button>
+                            <button className="remove-btn" onClick={() => removeFromSlot(1, 'leader')}>âœ–</button>
                           </div>
                         ) : (
                           <button
@@ -2471,7 +2531,7 @@ function HomePage() {
 
                       {(newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') && (
                         <div className="assignment-slot members-slot">
-                          <span className="slot-label">👤 Members (2)</span>
+                          <span className="slot-label">ðŸ‘¤ Members (2)</span>
                           {team1.member1 && team1.member2 ? (
                             <div className="assigned-members-group">
                               <div className="assigned-user mini">
@@ -2489,7 +2549,7 @@ function HomePage() {
                                   onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                                 />
                                 <span className="mini-name">{getUserById(team1.member2)?.displayName || 'Unknown'}</span>
-                                <button className="remove-btn" onClick={() => { removeFromSlot(1, 'member1'); removeFromSlot(1, 'member2'); }}>✖</button>
+                                <button className="remove-btn" onClick={() => { removeFromSlot(1, 'member1'); removeFromSlot(1, 'member2'); }}>âœ–</button>
                               </div>
                             </div>
                           ) : (
@@ -2507,7 +2567,7 @@ function HomePage() {
                     {/* Team 2 */}
                     <div className="team-assignment-panel team-2">
                       <div className="team-header-editable">
-                        <span className="team-color-badge red">🔴</span>
+                        <span className="team-color-badge red">ðŸ”´</span>
                         {(newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') && (
                           <input
                             type="text"
@@ -2533,11 +2593,11 @@ function HomePage() {
                                   type="button"
                                   className="remove-banner-btn"
                                   onClick={(e) => { e.preventDefault(); setTeam2Banner(null); }}
-                                >✖</button>
+                                >âœ–</button>
                               </div>
                             ) : (
                               <div className="banner-placeholder">
-                                <span>📷</span>
+                                <span>ðŸ“·</span>
                                 <span>Upload Banner</span>
                               </div>
                             )}
@@ -2557,7 +2617,7 @@ function HomePage() {
 
                       {/* Leader Slot */}
                       <div className="assignment-slot">
-                        <span className="slot-label">{(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? '👤 Player' : '👑 Leader'}</span>
+                        <span className="slot-label">{(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? 'ðŸ‘¤ Player' : 'ðŸ‘‘ Leader'}</span>
                         {team2.leader ? (
                           <div className="assigned-user">
                             <img
@@ -2566,7 +2626,7 @@ function HomePage() {
                               onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                             />
                             <span>{resolveDisplayName(getUserById(team2.leader))}</span>
-                            <button className="remove-btn" onClick={() => removeFromSlot(2, 'leader')}>✖</button>
+                            <button className="remove-btn" onClick={() => removeFromSlot(2, 'leader')}>âœ–</button>
                           </div>
                         ) : (
                           <button
@@ -2580,7 +2640,7 @@ function HomePage() {
 
                       {(newTournament.draftType !== 'mode3' && newTournament.draftType !== 'mode4') && (
                         <div className="assignment-slot members-slot">
-                          <span className="slot-label">👤 Members (2)</span>
+                          <span className="slot-label">ðŸ‘¤ Members (2)</span>
                           {team2.member1 && team2.member2 ? (
                             <div className="assigned-members-group">
                               <div className="assigned-user mini">
@@ -2598,7 +2658,7 @@ function HomePage() {
                                   onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                                 />
                                 <span className="mini-name">{resolveDisplayName(getUserById(team2.member2))}</span>
-                                <button className="remove-btn" onClick={() => { removeFromSlot(2, 'member1'); removeFromSlot(2, 'member2'); }}>✖</button>
+                                <button className="remove-btn" onClick={() => { removeFromSlot(2, 'member1'); removeFromSlot(2, 'member2'); }}>âœ–</button>
                               </div>
                             </div>
                           ) : (
@@ -2620,12 +2680,12 @@ function HomePage() {
                       <div className="participant-selection-modal">
                         <div className="modal-header">
                           <div className="selection-title-group">
-                            <h3>👥 Select {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? `Player ${assigningSlot.team}` : `Team ${assigningSlot.team} ${assigningSlot.sessionRoles.length > 1 ? 'Members' : 'Leader'}`}</h3>
+                            <h3>ðŸ‘¥ Select {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? `Player ${assigningSlot.team}` : `Team ${assigningSlot.team} ${assigningSlot.sessionRoles.length > 1 ? 'Members' : 'Leader'}`}</h3>
                             <span className="selection-progress-badge">
                               {assigningSlot.roles.length === 2 ? 'Step 1/2' : assigningSlot.roles.length === 1 && assigningSlot.sessionRoles.length === 2 ? 'Step 2/2' : 'Assigning Slot'}
                             </span>
                           </div>
-                          <button className="close-modal" onClick={() => setAssigningSlot(null)}>✖</button>
+                          <button className="close-modal" onClick={() => setAssigningSlot(null)}>âœ–</button>
                         </div>
 
                         <div className="selection-search-container">
@@ -2660,7 +2720,7 @@ function HomePage() {
                                       {(newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4') ? 'Participant' : `Selected as ${role === 'leader' ? 'Leader' : role === 'member1' ? 'Member 1' : 'Member 2'}`}
                                     </span>
                                   </div>
-                                  <button className="deselect-circle-btn" onClick={() => handleDeselectDuringFlow(role)}>✖</button>
+                                  <button className="deselect-circle-btn" onClick={() => handleDeselectDuringFlow(role)}>âœ–</button>
                                 </div>
                               );
                             })}
@@ -2690,7 +2750,7 @@ function HomePage() {
                                   <div className="participant-info">
                                     <span className="participant-name">{resolveDisplayName(u)}</span>
                                     {!u.auroryPlayerId && (
-                                      <span className="unlinked-label">⚠️ No Aurory account linked</span>
+                                      <span className="unlinked-label">âš ï¸ No Aurory account linked</span>
                                     )}
                                   </div>
                                   <div className="plus-indicator">+</div>
@@ -2712,7 +2772,7 @@ function HomePage() {
                       onChange={(e) => setNewTournament({ ...newTournament, manualTimerStart: e.target.checked })}
                       disabled={newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4'}
                     />
-                    <span style={{ fontWeight: '600', color: '#ffd700' }}>🚀 Start timer manually</span>
+                    <span style={{ fontWeight: '600', color: '#ffd700' }}>ðŸš€ Start timer manually</span>
                   </label>
                   <span className="input-hint" style={{ marginTop: '5px', display: 'block' }}>
                     {newTournament.draftType === 'mode3' || newTournament.draftType === 'mode4'
@@ -2731,7 +2791,7 @@ function HomePage() {
                   onClick={handleCreateTournament}
                   disabled={isCreatingDraft}
                 >
-                  {isCreatingDraft ? '⏳ Creating...' : '🚀 Proceed'}
+                  {isCreatingDraft ? 'â³ Creating...' : 'ðŸš€ Proceed'}
                 </button>
               </div>
             </div>
@@ -2749,7 +2809,7 @@ function HomePage() {
                   <img src={selectedCurrency === 'AURY' ? "/aury-icon.png" : "https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png"} alt="" className="modal-aury-icon" />
                   {selectedCurrency} Wallet
                 </h3>
-                <button className="close-modal" onClick={() => setShowWalletModal(false)}>✖</button>
+                <button className="close-modal" onClick={() => setShowWalletModal(false)}>âœ–</button>
               </div>
 
               {/* Currency Selector */}
@@ -2782,19 +2842,19 @@ function HomePage() {
                   className={`wallet-tab ${walletTab === 'deposit' ? 'active' : ''}`}
                   onClick={() => setWalletTab('deposit')}
                 >
-                  📥 Deposit
+                  ðŸ“¥ Deposit
                 </button>
                 <button
                   className={`wallet-tab ${walletTab === 'withdraw' ? 'active' : ''}`}
                   onClick={() => setWalletTab('withdraw')}
                 >
-                  📤 Withdraw
+                  ðŸ“¤ Withdraw
                 </button>
                 <button
                   className={`wallet-tab ${walletTab === 'history' ? 'active' : ''}`}
                   onClick={() => setWalletTab('history')}
                 >
-                  📋 History
+                  ðŸ“‹ History
                 </button>
               </div>
 
@@ -2819,7 +2879,7 @@ function HomePage() {
                           className={`copy-btn ${copySuccess === 'address' ? 'copied' : ''}`}
                           onClick={() => copyToClipboard(DEPOSIT_WALLET_ADDRESS, 'address')}
                         >
-                          {copySuccess === 'address' ? '✓ Copied!' : '📋 Copy'}
+                          {copySuccess === 'address' ? 'âœ“ Copied!' : 'ðŸ“‹ Copy'}
                         </button>
                       </div>
                     </div>
@@ -2828,7 +2888,7 @@ function HomePage() {
                     {/* NEW: Deposit Notification Section */}
                     <div className="deposit-notification-section">
                       <div className="deposit-notification-header">
-                        <h4>✉️ Already Sent Your Deposit?</h4>
+                        <h4>âœ‰ï¸ Already Sent Your Deposit?</h4>
                         <p>Notify the admin to speed up the crediting process</p>
                       </div>
 
@@ -2875,7 +2935,7 @@ function HomePage() {
                         onClick={submitDepositNotification}
                         disabled={walletLoading || !depositAmount}
                       >
-                        {walletLoading ? 'Sending...' : '📧 Notify Admin About Deposit'}
+                        {walletLoading ? 'Sending...' : 'ðŸ“§ Notify Admin About Deposit'}
                       </button>
 
                       {/* Logic inside submitDepositNotification is handled elsewhere, let's look for the function actual definition if this is JSX */}
@@ -2935,7 +2995,7 @@ function HomePage() {
                       onClick={submitWithdrawal}
                       disabled={walletLoading || !withdrawAmount || !withdrawAddress}
                     >
-                      {walletLoading ? 'Processing...' : '📤 Submit Withdrawal'}
+                      {walletLoading ? 'Processing...' : 'ðŸ“¤ Submit Withdrawal'}
                     </button>
 
                     <p className="withdraw-note">
@@ -2961,62 +3021,62 @@ function HomePage() {
 
                           switch (txTypeKey) {
                             case 'deposit':
-                              icon = '📥';
+                              icon = 'ðŸ“¥';
                               label = 'Deposit';
                               amountClass = 'positive';
                               break;
                             case 'withdrawal':
-                              icon = '✅';
+                              icon = 'âœ…';
                               label = 'Withdrawal Completed';
                               amountClass = 'negative';
                               break;
                             case 'withdrawal_pending':
-                              icon = '⏱️';
+                              icon = 'â±ï¸';
                               label = 'Withdrawal Pending';
                               amountClass = 'negative';
                               break;
                             case 'withdrawal_rejected_refund':
-                              icon = '↩️';
+                              icon = 'â†©ï¸';
                               label = 'Withdrawal Rejected (Refunded)';
                               amountClass = 'positive';
                               break;
                             case 'entry_fee':
-                              icon = '🎟️';
+                              icon = 'ðŸŽŸï¸';
                               label = 'Entry Fee';
                               amountClass = 'negative';
                               break;
                             case 'sponsored_pool':
-                              icon = '💎';
+                              icon = 'ðŸ’Ž';
                               label = 'Sponsored Pool';
                               amountClass = 'negative';
                               break;
                             case 'prize_won':
-                              icon = '🏆';
+                              icon = 'ðŸ†';
                               label = 'Prize Won';
                               amountClass = 'positive';
                               break;
                             case 'tax_collected':
-                              icon = '🏛️';
+                              icon = 'ðŸ›ï¸';
                               label = 'Tax Collected';
                               amountClass = 'negative';
                               break;
                             case 'refund_draw':
-                              icon = '↩️';
+                              icon = 'â†©ï¸';
                               label = 'Match Refund (Draw)';
                               amountClass = 'positive';
                               break;
                             case 'refund_pool':
-                              icon = '↩️';
+                              icon = 'â†©ï¸';
                               label = 'Tournament Refund';
                               amountClass = 'positive';
                               break;
                             case 'entry_fee_refund':
-                              icon = '↩️';
+                              icon = 'â†©ï¸';
                               label = 'Entry Fee Refund';
                               amountClass = 'positive';
                               break;
                             default:
-                              icon = '❓';
+                              icon = 'â“';
                               label = tx.type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown';
                               amountClass = '';
                           }
@@ -3063,7 +3123,7 @@ function HomePage() {
                 </h3>
                 <div className="modal-header-line"></div>
               </div>
-              <button className="close-modal" onClick={() => setShowAllNewsModal(false)}>✖</button>
+              <button className="close-modal" onClick={() => setShowAllNewsModal(false)}>âœ–</button>
             </div>
 
             <div className="all-news-content custom-scrollbar">
@@ -3176,7 +3236,7 @@ function HomePage() {
         <div className="modal-overlay news-modal-overlay">
           <div className="news-full-modal">
             <div className="news-modal-header">
-              <button className="close-modal" onClick={() => setShowNewsModal(false)}>✖</button>
+              <button className="close-modal" onClick={() => setShowNewsModal(false)}>âœ–</button>
             </div>
             <div className="news-modal-content">
               {selectedNews.videoUrl ? (
