@@ -3090,6 +3090,61 @@ const YggdrasilAscender = ({ user }) => {
               Climb the World Tree! Other players appear as ghosts alongside you.
             </div>
 
+            {events.length > 0 && (
+              <>
+                <div className="ygg-events-container">
+                  <div className="ygg-events-header">🏆 Special Events</div>
+                  <div className="ygg-events-list-scroll custom-scrollbar">
+                    <div className="ygg-events-grid">
+                      {events.map(ev => (
+                        <button
+                          key={ev.id}
+                          className={`ygg-event-btn ${ev.status} ${eventLoadingId === ev.id ? 'loading' : ''}`}
+                          disabled={ev.status === 'closed' || eventLoading}
+                          onClick={() => startGame(ev.id)}
+                        >
+                          <div className="ygg-event-info">
+                            <div className="ygg-event-name">{ev.name}</div>
+                            <div className="ygg-event-prize">Prize: {ev.prizeName}</div>
+                            {ev.status === 'open' && (
+                              <>
+                                {/* Runs counter removed per request */}
+                                <div className="ygg-event-live">
+                                  Running now: <b>{eventLiveCounts[ev.id] || 0}</b>
+                                </div>
+                              </>
+                            )}
+                          </div>
+
+                          {ev.prizeImage && (
+                            <div className="ygg-event-prize-thumb">
+                              <img src={ev.prizeImage} alt="prize" />
+                            </div>
+                          )}
+
+                          <div className="ygg-event-action">
+                            {eventLoadingId === ev.id ? (
+                              <div className="ygg-event-joining">Joining...</div>
+                            ) : ev.status === 'closed' ? (
+                              <div className="ygg-event-ended">
+                                Ended<br />
+                                <span className="ygg-winner-name">{ev.winnerName || 'Winner'} got it!</span>
+                              </div>
+                            ) : (
+                              <div className="ygg-event-cost">
+                                {ev.entryFee} {ev.currency === 'AURY' ? 'AURY' : 'VC'}
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="ygg-lobby-divider" />
+              </>
+            )}
+
             <div className="ygg-rules-box" style={{ background: 'rgba(0,0,0,0.5)', padding: '10px 15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid rgba(184,134,11,0.5)', fontSize: '13px', textAlign: 'left' }}>
               <div style={{ color: '#fbbf24', fontWeight: 'bold', marginBottom: '4px' }}>📜 Prize Calculation:</div>
               <ul style={{ margin: 0, paddingLeft: '16px', lineHeight: '1.4' }}>
@@ -3110,58 +3165,6 @@ const YggdrasilAscender = ({ user }) => {
                   <img src="/icons/minigames/yggdrasil/rune.png" alt="rune" className="ygg-btn-icon-img-inline" />
                   RUNE SHOP
                 </button>
-
-                {events.length > 0 && (
-                  <div className="ygg-events-container">
-                    <div className="ygg-events-header">🏆 Special Events</div>
-                    <div className="ygg-events-list-scroll custom-scrollbar">
-                      <div className="ygg-events-grid">
-                        {events.map(ev => (
-                          <button
-                            key={ev.id}
-                            className={`ygg-event-btn ${ev.status} ${eventLoadingId === ev.id ? 'loading' : ''}`}
-                            disabled={ev.status === 'closed' || eventLoading}
-                            onClick={() => startGame(ev.id)}
-                          >
-                            <div className="ygg-event-info">
-                              <div className="ygg-event-name">{ev.name}</div>
-                              <div className="ygg-event-prize">Prize: {ev.prizeName}</div>
-                              {ev.status === 'open' && (
-                                <>
-                                  {/* Runs counter removed per request */}
-                                  <div className="ygg-event-live">
-                                    Running now: <b>{eventLiveCounts[ev.id] || 0}</b>
-                                  </div>
-                                </>
-                              )}
-                            </div>
-
-                            {ev.prizeImage && (
-                              <div className="ygg-event-prize-thumb">
-                                <img src={ev.prizeImage} alt="prize" />
-                              </div>
-                            )}
-
-                            <div className="ygg-event-action">
-                              {eventLoadingId === ev.id ? (
-                                <div className="ygg-event-joining">Joining...</div>
-                              ) : ev.status === 'closed' ? (
-                                <div className="ygg-event-ended">
-                                  Ended<br />
-                                  <span className="ygg-winner-name">{ev.winnerName || 'Winner'} got it!</span>
-                                </div>
-                              ) : (
-                                <div className="ygg-event-cost">
-                                  {ev.entryFee} {ev.currency === 'AURY' ? 'AURY' : 'VC'}
-                                </div>
-                              )}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
               </>
             )}
             <div className="ygg-controls-hint">

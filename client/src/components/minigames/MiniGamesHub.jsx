@@ -8,6 +8,7 @@ import YggdrasilAscender from './YggdrasilAscender';
 import { useWallet } from '../../hooks/useWallet';
 import { database } from '../../firebase';
 import { ref, onValue, query, orderByChild, limitToLast } from 'firebase/database';
+import { getYggdrasilEvents } from '../../services/miniGameService';
 import MiniGamesChat from './MiniGamesChat';
 import './MiniGamesHub.css';
 import './MiniGamesChat.css';
@@ -63,6 +64,7 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [activeTooltip, setActiveTooltip] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [hasActiveYggEvent, setHasActiveYggEvent] = useState(false);
 
   // Real Firestore balances from wallet hook
   const { walletBalance, usdcBalance, formatAuryAmount, formatUsdcAmount } = useWallet(user);
@@ -154,6 +156,15 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
     const cfg = await getMiniGameConfig();
     setConfig(cfg);
     setLoading(false);
+
+    // Also check for active Yggdrasil events
+    try {
+      const events = await getYggdrasilEvents();
+      const active = events.some(e => e.status === 'open');
+      setHasActiveYggEvent(active);
+    } catch (err) {
+      console.warn('Failed to fetch Ygg events for hub highlight', err);
+    }
   };
 
   // Prevent background scroll when modal is open
@@ -347,14 +358,22 @@ const MiniGamesHub = ({ user, userPoints, onClose }) => {
     const gameCfg = config[gameKey];
     const isTooltipActive = activeTooltip === gameKey;
 
+    const isYggEvent = gameKey === 'yggdrasilAscender' && hasActiveYggEvent;
+
     return (
       <div
         key={gameKey}
-        className="minigame-card"
+        className={`minigame-card ${isYggEvent ? 'event-active' : ''}`}
         onMouseMove={handleCardMouseMove}
         onMouseLeave={handleCardMouseLeave}
         onClick={() => !isTooltipActive && handleSelectGame(gameKey)}
       >
+        {isYggEvent && (
+          <div className="card-event-badge">
+            <span className="badge-dot"></span>
+            LIVE EVENT
+          </div>
+        )}
         {/* Info tooltip button */}
         <button
           className="minigame-card-info-btn"

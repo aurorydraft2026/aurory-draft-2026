@@ -72,10 +72,19 @@ export function updateCosmeticsCache(data) {
  */
 export async function purchaseCosmetic(userId, cosmeticId) {
   try {
+    const userRef = doc(db, 'users', userId);
+    const cosmeticRef = doc(db, 'cosmetics', cosmeticId);
+
+    // 0. Fail-fast check before even starting the transaction to reduce load
+    const userSnapInitial = await getDoc(userRef);
+    if (userSnapInitial.exists()) {
+      const owned = userSnapInitial.data().ownedCosmetics || [];
+      if (owned.includes(cosmeticId)) {
+        throw new Error('You already own this cosmetic.');
+      }
+    }
+
     const result = await runTransaction(db, async (transaction) => {
-      const userRef = doc(db, 'users', userId);
-      const cosmeticRef = doc(db, 'cosmetics', cosmeticId);
-      
       const userSnap = await transaction.get(userRef);
       const cosmeticSnap = await transaction.get(cosmeticRef);
 
@@ -94,27 +103,24 @@ export async function purchaseCosmetic(userId, cosmeticId) {
 
       let userBalance = 0;
       let walletRef = null;
-      let creatorWalletRef = null;
+      let userWalletSnap = null;
       let shareAmount = 0;
-
-      // 0. Determine decimal factor and price
-      const factor = currency === 'aury' ? 1e9 : (currency === 'usdc' ? 1e6 : 1);
+      let creatorWalletRef = null;
       
-      // NEW: Items are free for the creator
+      const factor = currency === 'aury' ? 1e9 : (currency === 'usdc' ? 1e6 : 1);
       const isCreator = creatorId === userId;
       const actualPrice = isCreator ? 0 : cosmeticData.price;
       const priceInSmallestUnit = Math.floor(actualPrice * factor);
 
-      // 1. Resolve Balance & Wallet Refs based on currency (only if not free)
       if (actualPrice > 0) {
         if (currency === 'valcoins') {
           userBalance = userData.points || 0;
         } else {
           walletRef = doc(db, 'wallets', userId);
-          const walletSnap = await transaction.get(walletRef);
-          if (!walletSnap.exists()) throw new Error(`You don't have a ${currency.toUpperCase()} wallet yet. Please deposit some first!`);
+          userWalletSnap = await transaction.get(walletRef);
+          if (!userWalletSnap.exists()) throw new Error(`You don't have a ${currency.toUpperCase()} wallet yet.`);
           
-          const walletData = walletSnap.data();
+          const walletData = userWalletSnap.data();
           userBalance = currency === 'aury' ? (walletData.balance || 0) : (walletData.usdcBalance || 0);
         }
 
@@ -157,17 +163,17 @@ export async function purchaseCosmetic(userId, cosmeticId) {
         
         if (currency === 'valcoins') {
           const creatorRef = doc(db, 'users', creatorId);
-          transaction.update(creatorRef, {
+          transaction.set(creatorRef, {
             points: increment(shareAmount)
-          });
+          }, { merge: true });
         } else {
           creatorWalletRef = doc(db, 'wallets', creatorId);
           const fieldToIncrement = currency === 'aury' ? 'balance' : 'usdcBalance';
           
-          transaction.update(creatorWalletRef, {
+          transaction.set(creatorWalletRef, {
             [fieldToIncrement]: increment(shareAmount),
             updatedAt: serverTimestamp()
-          });
+          }, { merge: true });
         }
         
         // Log the commission

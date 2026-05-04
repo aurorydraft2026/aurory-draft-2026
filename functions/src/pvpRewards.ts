@@ -160,16 +160,9 @@ async function processUser(
     return 0;
   }
 
-  // EVENT CHANGE DETECTION: If the event name has changed (monthly reset), 
-  // we must reset the leaderboard processed count, otherwise the player's large
-  // count from last month will block rewards for this month's new wins.
+  const currentLeaderboardWins = leaderboardMap.get(playerId) || 0;
   const lastEvent = userData.lastPvpEvent || '';
   let lastLeaderboardWins = userData.lastLeaderboardWins || 0;
-
-  if (lastEvent !== settings.currentEvent) {
-    console.log(`  🎊 ${displayName}: New event detected (${lastEvent || 'NONE'} -> ${settings.currentEvent}). Resetting leaderboard win tracker.`);
-    lastLeaderboardWins = 0;
-  }
 
   // Determine the cutoff — only process matches after this timestamp
   const lastCheckRaw = userData.lastPvpMatchCheck;
@@ -186,7 +179,6 @@ async function processUser(
   if (!lastCheckMs) {
     console.log(`  🆕 ${displayName}: Initial sync. Setting checkpoints to current state.`);
     const matches = await fetchPlayerMatches(playerId, 0, settings.currentEvent);
-    const currentLeaderboardWins = leaderboardMap.get(playerId) || 0;
 
     const newestTime = matches.reduce((max, m) => {
       const t = new Date(m.created_at).getTime();
@@ -202,9 +194,30 @@ async function processUser(
     return 0;
   }
 
+  // 🔄 EVENT CHANGE DETECTION (Monthly Reset)
+  // If the event name has changed, we must update the baseline to the current leaderboard count
+  // AND the timestamp to now, to avoid rewarding the player for their entire month's progress at once.
+  if (lastEvent !== settings.currentEvent) {
+    console.log(`  🎊 ${displayName}: New event detected (${lastEvent || 'NONE'} -> ${settings.currentEvent}). Syncing baseline and timestamp.`);
+    
+    const nowMs = Date.now();
+
+    // We update the baseline and timestamp in the DB and locally for this run
+    await admin.firestore().doc(`users/${uid}`).update({
+      lastPvpEvent: settings.currentEvent,
+      lastLeaderboardWins: currentLeaderboardWins,
+      lastPvpMatchCheck: admin.firestore.Timestamp.fromMillis(nowMs),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    // By setting lastLeaderboardWins and lastCheckMs to current, the delta/history for THIS run will be 0,
+    // and we will only reward new wins that happen AFTER this sync.
+    lastLeaderboardWins = currentLeaderboardWins;
+    lastCheckMs = nowMs;
+  }
+
   // 🏁 LEADERBOARD CHECK (Fast Path)
   // If the official leaderboard shows no progress since last check, we can skip the heavy match history fetch.
-  const currentLeaderboardWins = leaderboardMap.get(playerId) || 0;
   let leaderboardDelta = currentLeaderboardWins - lastLeaderboardWins;
 
   if (leaderboardDelta <= 0 && lastEvent === settings.currentEvent) {
@@ -214,10 +227,7 @@ async function processUser(
 
   const matches = await fetchPlayerMatches(playerId, lastCheckMs, settings.currentEvent);
 
-  // LEADERBOARD FALLBACK (Recalculate delta in case event changed)
-  if (lastEvent !== settings.currentEvent) {
-    leaderboardDelta = currentLeaderboardWins;
-  }
+  // Note: the event change baseline sync happened above, so leaderboardDelta is already correct.
 
   console.log(`  🏆 ${displayName}: Leaderboard check: Current=${currentLeaderboardWins}, LastProcessed=${lastLeaderboardWins}`);
 

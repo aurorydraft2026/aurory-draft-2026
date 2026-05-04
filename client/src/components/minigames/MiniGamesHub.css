@@ -551,6 +551,63 @@
     0 0 25px rgba(212, 175, 55, 0.15);
 }
 
+/* ───────────── EVENT ACTIVE POP-OUT ───────────── */
+.minigame-card.event-active {
+  border-color: var(--accent-gold);
+  box-shadow: 
+    0 0 30px rgba(212, 175, 55, 0.2),
+    inset 0 0 15px rgba(212, 175, 55, 0.05);
+  animation: cardEventPulse 2.5s infinite ease-in-out;
+}
+
+@keyframes cardEventPulse {
+  0%, 100% { 
+    transform: translateY(0) scale(1);
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.15);
+    border-color: rgba(212, 175, 55, 0.5);
+  }
+  50% { 
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: 0 0 40px rgba(212, 175, 55, 0.3);
+    border-color: var(--accent-gold);
+  }
+}
+
+.card-event-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(10, 10, 15, 0.8);
+  backdrop-filter: blur(4px);
+  border: 1px solid var(--accent-gold);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 800;
+  font-size: 0.65rem;
+  color: var(--accent-gold);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: 1px;
+  z-index: 10;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  background: #4ade80;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #4ade80;
+  animation: badgeBlink 1s infinite;
+}
+
+@keyframes badgeBlink {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
 /* ───────────── INFO TOOLTIP ───────────── */
 .minigame-card-info-btn {
   position: absolute;

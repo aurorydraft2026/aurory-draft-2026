@@ -942,10 +942,31 @@ body.ygg-gaming-mode .runie-bot-container {
 
 .ygg-events-container {
   width: 100%;
-  margin-top: 20px;
+  margin-top: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.ygg-lobby-divider {
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(184, 134, 11, 0.8), transparent);
+  margin: 12px 0 20px;
+  position: relative;
+}
+
+.ygg-lobby-divider::after {
+  content: '◈';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--accent-gold);
+  font-size: 1.2rem;
+  background: #0a0a1a;
+  padding: 0 15px;
+  text-shadow: 0 0 10px rgba(184, 134, 11, 0.5);
 }
 
 .ygg-events-header {
