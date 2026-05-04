@@ -655,6 +655,7 @@
 .viking-text-col {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-width: 0;
 }
 
@@ -721,12 +722,13 @@
 .banner-tier-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  max-width: 380px;
+  min-width: 400px;
+  max-width: 500px;
   margin-top: 10px;
   background: rgba(255, 255, 255, 0.04);
-  padding: 5px 12px;
+  padding: 6px 15px;
   border-radius: 30px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   animation: fadeIn 0.6s ease-out 0.25s backwards;
@@ -750,9 +752,10 @@
 
 .banner-gauge-container-mini {
   flex: 1;
-  height: 18px;
+  min-width: 180px;
+  height: 22px;
   background: rgba(0, 0, 0, 0.5);
-  border-radius: 9px;
+  border-radius: 11px;
   overflow: hidden;
   position: relative;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -786,7 +789,7 @@
   width: 100%;
   text-align: center;
   font-family: 'Exo 2', sans-serif;
-  font-size: 0.6rem;
+  font-size: 0.7rem;
   font-weight: 800;
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
@@ -1184,8 +1187,8 @@
   }
 
   .banner-tier-row {
-    width: 90%;
-    max-width: 340px;
+    width: 95%;
+    max-width: 420px;
     min-width: 0;
   }
 
