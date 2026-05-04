@@ -422,8 +422,21 @@ async function processUser(
     // Leaderboard update (outside transaction for RTDB)
     const dName = userData.auroryPlayerName || userData.displayName || userData.username || 'Unknown';
     const avatar = userData.auroryProfilePicture || userData.avatar || userData.photoURL || '';
-    await updateLeaderboardStats(uid, dName, avatar, totalReward, 'valcoins', 'pvp_wins');
-    await updateLeaderboardStats(uid, dName, avatar, totalWinsToReward, 'wins', 'pvp');
+
+    // Award each qualifying win specifically on the date it occurred
+    for (const win of qualifyingWins) {
+      const winDate = new Date(win.created_at);
+      await updateLeaderboardStats(uid, dName, avatar, settings.rewardPerWin, 'valcoins', 'pvp_wins', winDate);
+      await updateLeaderboardStats(uid, dName, avatar, 1, 'wins', 'pvp', winDate);
+    }
+
+    // If there were fallback wins (leaderboard delta > history matches), award the difference to "now"
+    const fallbackWins = totalWinsToReward - matchWins;
+    if (fallbackWins > 0) {
+      const fallbackReward = fallbackWins * settings.rewardPerWin;
+      await updateLeaderboardStats(uid, dName, avatar, fallbackReward, 'valcoins', 'pvp_wins');
+      await updateLeaderboardStats(uid, dName, avatar, fallbackWins, 'wins', 'pvp');
+    }
 
     console.log(`  🏆 ${dName}: +${totalReward} Valcoins (${totalWinsToReward} PvP win(s)${amikosUsed ? ` using ${amikosUsed}` : ''})`);
     return qualifyingWins.length;

@@ -12,7 +12,7 @@ import { onRequest } from 'firebase-functions/v2/https';
 
 // Initialize Firebase Admin with explicit regional database URL
 admin.initializeApp({
-  databaseURL: "https://asgard-duels-default-rtdb.asia-southeast1.firebasedatabase.app"
+    databaseURL: "https://asgard-duels-default-rtdb.asia-southeast1.firebasedatabase.app"
 });
 
 // ─── 1. TIMER CHECK (every 5 seconds) ───
@@ -91,8 +91,11 @@ export const verifyMatches = onSchedule(
 );
 // ─── 4. ADMIN OPERATIONS ───
 // Manual triggers for admins (e.g. payout retry)
-import { manualPayout, cleanupInactiveGuests, resetMiniGameStats, clearAllGlobalNotifications, resetGlobalWallets, migrateMinigameLeaderboards, resetAllValcoinBalances, triggerPvpScan, repairPvpLeaderboards } from './adminOps';
-export { manualPayout, cleanupInactiveGuests, resetMiniGameStats, clearAllGlobalNotifications, resetGlobalWallets, migrateMinigameLeaderboards, resetAllValcoinBalances, triggerPvpScan, repairPvpLeaderboards };
+import { manualPayout, cleanupInactiveGuests, resetMiniGameStats, triggerPvpScan } from './adminOps';
+export { manualPayout, cleanupInactiveGuests, resetMiniGameStats, triggerPvpScan };
+// Commented out to save Cloud Run Quota
+// import { clearAllGlobalNotifications, resetGlobalWallets, migrateMinigameLeaderboards, resetAllValcoinBalances, repairPvpLeaderboards } from './adminOps';
+// export { clearAllGlobalNotifications, resetGlobalWallets, migrateMinigameLeaderboards, resetAllValcoinBalances, repairPvpLeaderboards };
 
 // ─── 5. REFUNDS ───
 // Refund creator when a paid 1v1 tournament is deleted or updated
@@ -114,8 +117,8 @@ export const tournamentRewards = onMatchupCompleted;
 import { onRaffleCreated, onRaffleWinnerSet, onMatchupCreated, onMatchupWinner, onDraftCreated, scheduledRunieTips, onNewUserWelcome } from './discord';
 export const onRaffleCreatedAnnouncement = onRaffleCreated;
 export const onRaffleWinnerAnnouncement = onRaffleWinnerSet;
-import { investigateRaffles } from './investigateRaffles';
-export { investigateRaffles };
+// import { investigateRaffles } from './investigateRaffles';
+// export { investigateRaffles };
 export const onMatchupCreatedAnnouncement = onMatchupCreated;
 export const onMatchupWinnerAnnouncement = onMatchupWinner;
 export const onDraftCreatedAnnouncement = onDraftCreated;

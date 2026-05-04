@@ -1923,7 +1923,7 @@ function HomePage() {
                           <span className="top-player-name">{resolveDisplayName(item)}</span>
                         </div>
                         <div className="top-player-winrate valcoin-amount" style={{ color: currencyColor, fontWeight: 700, display: 'flex', alignItems: 'center' }}>
-                          {currencyIcon ? <img src={currencyIcon} alt="" className="valcoin-icon small" /> : <span style={{ marginRight: '4px' }}>âš”ï¸</span>}
+                          {currencyIcon ? <img src={currencyIcon} alt="" className="valcoin-icon small" /> : <span style={{ marginRight: "4px", display: "inline-flex" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5" /><path d="M13 19l6 2 3-3-2-6" /><path d="M8 16l2-2" /><path d="M19 5l-2 2" /></svg></span>}
                           {displayValue} <span style={{ fontSize: '0.8em', marginLeft: '4px' }}>{currencyLabel}</span>
                         </div>
                       </div>
@@ -2019,7 +2019,7 @@ function HomePage() {
                           <span className="top-player-name">{isTeam ? item.teamName : resolveDisplayName(item)}</span>
                           <span className="top-player-record">
                             <span className="record-wins">{item.wins}W</span>
-                            <span className="record-sep">Â·</span>
+                            <span className="record-sep">&middot;</span>
                             <span className="record-losses">{item.losses}L</span>
                           </span>
                         </div>
