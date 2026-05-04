@@ -800,7 +800,9 @@ function HomePage() {
                   )}
                   {adminPendingDeposits > 0 && (
                     <Link to="/admin/panel" className="admin-alert-badge deposit" title={`${adminPendingDeposits} Pending Deposits`}>
-                      <span className="alert-icon">ðŸ“¥</span>
+                      <span className="alert-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                      </span>
                       <span className="alert-count">{adminPendingDeposits}</span>
                     </Link>
                   )}
@@ -858,19 +860,36 @@ function HomePage() {
                       {resolveDisplayName(user)}
                     </span>
                     <div className="profile-badges-row">
-                      {user.isAurorian && <span className="aurorian-badge" title="Aurorian NFT Holder">ðŸ›¡ï¸</span>}
+                      {user.isAurorian && (
+                        <span className="aurorian-badge" title="Aurorian NFT Holder">
+                          <svg className="badge-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                          <span className="badge-text">Aurorian</span>
+                        </span>
+                      )}
                       {isSuperAdminUser ? (
-                        <span className="admin-badge">â­<span className="badge-text">Super Admin</span></span>
+                        <span className="admin-badge super-admin">
+                          <svg className="badge-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
+                          <span className="badge-text">Super Admin</span>
+                        </span>
                       ) : user?.role === 'senior_admin' ? (
-                        <span className="admin-badge senior-admin-badge">â­<span className="badge-text">Senior Admin</span></span>
+                        <span className="admin-badge senior-admin">
+                          <svg className="badge-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>
+                          <span className="badge-text">Senior Admin</span>
+                        </span>
                       ) : user?.role === 'admin' ? (
-                        <span className="admin-badge admin-staff">â­<span className="badge-text">Admin</span></span>
+                        <span className="admin-badge admin">
+                          <svg className="badge-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+                          <span className="badge-text">Admin</span>
+                        </span>
                       ) : isGamesManagerUser ? (
-                        <span className="admin-badge games-manager-badge">ðŸŽ®<span className="badge-text">Games Manager</span></span>
+                        <span className="admin-badge games-manager">
+                          <svg className="badge-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 12h4M14 12h.01M18 12h.01" /></svg>
+                          <span className="badge-text">Games Manager</span>
+                        </span>
                       ) : null}
                     </div>
                   </div>
-                  <span className={`menu-arrow ${showUserModal ? 'active' : ''}`}>â–¾</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`menu-arrow ${showUserModal ? 'active' : ''}`}><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </div>
               </div>
             </div>
@@ -883,7 +902,11 @@ function HomePage() {
                   title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                 >
                   <span className={`theme-icon ${theme}`}>
-                    {theme === 'dark' ? 'â˜€ï¸' : 'ðŸŒ™'}
+                    {theme === 'dark' ? (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg>
+                    ) : (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
+                    )}
                   </span>
                 </button>
               )}
@@ -920,7 +943,7 @@ function HomePage() {
           </div>
           {recentWinners.length > 0 && (
             <div className={`winner-stats-fixed ${showWinnerTicker ? 'visible' : 'hidden'}`}>
-              <span className="announcement-icon">ðŸ†</span>
+              <span className="announcement-icon">🏆</span>
               <div className="stats-scroll-container">
                 <div className="winner-static-content">
                   <span className="winner-name-highlight">{recentWinners[0].winnerName}</span>
@@ -1216,7 +1239,7 @@ function HomePage() {
                           )}
                           <div className="banner-meta">
                             <span className={`banner-tag ${slide.tag === 'Amiko Legends' ? 'amiko-legends' : ''}`}>{slide.tag}</span>
-                            {slide.date && <span className="banner-date">ðŸ“… {slide.date}</span>}
+                            {slide.date && <span className="banner-date">📅 {slide.date}</span>}
                           </div>
                           <h3 className="banner-title">{slide.title}</h3>
                           <p className="banner-text">{slide.text}</p>
@@ -1486,7 +1509,7 @@ function HomePage() {
                                 ) : (
                                   <>
                                     <span className="ribbon-team">
-                                      {isMyTurn ? 'âš¡YOUR TURN!' : `${turnName}'s Turn`}
+                                      {isMyTurn ? '⚡YOUR TURN!' : `${turnName}'s Turn`}
                                     </span>
                                     <span className="ribbon-timer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>{formatTimer(timer)}</span>
                                   </>
@@ -1597,18 +1620,18 @@ function HomePage() {
                                 if (canJoin) {
                                   return (
                                     <span className="view-btn join-now-btn">
-                                      âš”ï¸ Join Now â†’
+                                      ⚔️ Join Now →
                                     </span>
                                   );
                                 }
                                 if (isJoinable && !user) {
-                                  return <span className="view-btn join-now-btn">âš”ï¸ Join Now â†’</span>;
+                                  return <span className="view-btn join-now-btn">⚔️ Join Now →</span>;
                                 }
                                 if (is1v1Card && tournament.status === 'coinFlip') {
                                   return (
                                     <span className="view-btn starting-btn">
                                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><circle cx="12" cy="12" r="8" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
-                                      Confirming... â†’
+                                      Confirming... →
                                     </span>
                                   );
                                 }
@@ -1616,7 +1639,7 @@ function HomePage() {
                                   return (
                                     <span className="view-btn waiting-btn">
                                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-                                      Awaiting... â†’
+                                      Awaiting... →
                                     </span>
                                   );
                                 }
@@ -1624,14 +1647,14 @@ function HomePage() {
                                   return (
                                     <span className="view-btn starting-btn">
                                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><path d="m11 17 2 2 5-5" /><path d="m18 19 2 2" /><path d="m14 5 8 8-3 3" /><path d="m3 17 2 2" /><path d="m11 8-5 5-4-1 1-4 5-5 3 3z" /></svg>
-                                      Starting... â†’
+                                      Starting... →
                                     </span>
                                   );
                                 }
                                 if (isParticipating) {
-                                  return <span className="view-btn">Enter Draft â†’</span>;
+                                  return <span className="view-btn">Enter Draft →</span>;
                                 }
-                                return <span className="view-btn">Spectate â†’</span>;
+                                return <span className="view-btn">Spectate →</span>;
                               })()}
                             </div>
                           </div>
@@ -1645,8 +1668,8 @@ function HomePage() {
                       onClick={() => setDraftsExpanded(!draftsExpanded)}
                     >
                       {draftsExpanded
-                        ? `â–² Show Less`
-                        : `â–¼ Show More (${filteredTournaments.length - DRAFTS_PER_PAGE} more)`
+                        ? `▲ Show Less`
+                        : `▼ Show More (${filteredTournaments.length - DRAFTS_PER_PAGE} more)`
                       }
                     </button>
                   )}
@@ -1704,30 +1727,39 @@ function HomePage() {
                   </div>
                 ) : news.length === 0 ? (
                   <div className="news-empty">
-                    <p>No news yet</p>
+                    <p>No tidings found in the horn...</p>
                   </div>
                 ) : (
                   news.map((item) => (
                     <div
                       key={item.id}
-                      className="news-item"
+                      className="news-card"
                       onClick={() => handleNewsClick(item)}
                     >
-                      <div className="news-item-banner">
+                      <div className="news-card-banner">
                         <img src={item.banner} alt="" />
                       </div>
-                      <div className="news-item-info">
-                        <h4 className="news-item-title">{item.title}</h4>
-                        <div className="news-item-meta">
-                          <span className="news-author">{item.authorName}</span>
-                          <span className="news-dot">â€¢</span>
-                          <span className="news-date">
-                            {item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Recently'}
-                          </span>
+                      <div className="news-card-content">
+                        <h4 className="news-card-title">{item.title}</h4>
+                        <div className="news-card-meta">
+                          <div className="news-meta-item">
+                            <svg className="news-meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                            <span>{item.authorName}</span>
+                          </div>
+                          <div className="news-meta-separator"></div>
+                          <div className="news-meta-item">
+                            <svg className="news-meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                            <span>
+                              {item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Recently'}
+                            </span>
+                          </div>
                           {item.viewCount !== undefined && (
                             <>
-                              <span className="news-dot">â€¢</span>
-                              <span className="news-views">{item.viewCount || 0} clicks</span>
+                              <div className="news-meta-separator"></div>
+                              <div className="news-meta-item">
+                                <svg className="news-meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                                <span>{item.viewCount || 0} clicks</span>
+                              </div>
                             </>
                           )}
                         </div>
@@ -1745,7 +1777,11 @@ function HomePage() {
                   {earnersCurrency === 'valcoins' && <img src="/valcoin-icon.jpg" alt="" className="valcoin-icon" />}
                   {earnersCurrency === 'aury' && <img src="/aury-icon.png" alt="" className="valcoin-icon" />}
                   {earnersCurrency === 'usdc' && <img src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png" alt="" className="valcoin-icon" />}
-                  {earnersCurrency === 'wins' && <span className="valcoin-icon" style={{ fontSize: '1.2rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>âš”ï¸</span>}
+                  {earnersCurrency === 'wins' && (
+                    <span className="valcoin-icon" style={{ fontSize: '1.2rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5" /><path d="M13 19l6-6" /><path d="M16 16l3 3" /><path d="M19 13l2 2" /></svg>
+                    </span>
+                  )}
                   {' '}
                   {earnersGameFilter === 'wealth' ? 'Valiant Wealth' :
                     earnersGameFilter === 'pvp_wins' ? 'PvP Earnings' :
