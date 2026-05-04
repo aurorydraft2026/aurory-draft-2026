@@ -729,12 +729,12 @@ function HomePage() {
   // Format status text
   const getStatusText = (status) => {
     switch (status) {
-      case 'active': return 'ðŸŸ¢ Active';
-      case 'coinFlip': return 'ðŸª™ Coin Flip';
-      case 'poolShuffle': return 'ï¿½ Shuffling';
-      case 'assignment': return 'ðŸ“‹ Assigning';
-      case 'completed': return 'âœ… Completed';
-      default: return 'â³ Waiting';
+      case 'active': return '🟢 Active';
+      case 'coinFlip': return '🪙 Coin Flip';
+      case 'poolShuffle': return '🔀 Shuffling';
+      case 'assignment': return '📋 Assigning';
+      case 'completed': return '✅ Completed';
+      default: return '⏳ Waiting';
     }
   };
 
@@ -794,7 +794,9 @@ function HomePage() {
                 <div className="admin-quick-alerts">
                   {adminPendingWithdrawals > 0 && (
                     <Link to="/admin/panel" className="admin-alert-badge withdrawal" title={`${adminPendingWithdrawals} Pending Withdrawals`}>
-                      <span className="alert-icon">ðŸ“¤</span>
+                      <span className="alert-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                      </span>
                       <span className="alert-count">{adminPendingWithdrawals}</span>
                     </Link>
                   )}
@@ -3031,7 +3033,7 @@ function HomePage() {
                       onClick={submitWithdrawal}
                       disabled={walletLoading || !withdrawAmount || !withdrawAddress}
                     >
-                      {walletLoading ? 'Processing...' : 'ðŸ“¤ Submit Withdrawal'}
+                      {walletLoading ? 'Processing...' : '📤 Submit Withdrawal'}
                     </button>
 
                     <p className="withdraw-note">
@@ -3057,62 +3059,62 @@ function HomePage() {
 
                           switch (txTypeKey) {
                             case 'deposit':
-                              icon = 'ðŸ“¥';
+                              icon = '📥';
                               label = 'Deposit';
                               amountClass = 'positive';
                               break;
                             case 'withdrawal':
-                              icon = 'âœ…';
+                              icon = '✅';
                               label = 'Withdrawal Completed';
                               amountClass = 'negative';
                               break;
                             case 'withdrawal_pending':
-                              icon = 'â±ï¸';
+                              icon = '⏳';
                               label = 'Withdrawal Pending';
                               amountClass = 'negative';
                               break;
                             case 'withdrawal_rejected_refund':
-                              icon = 'â†©ï¸';
+                              icon = '↩️';
                               label = 'Withdrawal Rejected (Refunded)';
                               amountClass = 'positive';
                               break;
                             case 'entry_fee':
-                              icon = 'ðŸŽŸï¸';
+                              icon = '🎟️';
                               label = 'Entry Fee';
                               amountClass = 'negative';
                               break;
                             case 'sponsored_pool':
-                              icon = 'ðŸ’Ž';
+                              icon = '💎';
                               label = 'Sponsored Pool';
                               amountClass = 'negative';
                               break;
                             case 'prize_won':
-                              icon = 'ðŸ†';
+                              icon = '🏆';
                               label = 'Prize Won';
                               amountClass = 'positive';
                               break;
                             case 'tax_collected':
-                              icon = 'ðŸ›ï¸';
+                              icon = '🛡️';
                               label = 'Tax Collected';
                               amountClass = 'negative';
                               break;
                             case 'refund_draw':
-                              icon = 'â†©ï¸';
+                              icon = '↩️';
                               label = 'Match Refund (Draw)';
                               amountClass = 'positive';
                               break;
                             case 'refund_pool':
-                              icon = 'â†©ï¸';
+                              icon = '↩️';
                               label = 'Tournament Refund';
                               amountClass = 'positive';
                               break;
                             case 'entry_fee_refund':
-                              icon = 'â†©ï¸';
+                              icon = '↩️';
                               label = 'Entry Fee Refund';
                               amountClass = 'positive';
                               break;
                             default:
-                              icon = 'â“';
+                              icon = '❓';
                               label = tx.type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown';
                               amountClass = '';
                           }
@@ -3159,7 +3161,7 @@ function HomePage() {
                 </h3>
                 <div className="modal-header-line"></div>
               </div>
-              <button className="close-modal" onClick={() => setShowAllNewsModal(false)}>âœ–</button>
+              <button className="close-modal" onClick={() => setShowAllNewsModal(false)}>✖</button>
             </div>
 
             <div className="all-news-content custom-scrollbar">
@@ -3272,7 +3274,7 @@ function HomePage() {
         <div className="modal-overlay news-modal-overlay">
           <div className="news-full-modal">
             <div className="news-modal-header">
-              <button className="close-modal" onClick={() => setShowNewsModal(false)}>âœ–</button>
+              <button className="close-modal" onClick={() => setShowNewsModal(false)}>✖</button>
             </div>
             <div className="news-modal-content">
               {selectedNews.videoUrl ? (

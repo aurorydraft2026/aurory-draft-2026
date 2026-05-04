@@ -1826,7 +1826,7 @@
 }
 
 .banner-slide.clickable::after {
-  content: 'View More âž”';
+  content: 'View More →';
   position: absolute;
   top: 40px;
   right: 44px;
@@ -8566,6 +8566,7 @@ input[type="file"] {
   letter-spacing: 0.5px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
