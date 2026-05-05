@@ -382,6 +382,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
   // Valhalla's Vault (Shop) Management state
   const [websiteSubTab, setWebsiteSubTab] = useState('maintenance');
+  const [shopSubTab, setShopSubTab] = useState('settings');
   const [discordCommandsEnabled, setDiscordCommandsEnabled] = useState(true);
   const [shopEnabled, setShopEnabled] = useState(true);
 
@@ -863,7 +864,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
   // Fetch all shop cosmetics (Inventory Management)
   useEffect(() => {
-    if (!isAdminUser || activeTab !== 'website_mgmt') return;
+    if (!isAdminUser || activeTab !== 'shop_mgmt') return;
 
     setCosmeticsLoading(true);
     const q = query(collection(db, 'cosmetics'), orderBy('createdAt', 'desc'));
@@ -3984,18 +3985,24 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 <span className="category-arrow">▼</span>
               </div>
               <div className="category-tabs">
-                <button
-                  className={`admin-tab ${activeTab === 'website_mgmt' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('website_mgmt')}
-                >
-                  🌐 Website Management
-                </button>
-                <button
-                  className={`admin-tab ${activeTab === 'chatbot' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('chatbot')}
-                >
-                  🤖 Runie Chatbot
-                </button>
+                  <button
+                    className={`admin-tab ${activeTab === 'website_mgmt' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('website_mgmt')}
+                  >
+                    🌐 Website Management
+                  </button>
+                  <button
+                    className={`admin-tab ${activeTab === 'shop_mgmt' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('shop_mgmt')}
+                  >
+                    🛍️ Shop
+                  </button>
+                  <button
+                    className={`admin-tab ${activeTab === 'chatbot' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('chatbot')}
+                  >
+                    🤖 Runie Chatbot
+                  </button>
               </div>
             </div>
           )}
@@ -5184,31 +5191,25 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             </div>
           )}
 
-          {activeTab === 'website_mgmt' && (
-            <div className="credit-section website-mgmt-section">
+          {activeTab === 'shop_mgmt' && (
+            <div className="credit-section shop-mgmt-section">
               <div className="section-info">
-                <p>🌐 Manage global website settings, including maintenance mode and the Cosmetics Shop.</p>
+                <p>🛍️ Manage the Valhalla Shop, including settings, cosmetics, amikos, items, and tickets.</p>
               </div>
 
               {/* Sub-tab Pill Selector */}
               <div className="config-card" style={{ marginBottom: '20px', padding: '15px', background: 'rgba(10, 10, 15, 0.4)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
                 <div className="game-type-selector">
                   <button
-                    className={`selector-btn ${websiteSubTab === 'maintenance' ? 'active' : ''}`}
-                    onClick={() => setWebsiteSubTab('maintenance')}
+                    className={`selector-btn ${shopSubTab === 'settings' ? 'active' : ''}`}
+                    onClick={() => setShopSubTab('settings')}
                   >
-                    Maintenance
+                    Shop Settings
                   </button>
                   <button
-                    className={`selector-btn ${websiteSubTab === 'shop' ? 'active' : ''}`}
-                    onClick={() => setWebsiteSubTab('shop')}
-                  >
-                    Vault Settings
-                  </button>
-                  <button
-                    className={`selector-btn ${websiteSubTab === 'inventory' ? 'active' : ''}`}
+                    className={`selector-btn ${shopSubTab === 'cosmetics' ? 'active' : ''}`}
                     onClick={() => {
-                      setWebsiteSubTab('inventory');
+                      setShopSubTab('cosmetics');
                       setEditingCosmetic(null);
                       setCosmeticForm({
                         name: '', type: 'aura', rarity: 'common', price: 1000, currency: 'valcoins',
@@ -5216,105 +5217,30 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       });
                     }}
                   >
-                    Inventory Management
+                    Cosmetics
                   </button>
                   <button
-                    className={`selector-btn ${websiteSubTab === 'discord' ? 'active' : ''}`}
-                    onClick={() => setWebsiteSubTab('discord')}
+                    className={`selector-btn ${shopSubTab === 'amikos' ? 'active' : ''}`}
+                    onClick={() => setShopSubTab('amikos')}
                   >
-                    Discord
+                    Amikos
+                  </button>
+                  <button
+                    className={`selector-btn ${shopSubTab === 'items' ? 'active' : ''}`}
+                    onClick={() => setShopSubTab('items')}
+                  >
+                    Items
+                  </button>
+                  <button
+                    className={`selector-btn ${shopSubTab === 'tickets' ? 'active' : ''}`}
+                    onClick={() => setShopSubTab('tickets')}
+                  >
+                    Tickets
                   </button>
                 </div>
               </div>
 
-              {websiteSubTab === 'maintenance' && (
-                <div className="credit-form">
-                  <div className="form-group">
-                    <label>Maintenance Mode</label>
-                    <div className="currency-toggle-group">
-                      <button
-                        className={`toggle-btn ${maintenanceEnabled ? 'active' : ''}`}
-                        onClick={() => setMaintenanceEnabled(true)}
-                      >ON</button>
-                      <button
-                        className={`toggle-btn ${!maintenanceEnabled ? 'active' : ''}`}
-                        onClick={() => setMaintenanceEnabled(false)}
-                      >OFF</button>
-                    </div>
-                    <p className="helper-text" style={{ marginTop: '8px', fontSize: '13px', color: maintenanceEnabled ? '#ef4444' : '#10b981' }}>
-                      {maintenanceEnabled
-                        ? "⚠️ Maintenance mode is ACTIVE. Non-admin users are being redirected to the maintenance page."
-                        : "✅ Website is live for all users."}
-                    </p>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Scheduled Completion (UTC)</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., Oct 24, 2026 - 14:00 UTC"
-                      value={maintenanceDate}
-                      onChange={(e) => setMaintenanceDate(e.target.value)}
-                      className="credit-input"
-                      style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
-                    />
-                    <p className="helper-text" style={{ marginTop: '4px', fontSize: '12px', color: '#94a3b8' }}>Enter the estimated time when maintenance will conclude. This will be shown to users.</p>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Announcement Message</label>
-                    <textarea
-                      placeholder="Enter the message to display on the maintenance page..."
-                      value={maintenanceAnnouncement}
-                      onChange={(e) => setMaintenanceAnnouncement(e.target.value)}
-                      style={{ minHeight: '120px', resize: 'vertical', width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
-                    />
-                    <p className="helper-text" style={{ marginTop: '4px', fontSize: '12px', color: '#94a3b8' }}>This message will be shown on the maintenance screen. Use it to provide details about the update.</p>
-                  </div>
-
-                  <div className="form-group" style={{ marginTop: '30px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px' }}>
-                    <label>Maintenance Warning Banner</label>
-                    <p className="helper-text" style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '15px' }}>
-                      Show a pulsing red indicator at the top of all screens to warn players of upcoming maintenance.
-                    </p>
-
-                    <div className="currency-toggle-group">
-                      <button
-                        className={`toggle-btn ${maintenanceWarningEnabled ? 'active' : ''}`}
-                        onClick={() => setMaintenanceWarningEnabled(true)}
-                      >SHOW WARNING</button>
-                      <button
-                        className={`toggle-btn ${!maintenanceWarningEnabled ? 'active' : ''}`}
-                        onClick={() => setMaintenanceWarningEnabled(false)}
-                      >HIDE WARNING</button>
-                    </div>
-                  </div>
-
-                  <div className="form-group" style={{ display: maintenanceWarningEnabled ? 'block' : 'none' }}>
-                    <label>Warning Message</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., ⚠️ Scheduled maintenance in 15 minutes. Save your games!"
-                      value={maintenanceWarningText}
-                      onChange={(e) => setMaintenanceWarningText(e.target.value)}
-                      className="credit-input"
-                      style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
-                    />
-                    <p className="helper-text" style={{ marginTop: '4px', fontSize: '12px', color: '#94a3b8' }}>This banner will pulse red at the top of every screen when enabled.</p>
-                  </div>
-
-                  <button
-                    className="approve-btn"
-                    onClick={handleSaveMaintenance}
-                    disabled={processingId === 'save_maintenance'}
-                    style={{ marginTop: '30px', width: '100%' }}
-                  >
-                    {processingId === 'save_maintenance' ? 'Saving...' : '💾 Save Website Settings'}
-                  </button>
-                </div>
-              )}
-
-              {websiteSubTab === 'shop' && (
+              {shopSubTab === 'settings' && (
                 <div className="credit-form">
                   <div className="form-group">
                     <label>Valhalla's Vault Status</label>
@@ -5346,65 +5272,13 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 </div>
               )}
 
-              {websiteSubTab === 'discord' && (
-                <div className="credit-form">
-                  <div className="section-header" style={{ marginBottom: '25px', paddingBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <h3 style={{ margin: 0, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '24px' }}>🤖</span> Runie Discord Bot
-                    </h3>
-                    <p style={{ margin: '8px 0 0 0', color: '#94a3b8', fontSize: '14px' }}>
-                      Manage the Runie Discord bot integration and slash commands.
-                    </p>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Slash Commands Status</label>
-                    <div className="currency-toggle-group">
-                      <button
-                        className={`toggle-btn ${discordCommandsEnabled ? 'active' : ''}`}
-                        onClick={() => setDiscordCommandsEnabled(true)}
-                        style={{ background: discordCommandsEnabled ? '#5865F2' : '' }}
-                      >ENABLED</button>
-                      <button
-                        className={`toggle-btn ${!discordCommandsEnabled ? 'active' : ''}`}
-                        onClick={() => setDiscordCommandsEnabled(false)}
-                        style={{ background: !discordCommandsEnabled ? '#ef4444' : '' }}
-                      >DISABLED</button>
-                    </div>
-                    <p className="helper-text" style={{ marginTop: '10px', fontSize: '13px', color: discordCommandsEnabled ? '#10b981' : '#ef4444', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '8px' }}>
-                      {discordCommandsEnabled
-                        ? "✅ Runie will respond to /balance, /wealth, and /leaderboard commands in Discord."
-                        : "⚠️ Runie is currently OFFLINE. Users will receive a 'Disabled' message when attempting to use slash commands."}
-                    </p>
-                  </div>
-
-                  <div className="info-box" style={{ marginTop: '20px', padding: '15px', background: 'rgba(88, 101, 242, 0.1)', border: '1px solid rgba(88, 101, 242, 0.2)', borderRadius: '12px' }}>
-                    <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#5865F2' }}>Bot Integration Details</h4>
-                    <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#cbd5e1', lineHeight: '1.6' }}>
-                      <li>Public Key Verified: <code style={{ color: 'var(--accent)' }}>d97d2332...4f9e</code></li>
-                      <li>Region: us-central1 (Cloud Functions v2)</li>
-                      <li>Sync Status: Connected to Production Firestore</li>
-                    </ul>
-                  </div>
-
-                  <button
-                    className="admin-submit-btn"
-                    onClick={handleSaveDiscordSettings}
-                    disabled={processingId === 'save_discord'}
-                    style={{ marginTop: '30px', width: '100%', background: 'linear-gradient(135deg, #5865F2 0%, #4752c4 100%)' }}
-                  >
-                    {processingId === 'save_discord' ? 'Saving...' : '💾 Save Discord Settings'}
-                  </button>
-                </div>
-              )}
-
-              {websiteSubTab === 'inventory' && (
+              {shopSubTab === 'cosmetics' && (
                 <div className="inventory-mgmt-container">
                   {/* Item List / Dashboard */}
                   <div className="admin-table-container card" style={{ marginBottom: '30px', padding: '15px' }}>
                     <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                       <div>
-                        <h3 style={{ margin: 0 }}>Current Inventory</h3>
+                        <h3 style={{ margin: 0 }}>Current Cosmetics</h3>
                         <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>{shopCosmetics.length} Items found in the vault.</p>
                       </div>
                     </div>
@@ -5465,7 +5339,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 <button className="edit-btn" onClick={() => {
                                   setEditingCosmetic(item);
                                   setCosmeticForm({ ...item });
-                                  setWebsiteSubTab('inventory_form');
+                                  setShopSubTab('cosmetics_form');
                                 }}>📝 Edit</button>
                                 <button className="delete-btn" onClick={() => handleDeleteCosmetic(item.id)}>🗑️</button>
                               </td>
@@ -5487,7 +5361,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           name: '', type: 'aura', rarity: 'common', price: 1000,
                           description: '', placement: 'behind', gifUrl: '', pngUrl: '', cssClass: '', style: {}
                         });
-                        setWebsiteSubTab('inventory_form');
+                        setShopSubTab('cosmetics_form');
                       }}
                     >
                       + Add New Cosmetic
@@ -5496,11 +5370,11 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 </div>
               )}
 
-              {websiteSubTab === 'inventory_form' && (
+              {shopSubTab === 'cosmetics_form' && (
                 <div className="credit-form card">
                   <div className="section-header" style={{ marginBottom: '20px' }}>
                     <h3>{editingCosmetic ? `Editing: ${editingCosmetic.name}` : '✨ Create New Cosmetic'}</h3>
-                    <button className="back-btn" onClick={() => setWebsiteSubTab('inventory')}>← Back to List</button>
+                    <button className="back-btn" onClick={() => setShopSubTab('cosmetics')}>← Back to List</button>
                   </div>
 
                   <form onSubmit={handleSaveCosmetic}>
@@ -5851,6 +5725,199 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   </form>
                 </div>
               )}
+
+              {shopSubTab === 'amikos' && (
+                <div className="placeholder-section" style={{ padding: '40px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                   <div style={{ fontSize: '48px', marginBottom: '20px' }}>🐾</div>
+                   <h3>Amikos Management</h3>
+                   <p style={{ color: '#94a3b8' }}>This section is coming soon. You will be able to manage Amiko listings and traits here.</p>
+                </div>
+              )}
+
+              {shopSubTab === 'items' && (
+                <div className="placeholder-section" style={{ padding: '40px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                   <div style={{ fontSize: '48px', marginBottom: '20px' }}>📦</div>
+                   <h3>Items Management</h3>
+                   <p style={{ color: '#94a3b8' }}>This section is coming soon. You will be able to manage shop items and power-ups here.</p>
+                </div>
+              )}
+
+              {shopSubTab === 'tickets' && (
+                <div className="placeholder-section" style={{ padding: '40px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                   <div style={{ fontSize: '48px', marginBottom: '20px' }}>🎫</div>
+                   <h3>Tickets Management</h3>
+                   <p style={{ color: '#94a3b8' }}>This section is coming soon. You will be able to manage raffle and event tickets here.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'website_mgmt' && (
+            <div className="credit-section website-mgmt-section">
+              <div className="section-info">
+                <p>🌐 Manage global website settings, including maintenance mode and the Cosmetics Shop.</p>
+              </div>
+
+              {/* Sub-tab Pill Selector */}
+              <div className="config-card" style={{ marginBottom: '20px', padding: '15px', background: 'rgba(10, 10, 15, 0.4)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+                <div className="game-type-selector">
+                  <button
+                    className={`selector-btn ${websiteSubTab === 'maintenance' ? 'active' : ''}`}
+                    onClick={() => setWebsiteSubTab('maintenance')}
+                  >
+                    Maintenance
+                  </button>
+                  <button
+                    className={`selector-btn ${websiteSubTab === 'discord' ? 'active' : ''}`}
+                    onClick={() => setWebsiteSubTab('discord')}
+                  >
+                    Discord
+                  </button>
+                </div>
+              </div>
+
+              {websiteSubTab === 'maintenance' && (
+                <div className="credit-form">
+                  <div className="form-group">
+                    <label>Maintenance Mode</label>
+                    <div className="currency-toggle-group">
+                      <button
+                        className={`toggle-btn ${maintenanceEnabled ? 'active' : ''}`}
+                        onClick={() => setMaintenanceEnabled(true)}
+                      >ON</button>
+                      <button
+                        className={`toggle-btn ${!maintenanceEnabled ? 'active' : ''}`}
+                        onClick={() => setMaintenanceEnabled(false)}
+                      >OFF</button>
+                    </div>
+                    <p className="helper-text" style={{ marginTop: '8px', fontSize: '13px', color: maintenanceEnabled ? '#ef4444' : '#10b981' }}>
+                      {maintenanceEnabled
+                        ? "⚠️ Maintenance mode is ACTIVE. Non-admin users are being redirected to the maintenance page."
+                        : "✅ Website is live for all users."}
+                    </p>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Scheduled Completion (UTC)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Oct 24, 2026 - 14:00 UTC"
+                      value={maintenanceDate}
+                      onChange={(e) => setMaintenanceDate(e.target.value)}
+                      className="credit-input"
+                      style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
+                    />
+                    <p className="helper-text" style={{ marginTop: '4px', fontSize: '12px', color: '#94a3b8' }}>Enter the estimated time when maintenance will conclude. This will be shown to users.</p>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Announcement Message</label>
+                    <textarea
+                      placeholder="Enter the message to display on the maintenance page..."
+                      value={maintenanceAnnouncement}
+                      onChange={(e) => setMaintenanceAnnouncement(e.target.value)}
+                      style={{ minHeight: '120px', resize: 'vertical', width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
+                    />
+                    <p className="helper-text" style={{ marginTop: '4px', fontSize: '12px', color: '#94a3b8' }}>This message will be shown on the maintenance screen. Use it to provide details about the update.</p>
+                  </div>
+
+                  <div className="form-group" style={{ marginTop: '30px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px' }}>
+                    <label>Maintenance Warning Banner</label>
+                    <p className="helper-text" style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '15px' }}>
+                      Show a pulsing red indicator at the top of all screens to warn players of upcoming maintenance.
+                    </p>
+
+                    <div className="currency-toggle-group">
+                      <button
+                        className={`toggle-btn ${maintenanceWarningEnabled ? 'active' : ''}`}
+                        onClick={() => setMaintenanceWarningEnabled(true)}
+                      >SHOW WARNING</button>
+                      <button
+                        className={`toggle-btn ${!maintenanceWarningEnabled ? 'active' : ''}`}
+                        onClick={() => setMaintenanceWarningEnabled(false)}
+                      >HIDE WARNING</button>
+                    </div>
+                  </div>
+
+                  <div className="form-group" style={{ display: maintenanceWarningEnabled ? 'block' : 'none' }}>
+                    <label>Warning Message</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., ⚠️ Scheduled maintenance in 15 minutes. Save your games!"
+                      value={maintenanceWarningText}
+                      onChange={(e) => setMaintenanceWarningText(e.target.value)}
+                      className="credit-input"
+                      style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
+                    />
+                    <p className="helper-text" style={{ marginTop: '4px', fontSize: '12px', color: '#94a3b8' }}>This banner will pulse red at the top of every screen when enabled.</p>
+                  </div>
+
+                  <button
+                    className="approve-btn"
+                    onClick={handleSaveMaintenance}
+                    disabled={processingId === 'save_maintenance'}
+                    style={{ marginTop: '30px', width: '100%' }}
+                  >
+                    {processingId === 'save_maintenance' ? 'Saving...' : '💾 Save Website Settings'}
+                  </button>
+                </div>
+              )}
+
+
+
+              {websiteSubTab === 'discord' && (
+                <div className="credit-form">
+                  <div className="section-header" style={{ marginBottom: '25px', paddingBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <h3 style={{ margin: 0, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '24px' }}>🤖</span> Runie Discord Bot
+                    </h3>
+                    <p style={{ margin: '8px 0 0 0', color: '#94a3b8', fontSize: '14px' }}>
+                      Manage the Runie Discord bot integration and slash commands.
+                    </p>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Slash Commands Status</label>
+                    <div className="currency-toggle-group">
+                      <button
+                        className={`toggle-btn ${discordCommandsEnabled ? 'active' : ''}`}
+                        onClick={() => setDiscordCommandsEnabled(true)}
+                        style={{ background: discordCommandsEnabled ? '#5865F2' : '' }}
+                      >ENABLED</button>
+                      <button
+                        className={`toggle-btn ${!discordCommandsEnabled ? 'active' : ''}`}
+                        onClick={() => setDiscordCommandsEnabled(false)}
+                        style={{ background: !discordCommandsEnabled ? '#ef4444' : '' }}
+                      >DISABLED</button>
+                    </div>
+                    <p className="helper-text" style={{ marginTop: '10px', fontSize: '13px', color: discordCommandsEnabled ? '#10b981' : '#ef4444', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '8px' }}>
+                      {discordCommandsEnabled
+                        ? "✅ Runie will respond to /balance, /wealth, and /leaderboard commands in Discord."
+                        : "⚠️ Runie is currently OFFLINE. Users will receive a 'Disabled' message when attempting to use slash commands."}
+                    </p>
+                  </div>
+
+                  <div className="info-box" style={{ marginTop: '20px', padding: '15px', background: 'rgba(88, 101, 242, 0.1)', border: '1px solid rgba(88, 101, 242, 0.2)', borderRadius: '12px' }}>
+                    <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#5865F2' }}>Bot Integration Details</h4>
+                    <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#cbd5e1', lineHeight: '1.6' }}>
+                      <li>Public Key Verified: <code style={{ color: 'var(--accent)' }}>d97d2332...4f9e</code></li>
+                      <li>Region: us-central1 (Cloud Functions v2)</li>
+                      <li>Sync Status: Connected to Production Firestore</li>
+                    </ul>
+                  </div>
+
+                  <button
+                    className="admin-submit-btn"
+                    onClick={handleSaveDiscordSettings}
+                    disabled={processingId === 'save_discord'}
+                    style={{ marginTop: '30px', width: '100%', background: 'linear-gradient(135deg, #5865F2 0%, #4752c4 100%)' }}
+                  >
+                    {processingId === 'save_discord' ? 'Saving...' : '💾 Save Discord Settings'}
+                  </button>
+                </div>
+              )}
+
+
             </div>
           )}
 

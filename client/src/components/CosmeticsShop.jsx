@@ -143,9 +143,11 @@ const CosmeticsShop = ({ user }) => {
       <div className="section-header">
         <div className="header-title-group">
           <p className="section-subtitle">
-            {activeCategory === 'aura' 
-              ? 'Adorn your avatar with mythical auras and custom effects'
-              : 'Fly your colors with legendary banners for your warrior profile'}
+            {activeCategory === 'aura' && 'Adorn your avatar with mythical auras and custom effects'}
+            {activeCategory === 'banner' && 'Fly your colors with legendary banners for your warrior profile'}
+            {activeCategory === 'amiko' && 'Form bonds with mythical creatures to accompany you in your journey'}
+            {activeCategory === 'item' && 'Equip powerful artifacts and consumable items for your adventures'}
+            {activeCategory === 'ticket' && 'Acquire special access passes and raffle tickets for legendary events'}
             {newItemsCount > 0 && (
               <span className="new-items-highlight">
                 ⚡ {newItemsCount} NEW ARRIVAL{newItemsCount > 1 ? 'S' : ''} IN THE VAULT
@@ -160,6 +162,10 @@ const CosmeticsShop = ({ user }) => {
         {(() => {
           const auraStats = getCategoryStats('aura');
           const bannerStats = getCategoryStats('banner');
+          const amikoStats = getCategoryStats('amiko');
+          const itemStats = getCategoryStats('item');
+          const ticketStats = getCategoryStats('ticket');
+          
           return (
             <>
               <button 
@@ -179,6 +185,33 @@ const CosmeticsShop = ({ user }) => {
                 <span>Banners</span>
                 <span className="tab-count">{bannerStats.count}</span>
                 {bannerStats.hasNew && <span className="tab-new-indicator">NEW</span>}
+              </button>
+              <button 
+                className={`category-tab ${activeCategory === 'amiko' ? 'active' : ''} ${amikoStats.hasNew ? 'has-new' : ''}`}
+                onClick={() => { setActiveCategory('amiko'); setSelectedRarity('all'); }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 18.144 6 15a5 5 0 0 1 3-5Z"/></svg>
+                <span>Amikos</span>
+                <span className="tab-count">{amikoStats.count}</span>
+                {amikoStats.hasNew && <span className="tab-new-indicator">NEW</span>}
+              </button>
+              <button 
+                className={`category-tab ${activeCategory === 'item' ? 'active' : ''} ${itemStats.hasNew ? 'has-new' : ''}`}
+                onClick={() => { setActiveCategory('item'); setSelectedRarity('all'); }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                <span>Items</span>
+                <span className="tab-count">{itemStats.count}</span>
+                {itemStats.hasNew && <span className="tab-new-indicator">NEW</span>}
+              </button>
+              <button 
+                className={`category-tab ${activeCategory === 'ticket' ? 'active' : ''} ${ticketStats.hasNew ? 'has-new' : ''}`}
+                onClick={() => { setActiveCategory('ticket'); setSelectedRarity('all'); }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>
+                <span>Tickets</span>
+                <span className="tab-count">{ticketStats.count}</span>
+                {ticketStats.hasNew && <span className="tab-new-indicator">NEW</span>}
               </button>
             </>
           );
@@ -290,7 +323,14 @@ const CosmeticsShop = ({ user }) => {
            </div>
         ) : filteredCosmetics.length === 0 ? (
           <div className="cosmetics-empty-view">
-             <p>No {activeCategory}s available in Valhalla's Vault yet.</p>
+             {activeCategory === 'aura' || activeCategory === 'banner' ? (
+               <p>No {activeCategory}s available in Valhalla's Vault yet.</p>
+             ) : (
+               <div className="coming-soon-placeholder">
+                 <p style={{ fontSize: '1.2rem', marginBottom: '8px' }}>✨ Magic is brewing...</p>
+                 <p>New {activeCategory}s are being crafted by the gods. Check back soon!</p>
+               </div>
+             )}
           </div>
         ) : filteredCosmetics.map(cosmetic => {
           const isOwned = ownedCosmetics.includes(cosmetic.id);
