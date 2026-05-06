@@ -165,6 +165,17 @@ export async function purchaseCosmetic(userId, cosmeticId) {
             ownedCosmetics: arrayUnion(cosmeticId),
             updatedAt: serverTimestamp()
           });
+
+          // Log buyer's Valcoin deduction to pointsHistory
+          const buyerHistoryRef = doc(collection(db, `users/${userId}/pointsHistory`));
+          transaction.set(buyerHistoryRef, {
+            amount: -priceInSmallestUnit,
+            type: 'cosmetic_purchase',
+            description: `Purchased: ${cosmeticData.name}`,
+            currency: 'valcoins',
+            cosmeticId: cosmeticId,
+            timestamp: serverTimestamp()
+          });
         } else {
           const fieldToDecrement = currency === 'aury' ? 'balance' : 'usdcBalance';
           transaction.update(walletRef, {
@@ -174,6 +185,19 @@ export async function purchaseCosmetic(userId, cosmeticId) {
           transaction.update(userRef, {
             ownedCosmetics: arrayUnion(cosmeticId),
             updatedAt: serverTimestamp()
+          });
+
+          // Log buyer's AURY/USDC deduction to wallet transactions
+          const buyerTxRef = doc(collection(db, `wallets/${userId}/transactions`));
+          transaction.set(buyerTxRef, {
+            type: 'cosmetic_purchase',
+            amount: priceInSmallestUnit,
+            currency: currency.toUpperCase(),
+            cosmeticId: cosmeticId,
+            cosmeticName: cosmeticData.name,
+            status: 'completed',
+            reason: `Purchased: ${cosmeticData.name}`,
+            timestamp: serverTimestamp()
           });
         }
       } else {
@@ -201,9 +225,23 @@ export async function purchaseCosmetic(userId, cosmeticId) {
             [fieldToIncrement]: increment(shareAmount),
             updatedAt: serverTimestamp()
           }, { merge: true });
+
+          // Log creator's AURY/USDC revenue to wallet transactions
+          const creatorTxRef = doc(collection(db, `wallets/${creatorId}/transactions`));
+          transaction.set(creatorTxRef, {
+            type: 'cosmetic_revenue',
+            amount: shareAmount,
+            currency: currency.toUpperCase(),
+            cosmeticId: cosmeticId,
+            cosmeticName: cosmeticData.name,
+            buyerId: userId,
+            status: 'completed',
+            reason: `60% revenue from: ${cosmeticData.name}`,
+            timestamp: serverTimestamp()
+          });
         }
         
-        // Log the commission
+        // Log the commission to pointsHistory (legacy + Valcoin tracking)
         const commissionRef = doc(collection(db, `users/${creatorId}/pointsHistory`));
         transaction.set(commissionRef, {
           amount: currency === 'valcoins' ? shareAmount : (shareAmount / factor),
@@ -215,6 +253,7 @@ export async function purchaseCosmetic(userId, cosmeticId) {
           timestamp: serverTimestamp()
         });
       }
+
 
       // 4. Update Cosmetic Stats
       transaction.update(cosmeticRef, {

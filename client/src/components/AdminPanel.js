@@ -1881,7 +1881,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     }
   }, [activeTab]);
 
-  // Fetch Wallet History
+  // Fetch Wallet History (Unified: AURY/USDC + Valcoins)
   useEffect(() => {
     if (activeTab !== 'walletHistory' || !selectedWalletHistoryUser || !isSuperAdminUser) {
       setWalletHistoryTransactions([]);
@@ -1889,23 +1889,71 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     }
 
     setWalletHistoryLoading(true);
-    const txRef = collection(db, 'wallets', selectedWalletHistoryUser.id, 'transactions');
-    const q = query(txRef, orderBy('timestamp', 'desc'));
+    const userId = selectedWalletHistoryUser.id;
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const txs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
+    // 1. Listen to AURY/USDC wallet transactions
+    const walletTxRef = collection(db, 'wallets', userId, 'transactions');
+    const walletQ = query(walletTxRef, orderBy('timestamp', 'desc'));
+
+    // 2. Listen to Valcoin pointsHistory
+    const pointsTxRef = collection(db, 'users', userId, 'pointsHistory');
+    const pointsQ = query(pointsTxRef, orderBy('timestamp', 'desc'));
+
+    let walletTxs = [];
+    let pointsTxs = [];
+    let walletLoaded = false;
+    let pointsLoaded = false;
+
+    const mergeAndSet = () => {
+      if (!walletLoaded || !pointsLoaded) return;
+
+      // Normalize pointsHistory entries to match wallet transaction format
+      const normalizedPoints = pointsTxs.map(tx => ({
+        ...tx,
+        source: 'points',
+        currency: tx.currency || 'Valcoins',
+        // For display: pointsHistory stores raw amounts, no smallest-unit conversion needed
+        displayAmount: tx.amount
       }));
-      setWalletHistoryTransactions(txs);
+
+      const normalizedWallet = walletTxs.map(tx => ({
+        ...tx,
+        source: 'wallet'
+      }));
+
+      // Merge and sort by timestamp descending
+      const combined = [...normalizedWallet, ...normalizedPoints]
+        .sort((a, b) => {
+          const tsA = a.timestamp?.toMillis?.() || 0;
+          const tsB = b.timestamp?.toMillis?.() || 0;
+          return tsB - tsA;
+        });
+
+      setWalletHistoryTransactions(combined);
       setWalletHistoryLoading(false);
+    };
+
+    const unsub1 = onSnapshot(walletQ, (snapshot) => {
+      walletTxs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      walletLoaded = true;
+      mergeAndSet();
     }, (error) => {
-      console.error('Error fetching wallet history:', error);
-      alert('Error fetching wallet history: ' + error.message);
-      setWalletHistoryLoading(false);
+      console.error('Error fetching wallet transactions:', error);
+      walletLoaded = true;
+      mergeAndSet();
     });
 
-    return () => unsubscribe();
+    const unsub2 = onSnapshot(pointsQ, (snapshot) => {
+      pointsTxs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      pointsLoaded = true;
+      mergeAndSet();
+    }, (error) => {
+      console.error('Error fetching points history:', error);
+      pointsLoaded = true;
+      mergeAndSet();
+    });
+
+    return () => { unsub1(); unsub2(); };
   }, [activeTab, selectedWalletHistoryUser, isSuperAdminUser]);
 
   // Fetch Major Announcement Settings
@@ -5509,6 +5557,78 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         <h3 style={{ margin: 0 }}>Current Cosmetics</h3>
                         <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>{shopCosmetics.length} Items found in the vault.</p>
                       </div>
+                      {isSuperAdminUser && (
+                        <button
+                          className="admin-badge-btn"
+                          disabled={processingId === 'recount_sales'}
+                          style={{ 
+                            padding: '8px 16px', 
+                            fontSize: '12px', 
+                            background: processingId === 'recount_sales' ? '#6b7280' : 'linear-gradient(135deg, #f59e0b, #d97706)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: processingId === 'recount_sales' ? 'not-allowed' : 'pointer',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                          onClick={async () => {
+                            if (!window.confirm('This will scan ALL users and recount actual sales for every cosmetic. Continue?')) return;
+                            setProcessingId('recount_sales');
+                            try {
+                              // 1. Fetch all users
+                              const usersSnap = await getDocs(collection(db, 'users'));
+                              
+                              // 2. Build ownership count map: cosmeticId -> count
+                              const ownershipCounts = {};
+                              const creatorOwnedIds = new Set(); // Track items owned by their creators (free claims)
+                              
+                              usersSnap.docs.forEach(userDoc => {
+                                const userData = userDoc.data();
+                                const owned = userData.ownedCosmetics || [];
+                                owned.forEach(cosmeticId => {
+                                  // Check if this user is the creator of this cosmetic (shouldn't count as a sale)
+                                  const cosmetic = shopCosmetics.find(c => c.id === cosmeticId);
+                                  if (cosmetic && cosmetic.createdBy === userDoc.id) {
+                                    creatorOwnedIds.add(`${userDoc.id}_${cosmeticId}`);
+                                    return; // Skip creator's own claim
+                                  }
+                                  ownershipCounts[cosmeticId] = (ownershipCounts[cosmeticId] || 0) + 1;
+                                });
+                              });
+                              
+                              // 3. Update each cosmetic's saleCount
+                              const batch = writeBatch(db);
+                              let updatedCount = 0;
+                              
+                              shopCosmetics.forEach(cosmetic => {
+                                const actualCount = ownershipCounts[cosmetic.id] || 0;
+                                if (cosmetic.saleCount !== actualCount) {
+                                  const ref = doc(db, 'cosmetics', cosmetic.id);
+                                  batch.update(ref, { saleCount: actualCount });
+                                  updatedCount++;
+                                }
+                              });
+                              
+                              if (updatedCount > 0) {
+                                await batch.commit();
+                                alert(`✅ Recount complete! Updated ${updatedCount} cosmetic(s). Scanned ${usersSnap.size} users.`);
+                              } else {
+                                alert(`✅ All sale counts are already accurate! Scanned ${usersSnap.size} users.`);
+                              }
+                            } catch (error) {
+                              console.error('Error recounting sales:', error);
+                              alert('Error recounting sales: ' + error.message);
+                            } finally {
+                              setProcessingId(null);
+                            }
+                          }}
+                        >
+                          {processingId === 'recount_sales' ? '⏳ Scanning...' : '🔄 Recount Sales'}
+                        </button>
+                      )}
                     </div>
 
                     {cosmeticsLoading ? (
@@ -7478,7 +7598,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               <div className="section-header" style={{ marginBottom: '20px' }}>
                 <h2 style={{ fontSize: '1.5em', margin: '0 0 10px 0' }}>💼 Wallet History</h2>
                 <div className="header-actions">
-                  <p style={{ margin: 0, opacity: 0.8 }}>View user wallet transaction history and delete erroneous records. Deleting a record here does NOT change the user's AURY balance.</p>
+                  <p style={{ margin: 0, opacity: 0.8 }}>Unified view of all user transactions — AURY, USDC, and Valcoins (purchases, winnings, fees, rewards, and admin adjustments).</p>
                 </div>
               </div>
 
@@ -7551,6 +7671,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: '1.2em', fontWeight: 'bold', color: '#ef4444' }}>{formatAuryAmount(selectedWalletHistoryUser.balance || 0)} AURY</div>
+                      <div style={{ fontSize: '0.9em', color: '#fbbf24' }}>{(selectedWalletHistoryUser.points || 0).toLocaleString()} Valcoins</div>
                       <button className="secondary-btn small" onClick={() => setSelectedWalletHistoryUser(null)} style={{ marginTop: '5px' }}>
                         Change User
                       </button>
@@ -7569,42 +7690,87 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         <thead>
                           <tr>
                             <th>Time</th>
+                            <th>Source</th>
                             <th>Type</th>
-                            <th>Amount (AURY)</th>
-                            <th>Reason/Status</th>
+                            <th>Amount</th>
+                            <th>Currency</th>
+                            <th>Details</th>
                             <th>Action</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {walletHistoryTransactions.map(tx => (
-                            <tr key={tx.id}>
-                              <td className="log-time">{formatTime(tx.timestamp)}</td>
-                              <td className="log-type">
-                                <span className={`type-tag tag-${(tx.type || 'unknown').toLowerCase()}`}>
-                                  {tx.type}
-                                </span>
-                              </td>
-                              <td className="log-action">
-                                {tx.amount ? formatAuryAmount(tx.amount) : 'N/A'}
-                              </td>
-                              <td className="log-details">
-                                <div>
-                                  {tx.status && <span style={{ marginRight: '8px', opacity: 0.8 }}>[{tx.status.toUpperCase()}]</span>}
-                                  {tx.reason || tx.txSignature || 'N/A'}
-                                </div>
-                              </td>
-                              <td>
-                                <button
-                                  className="delete-btn"
-                                  onClick={() => handleDeleteWalletTransaction(tx.id, selectedWalletHistoryUser.id)}
-                                  disabled={processingId === `del-tx-${tx.id}`}
-                                  style={{ padding: '6px 12px', fontSize: '0.85em', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', opacity: processingId === `del-tx-${tx.id}` ? 0.5 : 1 }}
-                                >
-                                  {processingId === `del-tx-${tx.id}` ? 'Deleting...' : 'Delete'}
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
+                          {walletHistoryTransactions.map(tx => {
+                            const isPoints = tx.source === 'points';
+                            const currencyLabel = isPoints 
+                              ? 'Valcoins' 
+                              : (tx.currency || 'AURY');
+                            
+                            let displayAmount;
+                            if (isPoints) {
+                              displayAmount = tx.amount?.toLocaleString() || '0';
+                            } else {
+                              displayAmount = tx.amount ? formatAuryAmount(tx.amount) : 'N/A';
+                            }
+
+                            // Determine if it's a credit or debit
+                            const isCredit = isPoints 
+                              ? (tx.amount > 0) 
+                              : ['raffle_win', 'raffle_refund', 'withdrawal_rejected', 'cosmetic_revenue'].includes(tx.type) || (tx.type === 'admin_adjust' && tx.amount > 0);
+
+                            return (
+                              <tr key={`${tx.source}-${tx.id}`}>
+                                <td className="log-time">{formatTime(tx.timestamp)}</td>
+                                <td>
+                                  <span style={{ 
+                                    fontSize: '10px', 
+                                    padding: '2px 6px', 
+                                    borderRadius: '4px',
+                                    background: isPoints ? 'rgba(251, 191, 36, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                    color: isPoints ? '#fbbf24' : '#ef4444',
+                                    fontWeight: 700
+                                  }}>
+                                    {isPoints ? '💰 Points' : '🪙 Wallet'}
+                                  </span>
+                                </td>
+                                <td className="log-type">
+                                  <span className={`type-tag tag-${(tx.type || 'unknown').toLowerCase()}`}>
+                                    {tx.type}
+                                  </span>
+                                </td>
+                                <td className="log-action" style={{ color: isCredit ? '#4ade80' : '#f87171', fontWeight: 'bold' }}>
+                                  {isCredit ? '+' : '-'}{displayAmount}
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <img 
+                                      src={currencyLabel === 'AURY' ? '/aury-icon.png' : currencyLabel === 'USDC' ? '/usdc-icon.png' : '/valcoin-icon.jpg'} 
+                                      alt="" 
+                                      style={{ width: '14px', height: '14px', borderRadius: currencyLabel === 'Valcoins' ? '50%' : '0' }} 
+                                    />
+                                    {currencyLabel}
+                                  </div>
+                                </td>
+                                <td className="log-details">
+                                  <div style={{ fontSize: '12px' }}>
+                                    {tx.status && <span style={{ marginRight: '8px', opacity: 0.8 }}>[{tx.status.toUpperCase()}]</span>}
+                                    {tx.description || tx.reason || tx.txSignature || 'N/A'}
+                                  </div>
+                                </td>
+                                <td>
+                                  {tx.source === 'wallet' && (
+                                    <button
+                                      className="delete-btn"
+                                      onClick={() => handleDeleteWalletTransaction(tx.id, selectedWalletHistoryUser.id)}
+                                      disabled={processingId === `del-tx-${tx.id}`}
+                                      style={{ padding: '6px 12px', fontSize: '0.85em', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', opacity: processingId === `del-tx-${tx.id}` ? 0.5 : 1 }}
+                                    >
+                                      {processingId === `del-tx-${tx.id}` ? 'Deleting...' : 'Delete'}
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -7613,6 +7779,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               )}
             </div>
           )}
+
 
           {activeTab === 'campaigns' && (
             <div className="campaigns-section">
