@@ -419,6 +419,13 @@ service cloud.firestore {
     }
     
     // =============================================
+    // TRANSACTION COLLECTION GROUP (For Admin Economy Dashboard)
+    // =============================================
+    match /{path=**}/transactions/{transactionId} {
+      allow read: if isAdmin();
+    }
+    
+    // =============================================
     // WITHDRAWALS
     // =============================================
     match /withdrawals/{withdrawalId} {
@@ -709,11 +716,8 @@ service cloud.firestore {
     match /cosmetic_sales/{saleId} {
       // Only admins can read the sales history
       allow read: if isAdmin();
-      // Writes are handled via purchaseCosmetic transaction which uses Admin SDK or follows specific rules
-      // For client-side transaction safety, we allow create if the user is authenticated, 
-      // but the purchaseCosmetic function ensures only valid data is written.
-      allow create: if isAuthenticated();
-      allow update, delete: if false;
+      // Only admins can manage sales history
+      allow create, update, delete: if isAdmin();
     }
     
     // =============================================

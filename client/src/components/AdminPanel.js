@@ -33,6 +33,7 @@ import AvatarWithAura from './AvatarWithAura';
 import { awardPoints } from '../services/pointsService';
 import { getRecommendedIcons } from '../services/miniGameService';
 import './AdminPanel.css';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { DEFAULT_KNOWLEDGE } from './RunieChatBot';
 import { RARITY_CONFIG } from '../data/cosmetics';
 import ArmoryModal from './ArmoryModal';
@@ -50,9 +51,20 @@ const getUserEmail = (user) => {
 };
 
 // Format amount based on currency
-const formatAmount = (amount, currency = 'AURY') => {
-  const divisor = currency === 'USDC' ? 1e6 : 1e9;
-  const decimals = currency === 'USDC' ? 2 : 4;
+const formatAmount = (amount, currency = 'AURY', isSmallestUnit = true) => {
+  if (!amount && amount !== 0) return '0.00';
+  const curr = currency?.toUpperCase() || 'AURY';
+
+  if (curr === 'VALCOINS') {
+    return amount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  }
+
+  const divisor = isSmallestUnit ? (curr === 'USDC' ? 1e6 : 1e9) : 1;
+  const decimals = curr === 'USDC' ? 2 : 4;
+
   return (amount / divisor).toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: decimals
@@ -148,12 +160,41 @@ function AdminPanel() {
   const [walletHistoryTransactions, setWalletHistoryTransactions] = useState([]);
   const [walletHistoryLoading, setWalletHistoryLoading] = useState(false);
 
+  // Economy Tab State
+  const [economyDeposits, setEconomyDeposits] = useState([]);
+  const [economyWithdrawals, setEconomyWithdrawals] = useState([]);
+  const [economyShopSales, setEconomyShopSales] = useState([]);
+  const [economyTaxes, setEconomyTaxes] = useState([]);
+  const [economyBurns, setEconomyBurns] = useState([]);
+  const [economyLoading, setEconomyLoading] = useState(false);
+  const [totalCirculatingAury, setTotalCirculatingAury] = useState(0);
+  const [totalAuryBurned, setTotalAuryBurned] = useState(0);
+  const [burnBreakdown, setBurnBreakdown] = useState({ matchups: 0, raffles: 0, shop: 0 });
+  const [economySubTab, setEconomySubTab] = useState('dashboard'); // dashboard, deposits, withdrawals, burns, revenue
+  const [economyTimeframe, setEconomyTimeframe] = useState('daily'); // daily, weekly, monthly
+  const [economyError, setEconomyError] = useState(null);
+
   // Ticker Announcements state
   const [tickerAnnouncements, setTickerAnnouncements] = useState([]);
   const [tickerText, setTickerText] = useState('');
   const [tickerIcon, setTickerIcon] = useState('📢');
   const [editingTickerId, setEditingTickerId] = useState(null);
   const [tickerLoading, setTickerLoading] = useState(false);
+
+  // Economy Management State
+  const [showEconomyModal, setShowEconomyModal] = useState(false);
+  const [editingEconomyRecord, setEditingEconomyRecord] = useState(null); // null = adding
+  const [economyForm, setEconomyForm] = useState({
+    type: 'deposit', // 'deposit', 'withdrawal', 'sale'
+    amount: '',
+    currency: 'AURY',
+    userEmail: '',
+    userId: '',
+    txSignature: '',
+    details: '',
+    status: 'processed',
+    timestamp: ''
+  });
 
   // Manual Payout state
   const [payoutDraftId, setPayoutDraftId] = useState('');
@@ -248,7 +289,7 @@ function AdminPanel() {
   const [earnersSelectedUser, setEarnersSelectedUser] = useState(null);
   const [isSelectingEarnersUser, setIsSelectingEarnersUser] = useState(false);
   const [earnersLoading, setEarnersLoading] = useState(false);
-  
+
   // Yggdrasil Rune Shop Inventory
   const [newRuneShopItem, setNewRuneShopItem] = useState({
     name: '',
@@ -904,10 +945,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           limit(200)
         );
         const legacySnap = await getDocs(legacyQuery);
-        
+
         const legacyData = [];
         const userCache = {};
-        
+
         for (const d of legacySnap.docs) {
           const data = d.data();
           const buyerId = data.buyerId;
@@ -1134,19 +1175,19 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       } else {
         // Update existing
         const docRef = doc(db, 'cosmetics', editingCosmetic.id);
-        
+
         // If the item has no creator (System), we KEEP it as System (null/undefined)
         // Only assign current user if it was already their item or if explicitly creating a new one.
         cosmeticData.createdBy = editingCosmetic.createdBy || null;
         cosmeticData.createdByName = editingCosmetic.createdByName || 'System';
-        
+
         await updateDoc(docRef, cosmeticData);
         alert('Cosmetic updated successfully!');
       }
 
       // Reset form
       setCosmeticForm({
-        name: '', type: 'aura', rarity: 'common', price: 1000, discountPrice: null, 
+        name: '', type: 'aura', rarity: 'common', price: 1000, discountPrice: null,
         discountDays: 0, discountHours: 0, currency: 'valcoins',
         description: '', placement: 'behind', gifUrl: '', pngUrl: '', cssClass: '', style: {}
       });
@@ -1644,7 +1685,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
   const handleReopenYggEvent = async (eventId) => {
     if (!window.confirm('Are you sure you want to REOPEN this event? This will clear the previous winner and make the prize claimable again.')) return;
-    
+
     setProcessingId('reopen_ygg_event');
     try {
       await updateDoc(doc(db, 'yggdrasil_events', eventId), {
@@ -1688,15 +1729,19 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         const walletsRef = collection(db, 'wallets');
         const walletsSnapshot = await getDocs(walletsRef);
 
+        let totalAury = 0;
         // Create a map of balances for easy lookup
         const balanceMap = {};
         walletsSnapshot.forEach(doc => {
           const data = doc.data();
+          const bal = data.balance || 0;
+          totalAury += bal;
           balanceMap[doc.id] = {
-            balance: data.balance || 0,
+            balance: bal,
             usdcBalance: data.usdcBalance || 0
           };
         });
+        setTotalCirculatingAury(totalAury);
 
         const users = usersSnapshot.docs.map(doc => {
           const balances = balanceMap[doc.id] || { balance: 0, usdcBalance: 0 };
@@ -2003,6 +2048,154 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     return () => unsubscribe();
   }, [activeTab]);
 
+  // Fetch Economy Data
+  useEffect(() => {
+    if (!isSeniorAdminUser || activeTab !== 'economy') return;
+
+    setEconomyLoading(true);
+
+    // 1. Fetch Processed Deposits
+    const qDeposits = query(
+      collection(db, 'depositNotifications'),
+      where('status', '==', 'processed'),
+      orderBy('processedAt', 'desc'),
+      limit(500)
+    );
+
+    // 2. Fetch Completed Withdrawals
+    const qWithdrawals = query(
+      collection(db, 'withdrawals'),
+      where('status', '==', 'completed'),
+      orderBy('processedAt', 'desc'),
+      limit(500)
+    );
+
+    // 3. Fetch Shop Sales
+    const qSales = query(
+      collection(db, 'cosmetic_sales'),
+      orderBy('timestamp', 'desc'),
+      limit(500)
+    );
+
+    const unsubDeposits = onSnapshot(qDeposits, (snap) => {
+      setEconomyDeposits(snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(d => (d.currency || 'AURY').toUpperCase() === 'AURY')
+      );
+    });
+
+    const unsubWithdrawals = onSnapshot(qWithdrawals, (snap) => {
+      setEconomyWithdrawals(snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(w => (w.currency || 'AURY').toUpperCase() === 'AURY')
+      );
+    });
+
+    const unsubSales = onSnapshot(qSales, (snap) => {
+      setEconomyShopSales(snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(s => (s.currency || 'AURY').toUpperCase() === 'AURY')
+      );
+      setEconomyLoading(false);
+    });
+
+    // Listener for all Burn transactions
+    const qBurns = query(
+      collectionGroup(db, 'transactions'),
+      orderBy('timestamp', 'desc')
+    );
+    const unsubBurns = onSnapshot(qBurns, (snap) => {
+      const burnTypes = ['raffle_entry', 'raffle_fee', 'entry_fee', 'cosmetic_purchase', 'manual_deduction', 'ygg_event_entry', 'shop_purchase', 'deduction'];
+      const list = snap.docs
+        .map(d => {
+          const data = d.data();
+          const path = d.ref.path.split('/');
+          const userId = path[1];
+          return { 
+            id: d.id, 
+            userId, 
+            ...data,
+            // Ensure timestamp is present for sorting if missing from raw data
+            timestamp: data.timestamp || { seconds: 0 } 
+          };
+        })
+        .filter(tx => {
+          const currency = (tx.currency || 'AURY').toUpperCase();
+          return currency === 'AURY' && burnTypes.includes(tx.type);
+        });
+      
+      setEconomyBurns(list);
+      const total = list.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+      setTotalAuryBurned(total);
+
+      // Category breakdown
+      const matchups = list.filter(tx => tx.type === 'entry_fee').reduce((sum, tx) => sum + (tx.amount || 0), 0);
+      const raffles = list.filter(tx => ['raffle_entry', 'raffle_fee'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+      const shop = list.filter(tx => ['cosmetic_purchase', 'shop_purchase'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+      setBurnBreakdown({ matchups, raffles, shop });
+      setEconomyError(null);
+    }, (error) => {
+      console.error("Error fetching burns:", error);
+      setEconomyError(error.message);
+    });
+
+    return () => {
+      unsubDeposits();
+      unsubWithdrawals();
+      unsubSales();
+      unsubBurns();
+    };
+  }, [activeTab, isSeniorAdminUser]);
+
+  // Aggregate Economy Taxes
+  useEffect(() => {
+    if (activeTab !== 'economy') return;
+
+    const withdrawalTaxes = economyWithdrawals.map(w => {
+      const currency = w.currency?.toUpperCase() || 'AURY';
+      const divisor = currency === 'USDC' ? 1e6 : 1e9;
+      return {
+        id: `wd-${w.id}`,
+        source: 'Withdrawal Fee (2.5%)',
+        details: `${currency} Withdrawal`,
+        user: w.userId,
+        userEmail: w.email || '',
+        originalAmount: w.amount / divisor,
+        taxAmount: (w.amount * 0.025) / divisor,
+        currency: currency,
+        timestamp: w.processedAt,
+        isSmallestUnit: false
+      };
+    });
+
+    const shopTaxes = economyShopSales.map(sale => {
+      const price = sale.price || 0;
+      const commission = sale.commission || 0; // creator share (60%)
+      const taxAmount = price - commission; // platform share (40%)
+
+      return {
+        id: `shop-${sale.id}`,
+        source: 'Shop Fee (40%)',
+        details: sale.cosmeticName,
+        user: sale.buyerName || sale.buyerId,
+        originalAmount: price,
+        taxAmount: taxAmount,
+        currency: sale.currency || 'valcoins',
+        timestamp: sale.timestamp,
+        isSmallestUnit: false // Shop sales are stored in display units
+      };
+    });
+
+    const combined = [...withdrawalTaxes, ...shopTaxes].sort((a, b) => {
+      const tA = a.timestamp?.seconds || 0;
+      const tB = b.timestamp?.seconds || 0;
+      return tB - tA;
+    });
+
+    setEconomyTaxes(combined);
+  }, [economyWithdrawals, economyShopSales, activeTab]);
+
+
   // Fetch all riddles for management
   useEffect(() => {
     if (activeTab === 'mini_games' && activeGameType === 'odinsRiddle') {
@@ -2074,6 +2267,141 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     } catch (error) {
       console.error('Error saving valcoin config:', error);
       alert('Error saving valcoin config: ' + error.message);
+    }
+  };
+
+  // Economy CRUD Functions
+  const handleDeleteEconomyRecord = async (record) => {
+    if (!isSuperAdminUser) return;
+
+    // Determine collection from ID prefix or source
+    let collectionName = 'depositNotifications';
+    let realId = record.id;
+    if (record.id.startsWith('wd-')) {
+      collectionName = 'withdrawals';
+      realId = record.id.replace('wd-', '');
+    } else if (record.id.startsWith('shop-')) {
+      collectionName = 'cosmetic_sales';
+      realId = record.id.replace('shop-', '');
+    }
+
+    if (!window.confirm(`Are you sure you want to delete this ${collectionName} record?`)) return;
+
+    try {
+      await deleteDoc(doc(db, collectionName, realId));
+      alert('Record deleted successfully.');
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'delete_economy_record',
+        metadata: { collection: collectionName, id: realId }
+      });
+    } catch (error) {
+      console.error('Error deleting record:', error);
+      alert('Failed to delete record: ' + error.message);
+    }
+  };
+
+  const handleOpenEconomyEdit = (record = null) => {
+    if (record) {
+      // Determine type
+      let type = 'deposit';
+      let realId = record.id;
+      if (record.id.startsWith('wd-')) {
+        type = 'withdrawal';
+        realId = record.id.replace('wd-', '');
+      } else if (record.id.startsWith('shop-')) {
+        type = 'sale';
+        realId = record.id.replace('shop-', '');
+      }
+
+      setEditingEconomyRecord({ ...record, realId, type });
+      setEconomyForm({
+        type: type,
+        amount: record.amount || record.originalAmount || 0,
+        currency: record.currency || 'AURY',
+        userEmail: record.userEmail || record.email || '',
+        userId: record.userId || record.user || '',
+        txSignature: record.txSignature || '',
+        details: record.details || '',
+        status: record.status || 'processed',
+        timestamp: record.timestamp?.toDate()?.toISOString()?.slice(0, 16) || ''
+      });
+    } else {
+      setEditingEconomyRecord(null);
+      setEconomyForm({
+        type: 'deposit',
+        amount: '',
+        currency: 'AURY',
+        userEmail: '',
+        userId: '',
+        txSignature: '',
+        details: '',
+        status: 'processed',
+        timestamp: new Date().toISOString().slice(0, 16)
+      });
+    }
+    setShowEconomyModal(true);
+  };
+
+  const handleSaveEconomyRecord = async () => {
+    if (!isSuperAdminUser) return;
+    setProcessingId('save_economy');
+
+    try {
+      const collectionMapping = {
+        'deposit': 'depositNotifications',
+        'withdrawal': 'withdrawals',
+        'sale': 'cosmetic_sales'
+      };
+
+      const collectionName = collectionMapping[economyForm.type];
+      const data = {
+        amount: parseFloat(economyForm.amount),
+        currency: economyForm.currency,
+        status: economyForm.status,
+        updatedAt: serverTimestamp()
+      };
+
+      // Add collection-specific fields
+      if (economyForm.type === 'deposit') {
+        data.userEmail = economyForm.userEmail;
+        data.userId = economyForm.userId;
+        data.txSignature = economyForm.txSignature;
+        data.processedAt = economyForm.timestamp ? Timestamp.fromDate(new Date(economyForm.timestamp)) : serverTimestamp();
+      } else if (economyForm.type === 'withdrawal') {
+        data.email = economyForm.userEmail;
+        data.userId = economyForm.userId;
+        data.processedAt = economyForm.timestamp ? Timestamp.fromDate(new Date(economyForm.timestamp)) : serverTimestamp();
+      } else if (economyForm.type === 'sale') {
+        data.buyerName = economyForm.userEmail;
+        data.buyerId = economyForm.userId;
+        data.cosmeticName = economyForm.details;
+        data.timestamp = economyForm.timestamp ? Timestamp.fromDate(new Date(economyForm.timestamp)) : serverTimestamp();
+        // Recalculate commission if it's a sale (60/40 split)
+        data.commission = data.amount * 0.6;
+      }
+
+      if (editingEconomyRecord) {
+        await updateDoc(doc(db, collectionName, editingEconomyRecord.realId), data);
+      } else {
+        data.createdAt = serverTimestamp();
+        await addDoc(collection(db, collectionName), data);
+      }
+
+      alert(`Record ${editingEconomyRecord ? 'updated' : 'added'} successfully.`);
+      setShowEconomyModal(false);
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: editingEconomyRecord ? 'update_economy_record' : 'add_economy_record',
+        metadata: { type: economyForm.type, amount: data.amount }
+      });
+    } catch (error) {
+      console.error('Error saving economy record:', error);
+      alert('Failed to save record: ' + error.message);
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -3315,8 +3643,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       await createNotification(userId, {
         type: 'gift',
         title: action === 'approve' ? '🎁 Prize Claim Approved!' : '❌ Prize Claim Rejected',
-        message: action === 'approve' 
-          ? `Your claim for the prize has been approved and processed by an admin.` 
+        message: action === 'approve'
+          ? `Your claim for the prize has been approved and processed by an admin.`
           : `Your claim for the prize was rejected. Please contact support for more info.`,
         link: '/armory'
       });
@@ -3958,6 +4286,554 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     );
   }
 
+  const renderEconomyTab = () => {
+    if (economyLoading) {
+      return (
+        <div className="economy-loading">
+          <div className="spinner"></div>
+          <p>Analyzing financial data...</p>
+        </div>
+      );
+    }
+
+    // Totals (Normalize to display units - AURY ONLY)
+    const auryDeposits = economyDeposits.filter(d => (d.currency || 'AURY').toUpperCase() === 'AURY');
+    const auryWithdrawals = economyWithdrawals.filter(w => (w.currency || 'AURY').toUpperCase() === 'AURY');
+    const auryTaxes = economyTaxes.filter(t => (t.currency || 'AURY').toUpperCase() === 'AURY');
+
+    const totalAuryDeposited = auryDeposits.reduce((acc, d) => acc + (d.amount || 0), 0);
+    const totalAuryWithdrawn = auryWithdrawals.reduce((acc, w) => {
+      return acc + (w.amount / 1e9); // Always AURY here due to filter
+    }, 0);
+    const totalTax = auryTaxes.reduce((acc, t) => acc + (t.taxAmount || 0), 0);
+
+    // Helper to format chart data based on timeframe
+    const getChartData = () => {
+      const dataMap = {};
+
+      const processList = (list, key, timeField = 'timestamp') => {
+        list.forEach(item => {
+          const ts = item[timeField]?.toDate ? item[timeField].toDate() : (item[timeField] ? new Date(item[timeField]) : null);
+          if (!ts) return;
+
+          let dateKey;
+          if (economyTimeframe === 'daily') {
+            dateKey = ts.toISOString().split('T')[0];
+          } else if (economyTimeframe === 'weekly') {
+            // Simple week grouping
+            const d = new Date(ts);
+            d.setHours(0, 0, 0, 0);
+            d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+            const yearStart = new Date(d.getFullYear(), 0, 1);
+            const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+            dateKey = `${d.getFullYear()}-W${weekNo}`;
+          } else {
+            dateKey = ts.toISOString().slice(0, 7); // YYYY-MM
+          }
+
+          if (!dataMap[dateKey]) {
+            dataMap[dateKey] = { date: dateKey, deposited: 0, withdrawn: 0, tax: 0, burned: 0 };
+          }
+          
+          let amount = item.amount || item.taxAmount || item.originalAmount || 0;
+          
+          // Auto-detect if amount is in smallest units (large integers) or already scaled
+          // Threshold of 1,000,000 is safe as 1 AURY = 1,000,000,000 units
+          // Use Math.abs to handle negative adjustment records
+          if (key !== 'tax' && Math.abs(amount) > 1000000) {
+            amount = amount / 1e9;
+          }
+
+          dataMap[dateKey][key] += amount;
+        });
+      };
+
+      processList(auryDeposits, 'deposited', 'processedAt');
+      processList(auryWithdrawals, 'withdrawn', 'processedAt');
+      processList(auryTaxes, 'tax', 'timestamp');
+      processList(economyBurns, 'burned', 'timestamp');
+
+      // 5. Back-calculate historical circulation
+      const sortedDates = Object.keys(dataMap).sort((a, b) => b.localeCompare(a)); // Newest to oldest
+      let currentCirc = totalCirculatingAury / 1e9; // Convert to AURY
+
+      sortedDates.forEach(date => {
+        const day = dataMap[date];
+        day.circulation = currentCirc;
+        // Yesterday's circulation = Today's - (Today's Net Change)
+        // Net Change = Deposits - Withdrawals - Burns
+        const netChange = day.deposited - day.withdrawn - day.burned;
+        currentCirc -= netChange;
+      });
+
+      return Object.values(dataMap).sort((a, b) => a.date.localeCompare(b.date)).slice(-15);
+    };
+
+    const chartData = getChartData();
+
+    return (
+      <div className="economy-management">
+        {economyError && (
+          <div className="admin-error-banner" style={{ marginBottom: '20px', padding: '15px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--status-danger)', borderRadius: '8px', color: 'var(--status-danger)' }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>⚠️ Firestore Query Error</div>
+            <p style={{ fontSize: '0.9em', margin: 0 }}>{economyError}</p>
+            {economyError.includes('https://') && (
+              <div style={{ marginTop: '10px' }}>
+                <a 
+                  href={economyError.match(/https:\/\/console\.firebase\.google\.com[^\s]*/)?.[0]} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="primary-btn-mini"
+                  style={{ display: 'inline-block', background: 'var(--status-danger)', color: 'white', padding: '8px 12px', borderRadius: '4px', textDecoration: 'none', fontSize: '0.85em' }}
+                >
+                  Click Here to Create Index
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h2>💹 Platform Economy</h2>
+            <p className="section-description">Monitor and manage financial flows and tax collections.</p>
+          </div>
+          {isSuperAdminUser && (
+            <button
+              className="add-manual-btn"
+              onClick={() => handleOpenEconomyEdit()}
+            >
+              ➕ Add Manual Log
+            </button>
+          )}
+        </div>
+
+        {/* Sub-Navigation */}
+        <div className="economy-sub-nav">
+          <button className={`sub-nav-btn ${economySubTab === 'dashboard' ? 'active' : ''}`} onClick={() => setEconomySubTab('dashboard')}>📊 Dashboard</button>
+          <button className={`sub-nav-btn ${economySubTab === 'deposits' ? 'active' : ''}`} onClick={() => setEconomySubTab('deposits')}>📬 Deposits</button>
+          <button className={`sub-nav-btn ${economySubTab === 'withdrawals' ? 'active' : ''}`} onClick={() => setEconomySubTab('withdrawals')}>💸 Withdrawals</button>
+          <button className={`sub-nav-btn ${economySubTab === 'burns' ? 'active' : ''}`} onClick={() => setEconomySubTab('burns')}>🔥 Burns</button>
+          <button className={`sub-nav-btn ${economySubTab === 'revenue' ? 'active' : ''}`} onClick={() => setEconomySubTab('revenue')}>🛡️ Revenue & Taxes</button>
+        </div>
+
+        {economySubTab === 'dashboard' && (
+          <>
+            <div className="stats-grid">
+              <div className="stat-card economy-card-deposited">
+                <span className="stat-label">Total AURY Deposited</span>
+                <span className="stat-value">+{formatAmount(totalAuryDeposited, 'AURY', false)} AURY</span>
+                <span className="stat-hint">{economyDeposits.length} processed deposits</span>
+              </div>
+              <div className="stat-card economy-card-withdrawn">
+                <span className="stat-label">Total AURY Withdrawn (Gross)</span>
+                <span className="stat-value">-{formatAmount(totalAuryWithdrawn, 'AURY', false)} AURY</span>
+                <span className="stat-hint">{economyWithdrawals.length} completed withdrawals</span>
+              </div>
+              <div className="stat-card economy-card-tax">
+                <span className="stat-label">Total Platform Tax/Fees</span>
+                <span className="stat-value">+{formatAmount(totalTax, 'AURY', false)} AURY</span>
+                <span className="stat-hint">Derived from withdrawal & shop fees</span>
+              </div>
+              <div className="stat-card economy-card-circulation">
+                <span className="stat-label">Total AURY Circulation</span>
+                <span className="stat-value">{formatAmount(totalCirculatingAury, 'AURY', true)} AURY</span>
+                <span className="stat-hint">Sum of all user wallet balances</span>
+              </div>
+              <div className="stat-card economy-card-burned">
+                <span className="stat-label">Total AURY Burned</span>
+                <span className="stat-value">{formatAmount(totalAuryBurned, 'AURY', true)} AURY</span>
+                <span className="stat-hint">{economyBurns.length} spending records</span>
+              </div>
+            </div>
+
+            {/* Economy Charts Row */}
+            <div className="economy-charts-grid">
+              {/* Chart 1: Platform Cashflow */}
+              <div className="admin-card">
+                <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3>📈 Platform Cashflow</h3>
+                  <div className="chart-controls">
+                    <select value={economyTimeframe} onChange={(e) => setEconomyTimeframe(e.target.value)} className="timeframe-select">
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ width: '100%', height: '300px', padding: '10px' }}>
+                  <ResponsiveContainer width="99%" height={300} minHeight={300}>
+                    <AreaChart data={chartData}>
+                      <defs>
+                        <linearGradient id="colorDep" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient>
+                        <linearGradient id="colorWd" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/><stop offset="95%" stopColor="#ef4444" stopOpacity={0}/></linearGradient>
+                        <linearGradient id="colorTax" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#facc15" stopOpacity={0.3}/><stop offset="95%" stopColor="#facc15" stopOpacity={0}/></linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                      <XAxis dataKey="date" stroke="rgba(255,255,255,0.4)" fontSize={10} tickLine={false} axisLine={false} />
+                      <YAxis 
+                        stroke="rgba(255,255,255,0.4)" 
+                        fontSize={10} 
+                        tickLine={false} 
+                        axisLine={false} 
+                        width={45}
+                        tickFormatter={(val) => {
+                          if (val >= 1000000) return `${(val/1000000).toFixed(1)}M`;
+                          if (val >= 1000) return `${(val/1000).toFixed(0)}k`;
+                          return val.toFixed(0);
+                        }}
+                      />
+                      <Tooltip 
+                        contentStyle={{ background: '#1e1e2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} 
+                        itemStyle={{ fontSize: '11px' }} 
+                        formatter={(val) => {
+                          const absVal = Math.abs(val);
+                          if (absVal >= 1000000000) return [`${(val/1000000000).toFixed(2)}B`, ''];
+                          if (absVal >= 1000000) return [`${(val/1000000).toFixed(2)}M`, ''];
+                          if (absVal >= 1000) return [`${(val/1000).toFixed(2)}k`, ''];
+                          return [val.toFixed(2), ''];
+                        }}
+                      />
+                      <Legend iconType="circle" />
+                      <Area type="monotone" dataKey="deposited" name="Deposits" stroke="#10b981" fillOpacity={1} fill="url(#colorDep)" strokeWidth={2} />
+                      <Area type="monotone" dataKey="withdrawn" name="Withdrawals" stroke="#ef4444" fillOpacity={1} fill="url(#colorWd)" strokeWidth={2} />
+                      <Area type="monotone" dataKey="tax" name="Revenue/Tax" stroke="#facc15" fillOpacity={1} fill="url(#colorTax)" strokeWidth={2} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Chart 2: Market Economy */}
+              <div className="admin-card">
+                <div className="card-header">
+                  <h3>🌍 Market Economy</h3>
+                </div>
+                <div style={{ width: '100%', height: '300px', padding: '10px' }}>
+                  <ResponsiveContainer width="99%" height={300} minHeight={300}>
+                    <AreaChart data={chartData}>
+                      <defs>
+                        <linearGradient id="colorCirc" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient>
+                        <linearGradient id="colorBurn" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#a855f7" stopOpacity={0.3}/><stop offset="95%" stopColor="#a855f7" stopOpacity={0}/></linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                      <XAxis dataKey="date" stroke="rgba(255,255,255,0.4)" fontSize={10} tickLine={false} axisLine={false} />
+                      <YAxis 
+                        stroke="rgba(255,255,255,0.4)" 
+                        fontSize={10} 
+                        tickLine={false} 
+                        axisLine={false} 
+                        width={45}
+                        tickFormatter={(val) => {
+                          if (val >= 1000000) return `${(val/1000000).toFixed(1)}M`;
+                          if (val >= 1000) return `${(val/1000).toFixed(0)}k`;
+                          return val.toFixed(0);
+                        }}
+                      />
+                      <Tooltip 
+                        contentStyle={{ background: '#1e1e2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} 
+                        itemStyle={{ fontSize: '11px' }} 
+                        formatter={(val) => {
+                          const absVal = Math.abs(val);
+                          if (absVal >= 1000000000) return [`${(val/1000000000).toFixed(2)}B`, ''];
+                          if (absVal >= 1000000) return [`${(val/1000000).toFixed(2)}M`, ''];
+                          if (absVal >= 1000) return [`${(val/1000).toFixed(2)}k`, ''];
+                          return [val.toFixed(2), ''];
+                        }}
+                      />
+                      <Legend iconType="circle" />
+                      <Area type="monotone" dataKey="circulation" name="Total Circulation" stroke="#3b82f6" fillOpacity={1} fill="url(#colorCirc)" strokeWidth={2} />
+                      <Area type="monotone" dataKey="burned" name="Daily Burned/Spent" stroke="#a855f7" fillOpacity={1} fill="url(#colorBurn)" strokeWidth={2} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {economySubTab === 'revenue' && (
+          <>
+            {/* Taxes Table */}
+            <div className="admin-card">
+              <div className="card-header">
+                <h3>🛡️ Tax Collections</h3>
+                <span className="count-badge">{economyTaxes.length}</span>
+              </div>
+              <div className="table-responsive">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Source</th>
+                      <th>User/Buyer</th>
+                      <th>Original Amount</th>
+                      <th>Tax/Fee</th>
+                      {isSuperAdminUser && <th>Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auryTaxes.length === 0 ? (
+                      <tr><td colSpan="6" className="text-center">No AURY tax collections recorded yet.</td></tr>
+                    ) : (
+                      auryTaxes.map(tax => (
+                        <tr key={tax.id}>
+                          <td>{tax.timestamp?.toDate() ? tax.timestamp.toDate().toLocaleString() : 'N/A'}</td>
+                          <td>
+                            <span className={`type-badge ${tax.source.includes('Withdrawal') ? 'withdrawal' : 'shop'}`}>
+                              {tax.source}
+                            </span>
+                            <div className="small-hint">{tax.details}</div>
+                          </td>
+                          <td>
+                            <div className="user-info-cell">
+                              <span className="user-name">{tax.user}</span>
+                              {tax.userEmail && <span className="user-email">{tax.userEmail}</span>}
+                            </div>
+                          </td>
+                          <td>{formatAmount(tax.originalAmount, 'AURY', false)} AURY</td>
+                          <td className="gold-text">+{formatAmount(tax.taxAmount, 'AURY', false)} AURY</td>
+                          {isSuperAdminUser && (
+                            <td>
+                              <div className="action-btns-mini">
+                                <button onClick={() => handleOpenEconomyEdit(tax)} className="edit-btn-mini">Edit</button>
+                                <button onClick={() => handleDeleteEconomyRecord(tax)} className="delete-btn-mini">Delete</button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Shop Sales Table */}
+            <div className="admin-card mt-4">
+              <div className="card-header">
+                <h3>🛒 Recent Shop Sales</h3>
+                <span className="count-badge">{economyShopSales.length}</span>
+              </div>
+              <div className="table-responsive">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Item</th>
+                      <th>Buyer</th>
+                      <th>Price</th>
+                      <th>Tax (3%)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {economyShopSales.length === 0 ? (
+                      <tr><td colSpan="5" className="text-center">No recent AURY shop sales.</td></tr>
+                    ) : (
+                      economyShopSales.map(sale => {
+                        const price = sale.price || 0;
+                        const tax = sale.commission || (price * 0.03);
+                        return (
+                          <tr key={sale.id}>
+                            <td>{sale.timestamp?.toDate() ? sale.timestamp.toDate().toLocaleString() : 'N/A'}</td>
+                            <td>{sale.itemName}</td>
+                            <td>{sale.buyerEmail || sale.buyerId}</td>
+                            <td>{formatAmount(price, 'AURY', false)} AURY</td>
+                            <td className="gold-text">+{formatAmount(tax, 'AURY', false)}</td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+
+        {economySubTab === 'deposits' && (
+          <div className="admin-card">
+            <div className="card-header">
+              <h3>📬 Processed Deposits</h3>
+              <span className="count-badge">{economyDeposits.length}</span>
+            </div>
+            <div className="table-responsive">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>User</th>
+                    <th>Amount</th>
+                    <th>Tx Signature</th>
+                    {isSuperAdminUser && <th>Actions</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {auryDeposits.length === 0 ? (
+                    <tr><td colSpan="5" className="text-center">No processed AURY deposits found.</td></tr>
+                  ) : (
+                    auryDeposits.map(dep => (
+                      <tr key={dep.id}>
+                        <td>{dep.processedAt?.toDate() ? dep.processedAt.toDate().toLocaleString() : 'N/A'}</td>
+                        <td>{dep.userEmail || dep.userId}</td>
+                        <td className="received">+{formatAmount(dep.amount, 'AURY', false)} AURY</td>
+                        <td>
+                          <div className="tx-sig-cell">
+                            <span className="tx-sig-short" title={dep.txSignature}>{dep.txSignature?.substring(0, 10)}...</span>
+                          </div>
+                        </td>
+                        {isSuperAdminUser && (
+                          <td>
+                            <div className="action-btns-mini">
+                              <button onClick={() => handleOpenEconomyEdit(dep)} className="edit-btn-mini">Edit</button>
+                              <button onClick={() => handleDeleteEconomyRecord(dep)} className="delete-btn-mini">Delete</button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {economySubTab === 'withdrawals' && (
+          <div className="admin-card">
+            <div className="card-header">
+              <h3>📤 Completed Withdrawals</h3>
+              <span className="count-badge">{economyWithdrawals.length}</span>
+            </div>
+            <div className="table-responsive">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>User</th>
+                    <th>Gross Amount</th>
+                    <th>Tax (2.5%)</th>
+                    <th>Net Received</th>
+                    {isSuperAdminUser && <th>Actions</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {auryWithdrawals.length === 0 ? (
+                    <tr><td colSpan="6" className="text-center">No completed AURY withdrawals found.</td></tr>
+                  ) : (
+                    auryWithdrawals.map(wd => {
+                      const amount = wd.amount / 1e9;
+                      const tax = amount * 0.025;
+                      const net = amount - tax;
+                      return (
+                        <tr key={wd.id}>
+                          <td>{wd.processedAt?.toDate() ? wd.processedAt.toDate().toLocaleString() : 'N/A'}</td>
+                          <td>{wd.email || wd.userId}</td>
+                          <td>{formatAmount(amount, 'AURY', false)} AURY</td>
+                          <td className="spent">-{formatAmount(tax, 'AURY', false)}</td>
+                          <td className="received">{formatAmount(net, 'AURY', false)} AURY</td>
+                          {isSuperAdminUser && (
+                            <td>
+                              <div className="action-btns-mini">
+                                <button onClick={() => handleOpenEconomyEdit({ ...wd, id: `wd-${wd.id}` })} className="edit-btn-mini">Edit</button>
+                                <button onClick={() => handleDeleteEconomyRecord({ ...wd, id: `wd-${wd.id}` })} className="delete-btn-mini">Delete</button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {economySubTab === 'burns' && (
+          <div className="admin-card">
+            <div className="card-header">
+              <h3>🔥 AURY Burns (Spending History)</h3>
+              <span className="count-badge">{economyBurns.length}</span>
+            </div>
+
+            {/* Burn Breakdown Summary */}
+            <div className="tab-stats-summary">
+              <div className="mini-stat">
+                <span className="mini-label">Matchup Entry Fees</span>
+                <span className="mini-value">{formatAmount(burnBreakdown.matchups, 'AURY', true)}</span>
+              </div>
+              <div className="mini-stat">
+                <span className="mini-label">Raffle Entry Fees</span>
+                <span className="mini-value">{formatAmount(burnBreakdown.raffles, 'AURY', true)}</span>
+              </div>
+              <div className="mini-stat">
+                <span className="mini-label">Shop Purchases</span>
+                <span className="mini-value">{formatAmount(burnBreakdown.shop, 'AURY', true)}</span>
+              </div>
+              <div className="mini-stat">
+                <span className="mini-label">Other Spends</span>
+                <span className="mini-value">{formatAmount(totalAuryBurned - (burnBreakdown.matchups + burnBreakdown.raffles + burnBreakdown.shop), 'AURY', true)}</span>
+              </div>
+            </div>
+
+            <div className="table-responsive">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>User</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {economyBurns.length === 0 ? (
+                    <tr><td colSpan="5" style={{ textAlign: 'center', padding: '30px', opacity: 0.5 }}>No burn records found</td></tr>
+                  ) : (
+                    economyBurns
+                      .sort((a, b) => {
+                        const timeA = a.timestamp?.seconds || (a.timestamp ? new Date(a.timestamp).getTime() / 1000 : 0);
+                        const timeB = b.timestamp?.seconds || (b.timestamp ? new Date(b.timestamp).getTime() / 1000 : 0);
+                        return timeB - timeA;
+                      })
+                      .slice(0, 100)
+                      .map(burn => {
+                        const userObj = allUsers.find(u => u.id === burn.userId);
+                        const displayName = userObj ? resolveDisplayName(userObj) : (burn.displayName || burn.userId);
+                        return (
+                          <tr key={burn.id}>
+                            <td className="log-time">{formatTime(burn.timestamp)}</td>
+                            <td>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontWeight: 600 }}>{displayName}</span>
+                                <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>{burn.userId}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <span className={`type-tag tag-${(burn.type || 'unknown').toLowerCase()}`}>
+                                {burn.type}
+                              </span>
+                            </td>
+                            <td className="spent" style={{ fontWeight: 'bold' }}>
+                              -{formatAmount(burn.amount, 'AURY', true)} AURY
+                            </td>
+                            <td style={{ fontSize: '0.85em', opacity: 0.8 }}>
+                              {burn.itemName || burn.reason || burn.description || burn.draftTitle || '-'}
+                            </td>
+                          </tr>
+                        );
+                      })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="admin-wallet">
       <div className="admin-wallet-header">
@@ -4179,24 +5055,32 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 <span className="category-arrow">▼</span>
               </div>
               <div className="category-tabs">
+                <button
+                  className={`admin-tab ${activeTab === 'website_mgmt' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('website_mgmt')}
+                >
+                  🌐 Website Management
+                </button>
+                <button
+                  className={`admin-tab ${activeTab === 'shop_mgmt' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('shop_mgmt')}
+                >
+                  🛍️ Shop
+                </button>
+                <button
+                  className={`admin-tab ${activeTab === 'chatbot' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('chatbot')}
+                >
+                  🤖 Runie Chatbot
+                </button>
+                {isSeniorAdminUser && (
                   <button
-                    className={`admin-tab ${activeTab === 'website_mgmt' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('website_mgmt')}
+                    className={`admin-tab ${activeTab === 'economy' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('economy')}
                   >
-                    🌐 Website Management
+                    💹 Economy
                   </button>
-                  <button
-                    className={`admin-tab ${activeTab === 'shop_mgmt' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('shop_mgmt')}
-                  >
-                    🛍️ Shop
-                  </button>
-                  <button
-                    className={`admin-tab ${activeTab === 'chatbot' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('chatbot')}
-                  >
-                    🤖 Runie Chatbot
-                  </button>
+                )}
               </div>
             </div>
           )}
@@ -4925,7 +5809,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           <span className="value">{formatTime(claim.createdAt)}</span>
                         </div>
                         <div className="prize-preview-admin">
-                           <img src={claim.prizeImage} alt={claim.prizeName} style={{ width: '64px', height: '64px', borderRadius: '8px', marginTop: '10px' }} />
+                          <img src={claim.prizeImage} alt={claim.prizeName} style={{ width: '64px', height: '64px', borderRadius: '8px', marginTop: '10px' }} />
                         </div>
                       </div>
 
@@ -5561,9 +6445,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         <button
                           className="admin-badge-btn"
                           disabled={processingId === 'recount_sales'}
-                          style={{ 
-                            padding: '8px 16px', 
-                            fontSize: '12px', 
+                          style={{
+                            padding: '8px 16px',
+                            fontSize: '12px',
                             background: processingId === 'recount_sales' ? '#6b7280' : 'linear-gradient(135deg, #f59e0b, #d97706)',
                             color: 'white',
                             border: 'none',
@@ -5580,11 +6464,11 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             try {
                               // 1. Fetch all users
                               const usersSnap = await getDocs(collection(db, 'users'));
-                              
+
                               // 2. Build ownership count map: cosmeticId -> count
                               const ownershipCounts = {};
                               const creatorOwnedIds = new Set(); // Track items owned by their creators (free claims)
-                              
+
                               usersSnap.docs.forEach(userDoc => {
                                 const userData = userDoc.data();
                                 const owned = userData.ownedCosmetics || [];
@@ -5598,11 +6482,11 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                   ownershipCounts[cosmeticId] = (ownershipCounts[cosmeticId] || 0) + 1;
                                 });
                               });
-                              
+
                               // 3. Update each cosmetic's saleCount
                               const batch = writeBatch(db);
                               let updatedCount = 0;
-                              
+
                               shopCosmetics.forEach(cosmetic => {
                                 const actualCount = ownershipCounts[cosmetic.id] || 0;
                                 if (cosmetic.saleCount !== actualCount) {
@@ -5611,7 +6495,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                   updatedCount++;
                                 }
                               });
-                              
+
                               if (updatedCount > 0) {
                                 await batch.commit();
                                 alert(`✅ Recount complete! Updated ${updatedCount} cosmetic(s). Scanned ${usersSnap.size} users.`);
@@ -5667,10 +6551,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                               </td>
                               <td>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <img 
-                                    src={(item.currency || 'valcoins').toLowerCase() === 'aury' ? '/aury-icon.png' : (item.currency || 'valcoins').toLowerCase() === 'usdc' ? '/usdc-icon.png' : '/valcoin-icon.jpg'} 
-                                    alt="" 
-                                    style={{ width: '12px', height: '12px', borderRadius: (item.currency || 'valcoins').toLowerCase() === 'valcoins' ? '50%' : '0' }} 
+                                  <img
+                                    src={(item.currency || 'valcoins').toLowerCase() === 'aury' ? '/aury-icon.png' : (item.currency || 'valcoins').toLowerCase() === 'usdc' ? '/usdc-icon.png' : '/valcoin-icon.jpg'}
+                                    alt=""
+                                    style={{ width: '12px', height: '12px', borderRadius: (item.currency || 'valcoins').toLowerCase() === 'valcoins' ? '50%' : '0' }}
                                   />
                                   {item.discountPrice !== undefined && item.discountPrice !== null && item.discountPrice < item.price ? (
                                     <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '1' }}>
@@ -5695,7 +6579,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                   <>
                                     <button className="edit-btn" onClick={() => {
                                       setEditingCosmetic(item);
-                                      setCosmeticForm({ 
+                                      setCosmeticForm({
                                         ...item,
                                         discountDays: 0,
                                         discountHours: 0
@@ -5773,26 +6657,26 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           onChange={(e) => {
                             const preset = e.target.value;
                             if (preset === 'solar_flare') {
-                              setCosmeticForm(prev => ({ 
-                                ...prev, 
+                              setCosmeticForm(prev => ({
+                                ...prev,
                                 cssClass: 'aura-solar-flare',
                                 style: { filter: 'drop-shadow(0 0 15px #f59e0b) brightness(1.2)', animation: 'pulse 2s infinite ease-in-out' }
                               }));
                             } else if (preset === 'void_pulse') {
-                              setCosmeticForm(prev => ({ 
-                                ...prev, 
+                              setCosmeticForm(prev => ({
+                                ...prev,
                                 cssClass: 'aura-void-pulse',
                                 style: { filter: 'drop-shadow(0 0 20px #8b5cf6) contrast(1.5)', animation: 'float 4s infinite ease-in-out' }
                               }));
                             } else if (preset === 'neon_flicker') {
-                              setCosmeticForm(prev => ({ 
-                                ...prev, 
+                              setCosmeticForm(prev => ({
+                                ...prev,
                                 cssClass: 'aura-neon-flicker',
                                 style: { filter: 'hue-rotate(90deg) drop-shadow(0 0 10px #06b6d4)', opacity: '0.9' }
                               }));
                             } else if (preset === 'standard') {
-                              setCosmeticForm(prev => ({ 
-                                ...prev, 
+                              setCosmeticForm(prev => ({
+                                ...prev,
                                 cssClass: '',
                                 style: { filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.4))' }
                               }));
@@ -5810,9 +6694,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       </div>
                       <div className="form-group flex-1">
                         <label>Item Creator</label>
-                        <div style={{ 
-                          padding: '12px', 
-                          background: 'rgba(255,255,255,0.05)', 
+                        <div style={{
+                          padding: '12px',
+                          background: 'rgba(255,255,255,0.05)',
                           borderRadius: '8px',
                           display: 'flex',
                           justifyContent: 'space-between',
@@ -5822,16 +6706,16 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             {editingCosmetic ? (editingCosmetic.createdByName || 'System') : (resolveDisplayName(user) || 'You')}
                           </span>
                           {editingCosmetic && !editingCosmetic.createdBy && (
-                            <button 
+                            <button
                               type="button"
                               className="admin-badge-btn"
                               style={{ padding: '4px 8px', fontSize: '11px', background: 'var(--accent-purple)' }}
                               onClick={() => {
                                 // This will be saved when they click the main Save button
-                                setEditingCosmetic(prev => ({ 
-                                  ...prev, 
-                                  createdBy: user.uid, 
-                                  createdByName: resolveDisplayName(user) || 'Admin' 
+                                setEditingCosmetic(prev => ({
+                                  ...prev,
+                                  createdBy: user.uid,
+                                  createdByName: resolveDisplayName(user) || 'Admin'
                                 }));
                                 alert('Creator updated to you! (Will be saved upon submit)');
                               }}
@@ -5917,152 +6801,152 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
                     {cosmeticForm.type === 'aura' && (
                       <>
-                      {/* ── Live Aura Preview ── */}
-                      <div className="form-group" style={{ 
-                        background: 'rgba(255,255,255,0.03)', 
-                        borderRadius: '12px', 
-                        padding: '20px', 
-                        border: '1px solid var(--border-subtle)',
-                        marginBottom: '8px'
-                      }}>
-                        <label style={{ marginBottom: '12px', display: 'block', fontSize: '13px', fontWeight: 600 }}>Live Preview</label>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '24px', flexWrap: 'wrap' }}>
-                          {/* Preview at multiple sizes */}
-                          {[120, 72, 40].map(previewSize => (
-                            <div key={previewSize} style={{ textAlign: 'center' }}>
-                              <div style={{
-                                width: `${previewSize + 40}px`,
-                                height: `${previewSize + 40}px`,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                background: 'rgba(0,0,0,0.3)',
-                                borderRadius: '12px',
-                                border: '1px dashed rgba(255,255,255,0.1)',
-                                position: 'relative',
-                                overflow: 'visible'
-                              }}>
-                                {/* Wrapper for avatar + aura */}
+                        {/* ── Live Aura Preview ── */}
+                        <div className="form-group" style={{
+                          background: 'rgba(255,255,255,0.03)',
+                          borderRadius: '12px',
+                          padding: '20px',
+                          border: '1px solid var(--border-subtle)',
+                          marginBottom: '8px'
+                        }}>
+                          <label style={{ marginBottom: '12px', display: 'block', fontSize: '13px', fontWeight: 600 }}>Live Preview</label>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '24px', flexWrap: 'wrap' }}>
+                            {/* Preview at multiple sizes */}
+                            {[120, 72, 40].map(previewSize => (
+                              <div key={previewSize} style={{ textAlign: 'center' }}>
                                 <div style={{
-                                  position: 'relative',
-                                  width: `${previewSize}px`,
-                                  height: `${previewSize}px`,
+                                  width: `${previewSize + 40}px`,
+                                  height: `${previewSize + 40}px`,
                                   display: 'flex',
                                   alignItems: 'center',
-                                  justifyContent: 'center'
+                                  justifyContent: 'center',
+                                  background: 'rgba(0,0,0,0.3)',
+                                  borderRadius: '12px',
+                                  border: '1px dashed rgba(255,255,255,0.1)',
+                                  position: 'relative',
+                                  overflow: 'visible'
                                 }}>
-                                  {/* Aura layer */}
-                                  {(cosmeticForm.gifUrl || cosmeticForm.pngUrl) && (
+                                  {/* Wrapper for avatar + aura */}
+                                  <div style={{
+                                    position: 'relative',
+                                    width: `${previewSize}px`,
+                                    height: `${previewSize}px`,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}>
+                                    {/* Aura layer */}
+                                    {(cosmeticForm.gifUrl || cosmeticForm.pngUrl) && (
+                                      <img
+                                        src={cosmeticForm.gifUrl || cosmeticForm.pngUrl}
+                                        alt=""
+                                        style={{
+                                          position: 'absolute',
+                                          width: `${(cosmeticForm.auraScale || 100)}%`,
+                                          height: `${(cosmeticForm.auraScale || 100)}%`,
+                                          left: `${50 + (cosmeticForm.auraOffsetX || 0) * (100 / previewSize)}%`,
+                                          top: `${50 + (cosmeticForm.auraOffsetY || 0) * (100 / previewSize)}%`,
+                                          transform: 'translate(-50%, -50%)',
+                                          objectFit: cosmeticForm.placement === 'border' ? 'contain' : 'cover',
+                                          borderRadius: cosmeticForm.placement === 'border' ? '0' : '50%',
+                                          zIndex: cosmeticForm.placement === 'behind' ? 1 : 4,
+                                          pointerEvents: 'none',
+                                          opacity: 0.95
+                                        }}
+                                      />
+                                    )}
+                                    {/* Profile picture */}
                                     <img
-                                      src={cosmeticForm.gifUrl || cosmeticForm.pngUrl}
+                                      src={resolveAvatar(user)}
                                       alt=""
                                       style={{
-                                        position: 'absolute',
-                                        width: `${(cosmeticForm.auraScale || 100)}%`,
-                                        height: `${(cosmeticForm.auraScale || 100)}%`,
-                                        left: `${50 + (cosmeticForm.auraOffsetX || 0) * (100 / previewSize)}%`,
-                                        top: `${50 + (cosmeticForm.auraOffsetY || 0) * (100 / previewSize)}%`,
-                                        transform: 'translate(-50%, -50%)',
-                                        objectFit: cosmeticForm.placement === 'border' ? 'contain' : 'cover',
-                                        borderRadius: cosmeticForm.placement === 'border' ? '0' : '50%',
-                                        zIndex: cosmeticForm.placement === 'behind' ? 1 : 4,
-                                        pointerEvents: 'none',
-                                        opacity: 0.95
+                                        width: `${cosmeticForm.profileScale || 100}%`,
+                                        height: `${cosmeticForm.profileScale || 100}%`,
+                                        borderRadius: '50%',
+                                        objectFit: 'cover',
+                                        position: 'relative',
+                                        zIndex: 2,
+                                        border: '2px solid transparent'
                                       }}
+                                      onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
                                     />
-                                  )}
-                                  {/* Profile picture */}
-                                  <img
-                                    src={resolveAvatar(user)}
-                                    alt=""
-                                    style={{
-                                      width: `${cosmeticForm.profileScale || 100}%`,
-                                      height: `${cosmeticForm.profileScale || 100}%`,
-                                      borderRadius: '50%',
-                                      objectFit: 'cover',
-                                      position: 'relative',
-                                      zIndex: 2,
-                                      border: '2px solid transparent'
-                                    }}
-                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; }}
-                                  />
+                                  </div>
                                 </div>
+                                <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>{previewSize}px</span>
                               </div>
-                              <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>{previewSize}px</span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* ── Placement Mode ── */}
+                        <div className="form-group">
+                          <label>Placement Mode</label>
+                          <div className="currency-toggle-group">
+                            <button type="button" className={`toggle-btn ${cosmeticForm.placement === 'behind' ? 'active' : ''}`} onClick={() => setCosmeticForm(prev => ({ ...prev, placement: 'behind' }))}>Behind (Behind Icon)</button>
+                            <button type="button" className={`toggle-btn ${cosmeticForm.placement === 'overlay' ? 'active' : ''}`} onClick={() => setCosmeticForm(prev => ({ ...prev, placement: 'overlay' }))}>Overlay (Top Layer)</button>
+                            <button type="button" className={`toggle-btn ${cosmeticForm.placement === 'border' ? 'active' : ''}`} onClick={() => setCosmeticForm(prev => ({ ...prev, placement: 'border' }))}>On Border</button>
+                          </div>
+                          <p className="helper-text" style={{ fontSize: '11px', marginTop: '5px' }}>Determines where the GIF/Animation is rendered relative to the user picture.</p>
+                        </div>
+
+                        {/* ── Profile Picture Scale ── */}
+                        <div className="form-group">
+                          <label>Profile Picture Scale: {cosmeticForm.profileScale || 100}%</label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <input type="range" min="50" max="100" step="5"
+                              value={cosmeticForm.profileScale || 100}
+                              onChange={(e) => setCosmeticForm(prev => ({ ...prev, profileScale: parseInt(e.target.value) }))}
+                              style={{ flex: 1, accentColor: 'var(--accent-gold)' }}
+                            />
+                            <span style={{ fontSize: '13px', color: 'var(--text-muted)', minWidth: '40px' }}>{cosmeticForm.profileScale || 100}%</span>
+                          </div>
+                          <p className="helper-text" style={{ fontSize: '11px', marginTop: '5px' }}>Shrink the profile picture to fit inside auras with smaller transparent circles.</p>
+                        </div>
+
+                        {/* ── Aura Position & Scale ── */}
+                        <div className="form-row" style={{ gap: '16px' }}>
+                          <div className="form-group flex-1">
+                            <label>Aura X Offset: {cosmeticForm.auraOffsetX || 0}px</label>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>L</span>
+                              <input type="range" min="-50" max="50" step="1"
+                                value={cosmeticForm.auraOffsetX || 0}
+                                onChange={(e) => setCosmeticForm(prev => ({ ...prev, auraOffsetX: parseInt(e.target.value) }))}
+                                style={{ flex: 1, accentColor: 'var(--accent-gold)' }}
+                              />
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>R</span>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* ── Placement Mode ── */}
-                      <div className="form-group">
-                        <label>Placement Mode</label>
-                        <div className="currency-toggle-group">
-                          <button type="button" className={`toggle-btn ${cosmeticForm.placement === 'behind' ? 'active' : ''}`} onClick={() => setCosmeticForm(prev => ({ ...prev, placement: 'behind' }))}>Behind (Behind Icon)</button>
-                          <button type="button" className={`toggle-btn ${cosmeticForm.placement === 'overlay' ? 'active' : ''}`} onClick={() => setCosmeticForm(prev => ({ ...prev, placement: 'overlay' }))}>Overlay (Top Layer)</button>
-                          <button type="button" className={`toggle-btn ${cosmeticForm.placement === 'border' ? 'active' : ''}`} onClick={() => setCosmeticForm(prev => ({ ...prev, placement: 'border' }))}>On Border</button>
-                        </div>
-                        <p className="helper-text" style={{ fontSize: '11px', marginTop: '5px' }}>Determines where the GIF/Animation is rendered relative to the user picture.</p>
-                      </div>
-
-                      {/* ── Profile Picture Scale ── */}
-                      <div className="form-group">
-                        <label>Profile Picture Scale: {cosmeticForm.profileScale || 100}%</label>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <input type="range" min="50" max="100" step="5"
-                            value={cosmeticForm.profileScale || 100}
-                            onChange={(e) => setCosmeticForm(prev => ({ ...prev, profileScale: parseInt(e.target.value) }))}
-                            style={{ flex: 1, accentColor: 'var(--accent-gold)' }}
-                          />
-                          <span style={{ fontSize: '13px', color: 'var(--text-muted)', minWidth: '40px' }}>{cosmeticForm.profileScale || 100}%</span>
-                        </div>
-                        <p className="helper-text" style={{ fontSize: '11px', marginTop: '5px' }}>Shrink the profile picture to fit inside auras with smaller transparent circles.</p>
-                      </div>
-
-                      {/* ── Aura Position & Scale ── */}
-                      <div className="form-row" style={{ gap: '16px' }}>
-                        <div className="form-group flex-1">
-                          <label>Aura X Offset: {cosmeticForm.auraOffsetX || 0}px</label>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>L</span>
-                            <input type="range" min="-50" max="50" step="1"
-                              value={cosmeticForm.auraOffsetX || 0}
-                              onChange={(e) => setCosmeticForm(prev => ({ ...prev, auraOffsetX: parseInt(e.target.value) }))}
-                              style={{ flex: 1, accentColor: 'var(--accent-gold)' }}
-                            />
-                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>R</span>
+                          </div>
+                          <div className="form-group flex-1">
+                            <label>Aura Y Offset: {cosmeticForm.auraOffsetY || 0}px</label>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>U</span>
+                              <input type="range" min="-50" max="50" step="1"
+                                value={cosmeticForm.auraOffsetY || 0}
+                                onChange={(e) => setCosmeticForm(prev => ({ ...prev, auraOffsetY: parseInt(e.target.value) }))}
+                                style={{ flex: 1, accentColor: 'var(--accent-gold)' }}
+                              />
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>D</span>
+                            </div>
+                          </div>
+                          <div className="form-group flex-1">
+                            <label>Aura Scale: {cosmeticForm.auraScale || 100}%</label>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <input type="range" min="50" max="200" step="5"
+                                value={cosmeticForm.auraScale || 100}
+                                onChange={(e) => setCosmeticForm(prev => ({ ...prev, auraScale: parseInt(e.target.value) }))}
+                                style={{ flex: 1, accentColor: 'var(--accent-gold)' }}
+                              />
+                              <span style={{ fontSize: '13px', color: 'var(--text-muted)', minWidth: '40px' }}>{cosmeticForm.auraScale || 100}%</span>
+                            </div>
                           </div>
                         </div>
-                        <div className="form-group flex-1">
-                          <label>Aura Y Offset: {cosmeticForm.auraOffsetY || 0}px</label>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>U</span>
-                            <input type="range" min="-50" max="50" step="1"
-                              value={cosmeticForm.auraOffsetY || 0}
-                              onChange={(e) => setCosmeticForm(prev => ({ ...prev, auraOffsetY: parseInt(e.target.value) }))}
-                              style={{ flex: 1, accentColor: 'var(--accent-gold)' }}
-                            />
-                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>D</span>
-                          </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+                          <button type="button"
+                            style={{ background: 'transparent', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '4px 12px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}
+                            onClick={() => setCosmeticForm(prev => ({ ...prev, profileScale: 100, auraOffsetX: 0, auraOffsetY: 0, auraScale: 100 }))}
+                          >Reset All to Default</button>
                         </div>
-                        <div className="form-group flex-1">
-                          <label>Aura Scale: {cosmeticForm.auraScale || 100}%</label>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <input type="range" min="50" max="200" step="5"
-                              value={cosmeticForm.auraScale || 100}
-                              onChange={(e) => setCosmeticForm(prev => ({ ...prev, auraScale: parseInt(e.target.value) }))}
-                              style={{ flex: 1, accentColor: 'var(--accent-gold)' }}
-                            />
-                            <span style={{ fontSize: '13px', color: 'var(--text-muted)', minWidth: '40px' }}>{cosmeticForm.auraScale || 100}%</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
-                        <button type="button" 
-                          style={{ background: 'transparent', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '4px 12px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}
-                          onClick={() => setCosmeticForm(prev => ({ ...prev, profileScale: 100, auraOffsetX: 0, auraOffsetY: 0, auraScale: 100 }))}
-                        >Reset All to Default</button>
-                      </div>
                       </>
                     )}
 
@@ -6123,25 +7007,25 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
               {shopSubTab === 'amikos' && (
                 <div className="placeholder-section" style={{ padding: '40px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
-                   <div style={{ fontSize: '48px', marginBottom: '20px' }}>🐾</div>
-                   <h3>Amikos Management</h3>
-                   <p style={{ color: '#94a3b8' }}>This section is coming soon. You will be able to manage Amiko listings and traits here.</p>
+                  <div style={{ fontSize: '48px', marginBottom: '20px' }}>🐾</div>
+                  <h3>Amikos Management</h3>
+                  <p style={{ color: '#94a3b8' }}>This section is coming soon. You will be able to manage Amiko listings and traits here.</p>
                 </div>
               )}
 
               {shopSubTab === 'items' && (
                 <div className="placeholder-section" style={{ padding: '40px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
-                   <div style={{ fontSize: '48px', marginBottom: '20px' }}>📦</div>
-                   <h3>Items Management</h3>
-                   <p style={{ color: '#94a3b8' }}>This section is coming soon. You will be able to manage shop items and power-ups here.</p>
+                  <div style={{ fontSize: '48px', marginBottom: '20px' }}>📦</div>
+                  <h3>Items Management</h3>
+                  <p style={{ color: '#94a3b8' }}>This section is coming soon. You will be able to manage shop items and power-ups here.</p>
                 </div>
               )}
 
               {shopSubTab === 'tickets' && (
                 <div className="placeholder-section" style={{ padding: '40px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
-                   <div style={{ fontSize: '48px', marginBottom: '20px' }}>🎫</div>
-                   <h3>Tickets Management</h3>
-                   <p style={{ color: '#94a3b8' }}>This section is coming soon. You will be able to manage raffle and event tickets here.</p>
+                  <div style={{ fontSize: '48px', marginBottom: '20px' }}>🎫</div>
+                  <h3>Tickets Management</h3>
+                  <p style={{ color: '#94a3b8' }}>This section is coming soon. You will be able to manage raffle and event tickets here.</p>
                 </div>
               )}
             </div>
@@ -6789,6 +7673,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               </div>
             </div>
           )}
+
+          {activeTab === 'economy' && isSeniorAdminUser && renderEconomyTab()}
 
           {activeTab === 'users' && isAdminUser && (
             <div className="users-assignment-section">
@@ -7701,10 +8587,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         <tbody>
                           {walletHistoryTransactions.map(tx => {
                             const isPoints = tx.source === 'points';
-                            const currencyLabel = isPoints 
-                              ? 'Valcoins' 
+                            const currencyLabel = isPoints
+                              ? 'Valcoins'
                               : (tx.currency || 'AURY');
-                            
+
                             let displayAmount;
                             if (isPoints) {
                               displayAmount = tx.amount?.toLocaleString() || '0';
@@ -7713,17 +8599,17 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             }
 
                             // Determine if it's a credit or debit
-                            const isCredit = isPoints 
-                              ? (tx.amount > 0) 
+                            const isCredit = isPoints
+                              ? (tx.amount > 0)
                               : ['raffle_win', 'raffle_refund', 'withdrawal_rejected', 'cosmetic_revenue'].includes(tx.type) || (tx.type === 'admin_adjust' && tx.amount > 0);
 
                             return (
                               <tr key={`${tx.source}-${tx.id}`}>
                                 <td className="log-time">{formatTime(tx.timestamp)}</td>
                                 <td>
-                                  <span style={{ 
-                                    fontSize: '10px', 
-                                    padding: '2px 6px', 
+                                  <span style={{
+                                    fontSize: '10px',
+                                    padding: '2px 6px',
                                     borderRadius: '4px',
                                     background: isPoints ? 'rgba(251, 191, 36, 0.15)' : 'rgba(239, 68, 68, 0.15)',
                                     color: isPoints ? '#fbbf24' : '#ef4444',
@@ -7742,10 +8628,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 </td>
                                 <td>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <img 
-                                      src={currencyLabel === 'AURY' ? '/aury-icon.png' : currencyLabel === 'USDC' ? '/usdc-icon.png' : '/valcoin-icon.jpg'} 
-                                      alt="" 
-                                      style={{ width: '14px', height: '14px', borderRadius: currencyLabel === 'Valcoins' ? '50%' : '0' }} 
+                                    <img
+                                      src={currencyLabel === 'AURY' ? '/aury-icon.png' : currencyLabel === 'USDC' ? '/usdc-icon.png' : '/valcoin-icon.jpg'}
+                                      alt=""
+                                      style={{ width: '14px', height: '14px', borderRadius: currencyLabel === 'Valcoins' ? '50%' : '0' }}
                                     />
                                     {currencyLabel}
                                   </div>
@@ -8229,7 +9115,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     {activeGameType === 'yggdrasilAscender' && (
                       <div className="config-card card" style={{ marginTop: '20px' }}>
                         <h3>ᚠ Rune Shop & Economy Settings</h3>
-                        
+
                         <div className="admin-section-divider">Daily Rewards & Multiplier</div>
                         <div className="form-row">
                           <div className="form-group">
@@ -8858,381 +9744,381 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
                   {activeGameType === 'yggdrasilAscender' && (
                     <>
-                    <div className="prizes-management-card card" style={{ marginBottom: '20px' }}>
-                      <div className="ygg-shop-management">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                          <h3>🛒 Rune Shop Inventory</h3>
-                          <button 
-                            className={editingRuneShopItemId ? "admin-secondary-btn" : "admin-primary-btn"}
-                            onClick={() => {
-                              if (editingRuneShopItemId) {
-                                setEditingRuneShopItemId(null);
-                                setIsCreatingRuneShopItem(false);
-                                setNewRuneShopItem({ name: '', description: '', icon: '🎁', image: '', price: 10, stock: 50, rarity: 'common' });
-                              } else {
-                                setIsCreatingRuneShopItem(!isCreatingRuneShopItem);
-                              }
-                            }}
-                          >
-                            {editingRuneShopItemId ? '✕ Cancel Edit' : isCreatingRuneShopItem ? '✕ Cancel' : '➕ Add Custom Item'}
-                          </button>
-                        </div>
-
-                        {isCreatingRuneShopItem && (
-                          <div className="new-prize-form card" style={{ marginBottom: '30px', padding: '20px', background: 'rgba(0,0,0,0.2)', border: editingRuneShopItemId ? '1px solid #3b82f6' : 'none' }}>
-                            <h4>{editingRuneShopItemId ? '📝 Edit Item' : '✨ New Shop Item'}</h4>
-                            <div className="form-row">
-                              <div className="form-group flex-2">
-                                <label>Item Name</label>
-                                <input 
-                                  type="text" 
-                                  placeholder="e.g. 500 Amiko Pack" 
-                                  value={newRuneShopItem.name}
-                                  onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, name: e.target.value })}
-                                />
-                              </div>
-                              <div className="form-group flex-1">
-                                <label>Icon (Emoji)</label>
-                                <input 
-                                  type="text" 
-                                  value={newRuneShopItem.icon}
-                                  onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, icon: e.target.value })}
-                                />
-                              </div>
-                            </div>
-                            <div className="form-group">
-                              <label>Description</label>
-                              <input 
-                                type="text" 
-                                placeholder="What does this item give?" 
-                                value={newRuneShopItem.description}
-                                onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, description: e.target.value })}
-                              />
-                            </div>
-                            <div className="form-group">
-                              <label>🖼 Image URL (for Armory display)</label>
-                              <input 
-                                type="text" 
-                                placeholder="https://..." 
-                                value={newRuneShopItem.image}
-                                onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, image: e.target.value })}
-                              />
-                            </div>
-                            <div className="form-row">
-                              <div className="form-group">
-                                <label>Price (Runes)</label>
-                                <input 
-                                  type="number" 
-                                  value={newRuneShopItem.price}
-                                  onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, price: parseInt(e.target.value) || 0 })}
-                                />
-                              </div>
-                              <div className="form-group">
-                                <label>Stock</label>
-                                <input 
-                                  type="number" 
-                                  value={newRuneShopItem.stock}
-                                  onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, stock: parseInt(e.target.value) || 0 })}
-                                />
-                              </div>
-                              <div className="form-group">
-                                <label>Rarity</label>
-                                <select 
-                                  value={newRuneShopItem.rarity}
-                                  onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, rarity: e.target.value })}
-                                >
-                                  <option value="common">Common</option>
-                                  <option value="uncommon">Uncommon</option>
-                                  <option value="rare">Rare</option>
-                                  <option value="epic">Epic</option>
-                                  <option value="legendary">Legendary</option>
-                                  <option value="mythic">Mythic</option>
-                                </select>
-                              </div>
-                            </div>
-                            <button 
-                              className="admin-primary-btn" 
-                              style={{ width: '100%', marginTop: '10px' }}
+                      <div className="prizes-management-card card" style={{ marginBottom: '20px' }}>
+                        <div className="ygg-shop-management">
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h3>🛒 Rune Shop Inventory</h3>
+                            <button
+                              className={editingRuneShopItemId ? "admin-secondary-btn" : "admin-primary-btn"}
                               onClick={() => {
-                                if (!newRuneShopItem.name) return alert('Name is required');
-                                const currentItems = miniGamesConfig.yggdrasilAscender?.customShopItems || [];
-                                let updatedItems;
                                 if (editingRuneShopItemId) {
-                                  updatedItems = currentItems.map(item => item.id === editingRuneShopItemId ? { ...newRuneShopItem, id: item.id } : item);
+                                  setEditingRuneShopItemId(null);
+                                  setIsCreatingRuneShopItem(false);
+                                  setNewRuneShopItem({ name: '', description: '', icon: '🎁', image: '', price: 10, stock: 50, rarity: 'common' });
                                 } else {
-                                  updatedItems = [...currentItems, { ...newRuneShopItem, id: `custom_${Date.now()}` }];
+                                  setIsCreatingRuneShopItem(!isCreatingRuneShopItem);
                                 }
-                                handleUpdateMiniGameConfig('yggdrasilAscender', { customShopItems: updatedItems });
-                                setIsCreatingRuneShopItem(false);
-                                setEditingRuneShopItemId(null);
-                                setNewRuneShopItem({ name: '', description: '', icon: '🎁', image: '', price: 10, stock: 50, rarity: 'common' });
                               }}
                             >
-                              {editingRuneShopItemId ? '💾 Save Changes' : '✅ Add to Shop'}
+                              {editingRuneShopItemId ? '✕ Cancel Edit' : isCreatingRuneShopItem ? '✕ Cancel' : '➕ Add Custom Item'}
                             </button>
                           </div>
-                        )}
 
-                        <div className="shop-items-list" style={{ display: 'grid', gap: '10px' }}>
-                          {(miniGamesConfig.yggdrasilAscender?.customShopItems || []).length === 0 ? (
-                            <p style={{ opacity: 0.5, textAlign: 'center', padding: '20px' }}>No custom items in shop.</p>
-                          ) : (
-                            miniGamesConfig.yggdrasilAscender.customShopItems.map(item => (
-                              <div key={item.id} className="admin-prize-item" style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                  <div style={{ fontSize: '24px' }}>{item.icon}</div>
-                                  <div>
-                                    <div style={{ fontWeight: 'bold' }}>{item.name} <span style={{ fontSize: '11px', opacity: 0.7, textTransform: 'uppercase' }}>({item.rarity})</span></div>
-                                    <div style={{ fontSize: '12px', opacity: 0.7 }}>Price: {item.price} Runes | Stock: {item.stock}</div>
-                                  </div>
+                          {isCreatingRuneShopItem && (
+                            <div className="new-prize-form card" style={{ marginBottom: '30px', padding: '20px', background: 'rgba(0,0,0,0.2)', border: editingRuneShopItemId ? '1px solid #3b82f6' : 'none' }}>
+                              <h4>{editingRuneShopItemId ? '📝 Edit Item' : '✨ New Shop Item'}</h4>
+                              <div className="form-row">
+                                <div className="form-group flex-2">
+                                  <label>Item Name</label>
+                                  <input
+                                    type="text"
+                                    placeholder="e.g. 500 Amiko Pack"
+                                    value={newRuneShopItem.name}
+                                    onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, name: e.target.value })}
+                                  />
                                 </div>
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                  <button className="admin-edit-btn" onClick={() => {
-                                    setNewRuneShopItem(item);
-                                    setEditingRuneShopItemId(item.id);
-                                    setIsCreatingRuneShopItem(true);
-                                  }}>Edit</button>
-                                  <button className="admin-delete-btn" onClick={() => {
-                                    if (window.confirm('Remove this item from shop?')) {
-                                      const updated = miniGamesConfig.yggdrasilAscender.customShopItems.filter(i => i.id !== item.id);
-                                      handleUpdateMiniGameConfig('yggdrasilAscender', { customShopItems: updated });
-                                    }
-                                  }}>Remove</button>
+                                <div className="form-group flex-1">
+                                  <label>Icon (Emoji)</label>
+                                  <input
+                                    type="text"
+                                    value={newRuneShopItem.icon}
+                                    onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, icon: e.target.value })}
+                                  />
                                 </div>
                               </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="prizes-management-card card">
-                      <div className="yggdrasil-events-management">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                          <h3>🏆 Yggdrasil Events</h3>
-                          <button
-                            className={editingYggEventId ? "admin-secondary-btn" : "admin-primary-btn"}
-                            onClick={() => {
-                              if (editingYggEventId) {
-                                setEditingYggEventId(null);
-                                setIsCreatingYggEvent(false);
-                                setNewYggEvent({
-                                  name: '',
-                                  entryFee: 5,
-                                  currency: 'AURY',
-                                  prizeName: '',
-                                  prizeImage: '',
-                                  prizeRarity: 'epic',
-                                  altitudeFrom: 5000,
-                                  altitudeTo: 15000,
-                                  targetPool: 60,
-                                  status: 'open'
-                                });
-                                setYggEventPrizePreview('');
-                              } else {
-                                setIsCreatingYggEvent(!isCreatingYggEvent);
-                              }
-                            }}
-                          >
-                            {editingYggEventId ? '✕ Cancel Edit' : isCreatingYggEvent ? '✕ Cancel' : '➕ Create New Event'}
-                          </button>
-                        </div>
-
-                        {isCreatingYggEvent && (
-                          <div className="new-prize-form ygg-event-form card" style={{ marginBottom: '30px', padding: '20px', background: 'rgba(0,0,0,0.2)', border: editingYggEventId ? '1px solid #3b82f6' : 'none' }}>
-                            <h4>{editingYggEventId ? '📝 Edit Event Run' : '✨ Create Event Run'}</h4>
-                            <div className="form-row">
-                              <div className="form-group flex-2">
-                                <label>Event Name</label>
+                              <div className="form-group">
+                                <label>Description</label>
                                 <input
                                   type="text"
-                                  placeholder="e.g. The Amiko Hunt"
-                                  value={newYggEvent.name}
-                                  onChange={(e) => setNewYggEvent({ ...newYggEvent, name: e.target.value })}
+                                  placeholder="What does this item give?"
+                                  value={newRuneShopItem.description}
+                                  onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, description: e.target.value })}
                                 />
                               </div>
-                              <div className="form-group flex-1">
-                                <label>Entry Fee</label>
-                                <div style={{ display: 'flex', gap: '5px' }}>
+                              <div className="form-group">
+                                <label>🖼 Image URL (for Armory display)</label>
+                                <input
+                                  type="text"
+                                  placeholder="https://..."
+                                  value={newRuneShopItem.image}
+                                  onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, image: e.target.value })}
+                                />
+                              </div>
+                              <div className="form-row">
+                                <div className="form-group">
+                                  <label>Price (Runes)</label>
                                   <input
                                     type="number"
-                                    value={newYggEvent.entryFee}
-                                    onChange={(e) => setNewYggEvent({ ...newYggEvent, entryFee: parseFloat(e.target.value) || 0 })}
-                                    style={{ width: '70px' }}
+                                    value={newRuneShopItem.price}
+                                    onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, price: parseInt(e.target.value) || 0 })}
                                   />
+                                </div>
+                                <div className="form-group">
+                                  <label>Stock</label>
+                                  <input
+                                    type="number"
+                                    value={newRuneShopItem.stock}
+                                    onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, stock: parseInt(e.target.value) || 0 })}
+                                  />
+                                </div>
+                                <div className="form-group">
+                                  <label>Rarity</label>
                                   <select
-                                    value={newYggEvent.currency}
-                                    onChange={(e) => setNewYggEvent({ ...newYggEvent, currency: e.target.value })}
+                                    value={newRuneShopItem.rarity}
+                                    onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, rarity: e.target.value })}
                                   >
-                                    <option value="AURY">AURY</option>
-                                    <option value="Valcoins">Valcoins</option>
+                                    <option value="common">Common</option>
+                                    <option value="uncommon">Uncommon</option>
+                                    <option value="rare">Rare</option>
+                                    <option value="epic">Epic</option>
+                                    <option value="legendary">Legendary</option>
+                                    <option value="mythic">Mythic</option>
                                   </select>
                                 </div>
                               </div>
+                              <button
+                                className="admin-primary-btn"
+                                style={{ width: '100%', marginTop: '10px' }}
+                                onClick={() => {
+                                  if (!newRuneShopItem.name) return alert('Name is required');
+                                  const currentItems = miniGamesConfig.yggdrasilAscender?.customShopItems || [];
+                                  let updatedItems;
+                                  if (editingRuneShopItemId) {
+                                    updatedItems = currentItems.map(item => item.id === editingRuneShopItemId ? { ...newRuneShopItem, id: item.id } : item);
+                                  } else {
+                                    updatedItems = [...currentItems, { ...newRuneShopItem, id: `custom_${Date.now()}` }];
+                                  }
+                                  handleUpdateMiniGameConfig('yggdrasilAscender', { customShopItems: updatedItems });
+                                  setIsCreatingRuneShopItem(false);
+                                  setEditingRuneShopItemId(null);
+                                  setNewRuneShopItem({ name: '', description: '', icon: '🎁', image: '', price: 10, stock: 50, rarity: 'common' });
+                                }}
+                              >
+                                {editingRuneShopItemId ? '💾 Save Changes' : '✅ Add to Shop'}
+                              </button>
                             </div>
+                          )}
 
-                            <div className="form-row">
-                              <div className="form-group flex-2">
-                                <label>Prize Name</label>
-                                <input
-                                  type="text"
-                                  placeholder="e.g. Legendary Amiko"
-                                  value={newYggEvent.prizeName}
-                                  onChange={(e) => setNewYggEvent({ ...newYggEvent, prizeName: e.target.value })}
-                                />
-                              </div>
-                              <div className="form-group flex-1">
-                                <label>Prize Rarity</label>
-                                <select
-                                  value={newYggEvent.prizeRarity}
-                                  onChange={(e) => setNewYggEvent({ ...newYggEvent, prizeRarity: e.target.value })}
-                                >
-                                  <option value="common">Common</option>
-                                  <option value="uncommon">Uncommon</option>
-                                  <option value="rare">Rare</option>
-                                  <option value="epic">Epic</option>
-                                  <option value="legendary">Legendary</option>
-                                  <option value="mythic">Mythic</option>
-                                </select>
-                              </div>
-                            </div>
-
-                            <div className="form-row">
-                              <div className="form-group flex-2">
-                                <label>Spawn Altitude Range (Meters)</label>
-                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                  <input
-                                    type="number"
-                                    placeholder="From"
-                                    value={newYggEvent.altitudeFrom}
-                                    onChange={(e) => setNewYggEvent({ ...newYggEvent, altitudeFrom: parseInt(e.target.value) || 0 })}
-                                    style={{ flex: 1 }}
-                                  />
-                                  <span>to</span>
-                                  <input
-                                    type="number"
-                                    placeholder="To"
-                                    value={newYggEvent.altitudeTo}
-                                    onChange={(e) => setNewYggEvent({ ...newYggEvent, altitudeTo: parseInt(e.target.value) || 0 })}
-                                    style={{ flex: 1 }}
-                                  />
+                          <div className="shop-items-list" style={{ display: 'grid', gap: '10px' }}>
+                            {(miniGamesConfig.yggdrasilAscender?.customShopItems || []).length === 0 ? (
+                              <p style={{ opacity: 0.5, textAlign: 'center', padding: '20px' }}>No custom items in shop.</p>
+                            ) : (
+                              miniGamesConfig.yggdrasilAscender.customShopItems.map(item => (
+                                <div key={item.id} className="admin-prize-item" style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                    <div style={{ fontSize: '24px' }}>{item.icon}</div>
+                                    <div>
+                                      <div style={{ fontWeight: 'bold' }}>{item.name} <span style={{ fontSize: '11px', opacity: 0.7, textTransform: 'uppercase' }}>({item.rarity})</span></div>
+                                      <div style={{ fontSize: '12px', opacity: 0.7 }}>Price: {item.price} Runes | Stock: {item.stock}</div>
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button className="admin-edit-btn" onClick={() => {
+                                      setNewRuneShopItem(item);
+                                      setEditingRuneShopItemId(item.id);
+                                      setIsCreatingRuneShopItem(true);
+                                    }}>Edit</button>
+                                    <button className="admin-delete-btn" onClick={() => {
+                                      if (window.confirm('Remove this item from shop?')) {
+                                        const updated = miniGamesConfig.yggdrasilAscender.customShopItems.filter(i => i.id !== item.id);
+                                        handleUpdateMiniGameConfig('yggdrasilAscender', { customShopItems: updated });
+                                      }
+                                    }}>Remove</button>
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="form-group">
-                                <label>Entry Pool Target (Runs)</label>
-                                <input
-                                  type="number"
-                                  value={newYggEvent.targetPool}
-                                  onChange={(e) => setNewYggEvent({ ...newYggEvent, targetPool: parseInt(e.target.value) || 0 })}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="form-group">
-                              <label>Prize Image (Visible when caught)</label>
-                              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                <input
-                                  type="text"
-                                  value={newYggEvent.prizeImage}
-                                  onChange={(e) => setNewYggEvent(prev => ({ ...prev, prizeImage: e.target.value }))}
-                                  placeholder="https://... (image URL)"
-                                  className="flex-3"
-                                />
-                                <div className="file-upload-wrapper flex-1">
-                                  <label className="file-upload-btn" style={{ padding: '8px', fontSize: '12px' }}>
-                                    📁 Upload
-                                    <input type="file" onChange={handleYggPrizeUpload} accept="image/*" />
-                                  </label>
-                                </div>
-                              </div>
-                              {yggEventPrizePreview && (
-                                <div className="image-preview-mini" style={{ marginTop: '10px' }}>
-                                  <img src={yggEventPrizePreview} alt="Prize Preview" style={{ maxHeight: '100px', borderRadius: '4px' }} />
-                                </div>
-                              )}
-                            </div>
-
-                            <button
-                              className="admin-primary-btn"
-                              style={{ width: '100%', marginTop: '10px' }}
-                              onClick={handleSaveYggEvent}
-                              disabled={processingId === 'save_ygg_event'}
-                            >
-                              {processingId === 'save_ygg_event' ? (editingYggEventId ? 'Updating...' : 'Creating...') : (editingYggEventId ? '💾 Update Event' : '🚀 Launch Event')}
-                            </button>
-                          </div>
-                        )}
-
-                        <div className="ygg-events-list">
-                          <h4>Active Events</h4>
-                          <div className="admin-table-container">
-                            <table className="admin-table">
-                              <thead>
-                                <tr>
-                                  <th>Event</th>
-                                  <th>Fee</th>
-                                  <th>Prize</th>
-                                  <th>Pool (Admin Only)</th>
-                                  <th>Target</th>
-                                  <th>Status</th>
-                                  <th>Actions</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {yggEvents.length === 0 ? (
-                                  <tr><td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>No events found.</td></tr>
-                                ) : (
-                                  yggEvents.map(ev => (
-                                    <tr key={ev.id}>
-                                      <td><strong>{ev.name}</strong></td>
-                                      <td>{ev.entryFee} {ev.currency}</td>
-                                      <td>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                          <img src={ev.prizeImage} alt="" style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'contain' }} />
-                                          <span>{ev.prizeName}</span>
-                                        </div>
-                                      </td>
-                                      <td>
-                                        <div className="pool-bar-container" style={{ width: '100px', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
-                                          <div
-                                            className="pool-bar-fill"
-                                            style={{
-                                              width: `${Math.min(100, (ev.currentPool / ev.targetPool) * 100)}%`,
-                                              height: '100%',
-                                              background: ev.currentPool >= ev.targetPool ? '#10b981' : '#3b82f6'
-                                            }}
-                                          />
-                                        </div>
-                                        <div style={{ fontSize: '10px', marginTop: '4px' }}>{ev.currentPool} / {ev.targetPool} runs</div>
-                                      </td>
-                                      <td>{ev.targetAltitude}m</td>
-                                      <td>
-                                        <span className={`status-badge ${ev.status}`}>
-                                          {ev.status === 'open' ? '🟢 Open' : '🔴 Closed'}
-                                        </span>
-                                      </td>
-                                      <td>
-                                        <div className="action-btns">
-                                          <button className="edit-btn" onClick={() => handleStartEditYggEvent(ev)} title="Edit Event">📝</button>
-                                          {ev.status === 'open' && (
-                                            <button className="edit-btn" onClick={() => handleCloseYggEvent(ev.id)} title="Close Event">🛑</button>
-                                          )}
-                                          {ev.status === 'closed' && (
-                                            <button className="edit-btn" onClick={() => handleReopenYggEvent(ev.id)} title="Reopen Event">🔓</button>
-                                          )}
-                                          <button className="delete-btn" onClick={() => handleDeleteYggEvent(ev.id)} title="Delete Event">🗑️</button>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  ))
-                                )}
-                              </tbody>
-                            </table>
+                              ))
+                            )}
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </>
+
+                      <div className="prizes-management-card card">
+                        <div className="yggdrasil-events-management">
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h3>🏆 Yggdrasil Events</h3>
+                            <button
+                              className={editingYggEventId ? "admin-secondary-btn" : "admin-primary-btn"}
+                              onClick={() => {
+                                if (editingYggEventId) {
+                                  setEditingYggEventId(null);
+                                  setIsCreatingYggEvent(false);
+                                  setNewYggEvent({
+                                    name: '',
+                                    entryFee: 5,
+                                    currency: 'AURY',
+                                    prizeName: '',
+                                    prizeImage: '',
+                                    prizeRarity: 'epic',
+                                    altitudeFrom: 5000,
+                                    altitudeTo: 15000,
+                                    targetPool: 60,
+                                    status: 'open'
+                                  });
+                                  setYggEventPrizePreview('');
+                                } else {
+                                  setIsCreatingYggEvent(!isCreatingYggEvent);
+                                }
+                              }}
+                            >
+                              {editingYggEventId ? '✕ Cancel Edit' : isCreatingYggEvent ? '✕ Cancel' : '➕ Create New Event'}
+                            </button>
+                          </div>
+
+                          {isCreatingYggEvent && (
+                            <div className="new-prize-form ygg-event-form card" style={{ marginBottom: '30px', padding: '20px', background: 'rgba(0,0,0,0.2)', border: editingYggEventId ? '1px solid #3b82f6' : 'none' }}>
+                              <h4>{editingYggEventId ? '📝 Edit Event Run' : '✨ Create Event Run'}</h4>
+                              <div className="form-row">
+                                <div className="form-group flex-2">
+                                  <label>Event Name</label>
+                                  <input
+                                    type="text"
+                                    placeholder="e.g. The Amiko Hunt"
+                                    value={newYggEvent.name}
+                                    onChange={(e) => setNewYggEvent({ ...newYggEvent, name: e.target.value })}
+                                  />
+                                </div>
+                                <div className="form-group flex-1">
+                                  <label>Entry Fee</label>
+                                  <div style={{ display: 'flex', gap: '5px' }}>
+                                    <input
+                                      type="number"
+                                      value={newYggEvent.entryFee}
+                                      onChange={(e) => setNewYggEvent({ ...newYggEvent, entryFee: parseFloat(e.target.value) || 0 })}
+                                      style={{ width: '70px' }}
+                                    />
+                                    <select
+                                      value={newYggEvent.currency}
+                                      onChange={(e) => setNewYggEvent({ ...newYggEvent, currency: e.target.value })}
+                                    >
+                                      <option value="AURY">AURY</option>
+                                      <option value="Valcoins">Valcoins</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="form-row">
+                                <div className="form-group flex-2">
+                                  <label>Prize Name</label>
+                                  <input
+                                    type="text"
+                                    placeholder="e.g. Legendary Amiko"
+                                    value={newYggEvent.prizeName}
+                                    onChange={(e) => setNewYggEvent({ ...newYggEvent, prizeName: e.target.value })}
+                                  />
+                                </div>
+                                <div className="form-group flex-1">
+                                  <label>Prize Rarity</label>
+                                  <select
+                                    value={newYggEvent.prizeRarity}
+                                    onChange={(e) => setNewYggEvent({ ...newYggEvent, prizeRarity: e.target.value })}
+                                  >
+                                    <option value="common">Common</option>
+                                    <option value="uncommon">Uncommon</option>
+                                    <option value="rare">Rare</option>
+                                    <option value="epic">Epic</option>
+                                    <option value="legendary">Legendary</option>
+                                    <option value="mythic">Mythic</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div className="form-row">
+                                <div className="form-group flex-2">
+                                  <label>Spawn Altitude Range (Meters)</label>
+                                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                    <input
+                                      type="number"
+                                      placeholder="From"
+                                      value={newYggEvent.altitudeFrom}
+                                      onChange={(e) => setNewYggEvent({ ...newYggEvent, altitudeFrom: parseInt(e.target.value) || 0 })}
+                                      style={{ flex: 1 }}
+                                    />
+                                    <span>to</span>
+                                    <input
+                                      type="number"
+                                      placeholder="To"
+                                      value={newYggEvent.altitudeTo}
+                                      onChange={(e) => setNewYggEvent({ ...newYggEvent, altitudeTo: parseInt(e.target.value) || 0 })}
+                                      style={{ flex: 1 }}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="form-group">
+                                  <label>Entry Pool Target (Runs)</label>
+                                  <input
+                                    type="number"
+                                    value={newYggEvent.targetPool}
+                                    onChange={(e) => setNewYggEvent({ ...newYggEvent, targetPool: parseInt(e.target.value) || 0 })}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="form-group">
+                                <label>Prize Image (Visible when caught)</label>
+                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                  <input
+                                    type="text"
+                                    value={newYggEvent.prizeImage}
+                                    onChange={(e) => setNewYggEvent(prev => ({ ...prev, prizeImage: e.target.value }))}
+                                    placeholder="https://... (image URL)"
+                                    className="flex-3"
+                                  />
+                                  <div className="file-upload-wrapper flex-1">
+                                    <label className="file-upload-btn" style={{ padding: '8px', fontSize: '12px' }}>
+                                      📁 Upload
+                                      <input type="file" onChange={handleYggPrizeUpload} accept="image/*" />
+                                    </label>
+                                  </div>
+                                </div>
+                                {yggEventPrizePreview && (
+                                  <div className="image-preview-mini" style={{ marginTop: '10px' }}>
+                                    <img src={yggEventPrizePreview} alt="Prize Preview" style={{ maxHeight: '100px', borderRadius: '4px' }} />
+                                  </div>
+                                )}
+                              </div>
+
+                              <button
+                                className="admin-primary-btn"
+                                style={{ width: '100%', marginTop: '10px' }}
+                                onClick={handleSaveYggEvent}
+                                disabled={processingId === 'save_ygg_event'}
+                              >
+                                {processingId === 'save_ygg_event' ? (editingYggEventId ? 'Updating...' : 'Creating...') : (editingYggEventId ? '💾 Update Event' : '🚀 Launch Event')}
+                              </button>
+                            </div>
+                          )}
+
+                          <div className="ygg-events-list">
+                            <h4>Active Events</h4>
+                            <div className="admin-table-container">
+                              <table className="admin-table">
+                                <thead>
+                                  <tr>
+                                    <th>Event</th>
+                                    <th>Fee</th>
+                                    <th>Prize</th>
+                                    <th>Pool (Admin Only)</th>
+                                    <th>Target</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {yggEvents.length === 0 ? (
+                                    <tr><td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>No events found.</td></tr>
+                                  ) : (
+                                    yggEvents.map(ev => (
+                                      <tr key={ev.id}>
+                                        <td><strong>{ev.name}</strong></td>
+                                        <td>{ev.entryFee} {ev.currency}</td>
+                                        <td>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <img src={ev.prizeImage} alt="" style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'contain' }} />
+                                            <span>{ev.prizeName}</span>
+                                          </div>
+                                        </td>
+                                        <td>
+                                          <div className="pool-bar-container" style={{ width: '100px', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                                            <div
+                                              className="pool-bar-fill"
+                                              style={{
+                                                width: `${Math.min(100, (ev.currentPool / ev.targetPool) * 100)}%`,
+                                                height: '100%',
+                                                background: ev.currentPool >= ev.targetPool ? '#10b981' : '#3b82f6'
+                                              }}
+                                            />
+                                          </div>
+                                          <div style={{ fontSize: '10px', marginTop: '4px' }}>{ev.currentPool} / {ev.targetPool} runs</div>
+                                        </td>
+                                        <td>{ev.targetAltitude}m</td>
+                                        <td>
+                                          <span className={`status-badge ${ev.status}`}>
+                                            {ev.status === 'open' ? '🟢 Open' : '🔴 Closed'}
+                                          </span>
+                                        </td>
+                                        <td>
+                                          <div className="action-btns">
+                                            <button className="edit-btn" onClick={() => handleStartEditYggEvent(ev)} title="Edit Event">📝</button>
+                                            {ev.status === 'open' && (
+                                              <button className="edit-btn" onClick={() => handleCloseYggEvent(ev.id)} title="Close Event">🛑</button>
+                                            )}
+                                            {ev.status === 'closed' && (
+                                              <button className="edit-btn" onClick={() => handleReopenYggEvent(ev.id)} title="Reopen Event">🔓</button>
+                                            )}
+                                            <button className="delete-btn" onClick={() => handleDeleteYggEvent(ev.id)} title="Delete Event">🗑️</button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -9865,6 +10751,133 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   {isSavingEditingDoc ? 'Saving...' : '💾 Save Changes to Firestore'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Economy Management Modal */}
+      {showEconomyModal && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal" style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h2>{editingEconomyRecord ? '📝 Edit' : '➕ Add'} Economy Log</h2>
+              <button className="close-btn" onClick={() => setShowEconomyModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="admin-form">
+                <div className="form-group">
+                  <label>Transaction Type</label>
+                  <select
+                    value={economyForm.type}
+                    onChange={(e) => setEconomyForm({ ...economyForm, type: e.target.value })}
+                    disabled={!!editingEconomyRecord}
+                  >
+                    <option value="deposit">Deposit Notification</option>
+                    <option value="withdrawal">Withdrawal Record</option>
+                    <option value="sale">Shop Sale / Tax Entry</option>
+                  </select>
+                </div>
+
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label>Amount (Display Units)</label>
+                    <input
+                      type="number"
+                      value={economyForm.amount}
+                      onChange={(e) => setEconomyForm({ ...economyForm, amount: e.target.value })}
+                      placeholder="e.g. 10.5"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Currency</label>
+                    <select
+                      value={economyForm.currency}
+                      onChange={(e) => setEconomyForm({ ...economyForm, currency: e.target.value })}
+                    >
+                      <option value="AURY">AURY</option>
+                      <option value="VALCOINS">VALCOINS</option>
+                      <option value="USDC">USDC</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>User Email / Display Name</label>
+                  <input
+                    type="text"
+                    value={economyForm.userEmail}
+                    onChange={(e) => setEconomyForm({ ...economyForm, userEmail: e.target.value })}
+                    placeholder="User identification..."
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>User ID (UID)</label>
+                  <input
+                    type="text"
+                    value={economyForm.userId}
+                    onChange={(e) => setEconomyForm({ ...economyForm, userId: e.target.value })}
+                    placeholder="Firebase UID..."
+                  />
+                </div>
+
+                {economyForm.type === 'deposit' && (
+                  <div className="form-group">
+                    <label>Transaction Signature</label>
+                    <input
+                      type="text"
+                      value={economyForm.txSignature}
+                      onChange={(e) => setEconomyForm({ ...economyForm, txSignature: e.target.value })}
+                      placeholder="Solana Tx Signature..."
+                    />
+                  </div>
+                )}
+
+                {economyForm.type === 'sale' && (
+                  <div className="form-group">
+                    <label>Item Details</label>
+                    <input
+                      type="text"
+                      value={economyForm.details}
+                      onChange={(e) => setEconomyForm({ ...economyForm, details: e.target.value })}
+                      placeholder="Cosmetic name, etc."
+                    />
+                  </div>
+                )}
+
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label>Status</label>
+                    <select
+                      value={economyForm.status}
+                      onChange={(e) => setEconomyForm({ ...economyForm, status: e.target.value })}
+                    >
+                      <option value="processed">Processed / Completed</option>
+                      <option value="pending">Pending</option>
+                      <option value="failed">Failed</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Date/Time</label>
+                    <input
+                      type="datetime-local"
+                      value={economyForm.timestamp}
+                      onChange={(e) => setEconomyForm({ ...economyForm, timestamp: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="secondary-btn" onClick={() => setShowEconomyModal(false)}>Cancel</button>
+              <button
+                className="primary-btn"
+                onClick={handleSaveEconomyRecord}
+                disabled={processingId === 'save_economy'}
+              >
+                {processingId === 'save_economy' ? 'Saving...' : 'Save Record'}
+              </button>
             </div>
           </div>
         </div>
