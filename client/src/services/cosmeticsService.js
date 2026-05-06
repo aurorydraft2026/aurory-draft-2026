@@ -194,6 +194,20 @@ export async function purchaseCosmetic(userId, cosmeticId) {
         saleCount: increment(1)
       });
 
+      // 5. Global Sales Log for Admin tracking
+      const saleLogRef = doc(collection(db, 'cosmetic_sales'));
+      transaction.set(saleLogRef, {
+        buyerId: userId,
+        buyerName: resolveDisplayName(userData) || 'Unknown',
+        creatorId: creatorId || 'System',
+        cosmeticId: cosmeticId,
+        cosmeticName: cosmeticData.name,
+        price: actualPrice,
+        currency: currency,
+        commission: shareAmount / factor,
+        timestamp: serverTimestamp()
+      });
+
       return { 
         newBalance: userBalance - priceInSmallestUnit, 
         currency,

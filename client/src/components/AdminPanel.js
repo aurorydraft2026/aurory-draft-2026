@@ -18,7 +18,8 @@ import {
   writeBatch,
   deleteDoc,
   setDoc,
-  getDoc
+  getDoc,
+  collectionGroup
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -385,6 +386,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   const [shopSubTab, setShopSubTab] = useState('settings');
   const [discordCommandsEnabled, setDiscordCommandsEnabled] = useState(true);
   const [shopEnabled, setShopEnabled] = useState(true);
+  const [shopHistory, setShopHistory] = useState([]);
+  const [shopHistoryLoading, setShopHistoryLoading] = useState(false);
 
   // Shop Inventory Management state
   const [shopCosmetics, setShopCosmetics] = useState([]);
@@ -879,6 +882,76 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
     return () => unsub();
   }, [activeTab, isAdminUser]);
+
+  // Fetch shop purchase history
+  useEffect(() => {
+    if (!isAdminUser || activeTab !== 'shop_mgmt' || shopSubTab !== 'settings') return;
+
+    const fetchHistory = async () => {
+      setShopHistoryLoading(true);
+      try {
+        // 1. Fetch from the new central collection (future sales)
+        const salesQuery = query(collection(db, 'cosmetic_sales'), orderBy('timestamp', 'desc'), limit(100));
+        const salesSnap = await getDocs(salesQuery);
+        const salesData = salesSnap.docs.map(d => ({ id: d.id, ...d.data(), source: 'log' }));
+
+        // 2. Fetch from legacy pointsHistory (old sales)
+        const legacyQuery = query(
+          collectionGroup(db, 'pointsHistory'),
+          where('type', '==', 'cosmetic_commission'),
+          orderBy('timestamp', 'desc'),
+          limit(100)
+        );
+        const legacySnap = await getDocs(legacyQuery);
+        
+        const legacyData = [];
+        const userCache = {};
+        
+        for (const d of legacySnap.docs) {
+          const data = d.data();
+          const creatorId = d.ref.parent.parent.id;
+          const buyerId = data.buyerId;
+
+          // Fetch names if not in cache
+          if (creatorId && !userCache[creatorId]) {
+            const u = await getDoc(doc(db, 'users', creatorId));
+            userCache[creatorId] = u.exists() ? (u.data().displayName || u.data().username || 'Unknown') : 'Unknown';
+          }
+          if (buyerId && !userCache[buyerId]) {
+            const u = await getDoc(doc(db, 'users', buyerId));
+            userCache[buyerId] = u.exists() ? (u.data().displayName || u.data().username || 'Unknown') : 'Unknown';
+          }
+
+          legacyData.push({
+            id: d.id,
+            buyerId: buyerId,
+            buyerName: userCache[buyerId],
+            creatorId: creatorId,
+            creatorName: userCache[creatorId],
+            cosmeticName: data.description.replace('60% share from sale of ', ''),
+            price: (data.amount / 0.6),
+            commission: data.amount,
+            currency: data.currency,
+            timestamp: data.timestamp,
+            source: 'legacy'
+          });
+        }
+
+        // Merge and sort
+        const combined = [...salesData, ...legacyData]
+          .sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0))
+          .slice(0, 100);
+
+        setShopHistory(combined);
+      } catch (err) {
+        console.error("Error fetching purchase history:", err);
+      } finally {
+        setShopHistoryLoading(false);
+      }
+    };
+
+    fetchHistory();
+  }, [activeTab, isAdminUser, shopSubTab]);
 
   const handleSaveShopSettings = async () => {
     setProcessingId('save_shop');
@@ -5192,7 +5265,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           )}
 
           {activeTab === 'shop_mgmt' && (
-            <div className="credit-section shop-mgmt-section">
+            <div className="shop-mgmt-section" style={{ width: '100%' }}>
               <div className="section-info">
                 <p>🛍️ Manage the Valhalla Shop, including settings, cosmetics, amikos, items, and tickets.</p>
               </div>
@@ -5241,35 +5314,116 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               </div>
 
               {shopSubTab === 'settings' && (
-                <div className="credit-form">
-                  <div className="form-group">
-                    <label>Valhalla's Vault Status</label>
-                    <div className="currency-toggle-group">
-                      <button
-                        className={`toggle-btn ${shopEnabled ? 'active' : ''}`}
-                        onClick={() => setShopEnabled(true)}
-                      >ON</button>
-                      <button
-                        className={`toggle-btn ${!shopEnabled ? 'active' : ''}`}
-                        onClick={() => setShopEnabled(false)}
-                      >OFF</button>
+                <>
+                  <div className="credit-form" style={{ maxWidth: '500px', margin: '0 auto' }}>
+                    <div className="form-group">
+                      <label>Valhalla's Vault Status</label>
+                      <div className="currency-toggle-group">
+                        <button
+                          className={`toggle-btn ${shopEnabled ? 'active' : ''}`}
+                          onClick={() => setShopEnabled(true)}
+                        >ON</button>
+                        <button
+                          className={`toggle-btn ${!shopEnabled ? 'active' : ''}`}
+                          onClick={() => setShopEnabled(false)}
+                        >OFF</button>
+                      </div>
+                      <p className="helper-text" style={{ marginTop: '8px', fontSize: '13px', color: shopEnabled ? '#10b981' : '#ef4444' }}>
+                        {shopEnabled
+                          ? "✅ Shop is visible to all users."
+                          : "⚠️ Shop is HIDDEN from the homepage. (Super Admins can still see it for testing)."}
+                      </p>
                     </div>
-                    <p className="helper-text" style={{ marginTop: '8px', fontSize: '13px', color: shopEnabled ? '#10b981' : '#ef4444' }}>
-                      {shopEnabled
-                        ? "✅ Shop is visible to all users."
-                        : "⚠️ Shop is HIDDEN from the homepage. (Super Admins can still see it for testing)."}
-                    </p>
+
+                    <button
+                      className="approve-btn"
+                      onClick={handleSaveShopSettings}
+                      disabled={processingId === 'save_shop'}
+                      style={{ marginTop: '30px', width: '100%' }}
+                    >
+                      {processingId === 'save_shop' ? 'Saving...' : '💾 Save Shop Settings'}
+                    </button>
                   </div>
 
-                  <button
-                    className="approve-btn"
-                    onClick={handleSaveShopSettings}
-                    disabled={processingId === 'save_shop'}
-                    style={{ marginTop: '30px', width: '100%' }}
-                  >
-                    {processingId === 'save_shop' ? 'Saving...' : '💾 Save Shop Settings'}
-                  </button>
-                </div>
+                  <div className="shop-history-card" style={{ width: '100%', marginTop: '40px' }}>
+                    <div className="shop-history-header">
+                      <div>
+                        <h3 style={{ margin: 0, color: 'var(--accent-gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>🛒 Purchase History</h3>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>Audit logs of all shop transactions across the realms.</p>
+                      </div>
+                    </div>
+
+                    <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                      {shopHistoryLoading ? (
+                        <div style={{ padding: '60px', textAlign: 'center' }}>
+                          <div className="cosmetic-card-spinner" style={{ margin: '0 auto 15px' }}></div>
+                          <span style={{ color: 'var(--text-muted)' }}>Summoning logs...</span>
+                        </div>
+                      ) : shopHistory.length === 0 ? (
+                        <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+                          <div style={{ fontSize: '2rem', marginBottom: '10px' }}>📦</div>
+                          <span>No purchases recorded in the annals yet.</span>
+                        </div>
+                      ) : (
+                        <table className="shop-history-table">
+                          <thead>
+                            <tr>
+                              <th>Date</th>
+                              <th>Buyer</th>
+                              <th>Item</th>
+                              <th>Creator</th>
+                              <th style={{ textAlign: 'right' }}>Price</th>
+                              <th style={{ textAlign: 'right' }}>Commission (60%)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {shopHistory.map(sale => {
+                              const date = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp);
+                              const currencyIcon = sale.currency === 'aury' ? '/aury-icon.png' : sale.currency === 'usdc' ? '/usdc-icon.png' : '/valcoin-icon.jpg';
+                              return (
+                                <tr key={sale.id}>
+                                  <td>
+                                    <div className="history-date">
+                                      {date.toLocaleDateString()} <br />
+                                      <span className="history-time">{date.toLocaleTimeString()}</span>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <div className="history-user-info">
+                                      <span className="history-username">{sale.buyerName || 'Unknown'}</span>
+                                      <span className="history-uid">{sale.buyerId}</span>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <div className="history-item-name">{sale.cosmeticName}</div>
+                                  </td>
+                                  <td>
+                                    <div className="history-user-info">
+                                      <span className="history-username">{sale.creatorName || 'System'}</span>
+                                      <span className="history-uid">{sale.creatorId}</span>
+                                    </div>
+                                  </td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    <div className="history-price-cell" style={{ justifyContent: 'flex-end' }}>
+                                      <span>{sale.price?.toLocaleString()}</span>
+                                      <img src={currencyIcon} alt="" className={`history-currency-icon ${sale.currency === 'valcoins' ? 'valcoin' : ''}`} />
+                                    </div>
+                                  </td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    <div className="history-commission" style={{ justifyContent: 'flex-end' }}>
+                                      +{sale.commission?.toLocaleString()}
+                                      <img src={currencyIcon} alt="" className={`history-currency-icon ${sale.currency === 'valcoins' ? 'valcoin' : ''}`} style={{ marginLeft: '8px' }} />
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
 
               {shopSubTab === 'cosmetics' && (

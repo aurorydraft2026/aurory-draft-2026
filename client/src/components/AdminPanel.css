@@ -4369,3 +4369,161 @@ input[type=number] {
   border-left: 4px solid #f59e0b;
 }
 
+/* =============================================
+   SHOP PURCHASE HISTORY TABLE
+   ============================================= */
+
+.shop-history-card {
+  margin-top: 40px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+
+.shop-history-header {
+  padding: 20px 24px;
+  background: rgba(212, 175, 55, 0.03);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.shop-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.shop-history-table th {
+  padding: 16px 20px;
+  text-align: left;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text-muted);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 0.75rem;
+  border-bottom: 2px solid var(--border-subtle);
+}
+
+.shop-history-table td {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+
+.shop-history-table tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.history-user-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.history-username {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.history-uid {
+  font-family: monospace;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.history-item-name {
+  color: var(--accent-gold);
+  font-weight: 700;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1rem;
+}
+
+.history-price-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.1rem;
+}
+
+.history-currency-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.history-currency-icon.valcoin {
+  border-radius: 50%;
+}
+
+.history-commission {
+  color: #10b981;
+  font-weight: 700;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1rem;
+}
+
+.history-date {
+  font-family: 'SF Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.history-time {
+  opacity: 0.5;
+  font-size: 0.75rem;
+}
+
+/* Responsive adjustments for Shop History */
+@media (max-width: 900px) {
+  .shop-history-table th:nth-child(4),
+  .shop-history-table td:nth-child(4) {
+    display: none; /* Hide Creator on tablets/small screens */
+  }
+}
+
+@media (max-width: 768px) {
+  .history-uid {
+    display: none;
+  }
+  
+  .shop-history-table th, 
+  .shop-history-table td {
+    padding: 12px 8px;
+    font-size: 0.75rem;
+  }
+  
+  .history-item-name {
+    font-size: 0.85rem;
+  }
+  
+  .history-price-cell,
+  .history-commission {
+    font-size: 0.85rem;
+  }
+  
+  .history-currency-icon {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* On very small phones, prioritize Buyer, Item, and Price */
+  .shop-history-table th:nth-child(1),
+  .shop-history-table td:nth-child(1) {
+    display: none; /* Hide Date on very small screens */
+  }
+}
+
+
+
