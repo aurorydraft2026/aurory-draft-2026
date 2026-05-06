@@ -93,7 +93,11 @@ export async function purchaseCosmetic(userId, cosmeticId) {
 
       const userData = userSnap.data();
       const cosmeticData = cosmeticSnap.data();
-      const currency = cosmeticData.currency || 'valcoins';
+      
+      // Normalize currency to lowercase to prevent case-sensitivity bugs (e.g., 'AURY' vs 'aury')
+      const rawCurrency = cosmeticData.currency || 'valcoins';
+      const currency = rawCurrency.toLowerCase();
+      
       const creatorId = cosmeticData.createdBy;
 
       const owned = userData.ownedCosmetics || [];
@@ -109,7 +113,30 @@ export async function purchaseCosmetic(userId, cosmeticId) {
       
       const factor = currency === 'aury' ? 1e9 : (currency === 'usdc' ? 1e6 : 1);
       const isCreator = creatorId === userId;
-      const actualPrice = isCreator ? 0 : cosmeticData.price;
+      
+      const basePrice = Number(cosmeticData.price) || 0;
+      let discountPrice = (cosmeticData.discountPrice !== undefined && cosmeticData.discountPrice !== null) ? Number(cosmeticData.discountPrice) : null;
+      
+      // Check if discount has expired
+      if (discountPrice !== null && cosmeticData.discountExpiry) {
+        const expiry = cosmeticData.discountExpiry.toDate();
+        if (new Date() > expiry) {
+          discountPrice = null; // Discount expired
+        }
+      }
+
+      let salePrice = basePrice;
+      // Use discount price if it exists and is less than base price
+      if (discountPrice !== null && discountPrice < basePrice) {
+        salePrice = discountPrice;
+      }
+
+      // Strict Price Check: If item has no price and user is NOT the creator, block the purchase
+      if (!isCreator && salePrice === 0 && basePrice === 0 && (cosmeticData.price === undefined || cosmeticData.price === null)) {
+        throw new Error('This item has no price set and cannot be purchased.');
+      }
+
+      const actualPrice = isCreator ? 0 : salePrice;
       const priceInSmallestUnit = Math.floor(actualPrice * factor);
 
       if (actualPrice > 0) {

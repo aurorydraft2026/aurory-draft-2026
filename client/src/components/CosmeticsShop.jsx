@@ -88,7 +88,8 @@ const CosmeticsShop = ({ user }) => {
     const cosmetic = cosmetics.find(c => c.id === cosmeticId);
     if (!cosmetic) return;
 
-    const currency = cosmetic.currency || 'valcoins';
+    const rawCurrency = cosmetic.currency || 'valcoins';
+    const currency = rawCurrency.toLowerCase();
     const currencyLabel = currency === 'aury' ? 'AURY' : currency === 'usdc' ? 'USDC' : 'Valcoins';
     const isCreator = cosmetic.createdBy === user.uid;
     
@@ -367,6 +368,19 @@ const CosmeticsShop = ({ user }) => {
                 {rarityConf?.label}
               </div>
 
+              {/* SALE Badge */}
+              {(() => {
+                let discountPrice = (cosmetic.discountPrice !== undefined && cosmetic.discountPrice !== null) ? Number(cosmetic.discountPrice) : null;
+                if (discountPrice !== null && cosmetic.discountExpiry) {
+                  const expiry = cosmetic.discountExpiry.toDate ? cosmetic.discountExpiry.toDate() : new Date(cosmetic.discountExpiry);
+                  if (new Date() > expiry) discountPrice = null;
+                }
+                if (discountPrice !== null && discountPrice < cosmetic.price) {
+                  return <div className="sale-badge">SALE</div>;
+                }
+                return null;
+              })()}
+
               {isEquipped && (
                 <div className="cosmetic-equipped-badge">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -422,9 +436,25 @@ const CosmeticsShop = ({ user }) => {
                     className={`cosmetic-btn ${cosmetic.createdBy === user.uid ? 'claim-btn' : 'buy-btn'}`}
                     onClick={() => handlePurchase(cosmetic.id)}
                     disabled={isPurchasing || equipping === cosmetic.id || (cosmetic.createdBy !== user.uid && (
-                      cosmetic.currency === 'aury' ? walletBalance < (cosmetic.price * 1e9) :
-                      cosmetic.currency === 'usdc' ? usdcBalance < (cosmetic.price * 1e6) :
-                      (user.points || 0) < cosmetic.price
+                      (() => {
+                        let discountPrice = (cosmetic.discountPrice !== undefined && cosmetic.discountPrice !== null) ? Number(cosmetic.discountPrice) : null;
+                        
+                        // Check expiry
+                        if (discountPrice !== null && cosmetic.discountExpiry) {
+                          const expiry = cosmetic.discountExpiry.toDate ? cosmetic.discountExpiry.toDate() : new Date(cosmetic.discountExpiry);
+                          if (new Date() > expiry) {
+                            discountPrice = null;
+                          }
+                        }
+
+                        const effectivePrice = (discountPrice !== null && discountPrice < cosmetic.price) 
+                          ? discountPrice 
+                          : cosmetic.price;
+                        
+                        return (cosmetic.currency || 'valcoins').toLowerCase() === 'aury' ? walletBalance < (effectivePrice * 1e9) :
+                               (cosmetic.currency || 'valcoins').toLowerCase() === 'usdc' ? usdcBalance < (effectivePrice * 1e6) :
+                               (user.points || 0) < effectivePrice;
+                      })()
                     ))}
                   >
                     {isPurchasing ? (
@@ -437,12 +467,32 @@ const CosmeticsShop = ({ user }) => {
                     ) : (
                       <>
                         <img 
-                          src={cosmetic.currency === 'aury' ? '/aury-icon.png' : cosmetic.currency === 'usdc' ? '/usdc-icon.png' : '/valcoin-icon.jpg'} 
+                          src={(cosmetic.currency || 'valcoins').toLowerCase() === 'aury' ? '/aury-icon.png' : (cosmetic.currency || 'valcoins').toLowerCase() === 'usdc' ? '/usdc-icon.png' : '/valcoin-icon.jpg'} 
                           alt="" 
                           className="valcoin-btn-icon" 
-                          style={{ borderRadius: cosmetic.currency === 'valcoins' ? '50%' : '0' }}
+                          style={{ borderRadius: (cosmetic.currency || 'valcoins').toLowerCase() === 'valcoins' ? '50%' : '0' }}
                         />
-                        {cosmetic.price.toLocaleString()}
+                        {(() => {
+                          let discountPrice = (cosmetic.discountPrice !== undefined && cosmetic.discountPrice !== null) ? Number(cosmetic.discountPrice) : null;
+                          
+                          // Check expiry
+                          if (discountPrice !== null && cosmetic.discountExpiry) {
+                            const expiry = cosmetic.discountExpiry.toDate ? cosmetic.discountExpiry.toDate() : new Date(cosmetic.discountExpiry);
+                            if (new Date() > expiry) {
+                              discountPrice = null;
+                            }
+                          }
+
+                          if (discountPrice !== null && discountPrice < cosmetic.price) {
+                            return (
+                              <div className="cosmetic-price-container">
+                                <span className="original-price-strikethrough">{cosmetic.price.toLocaleString()}</span>
+                                <span className="discounted-price">{discountPrice.toLocaleString()}</span>
+                              </div>
+                            );
+                          }
+                          return cosmetic.price.toLocaleString();
+                        })()}
                       </>
                     )}
                   </button>

@@ -19,7 +19,8 @@ import {
   deleteDoc,
   setDoc,
   getDoc,
-  collectionGroup
+  collectionGroup,
+  Timestamp
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -891,7 +892,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       setShopHistoryLoading(true);
       try {
         // 1. Fetch from the new central collection (future sales)
-        const salesQuery = query(collection(db, 'cosmetic_sales'), orderBy('timestamp', 'desc'), limit(100));
+        const salesQuery = query(collection(db, 'cosmetic_sales'), orderBy('timestamp', 'desc'), limit(500));
         const salesSnap = await getDocs(salesQuery);
         const salesData = salesSnap.docs.map(d => ({ id: d.id, ...d.data(), source: 'log' }));
 
@@ -900,7 +901,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           collectionGroup(db, 'pointsHistory'),
           where('type', '==', 'cosmetic_commission'),
           orderBy('timestamp', 'desc'),
-          limit(100)
+          limit(200)
         );
         const legacySnap = await getDocs(legacyQuery);
         
@@ -909,17 +910,17 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         
         for (const d of legacySnap.docs) {
           const data = d.data();
-          const creatorId = d.ref.parent.parent.id;
           const buyerId = data.buyerId;
+          const creatorId = d.ref.parent.parent.id; // Parent of pointsHistory is the user document
 
           // Fetch names if not in cache
           if (creatorId && !userCache[creatorId]) {
             const u = await getDoc(doc(db, 'users', creatorId));
-            userCache[creatorId] = u.exists() ? (u.data().displayName || u.data().username || 'Unknown') : 'Unknown';
+            userCache[creatorId] = u.exists() ? resolveDisplayName(u.data()) : 'Unknown';
           }
           if (buyerId && !userCache[buyerId]) {
             const u = await getDoc(doc(db, 'users', buyerId));
-            userCache[buyerId] = u.exists() ? (u.data().displayName || u.data().username || 'Unknown') : 'Unknown';
+            userCache[buyerId] = u.exists() ? resolveDisplayName(u.data()) : 'Unknown';
           }
 
           legacyData.push({
@@ -931,16 +932,60 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             cosmeticName: data.description.replace('60% share from sale of ', ''),
             price: (data.amount / 0.6),
             commission: data.amount,
-            currency: data.currency,
+            currency: data.currency || 'valcoins',
             timestamp: data.timestamp,
             source: 'legacy'
           });
         }
 
-        // Merge and sort
-        const combined = [...salesData, ...legacyData]
+        // 3. For new logs, we also want to ensure we're showing the LATEST names, 
+        // not just what was captured at the time of sale.
+        const freshSalesData = [];
+        for (const sale of salesData) {
+          const bId = sale.buyerId;
+          const cId = sale.creatorId;
+
+          if (bId && !userCache[bId]) {
+            const u = await getDoc(doc(db, 'users', bId));
+            userCache[bId] = u.exists() ? resolveDisplayName(u.data()) : (sale.buyerName || 'Unknown');
+          }
+          if (cId && cId !== 'System' && !userCache[cId]) {
+            const u = await getDoc(doc(db, 'users', cId));
+            userCache[cId] = u.exists() ? resolveDisplayName(u.data()) : (sale.creatorName || 'System');
+          }
+
+          freshSalesData.push({
+            ...sale,
+            buyerName: userCache[bId] || sale.buyerName,
+            creatorName: userCache[cId] || sale.creatorName || 'System'
+          });
+        }
+
+        // 4. Merge and De-duplicate
+        // We use a unique key (buyerId + item + timestamp) to ensure that if a transaction 
+        // exists in both 'cosmetic_sales' and 'pointsHistory', we only show it once.
+        const seen = new Set();
+        const finalData = [];
+
+        // Add fresh sales first (they are more complete)
+        freshSalesData.forEach(s => {
+          const key = `${s.buyerId}_${s.cosmeticName}_${s.timestamp?.toMillis() || 0}`;
+          seen.add(key);
+          finalData.push(s);
+        });
+
+        // Add legacy records only if we haven't seen this specific sale already
+        legacyData.forEach(l => {
+          const key = `${l.buyerId}_${l.cosmeticName}_${l.timestamp?.toMillis() || 0}`;
+          if (!seen.has(key)) {
+            finalData.push(l);
+          }
+        });
+
+        // Sort the finalized list
+        const combined = finalData
           .sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0))
-          .slice(0, 100);
+          .slice(0, 500);
 
         setShopHistory(combined);
       } catch (err) {
@@ -1034,13 +1079,40 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         finalPngUrl = await getDownloadURL(uploadResult.ref);
       }
 
+      const basePrice = Number(cosmeticForm.price) || 0;
+      const discountPrice = (cosmeticForm.discountPrice !== undefined && cosmeticForm.discountPrice !== null) ? Number(cosmeticForm.discountPrice) : null;
+
+      // Validate Discount Price
+      if (discountPrice !== null && discountPrice >= basePrice) {
+        alert('Discount price must be LOWER than the original price.');
+        setProcessingId(null);
+        return;
+      }
+
+      // Calculate Discount Expiry if duration is set
+      let discountExpiry = null;
+      const days = parseInt(cosmeticForm.discountDays) || 0;
+      const hours = parseInt(cosmeticForm.discountHours) || 0;
+
+      if (discountPrice !== null && (days > 0 || hours > 0)) {
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + days);
+        expiryDate.setHours(expiryDate.getHours() + hours);
+        discountExpiry = Timestamp.fromDate(expiryDate);
+      }
+
       const cosmeticData = {
         ...cosmeticForm,
         gifUrl: finalUrl,
         pngUrl: finalPngUrl,
+        discountExpiry: discountExpiry,
         updatedAt: serverTimestamp(),
         updatedBy: user.uid
       };
+
+      // Clean up UI-only fields before saving to Firestore
+      delete cosmeticData.discountDays;
+      delete cosmeticData.discountHours;
 
       if (!editingCosmetic) {
         // 🆕 DUPLICATE CHECK: Prevent adding items with the exact same name
@@ -1063,10 +1135,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         // Update existing
         const docRef = doc(db, 'cosmetics', editingCosmetic.id);
         
-        // If the item has no creator (System), or we want to update it
-        // We persist the original if it exists, otherwise assign current user
-        cosmeticData.createdBy = editingCosmetic.createdBy || user.uid;
-        cosmeticData.createdByName = editingCosmetic.createdByName || (resolveDisplayName(user) || 'Admin');
+        // If the item has no creator (System), we KEEP it as System (null/undefined)
+        // Only assign current user if it was already their item or if explicitly creating a new one.
+        cosmeticData.createdBy = editingCosmetic.createdBy || null;
+        cosmeticData.createdByName = editingCosmetic.createdByName || 'System';
         
         await updateDoc(docRef, cosmeticData);
         alert('Cosmetic updated successfully!');
@@ -1074,7 +1146,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
       // Reset form
       setCosmeticForm({
-        name: '', type: 'aura', rarity: 'common', price: 1000, currency: 'valcoins',
+        name: '', type: 'aura', rarity: 'common', price: 1000, discountPrice: null, 
+        discountDays: 0, discountHours: 0, currency: 'valcoins',
         description: '', placement: 'behind', gifUrl: '', pngUrl: '', cssClass: '', style: {}
       });
       setEditingCosmetic(null);
@@ -5379,7 +5452,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           <tbody>
                             {shopHistory.map(sale => {
                               const date = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp);
-                              const currencyIcon = sale.currency === 'aury' ? '/aury-icon.png' : sale.currency === 'usdc' ? '/usdc-icon.png' : '/valcoin-icon.jpg';
+                              const currency = (sale.currency || 'valcoins').toLowerCase();
+                              const currencyIcon = currency === 'aury' ? '/aury-icon.png' : currency === 'usdc' ? '/usdc-icon.png' : '/valcoin-icon.jpg';
                               return (
                                 <tr key={sale.id}>
                                   <td>
@@ -5412,7 +5486,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                   <td style={{ textAlign: 'right' }}>
                                     <div className="history-commission" style={{ justifyContent: 'flex-end' }}>
                                       +{sale.commission?.toLocaleString()}
-                                      <img src={currencyIcon} alt="" className={`history-currency-icon ${sale.currency === 'valcoins' ? 'valcoin' : ''}`} style={{ marginLeft: '8px' }} />
+                                      <img src={currencyIcon} alt="" className={`history-currency-icon ${currency === 'valcoins' ? 'valcoin' : ''}`} style={{ marginLeft: '8px' }} />
                                     </div>
                                   </td>
                                 </tr>
@@ -5474,11 +5548,18 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                               <td>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                   <img 
-                                    src={item.currency === 'aury' ? '/aury-icon.png' : item.currency === 'usdc' ? '/usdc-icon.png' : '/valcoin-icon.jpg'} 
+                                    src={(item.currency || 'valcoins').toLowerCase() === 'aury' ? '/aury-icon.png' : (item.currency || 'valcoins').toLowerCase() === 'usdc' ? '/usdc-icon.png' : '/valcoin-icon.jpg'} 
                                     alt="" 
-                                    style={{ width: '12px', height: '12px', borderRadius: item.currency === 'valcoins' ? '50%' : '0' }} 
+                                    style={{ width: '12px', height: '12px', borderRadius: (item.currency || 'valcoins').toLowerCase() === 'valcoins' ? '50%' : '0' }} 
                                   />
-                                  {item.price.toLocaleString()}
+                                  {item.discountPrice !== undefined && item.discountPrice !== null && item.discountPrice < item.price ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '1' }}>
+                                      <span style={{ textDecoration: 'line-through', fontSize: '10px', opacity: 0.5 }}>{item.price.toLocaleString()}</span>
+                                      <span style={{ color: '#4ade80', fontWeight: 'bold', fontSize: '12px' }}>{item.discountPrice.toLocaleString()}</span>
+                                    </div>
+                                  ) : (
+                                    item.price.toLocaleString()
+                                  )}
                                 </div>
                               </td>
                               <td>
@@ -5490,12 +5571,22 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 <span style={{ color: '#10b981', fontWeight: 'bold' }}>{item.saleCount || 0}</span>
                               </td>
                               <td className="admin-actions">
-                                <button className="edit-btn" onClick={() => {
-                                  setEditingCosmetic(item);
-                                  setCosmeticForm({ ...item });
-                                  setShopSubTab('cosmetics_form');
-                                }}>📝 Edit</button>
-                                <button className="delete-btn" onClick={() => handleDeleteCosmetic(item.id)}>🗑️</button>
+                                {(isSuperAdminUser || item.createdBy === user.uid) ? (
+                                  <>
+                                    <button className="edit-btn" onClick={() => {
+                                      setEditingCosmetic(item);
+                                      setCosmeticForm({ 
+                                        ...item,
+                                        discountDays: 0,
+                                        discountHours: 0
+                                      });
+                                      setShopSubTab('cosmetics_form');
+                                    }}>📝 Edit</button>
+                                    <button className="delete-btn" onClick={() => handleDeleteCosmetic(item.id)}>🗑️</button>
+                                  </>
+                                ) : (
+                                  <span style={{ fontSize: '11px', color: '#64748b' }}>No Permission</span>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -5654,12 +5745,42 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         </select>
                       </div>
                       <div className="form-group flex-1">
-                        <label>Price</label>
+                        <label>Price {editingCosmetic && <span style={{ color: '#ef4444', fontSize: '10px' }}>(Locked)</span>}</label>
                         <input
                           type="number"
                           value={cosmeticForm.price}
                           onChange={(e) => setCosmeticForm(prev => ({ ...prev, price: parseInt(e.target.value) || 0 }))}
                           required
+                          disabled={!!editingCosmetic}
+                          style={editingCosmetic ? { opacity: 0.6, cursor: 'not-allowed', background: 'rgba(0,0,0,0.2)' } : {}}
+                        />
+                      </div>
+                      <div className="form-group flex-1">
+                        <label>Discount Price</label>
+                        <input
+                          type="number"
+                          value={cosmeticForm.discountPrice || ''}
+                          onChange={(e) => setCosmeticForm(prev => ({ ...prev, discountPrice: e.target.value === '' ? null : parseInt(e.target.value) || 0 }))}
+                          placeholder="Sale price..."
+                        />
+                      </div>
+                      <div className="form-group flex-1">
+                        <label>Duration (Days)</label>
+                        <input
+                          type="number"
+                          value={cosmeticForm.discountDays || 0}
+                          onChange={(e) => setCosmeticForm(prev => ({ ...prev, discountDays: parseInt(e.target.value) || 0 }))}
+                          min="0"
+                        />
+                      </div>
+                      <div className="form-group flex-1">
+                        <label>Duration (Hours)</label>
+                        <input
+                          type="number"
+                          value={cosmeticForm.discountHours || 0}
+                          onChange={(e) => setCosmeticForm(prev => ({ ...prev, discountHours: parseInt(e.target.value) || 0 }))}
+                          min="0"
+                          max="23"
                         />
                       </div>
                     </div>
