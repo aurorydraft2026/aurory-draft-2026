@@ -295,6 +295,10 @@ service cloud.firestore {
                          (request.resource.data.role == resource.data.role) ||
                          isSuperAdmin() ||
                          (!(resource.data.get('role', 'user') in ['admin', 'superadmin']) && (request.resource.data.get('role', 'user') in ['user', 'blocked', null]))
+                       )) || (isAuthenticated() && (
+                         // Allow authenticated users to increment another user's points for cosmetic commissions
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points']) &&
+                         request.resource.data.points >= resource.data.get('points', 0)
                        ));
 
       // Subcollection: Points History
@@ -302,7 +306,10 @@ service cloud.firestore {
         // Users can read their own points history, admins can read all
         allow read: if isOwner(userId) || isAdmin();
         // Users can create their own points history entries (for rewarding via transaction)
-        allow create: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) || isAdmin() || (
+          isAuthenticated() && 
+          request.resource.data.type in ['cosmetic_commission', 'cosmetic_purchase']
+        );
         // Points history is immutable
         allow update, delete: if isAdmin();
       }
@@ -389,9 +396,14 @@ service cloud.firestore {
 
       // Users can update their own wallet ONLY if balances (AURY or USDC) are decreasing or staying same
       // This allows the client to deduct fees but prevents balance manipulation
+      // Exception: allow authenticated users to increase balance for cosmetic commissions
       allow update: if (isOwner(walletId) || isAuthenticated()) &&
-                       request.resource.data.balance <= resource.data.balance &&
-                       request.resource.data.get('usdcBalance', 0) <= resource.data.get('usdcBalance', 0);
+                       (
+                         (request.resource.data.balance <= resource.data.balance &&
+                          request.resource.data.get('usdcBalance', 0) <= resource.data.get('usdcBalance', 0)) ||
+                         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balance', 'usdcBalance', 'updatedAt']) && 
+                          (request.resource.data.balance >= resource.data.balance || request.resource.data.get('usdcBalance', 0) >= resource.data.get('usdcBalance', 0)))
+                       );
 
       // Admins can update any wallet (for deposits, refunds, etc.)
       // Restricted to Super Admins for manual credit/deduction
@@ -407,7 +419,11 @@ service cloud.firestore {
         allow read: if isOwner(walletId) || isAdmin();
 
         // Users and admins can create transactions
-        allow create: if isOwner(walletId) || isAdmin();
+        // Also allow authenticated users to create commission/revenue transactions for other users
+        allow create: if isOwner(walletId) || isAdmin() || (
+          isAuthenticated() && 
+          request.resource.data.type in ['cosmetic_revenue', 'cosmetic_purchase']
+        );
 
 
         // Transactions are immutable (no updates)

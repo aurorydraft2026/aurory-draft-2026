@@ -24,7 +24,8 @@ const RUNE_SIZE = 22;
 const NIDHOGG_GRACE_PERIOD = 120; // 2 seconds at 60fps
 const NIDHOGG_BASE_SPEED = 0.3;
 const NIDHOGG_ACCEL = 0.0001; // Accelerates over time
-const NIDHOGG_STALL_BOOST = 0.15; // Extra speed if player stays low
+const NIDHOGG_MAX_SPEED = 4.5; // Cap to ensure it stays beatable (Player MOVE_SPEED is 6.5)
+const NIDHOGG_STALL_BOOST = 0.45; // Temporary surge if player stays low (increased since it's no longer permanent)
 const RATATOSKR_W = 20;
 const RATATOSKR_H = 16;
 const RATATOSKR_SPEED = 2; // Slowed down so players can see and catch it
@@ -1558,12 +1559,19 @@ const YggdrasilAscender = ({ user }) => {
       nh.graceTimer -= dt;
     } else {
       nh.active = true;
-      nh.speed += NIDHOGG_ACCEL * dt;
+      // 1. Passive Acceleration (Capped)
+      if (nh.speed < NIDHOGG_MAX_SPEED) {
+        nh.speed += NIDHOGG_ACCEL * dt;
+      }
+      
+      // 2. Proximity Surge (Temporary boost, NOT permanent acceleration)
+      let currentMistSpeed = nh.speed;
       const distToMist = p.y - nh.y;
       if (distToMist < 300 && distToMist > 0) {
-        nh.speed += NIDHOGG_STALL_BOOST * dt * (1 - distToMist / 300);
+        currentMistSpeed += NIDHOGG_STALL_BOOST * (1 - distToMist / 300);
       }
-      nh.y -= nh.speed * dt;
+      
+      nh.y -= currentMistSpeed * dt;
       const cameraBottom = g.camera + CANVAS_H;
       if (nh.y > cameraBottom + 400) {
         nh.y = cameraBottom + 400;
@@ -2579,6 +2587,13 @@ const YggdrasilAscender = ({ user }) => {
       p.y = g.camera + 100;
       p.x = CANVAS_W / 2 - PLAYER_W / 2;
     }
+
+    // Push Nidhogg down and reset timers to prevent immediate re-death
+    if (g.nidhogg.active) {
+      g.nidhogg.y = p.y + 600; // Push mist 600px below player
+      g.nidhogg.graceTimer = 60; // 1 second grace period
+    }
+    p.mistTimer = 120; // Reset survival window
 
     p.vy = -7; // Gentle upward boost
     p.vx = 0;
