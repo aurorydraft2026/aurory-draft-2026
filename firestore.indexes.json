@@ -143,17 +143,30 @@
           "order": "DESCENDING"
         }
       ]
-    },
+    }
+  ],
+  "fieldOverrides": [
     {
-      "collectionGroup": "cosmetic_sales",
-      "queryScope": "COLLECTION",
-      "fields": [
+      "collectionGroup": "transactions",
+      "fieldPath": "timestamp",
+      "indexes": [
         {
-          "fieldPath": "timestamp",
-          "order": "DESCENDING"
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION_GROUP"
         }
       ]
     }
-  ],
-  "fieldOverrides": []
+  ]
 }

@@ -2050,7 +2050,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
   // Fetch Economy Data
   useEffect(() => {
-    if (!isSeniorAdminUser || activeTab !== 'economy') return;
+    if (!isGeneralAdmin || activeTab !== 'economy') return;
 
     setEconomyLoading(true);
 
@@ -2102,7 +2102,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     // Listener for all Burn transactions
     const qBurns = query(
       collectionGroup(db, 'transactions'),
-      orderBy('timestamp', 'desc')
+      orderBy('timestamp', 'desc'),
+      limit(1000)
     );
     const unsubBurns = onSnapshot(qBurns, (snap) => {
       const burnTypes = ['raffle_entry', 'raffle_fee', 'entry_fee', 'cosmetic_purchase', 'manual_deduction', 'ygg_event_entry', 'shop_purchase', 'deduction'];
@@ -2145,7 +2146,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       unsubSales();
       unsubBurns();
     };
-  }, [activeTab, isSeniorAdminUser]);
+  }, [activeTab, isGeneralAdmin]);
 
   // Aggregate Economy Taxes
   useEffect(() => {
@@ -5007,8 +5008,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             </div>
           )}
 
-          {/* Games Category (Super Admin & Games Manager) */}
-          {(isSeniorAdminUser || isGamesManagerUser) && (
+          {/* Games Category (All Admins & Games Manager) */}
+          {isAdminUser && (
             <div className={`admin-category ${expandedCategory === 'games' ? 'expanded' : ''}`}>
               <div
                 className="category-title"
@@ -5073,7 +5074,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 >
                   🤖 Runie Chatbot
                 </button>
-                {isSeniorAdminUser && (
+                {isGeneralAdmin && (
                   <button
                     className={`admin-tab ${activeTab === 'economy' ? 'active' : ''}`}
                     onClick={() => setActiveTab('economy')}
@@ -7674,7 +7675,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             </div>
           )}
 
-          {activeTab === 'economy' && isSeniorAdminUser && renderEconomyTab()}
+          {activeTab === 'economy' && isGeneralAdmin && renderEconomyTab()}
 
           {activeTab === 'users' && isAdminUser && (
             <div className="users-assignment-section">
