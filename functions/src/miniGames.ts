@@ -1384,11 +1384,16 @@ export const submitYggdrasilRun = onCall(
                 console.error('Global ascension increment failed:', e);
             }
 
+            // Sync target to RTDB if needed (outside transaction)
+            const configDoc = await configRef.get();
+            const configData = configDoc.data()?.yggdrasilAscender || {};
+            const globalGoalTarget = configData.globalGoalTarget ?? 1000000;
+            await rtdb.ref('yggdrasil/global_goal/target').set(globalGoalTarget);
+
             return await db.runTransaction(async (transaction: any) => {
-                const [userDoc, runDoc, configDoc, upgradesDoc] = await Promise.all([
+                const [userDoc, runDoc, upgradesDoc] = await Promise.all([
                     transaction.get(userRef),
                     transaction.get(runDocRef),
-                    transaction.get(configRef),
                     transaction.get(upgradesRef)
                 ]);
 
@@ -1396,13 +1401,8 @@ export const submitYggdrasilRun = onCall(
                     throw new HttpsError('not-found', 'User not found.');
                 }
 
-                const configData = configDoc.exists ? configDoc.data().yggdrasilAscender || {} : {};
                 const maxDailyRuns = configData.maxDailyRuns ?? 5;
                 const runeMultiplier = configData.runeMultiplier ?? 1.0;
-                const globalGoalTarget = configData.globalGoalTarget ?? 1000000;
-
-                // Sync target to RTDB so it matches Admin Panel
-                await rtdb.ref('yggdrasil/global_goal/target').set(globalGoalTarget);
 
                 const runData = runDoc.exists ? runDoc.data() : { count: 0 };
                 const rewardAmount = Math.floor(altitude / 100) * Math.max(1, Math.floor(runes * runeMultiplier));
@@ -1534,6 +1534,8 @@ export const purchaseRuneShopItem = onCall(
                 const updateUser: any = {};
                 const updateUpgrades: any = {};
 
+                let currency = 'runes'; // Default
+
                 switch (itemId) {
                     case 'magnetism': {
                         const currentLevel = upgrades.magnetismLevel || 0;
@@ -1542,6 +1544,7 @@ export const purchaseRuneShopItem = onCall(
                         }
                         const costKey = `magnetismLv${currentLevel + 1}`;
                         cost = shopCosts[costKey] ?? DEFAULT_SHOP_CONFIG.magnetismCosts[currentLevel];
+                        currency = shopCosts[`${itemId}Currency`] || 'runes';
                         updateUpgrades.magnetismLevel = currentLevel + 1;
                         break;
                     }
@@ -1550,6 +1553,7 @@ export const purchaseRuneShopItem = onCall(
                             return { success: false, error: 'You have reached the maximum number of Turbo charges.' };
                         }
                         cost = shopCosts.extraTurbo ?? DEFAULT_SHOP_CONFIG.extraPocketsCosts.turbo;
+                        currency = shopCosts[`${itemId}Currency`] || 'runes';
                         updateUpgrades.extraTurbo = (upgrades.extraTurbo || 0) + 1;
                         break;
                     }
@@ -1558,6 +1562,7 @@ export const purchaseRuneShopItem = onCall(
                             return { success: false, error: 'You have reached the maximum number of Double Jump charges.' };
                         }
                         cost = shopCosts.extraJump ?? DEFAULT_SHOP_CONFIG.extraPocketsCosts.doubleJump;
+                        currency = shopCosts[`${itemId}Currency`] || 'runes';
                         updateUpgrades.extraJump = (upgrades.extraJump || 0) + 1;
                         break;
                     }
@@ -1566,6 +1571,7 @@ export const purchaseRuneShopItem = onCall(
                             return { success: false, error: 'You already have an Idun\'s Apple. Use it before buying another.' };
                         }
                         cost = shopCosts.idunApple ?? DEFAULT_SHOP_CONFIG.idunAppleCost;
+                        currency = shopCosts[`${itemId}Currency`] || 'runes';
                         updateUpgrades.hasIdunApple = true;
                         break;
                     }
@@ -1583,6 +1589,7 @@ export const purchaseRuneShopItem = onCall(
                             }
                             
                             cost = customItem.price || 0;
+                            currency = customItem.currency || 'runes';
                             
                             // 1. Create prize record in user's armory
                             const prizeRef = userRef.collection('prizes').doc();
@@ -1615,20 +1622,36 @@ export const purchaseRuneShopItem = onCall(
                     }
                 }
                 
-                const currency = (itemId.startsWith('custom_')) ? (yggConfig.customShopItems?.find((i: any) => i.id === itemId)?.currency || 'runes') : 'runes';
-                const balance = currency === 'redRunes' ? (userDoc.get('yggRedRunes') || 0) : runeBalance;
+                // --- Unified Currency & Balance Check ---
+                // Normalize currency to handle potential data inconsistencies (though 'runes' and 'redRunes' are expected)
+                const normalizedCurrency = currency === 'redRunes' ? 'redRunes' : 'runes';
+                const balance = normalizedCurrency === 'redRunes' ? (userDoc.get('yggRedRunes') || 0) : runeBalance;
 
                 if (balance < cost) {
-                    const currencyName = currency === 'redRunes' ? 'Red Runes' : 'Runes';
+                    const currencyName = normalizedCurrency === 'redRunes' ? 'Red Runes' : 'Runes';
                     return { success: false, error: `Not enough ${currencyName}. Need ${cost}, have ${balance}.` };
                 }
 
-                // Deduct runes
-                if (currency === 'redRunes') {
+                // Deduct balance from correct field
+                if (normalizedCurrency === 'redRunes') {
                     updateUser.yggRedRunes = admin.firestore.FieldValue.increment(-cost);
                 } else {
                     updateUser.yggRunes = admin.firestore.FieldValue.increment(-cost);
                 }
+                // Record Purchase History
+                const historyRef = userRef.collection('rune_history').doc();
+                const itemName = (itemId.startsWith('custom_')) 
+                    ? (yggConfig.customShopItems?.find((i: any) => i.id === itemId)?.name || itemId)
+                    : itemId.replace(/([A-Z])/g, ' $1').replace(/^./, (str: string) => str.toUpperCase()); // Format id to name
+                
+                transaction.set(historyRef, {
+                    itemId,
+                    itemName,
+                    cost,
+                    currency: normalizedCurrency,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp()
+                });
+
                 transaction.update(userRef, updateUser);
 
                 // Update upgrades
@@ -1637,8 +1660,9 @@ export const purchaseRuneShopItem = onCall(
                 return { 
                     success: true, 
                     cost,
-                    newRuneBalance: currency === 'redRunes' ? runeBalance : (runeBalance - cost),
-                    newRedRuneBalance: currency === 'redRunes' ? ((userDoc.get('yggRedRunes') || 0) - cost) : (userDoc.get('yggRedRunes') || 0),
+                    currency: normalizedCurrency,
+                    newRuneBalance: normalizedCurrency === 'redRunes' ? runeBalance : (runeBalance - cost),
+                    newRedRuneBalance: normalizedCurrency === 'redRunes' ? ((userDoc.get('yggRedRunes') || 0) - cost) : (userDoc.get('yggRedRunes') || 0),
                     item: itemId
                 };
             });

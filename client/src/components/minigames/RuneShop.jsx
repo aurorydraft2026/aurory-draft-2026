@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { purchaseRuneShopItem, exchangeRunesService, getUserYggData } from '../../services/miniGameService';
+import { purchaseRuneShopItem, exchangeRunesService, getUserYggData, getRuneShopHistory } from '../../services/miniGameService';
 import './RuneShop.css';
 
 const SHOP_ITEMS = [
@@ -52,6 +52,7 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
   const [exchangeTarget, setExchangeTarget] = useState('Valcoins');
   const [exchangeLoading, setExchangeLoading] = useState(false);
   const [message, setMessage] = useState(null);
+  const [history, setHistory] = useState([]);
 
   const loadData = useCallback(async () => {
     if (!user?.uid) return;
@@ -60,6 +61,10 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
     setRuneBalance(data.runeBalance);
     setRedRuneBalance(data.redRuneBalance || 0);
     setUpgrades(data.upgrades);
+    
+    const historyData = await getRuneShopHistory(user.uid);
+    setHistory(historyData);
+    
     setLoading(false);
   }, [user]);
 
@@ -124,6 +129,12 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
     return item.defaultCost;
   };
 
+  const getItemCurrency = (item) => {
+    const shopCosts = config?.shopCosts || {};
+    // Check if there's a specific currency override in the config for this default item
+    return shopCosts[`${item.id}Currency`] || item.currency || 'runes';
+  };
+
   const getItemStatus = (item) => {
     if (item.id === 'magnetism') {
       const level = upgrades.magnetismLevel || 0;
@@ -150,7 +161,7 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
     if (item.id === 'extraTurbo' && (upgrades.extraTurbo || 0) >= 3) return true;
     if (item.id === 'extraJump' && (upgrades.extraJump || 0) >= 5) return true;
     const cost = getItemCost(item);
-    const currency = item.currency || 'runes';
+    const currency = getItemCurrency(item);
     const balance = currency === 'redRunes' ? redRuneBalance : runeBalance;
     return cost === null || balance < cost;
   };
@@ -206,10 +217,11 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
           <div className="ygg-shop-main">
             <div className="ygg-shop-section-title">⚡ Upgrades & Consumables</div>
             <div className="ygg-shop-items">
-              {[...SHOP_ITEMS, ...(config?.customShopItems || [])].map(item => {
+              {[...(config?.customShopItems || []), ...SHOP_ITEMS].map(item => {
                 const isCustom = item.id.startsWith('custom_');
                 const cost = isCustom ? item.price : getItemCost(item);
-                const isRedRune = item.currency === 'redRunes';
+                const currency = getItemCurrency(item);
+                const isRedRune = currency === 'redRunes';
                 const balance = isRedRune ? redRuneBalance : runeBalance;
                 const status = isCustom ? (item.stock > 0 ? `Stock: ${item.stock}` : 'SOLD OUT') : getItemStatus(item);
                 const disabled = isCustom ? (item.stock <= 0 || balance < cost) : isDisabled(item);
@@ -242,7 +254,7 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
                         {purchasing === item.id ? '...' : (isCustom && item.stock <= 0) ? 'EMPTY' : cost !== null ? (
                           <div className="ygg-buy-btn-content">
                             <img 
-                              src={isCustom && item.currency === 'redRunes' ? "/icons/minigames/yggdrasil/red_rune.png" : "/icons/minigames/yggdrasil/rune.png"} 
+                              src={isRedRune ? "/icons/minigames/yggdrasil/red_rune.png" : "/icons/minigames/yggdrasil/rune.png"} 
                               alt="rune" 
                               className="ygg-buy-rune-img" 
                             />
@@ -290,6 +302,34 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
                 {exchangeLoading ? 'Exchanging...' : 'Confirm Exchange'}
               </button>
             </div>
+
+            {history.length > 0 && (
+              <div className="ygg-shop-history-section">
+                <div className="ygg-shop-section-title">📜 Recent Purchases</div>
+                <div className="ygg-shop-history-list custom-scrollbar">
+                  {history.map((entry) => (
+                    <div key={entry.id} className="ygg-history-item">
+                      <div className="ygg-history-item-main">
+                        <span className="ygg-history-item-name">{entry.itemName}</span>
+                        <div className="ygg-history-item-cost">
+                          <img 
+                            src={entry.currency === 'redRunes' ? "/icons/minigames/yggdrasil/red_rune.png" : "/icons/minigames/yggdrasil/rune.png"} 
+                            alt="rune" 
+                            className="ygg-history-rune-img" 
+                          />
+                          {entry.cost}
+                        </div>
+                      </div>
+                      <div className="ygg-history-item-date">
+                        {entry.timestamp?.seconds 
+                          ? new Date(entry.timestamp.seconds * 1000).toLocaleDateString() 
+                          : 'Just now'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

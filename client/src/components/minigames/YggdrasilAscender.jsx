@@ -2660,7 +2660,7 @@ const YggdrasilAscender = ({ user }) => {
       removePresence();
       setGameState('over');
       setRunStats({ loading: true });
-      submitYggdrasilRun(g.maxAlt, g.runes, g.player.shopTurbosUsed || 0, g.player.shopJumpsUsed || 0).then(res => {
+      submitYggdrasilRun(g.maxAlt, g.runes, g.player.shopTurbosUsed || 0, g.player.shopJumpsUsed || 0, g.redRunes || 0).then(res => {
         loadUserShopData(); // Refresh balance after run
         if (res && res.success) {
           setRunStats(res);

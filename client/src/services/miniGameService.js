@@ -1,5 +1,5 @@
 import { db, database, functions } from '../firebase';
-import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs, query as fsQuery, where } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs, query as fsQuery, where, orderBy, limit } from 'firebase/firestore';
 import { ref, onValue, off, query, orderByChild, limitToLast, set, onDisconnect, runTransaction } from 'firebase/database';
 import { httpsCallable } from 'firebase/functions';
 import { createNotification } from './notifications';
@@ -329,6 +329,26 @@ export async function getUserYggData(uid) {
   } catch (error) {
     console.error('Error fetching Ygg data:', error);
     return { runeBalance: 0, upgrades: {} };
+  }
+}
+
+/**
+ * Fetch purchase history from Rune Shop.
+ * @param {string} uid - User ID
+ */
+export async function getRuneShopHistory(uid) {
+  if (!uid) return [];
+  try {
+    const historyRef = collection(db, 'users', uid, 'rune_history');
+    const q = fsQuery(historyRef, orderBy('timestamp', 'desc'), limit(20));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('Error fetching rune shop history:', error);
+    return [];
   }
 }
 

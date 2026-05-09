@@ -514,8 +514,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   const isSuperAdminUser = user && (isSuperAdmin(getUserEmail(user)) || user.role === 'superadmin');
   const isSeniorAdminUser = user && (isSuperAdminUser || user.role === 'senior_admin');
   const isGamesManagerUser = user && user.role === 'games_manager';
+  const isMerchantUser = user && user.role === 'merchant';
   const isGeneralAdmin = user && (isSeniorAdminUser || user.role === 'admin');
-  const isAdminUser = isGeneralAdmin || isGamesManagerUser;
+  const isAdminUser = isGeneralAdmin || isGamesManagerUser || isMerchantUser;
   const isAdmin = isGeneralAdmin; // Keep for existing checks in the file (withdrawals, etc)
 
   // Force Games Manager to appropriate initial tab
@@ -934,18 +935,39 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       setShopHistoryLoading(true);
       try {
         // 1. Fetch from the new central collection (future sales)
-        const salesQuery = query(collection(db, 'cosmetic_sales'), orderBy('timestamp', 'desc'), limit(500));
+        let salesQuery;
+        if (isMerchantUser && !isSuperAdminUser) {
+          salesQuery = query(
+            collection(db, 'cosmetic_sales'),
+            where('creatorId', '==', user.uid),
+            orderBy('timestamp', 'desc'),
+            limit(500)
+          );
+        } else {
+          salesQuery = query(collection(db, 'cosmetic_sales'), orderBy('timestamp', 'desc'), limit(500));
+        }
         const salesSnap = await getDocs(salesQuery);
         const salesData = salesSnap.docs.map(d => ({ id: d.id, ...d.data(), source: 'log' }));
 
         // 2. Fetch from legacy pointsHistory (old sales)
-        const legacyQuery = query(
-          collectionGroup(db, 'pointsHistory'),
-          where('type', '==', 'cosmetic_commission'),
-          orderBy('timestamp', 'desc'),
-          limit(200)
-        );
-        const legacySnap = await getDocs(legacyQuery);
+        let legacySnap;
+        if (isMerchantUser && !isSuperAdminUser) {
+          const merchantLegacyQuery = query(
+            collection(db, 'users', user.uid, 'pointsHistory'),
+            where('type', '==', 'cosmetic_commission'),
+            orderBy('timestamp', 'desc'),
+            limit(200)
+          );
+          legacySnap = await getDocs(merchantLegacyQuery);
+        } else {
+          const legacyQuery = query(
+            collectionGroup(db, 'pointsHistory'),
+            where('type', '==', 'cosmetic_commission'),
+            orderBy('timestamp', 'desc'),
+            limit(200)
+          );
+          legacySnap = await getDocs(legacyQuery);
+        }
 
         const legacyData = [];
         const userCache = {};
@@ -1038,7 +1060,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     };
 
     fetchHistory();
-  }, [activeTab, isAdminUser, shopSubTab]);
+  }, [activeTab, isAdminUser, shopSubTab, isMerchantUser, isSuperAdminUser, user?.uid]);
 
   const handleSaveShopSettings = async () => {
     setProcessingId('save_shop');
@@ -5047,7 +5069,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           )}
 
           {/* Website Management Category */}
-          {isGeneralAdmin && (
+          {(isGeneralAdmin || isMerchantUser) && (
             <div className={`admin-category ${expandedCategory === 'website' ? 'expanded' : ''}`}>
               <div
                 className="category-title"
@@ -5059,24 +5081,30 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 <span className="category-arrow">▼</span>
               </div>
               <div className="category-tabs">
-                <button
-                  className={`admin-tab ${activeTab === 'website_mgmt' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('website_mgmt')}
-                >
-                  🌐 Website Management
-                </button>
-                <button
-                  className={`admin-tab ${activeTab === 'shop_mgmt' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('shop_mgmt')}
-                >
-                  🛍️ Shop
-                </button>
-                <button
-                  className={`admin-tab ${activeTab === 'chatbot' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('chatbot')}
-                >
-                  🤖 Runie Chatbot
-                </button>
+                {isGeneralAdmin && (
+                  <button
+                    className={`admin-tab ${activeTab === 'website_mgmt' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('website_mgmt')}
+                  >
+                    🌐 Website Management
+                  </button>
+                )}
+                {(isGeneralAdmin || isMerchantUser) && (
+                  <button
+                    className={`admin-tab ${activeTab === 'shop_mgmt' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('shop_mgmt')}
+                  >
+                    🛍️ Shop
+                  </button>
+                )}
+                {isGeneralAdmin && (
+                  <button
+                    className={`admin-tab ${activeTab === 'chatbot' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('chatbot')}
+                  >
+                    🤖 Runie Chatbot
+                  </button>
+                )}
                 {isGeneralAdmin && (
                   <button
                     className={`admin-tab ${activeTab === 'economy' ? 'active' : ''}`}
@@ -6276,8 +6304,35 @@ All decisions made by tournament organizers may change throughout the tourney.`)
           {activeTab === 'shop_mgmt' && (
             <div className="shop-mgmt-section" style={{ width: '100%' }}>
               <div className="section-info">
-                <p>🛍️ Manage the Valhalla Shop, including settings, cosmetics, amikos, items, and tickets.</p>
+                <p>🛍️ Manage the Valhalla Vault inventory. Add new cosmetics, update prices, and manage animated auras.</p>
               </div>
+
+              {isMerchantUser && (
+                <div className="merchant-commission-card card" style={{ marginBottom: '20px', padding: '20px', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                  <h3 style={{ margin: '0 0 15px 0', color: '#10b981', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    💰 Merchant Dashboard
+                  </h3>
+                  <div className="merchant-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' }}>
+                    <div className="stat-item">
+                      <span style={{ fontSize: '12px', opacity: 0.7, display: 'block', marginBottom: '5px' }}>Your Items</span>
+                      <span style={{ fontSize: '20px', fontWeight: 'bold' }}>{shopCosmetics.filter(c => c.createdBy === user.uid).length}</span>
+                    </div>
+                    <div className="stat-item">
+                      <span style={{ fontSize: '12px', opacity: 0.7, display: 'block', marginBottom: '5px' }}>Total Sales</span>
+                      <span style={{ fontSize: '20px', fontWeight: 'bold' }}>{shopCosmetics.filter(c => c.createdBy === user.uid).reduce((acc, c) => acc + (c.saleCount || 0), 0)}</span>
+                    </div>
+                    <div className="stat-item">
+                      <span style={{ fontSize: '12px', opacity: 0.7, display: 'block', marginBottom: '5px' }}>Total Commission (60%)</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>
+                          {shopHistory.filter(s => s.creatorId === user.uid).reduce((acc, s) => acc + (s.commission || 0), 0).toLocaleString()}
+                        </span>
+                        <img src="/valcoin-icon.jpg" alt="" style={{ width: '16px', height: '16px', borderRadius: '50%' }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Sub-tab Pill Selector */}
               <div className="config-card" style={{ marginBottom: '20px', padding: '15px', background: 'rgba(10, 10, 15, 0.4)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
@@ -6443,7 +6498,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                       <div>
                         <h3 style={{ margin: 0 }}>Current Cosmetics</h3>
-                        <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>{shopCosmetics.length} Items found in the vault.</p>
+                        <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>{shopCosmetics.filter(item => isSuperAdminUser || !isMerchantUser || item.createdBy === user.uid).length} Items found in the vault.</p>
                       </div>
                       {isSuperAdminUser && (
                         <button
@@ -6535,7 +6590,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           </tr>
                         </thead>
                         <tbody>
-                          {shopCosmetics.map(item => (
+                          {shopCosmetics
+                            .filter(item => isSuperAdminUser || !isMerchantUser || item.createdBy === user.uid)
+                            .map(item => (
                             <tr key={item.id}>
                               <td>
                                 <AvatarWithAura
@@ -8111,6 +8168,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 >
                                   <option value="user">User</option>
                                   <option value="games_manager">Games Manager</option>
+                                  <option value="merchant">Merchant</option>
                                   <option value="senior_admin">Senior Admin</option>
                                   <option value="admin">Admin</option>
                                   {u.role === 'blocked' ? (
@@ -9183,6 +9241,20 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                               }}
                             />
                           </div>
+                          <div className="form-group" style={{ maxWidth: '120px' }}>
+                            <label>Currency</label>
+                            <select
+                              value={miniGamesConfig[activeGameType]?.shopCosts?.magnetismCurrency || 'runes'}
+                              onChange={(e) => {
+                                const costs = { ...(miniGamesConfig[activeGameType]?.shopCosts || {}) };
+                                costs.magnetismCurrency = e.target.value;
+                                handleUpdateMiniGameConfig(activeGameType, { shopCosts: costs });
+                              }}
+                            >
+                              <option value="runes">Runes</option>
+                              <option value="redRunes">Red Runes</option>
+                            </select>
+                          </div>
                         </div>
                         <div className="form-row" style={{ marginTop: '10px' }}>
                           <div className="form-group">
@@ -9220,6 +9292,50 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 handleUpdateMiniGameConfig(activeGameType, { shopCosts: costs });
                               }}
                             />
+                          </div>
+                        </div>
+                        <div className="form-row" style={{ marginTop: '10px' }}>
+                          <div className="form-group">
+                            <label>Turbo Currency</label>
+                            <select
+                              value={miniGamesConfig[activeGameType]?.shopCosts?.extraTurboCurrency || 'runes'}
+                              onChange={(e) => {
+                                const costs = { ...(miniGamesConfig[activeGameType]?.shopCosts || {}) };
+                                costs.extraTurboCurrency = e.target.value;
+                                handleUpdateMiniGameConfig(activeGameType, { shopCosts: costs });
+                              }}
+                            >
+                              <option value="runes">Runes</option>
+                              <option value="redRunes">Red Runes</option>
+                            </select>
+                          </div>
+                          <div className="form-group">
+                            <label>Jump Currency</label>
+                            <select
+                              value={miniGamesConfig[activeGameType]?.shopCosts?.extraJumpCurrency || 'runes'}
+                              onChange={(e) => {
+                                const costs = { ...(miniGamesConfig[activeGameType]?.shopCosts || {}) };
+                                costs.extraJumpCurrency = e.target.value;
+                                handleUpdateMiniGameConfig(activeGameType, { shopCosts: costs });
+                              }}
+                            >
+                              <option value="runes">Runes</option>
+                              <option value="redRunes">Red Runes</option>
+                            </select>
+                          </div>
+                          <div className="form-group">
+                            <label>Apple Currency</label>
+                            <select
+                              value={miniGamesConfig[activeGameType]?.shopCosts?.idunAppleCurrency || 'runes'}
+                              onChange={(e) => {
+                                const costs = { ...(miniGamesConfig[activeGameType]?.shopCosts || {}) };
+                                costs.idunAppleCurrency = e.target.value;
+                                handleUpdateMiniGameConfig(activeGameType, { shopCosts: costs });
+                              }}
+                            >
+                              <option value="runes">Runes</option>
+                              <option value="redRunes">Red Runes</option>
+                            </select>
                           </div>
                         </div>
 
