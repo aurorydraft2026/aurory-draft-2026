@@ -1359,11 +1359,11 @@ export const submitYggdrasilRun = onCall(
             throw new HttpsError('unauthenticated', 'User must be logged in.');
         }
 
-        const { altitude, runes } = request.data;
+        const { altitude, runes, redRunes = 0 } = request.data;
         const { uid } = request.auth;
         const today = new Date().toISOString().split('T')[0];
 
-        if (typeof altitude !== 'number' || typeof runes !== 'number' || altitude < 0 || runes < 0) {
+        if (typeof altitude !== 'number' || typeof runes !== 'number' || typeof redRunes !== 'number' || altitude < 0 || runes < 0 || redRunes < 0) {
             throw new HttpsError('invalid-argument', 'Invalid run data.');
         }
 
@@ -1407,6 +1407,7 @@ export const submitYggdrasilRun = onCall(
                 const runData = runDoc.exists ? runDoc.data() : { count: 0 };
                 const rewardAmount = Math.floor(altitude / 100) * Math.max(1, Math.floor(runes * runeMultiplier));
                 const runesEarned = Math.floor(runes);
+                const redRunesEarned = Math.floor(redRunes);
 
                 const { turbosUsed = 0, doubleJumpsUsed = 0 } = request.data;
                 const updateData: any = {};
@@ -1425,10 +1426,14 @@ export const submitYggdrasilRun = onCall(
                 }
 
                 if (runData.count >= maxDailyRuns) {
+                    // Even if limit reached, Red Runes are always collectible (since they are from paid events)
+                    if (redRunesEarned > 0) {
+                        updateData.yggRedRunes = admin.firestore.FieldValue.increment(redRunesEarned);
+                    }
                     if (Object.keys(updateData).length > 0) {
                         transaction.update(userRef, updateData);
                     }
-                    return { success: true, reward: 0, limitReached: true, runesEarned: 0, runsCompleted: runData.count, maxRuns: maxDailyRuns };
+                    return { success: true, reward: 0, limitReached: true, runesEarned: 0, redRunesEarned: redRunesEarned, runsCompleted: runData.count, maxRuns: maxDailyRuns };
                 }
                 if (rewardAmount > 0) {
                     updateData.points = admin.firestore.FieldValue.increment(rewardAmount);
@@ -1436,6 +1441,9 @@ export const submitYggdrasilRun = onCall(
                 }
                 if (runesEarned > 0) {
                     updateData.yggRunes = admin.firestore.FieldValue.increment(runesEarned);
+                }
+                if (redRunesEarned > 0) {
+                    updateData.yggRedRunes = admin.firestore.FieldValue.increment(redRunesEarned);
                 }
 
 
@@ -1452,6 +1460,7 @@ export const submitYggdrasilRun = onCall(
                     success: true, 
                     reward: rewardAmount,
                     runesEarned,
+                    redRunesEarned,
                     runsCompleted: runData.count + 1,
                     maxRuns: maxDailyRuns
                 };
@@ -1605,13 +1614,21 @@ export const purchaseRuneShopItem = onCall(
                         return { success: false, error: 'Unknown item.' };
                     }
                 }
+                
+                const currency = (itemId.startsWith('custom_')) ? (yggConfig.customShopItems?.find((i: any) => i.id === itemId)?.currency || 'runes') : 'runes';
+                const balance = currency === 'redRunes' ? (userDoc.get('yggRedRunes') || 0) : runeBalance;
 
-                if (runeBalance < cost) {
-                    return { success: false, error: `Not enough Runes. Need ${cost}, have ${runeBalance}.` };
+                if (balance < cost) {
+                    const currencyName = currency === 'redRunes' ? 'Red Runes' : 'Runes';
+                    return { success: false, error: `Not enough ${currencyName}. Need ${cost}, have ${balance}.` };
                 }
 
                 // Deduct runes
-                updateUser.yggRunes = admin.firestore.FieldValue.increment(-cost);
+                if (currency === 'redRunes') {
+                    updateUser.yggRedRunes = admin.firestore.FieldValue.increment(-cost);
+                } else {
+                    updateUser.yggRunes = admin.firestore.FieldValue.increment(-cost);
+                }
                 transaction.update(userRef, updateUser);
 
                 // Update upgrades
@@ -1620,7 +1637,8 @@ export const purchaseRuneShopItem = onCall(
                 return { 
                     success: true, 
                     cost,
-                    newRuneBalance: runeBalance - cost,
+                    newRuneBalance: currency === 'redRunes' ? runeBalance : (runeBalance - cost),
+                    newRedRuneBalance: currency === 'redRunes' ? ((userDoc.get('yggRedRunes') || 0) - cost) : (userDoc.get('yggRedRunes') || 0),
                     item: itemId
                 };
             });

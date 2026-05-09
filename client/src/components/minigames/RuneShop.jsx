@@ -44,6 +44,7 @@ const SHOP_ITEMS = [
 
 const RuneShop = ({ user, config, onClose, onUpdate }) => {
   const [runeBalance, setRuneBalance] = useState(0);
+  const [redRuneBalance, setRedRuneBalance] = useState(0);
   const [upgrades, setUpgrades] = useState({});
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(null);
@@ -57,6 +58,7 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
     setLoading(true);
     const data = await getUserYggData(user.uid);
     setRuneBalance(data.runeBalance);
+    setRedRuneBalance(data.redRuneBalance || 0);
     setUpgrades(data.upgrades);
     setLoading(false);
   }, [user]);
@@ -71,6 +73,7 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
     const result = await purchaseRuneShopItem(itemId);
     if (result.success) {
       setRuneBalance(result.newRuneBalance);
+      setRedRuneBalance(result.newRedRuneBalance || 0);
       const isCustom = itemId.startsWith('custom_');
       setMessage({ 
         type: 'success', 
@@ -147,7 +150,9 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
     if (item.id === 'extraTurbo' && (upgrades.extraTurbo || 0) >= 3) return true;
     if (item.id === 'extraJump' && (upgrades.extraJump || 0) >= 5) return true;
     const cost = getItemCost(item);
-    return cost === null || runeBalance < cost;
+    const currency = item.currency || 'runes';
+    const balance = currency === 'redRunes' ? redRuneBalance : runeBalance;
+    return cost === null || balance < cost;
   };
 
   const getExchangeRateDisplay = () => {
@@ -177,10 +182,16 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
             Rune Shop
           </h2>
           <div className="ygg-shop-balance">
-            <span className="ygg-shop-rune-label">Your Current Balance</span>
-            <div className="ygg-shop-balance-row">
-              <img src="/icons/minigames/yggdrasil/rune.png" alt="rune" className="ygg-shop-header-rune-img" />
-              <span className="ygg-shop-rune-count">{runeBalance.toLocaleString()}</span>
+            <span className="ygg-shop-rune-label">Your Balance</span>
+            <div className="ygg-shop-balance-container" style={{ display: 'flex', gap: '15px' }}>
+              <div className="ygg-shop-balance-row">
+                <img src="/icons/minigames/yggdrasil/rune.png" alt="rune" className="ygg-shop-header-rune-img" />
+                <span className="ygg-shop-rune-count">{runeBalance.toLocaleString()}</span>
+              </div>
+              <div className="ygg-shop-balance-row" style={{ color: '#ef4444' }}>
+                <img src="/icons/minigames/yggdrasil/red_rune.png" alt="red rune" className="ygg-shop-header-rune-img" />
+                <span className="ygg-shop-rune-count">{redRuneBalance.toLocaleString()}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -198,8 +209,10 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
               {[...SHOP_ITEMS, ...(config?.customShopItems || [])].map(item => {
                 const isCustom = item.id.startsWith('custom_');
                 const cost = isCustom ? item.price : getItemCost(item);
+                const isRedRune = item.currency === 'redRunes';
+                const balance = isRedRune ? redRuneBalance : runeBalance;
                 const status = isCustom ? (item.stock > 0 ? `Stock: ${item.stock}` : 'SOLD OUT') : getItemStatus(item);
-                const disabled = isCustom ? (item.stock <= 0 || runeBalance < cost) : isDisabled(item);
+                const disabled = isCustom ? (item.stock <= 0 || balance < cost) : isDisabled(item);
 
                 return (
                   <div key={item.id} className={`ygg-shop-item ${isCustom ? 'custom-item' : ''} ${disabled ? 'disabled' : ''}`}>
@@ -228,7 +241,11 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
                       >
                         {purchasing === item.id ? '...' : (isCustom && item.stock <= 0) ? 'EMPTY' : cost !== null ? (
                           <div className="ygg-buy-btn-content">
-                            <img src="/icons/minigames/yggdrasil/rune.png" alt="rune" className="ygg-buy-rune-img" />
+                            <img 
+                              src={isCustom && item.currency === 'redRunes' ? "/icons/minigames/yggdrasil/red_rune.png" : "/icons/minigames/yggdrasil/rune.png"} 
+                              alt="rune" 
+                              className="ygg-buy-rune-img" 
+                            />
                             {cost}
                           </div>
                         ) : 'MAX'}

@@ -140,7 +140,7 @@ function generatePlatforms(count, startY, rng, difficulty, usedBands) {
   return platforms;
 }
 
-// Generate floating rune patterns
+// Generate floating rune patterns (all standard gold runes)
 function generateFloatingRunes(startY, endY, rng) {
   const runes = [];
   const runeCount = 3 + Math.floor(rng() * 4); // 3-6 runes per batch
@@ -155,7 +155,29 @@ function generateFloatingRunes(startY, endY, rng) {
       y: patternY + (rng() - 0.5) * 40,
       symbol,
       collected: false,
-      isSpecial: rng() > 0.5, // 50% chance red special (2x), 50% gold (1x)
+      offX: 0, offY: 0
+    });
+  }
+  return runes;
+}
+
+// Generate red runes — event-exclusive, uses Math.random() so each player sees different placements
+// Spawns ~2-3 per 1000m band, scattered independently (not in patterns)
+function generateRedRunes(startY, endY) {
+  const runes = [];
+  const bandHeight = Math.abs(endY - startY);
+  // ~2-3 per 1000m band (1000m = 4000 world units)
+  const count = Math.floor(Math.random() * 2) + 2; // 2-3
+  const symbol = RUNE_SYMBOLS[Math.floor(Math.random() * RUNE_SYMBOLS.length)];
+
+  for (let i = 0; i < count; i++) {
+    runes.push({
+      id: `rr_${Math.random()}_${i}`,
+      x: 40 + Math.random() * (CANVAS_W - 80),
+      y: startY + Math.random() * bandHeight,
+      symbol,
+      collected: false,
+      isRedRune: true,
       offX: 0, offY: 0
     });
   }
@@ -200,6 +222,7 @@ const YggdrasilAscender = ({ user }) => {
   const ghostPlayersDataRef = useRef({}); // Avoid stale closure in requestAnimationFrame
   const ghostVisualsRef = useRef({}); // { uid: { x, y, targetX, targetY } }
   const [runesCollected, setRunesCollected] = useState(0);
+  const [redRunesCollected, setRedRunesCollected] = useState(0);
   const [turboTime, setTurboTime] = useState(0);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [joystickMode, setJoystickMode] = useState(false);
@@ -475,10 +498,11 @@ const YggdrasilAscender = ({ user }) => {
   useEffect(() => {
     setLbLoading(true);
 
-    if (lbMetric === 'runes') {
+    if (lbMetric === 'runes' || lbMetric === 'redRunes') {
       // Fetch Current Balances from Firestore
       const usersRef = collection(db, 'users');
-      const q = fsQuery(usersRef, orderBy('yggRunes', 'desc'), limit(10));
+      const scoreField = lbMetric === 'redRunes' ? 'yggRedRunes' : 'yggRunes';
+      const q = fsQuery(usersRef, orderBy(scoreField, 'desc'), limit(10));
       
       getDocs(q).then(snap => {
         const arr = snap.docs.map(docSnap => {
@@ -486,13 +510,13 @@ const YggdrasilAscender = ({ user }) => {
           return {
             uid: docSnap.id,
             name: resolveDisplayName(data),
-            score: data.yggRunes || 0
+            score: data[scoreField] || 0
           };
         });
         setLeaderboard(arr);
         setLbLoading(false);
       }).catch(err => {
-        console.error("Firestore Rune LB error:", err);
+        console.error(`Firestore ${lbMetric} LB error:`, err);
         setLbLoading(false);
       });
       return;
@@ -671,7 +695,7 @@ const YggdrasilAscender = ({ user }) => {
   }, [user]);
 
   // Init game
-  const initGame = useCallback((eventOverride = null, upgradesOverride = null) => {
+  const initGame = useCallback((eventOverride = undefined, upgradesOverride = null) => {
     const upgradesToUse = upgradesOverride || userUpgrades;
     const seed = getDailySeed();
     const rng = seededRandom(seed);
@@ -682,7 +706,7 @@ const YggdrasilAscender = ({ user }) => {
     startPlats.sort((a, b) => b.y - a.y);
 
 
-    const eventToUse = eventOverride || activeEvent;
+    const eventToUse = eventOverride !== undefined ? eventOverride : activeEvent;
 
     gameRef.current = {
       seed,
@@ -715,6 +739,11 @@ const YggdrasilAscender = ({ user }) => {
       lastPublish: 0,
       difficulty: 0,
       runes: 0,
+      redRunes: 0,
+      isEvent: !!eventToUse,
+      isEventWithRedRunes: !!(eventToUse && eventToUse.redRunesEnabled),
+      lastRedRuneAlt: 0,
+      redRuneRunes: [], // separate array for red runes
       magnetism: (upgradesToUse.magnetismLevel || 0) === 1 ? 100 : (upgradesToUse.magnetismLevel || 0) === 2 ? 160 : (upgradesToUse.magnetismLevel || 0) === 3 ? 240 : 0,
       particles: [],
       windParticles: [], // decorative wind streaks
@@ -778,6 +807,7 @@ const YggdrasilAscender = ({ user }) => {
     gameRef.current.hasIdunApple = upgradesToUse.hasIdunApple;
 
     setRunesCollected(0);
+    setRedRunesCollected(0);
     setRunStats(null);
     
     setShopTurboCharges(upgradesToUse.extraTurbo || 0);
@@ -1226,7 +1256,7 @@ const YggdrasilAscender = ({ user }) => {
             g.particles.push({
               x: runeX, y: runeY,
               vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2,
-              life: 15, color: fr.isSpecial ? '#ef4444' : '#fbbf24', size: 2
+              life: 15, color: '#fbbf24', size: 2
             });
           }
         } else {
@@ -1242,8 +1272,7 @@ const YggdrasilAscender = ({ user }) => {
         p.y < runeY + RUNE_SIZE / 2
       ) {
         fr.collected = true;
-        const reward = fr.isSpecial ? 2 : 1;
-        g.runes += reward;
+        g.runes += 1;
         setRunesCollected(g.runes);
         for (let pi = 0; pi < 8; pi++) {
           g.particles.push({
@@ -1252,6 +1281,63 @@ const YggdrasilAscender = ({ user }) => {
             vy: (Math.random() - 0.5) * 4 - 2,
             life: 30, color: '#fbbf24', size: 3
           });
+        }
+      }
+    }
+
+    // Red Rune collection & Magnetism (event-only)
+    if (g.isEventWithRedRunes) {
+      for (const rr of g.redRuneRunes) {
+        if (rr.collected) continue;
+
+        let runeX = rr.x + (rr.offX || 0);
+        let runeY = rr.y + (rr.offY || 0);
+
+        // Magnetism pull (Red Runes are heavier, 70% effective magnetism)
+        if (g.magnetism > 0) {
+          const dx = (p.x + PLAYER_W / 2) - runeX;
+          const dy = (p.y + PLAYER_H / 2) - runeY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const rrMagnetRange = g.magnetism * 0.5;
+          if (dist < rrMagnetRange) {
+            const closeness = 1 - (dist / rrMagnetRange);
+            const pullForce = (2.5 + closeness * 10.0) * dt * 0.5;
+            rr.offX = (rr.offX || 0) + (dx / dist) * pullForce;
+            rr.offY = (rr.offY || 0) + (dy / dist) * pullForce;
+            runeX = rr.x + rr.offX;
+            runeY = rr.y + rr.offY;
+
+            // Red magnetism sparkles
+            if (Math.random() < 0.15) {
+              g.particles.push({
+                x: runeX, y: runeY,
+                vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2,
+                life: 15, color: '#ef4444', size: 2
+              });
+            }
+          } else {
+            rr.offX = (rr.offX || 0) * 0.95;
+            rr.offY = (rr.offY || 0) * 0.95;
+          }
+        }
+
+        if (
+          p.x + PLAYER_W > runeX - RUNE_SIZE / 2 &&
+          p.x < runeX + RUNE_SIZE / 2 &&
+          p.y + PLAYER_H > runeY - RUNE_SIZE / 2 &&
+          p.y < runeY + RUNE_SIZE / 2
+        ) {
+          rr.collected = true;
+          g.redRunes += 1;
+          setRedRunesCollected(g.redRunes);
+          for (let pi = 0; pi < 10; pi++) {
+            g.particles.push({
+              x: runeX, y: runeY,
+              vx: (Math.random() - 0.5) * 5,
+              vy: (Math.random() - 0.5) * 5 - 2,
+              life: 35, color: '#ef4444', size: 4
+            });
+          }
         }
       }
     }
@@ -1540,18 +1626,28 @@ const YggdrasilAscender = ({ user }) => {
       g.platforms.push(...newPlats);
       g.platGenY = newPlats[newPlats.length - 1].y;
 
-      // Generate floating runes based on generator altitude (genAlt)
+      // Generate floating runes based on generator altitude (genAlt) - Only during events
       const genAlt = Math.floor(-g.platGenY / 4);
-      if (genAlt >= 1000 && genAlt - g.lastRuneAlt >= 1000) {
+      if (g.isEvent && genAlt >= 1000 && genAlt - g.lastRuneAlt >= 1000) {
         const newFloatingRunes = generateFloatingRunes(g.platGenY, prevGenY, g.rng);
         g.floatingRunes.push(...newFloatingRunes);
         g.lastRuneAlt = genAlt;
+      }
+
+      // Generate red runes (event-only, per-player random)
+      if (g.isEventWithRedRunes && genAlt >= 500 && genAlt - g.lastRedRuneAlt >= 1000) {
+        const newRedRunes = generateRedRunes(g.platGenY, prevGenY);
+        g.redRuneRunes.push(...newRedRunes);
+        g.lastRedRuneAlt = genAlt;
       }
     }
 
     // Cull old platforms
     g.platforms = g.platforms.filter(pl => pl.y < g.camera + CANVAS_H + 100);
     g.floatingRunes = g.floatingRunes.filter(fr => fr.y < g.camera + CANVAS_H + 1000);
+    if (g.isEventWithRedRunes) {
+      g.redRuneRunes = g.redRuneRunes.filter(rr => rr.y < g.camera + CANVAS_H + 1000);
+    }
 
     // ═══ NIDHOGG'S RISING MIST ═══
     const nh = g.nidhogg;
@@ -1654,6 +1750,7 @@ const YggdrasilAscender = ({ user }) => {
     const triggerGameOver = (reason) => {
       setScore(g.maxAlt);
       setRunesCollected(g.runes);
+      setRedRunesCollected(g.redRunes || 0);
       setDeathReason(reason);
       if (alt > bestScoreRef.current) {
         setIsNewBest(true);
@@ -1667,7 +1764,7 @@ const YggdrasilAscender = ({ user }) => {
       removePresence();
       setGameState('over');
       setRunStats({ loading: true });
-      submitYggdrasilRun(g.maxAlt, g.runes, g.player.shopTurbosUsed || 0, g.player.shopJumpsUsed || 0).then(res => {
+      submitYggdrasilRun(g.maxAlt, g.runes, g.player.shopTurbosUsed || 0, g.player.shopJumpsUsed || 0, g.redRunes || 0).then(res => {
         loadUserShopData(); // Refresh balance after run
         if (res && res.success) {
           setRunStats(res);
@@ -2044,45 +2141,77 @@ const YggdrasilAscender = ({ user }) => {
       }
     }
 
-    // Draw floating runes
+    // Draw floating runes (all gold)
     for (const fr of g.floatingRunes) {
       if (fr.collected) continue;
       const rx = fr.x + (fr.offX || 0);
-      const ry = fr.y - g.camera + Math.sin(Date.now() / 300 + fr.x) * 5 + (fr.offY || 0);
+      const ry = fr.y + Math.sin(Date.now() / 300 + fr.x) * 5 + (fr.offY || 0);
+      const screenRy = ry - g.camera;
 
       // Only draw if on screen
-      if (ry > -50 && ry < CANVAS_H + 50) {
+      if (screenRy > -50 && screenRy < CANVAS_H + 50) {
         ctx.save();
-        const runeImg = fr.isSpecial ? currentAssets.redRune : currentAssets.rune;
-        if (runeImg) {
-          const displaySize = fr.isSpecial ? 36 : 28;
+        if (currentAssets.rune) {
           const spinScale = Math.cos(Date.now() / 600 + rx); 
           ctx.translate(rx, ry);
           ctx.scale(spinScale, 1);
-          ctx.drawImage(runeImg, -displaySize / 2, -displaySize / 2, displaySize, displaySize);
+          ctx.drawImage(currentAssets.rune, -14, -14, 28, 28);
         } else {
-          ctx.fillStyle = fr.isSpecial ? '#ef4444' : '#fbbf24';
-          const displaySize = fr.isSpecial ? RUNE_SIZE * 1.5 : RUNE_SIZE * 1.2;
+          ctx.fillStyle = '#fbbf24';
+          const displaySize = RUNE_SIZE * 1.2;
           ctx.font = `bold ${displaySize}px sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          
-          // Background glow
           ctx.shadowBlur = 15;
-          ctx.shadowColor = fr.isSpecial ? '#ef4444' : '#fbbf24';
-          
+          ctx.shadowColor = '#fbbf24';
           ctx.strokeStyle = 'rgba(0,0,0,0.8)';
           ctx.lineWidth = 3;
           ctx.strokeText(fr.symbol, rx, ry);
           ctx.fillText(fr.symbol, rx, ry);
-          
-          // Secondary pulse glow
-          const pulse = Math.sin(Date.now() / 200) * 0.5 + 0.5;
-          ctx.globalAlpha = 0.3 * pulse;
-          ctx.font = `bold ${displaySize + 10}px sans-serif`;
-          ctx.fillText(fr.symbol, rx, ry);
         }
         ctx.restore();
+      }
+    }
+
+    // Draw red runes (event-only, separate array)
+    if (g.isEventWithRedRunes) {
+      for (const rr of g.redRuneRunes) {
+        if (rr.collected) continue;
+        const rx = rr.x + (rr.offX || 0);
+        const ry = rr.y + Math.sin(Date.now() / 250 + rr.x) * 6 + (rr.offY || 0);
+        const screenRy = ry - g.camera;
+
+        if (screenRy > -50 && screenRy < CANVAS_H + 50) {
+          ctx.save();
+          if (currentAssets.redRune) {
+            const spinScale = Math.cos(Date.now() / 500 + rx);
+            ctx.translate(rx, ry);
+            ctx.scale(spinScale, 1);
+            // Red glow aura
+            ctx.shadowBlur = 18;
+            ctx.shadowColor = '#ef4444';
+            ctx.drawImage(currentAssets.redRune, -18, -18, 36, 36);
+          } else {
+            ctx.fillStyle = '#ef4444';
+            const displaySize = RUNE_SIZE * 1.5;
+            ctx.font = `bold ${displaySize}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#ef4444';
+            ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+            ctx.lineWidth = 3;
+            const rrSymbol = 'ᚱ';
+            ctx.strokeText(rrSymbol, rx, ry);
+            ctx.fillText(rrSymbol, rx, ry);
+            // Pulse glow
+            const pulse = Math.sin(Date.now() / 200) * 0.5 + 0.5;
+            ctx.globalAlpha = 0.3 * pulse;
+            ctx.font = `bold ${displaySize + 10}px sans-serif`;
+            ctx.fillText(rrSymbol, rx, ry);
+          }
+          ctx.restore();
+        }
       }
     }
 
@@ -2101,7 +2230,7 @@ const YggdrasilAscender = ({ user }) => {
       ctx.save();
       const bounce = Math.sin(rat.animFrame * 8) * 2;
       const rx = rat.x;
-      const ry = rat.y - g.camera + bounce;
+      const ry = rat.y + bounce;
 
       if (currentAssets.ratatoskr) {
         ctx.save();
@@ -2945,6 +3074,13 @@ const YggdrasilAscender = ({ user }) => {
                   </div>
                 )}
 
+                {redRunesCollected > 0 && (
+                  <div className="ygg-runes-hud" style={{ background: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.4)' }}>
+                    <img src="/icons/minigames/yggdrasil/red_rune.png" alt="red rune" className="ygg-hud-icon-img" />
+                    <span style={{ color: '#ef4444' }}>{redRunesCollected}</span>
+                  </div>
+                )}
+
                 {/* Power-ups HUD (inline, below runes) */}
                 <div className="ygg-powerups-hud-inline">
                   {userUpgrades.magnetismLevel > 0 && (
@@ -3119,7 +3255,14 @@ const YggdrasilAscender = ({ user }) => {
                           onClick={() => startGame(ev.id)}
                         >
                           <div className="ygg-event-info">
-                            <div className="ygg-event-name">{ev.name}</div>
+                            <div className="ygg-event-name">
+                              {ev.name}
+                              {ev.redRunesEnabled && (
+                                <span className="ygg-event-red-rune-indicator" title="Red Runes available in this event!">
+                                  <img src="/icons/minigames/yggdrasil/red_rune.png" alt="red rune" />
+                                </span>
+                              )}
+                            </div>
                             <div className="ygg-event-prize">Prize: {ev.prizeName}</div>
                             {ev.status === 'open' && (
                               <>
@@ -3211,6 +3354,14 @@ const YggdrasilAscender = ({ user }) => {
                   {runesCollected} Runes
                 </span>
               </div>
+              {redRunesCollected > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '4px 12px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <img src="/icons/minigames/yggdrasil/red_rune.png" alt="red rune" className="ygg-stats-icon-img" />
+                    <span style={{ color: '#ef4444', fontWeight: 'bold' }}>{redRunesCollected} Red Runes</span>
+                  </span>
+                </div>
+              )}
 
               {runStats?.loading && <div style={{ color: '#94a3b8', fontSize: '14px' }}>Calculating rewards...</div>}
               {runStats?.error && <div style={{ color: '#ef4444', fontSize: '14px' }}>{runStats.error}</div>}
@@ -3221,6 +3372,9 @@ const YggdrasilAscender = ({ user }) => {
                   <div style={{ color: '#fbbf24', fontWeight: 'bold', fontSize: '18px' }}>+{runStats.reward} Valcoins!</div>
                   {runStats.runesEarned > 0 && (
                     <div style={{ color: '#fbbf24', fontSize: '14px', fontWeight: 'bold', marginTop: '2px' }}>ᚠ {runStats.runesEarned} Runes Banked!</div>
+                  )}
+                  {runStats.redRunesEarned > 0 && (
+                    <div style={{ color: '#ef4444', fontSize: '14px', fontWeight: 'bold', marginTop: '2px' }}>🔴 {runStats.redRunesEarned} Red Runes Banked!</div>
                   )}
                   <div style={{ color: '#cbd5e1', fontSize: '12px', marginTop: '4px' }}>Runs today: {runStats.runsCompleted}/{runStats.maxRuns}</div>
                 </div>
@@ -3332,6 +3486,7 @@ const YggdrasilAscender = ({ user }) => {
               <select className="ygg-lb-dropdown" value={lbMetric} onChange={e => setLbMetric(e.target.value)}>
                 <option value="altitude">Altitude</option>
                 <option value="runes">Rune Balances</option>
+                <option value="redRunes">Red Rune Balances</option>
               </select>
               {lbMetric === 'altitude' ? (
                 <select className="ygg-lb-dropdown" value={lbMode} onChange={e => setLbMode(e.target.value)}>
@@ -3357,7 +3512,10 @@ const YggdrasilAscender = ({ user }) => {
               <div key={entry.uid} className={`ygg-lb-row ${entry.uid === user?.uid ? 'is-me' : ''}`}>
                 <span className="ygg-lb-rank">#{i + 1}</span>
                 <span className="ygg-lb-name">{nameCache[entry.uid] || entry.name}</span>
-                <span className="ygg-lb-score">{entry.score.toLocaleString()}{lbMetric === 'altitude' ? 'm' : ' ᚠ'}</span>
+                <span className="ygg-lb-score">
+                  {entry.score.toLocaleString()}
+                  {lbMetric === 'altitude' ? 'm' : lbMetric === 'redRunes' ? ' 🔴' : ' ᚠ'}
+                </span>
               </div>
             ))}
           </div>

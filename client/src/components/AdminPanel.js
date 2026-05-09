@@ -297,6 +297,7 @@ function AdminPanel() {
     icon: '🎁',
     image: '',
     price: 10,
+    currency: 'runes',
     stock: 50,
     rarity: 'common'
   });
@@ -1633,7 +1634,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         altitudeFrom: 5000,
         altitudeTo: 15000,
         targetPool: 60,
-        status: 'open'
+        status: 'open',
+        redRunesEnabled: false
       });
       setYggEventPrizePreview('');
       alert(editingYggEventId ? 'Event updated successfully!' : 'Yggdrasil Event created successfully!');
@@ -1658,6 +1660,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       altitudeTo: event.altitudeTo || 15000,
       targetPool: event.targetPool,
       status: event.status,
+      redRunesEnabled: event.redRunesEnabled || false,
       // Preserve hidden fields if we're editing
       targetAltitude: event.targetAltitude,
       currentPool: event.currentPool,
@@ -9755,7 +9758,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 if (editingRuneShopItemId) {
                                   setEditingRuneShopItemId(null);
                                   setIsCreatingRuneShopItem(false);
-                                  setNewRuneShopItem({ name: '', description: '', icon: '🎁', image: '', price: 10, stock: 50, rarity: 'common' });
+                                  setNewRuneShopItem({ name: '', description: '', icon: '🎁', image: '', price: 10, currency: 'runes', stock: 50, rarity: 'common' });
                                 } else {
                                   setIsCreatingRuneShopItem(!isCreatingRuneShopItem);
                                 }
@@ -9807,12 +9810,23 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                               </div>
                               <div className="form-row">
                                 <div className="form-group">
-                                  <label>Price (Runes)</label>
-                                  <input
-                                    type="number"
-                                    value={newRuneShopItem.price}
-                                    onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, price: parseInt(e.target.value) || 0 })}
-                                  />
+                                  <label>Price</label>
+                                  <div style={{ display: 'flex', gap: '5px' }}>
+                                    <input
+                                      type="number"
+                                      value={newRuneShopItem.price}
+                                      onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, price: parseInt(e.target.value) || 0 })}
+                                      style={{ flex: 1 }}
+                                    />
+                                    <select
+                                      value={newRuneShopItem.currency || 'runes'}
+                                      onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, currency: e.target.value })}
+                                      style={{ flex: 1 }}
+                                    >
+                                      <option value="runes">Runes</option>
+                                      <option value="redRunes">Red Runes</option>
+                                    </select>
+                                  </div>
                                 </div>
                                 <div className="form-group">
                                   <label>Stock</label>
@@ -9852,7 +9866,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                   handleUpdateMiniGameConfig('yggdrasilAscender', { customShopItems: updatedItems });
                                   setIsCreatingRuneShopItem(false);
                                   setEditingRuneShopItemId(null);
-                                  setNewRuneShopItem({ name: '', description: '', icon: '🎁', image: '', price: 10, stock: 50, rarity: 'common' });
+                                  setNewRuneShopItem({ name: '', description: '', icon: '🎁', image: '', price: 10, currency: 'runes', stock: 50, rarity: 'common' });
                                 }}
                               >
                                 {editingRuneShopItemId ? '💾 Save Changes' : '✅ Add to Shop'}
@@ -9870,7 +9884,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                     <div style={{ fontSize: '24px' }}>{item.icon}</div>
                                     <div>
                                       <div style={{ fontWeight: 'bold' }}>{item.name} <span style={{ fontSize: '11px', opacity: 0.7, textTransform: 'uppercase' }}>({item.rarity})</span></div>
-                                      <div style={{ fontSize: '12px', opacity: 0.7 }}>Price: {item.price} Runes | Stock: {item.stock}</div>
+                                      <div style={{ fontSize: '12px', opacity: 0.7 }}>
+                                        Price: {item.price} {item.currency === 'redRunes' ? 'Red Runes' : 'Runes'} | Stock: {item.stock}
+                                      </div>
                                     </div>
                                   </div>
                                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -9913,7 +9929,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                     altitudeFrom: 5000,
                                     altitudeTo: 15000,
                                     targetPool: 60,
-                                    status: 'open'
+                                    status: 'open',
+                                    redRunesEnabled: false
                                   });
                                   setYggEventPrizePreview('');
                                 } else {
@@ -10039,6 +10056,21 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                 )}
                               </div>
 
+                              <div className="form-group toggle-group" style={{ marginTop: '10px' }}>
+                                <label className="toggle-label" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', background: 'rgba(239, 68, 68, 0.08)', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={newYggEvent.redRunesEnabled || false}
+                                    onChange={(e) => setNewYggEvent({ ...newYggEvent, redRunesEnabled: e.target.checked })}
+                                    className="admin-checkbox"
+                                  />
+                                  <div>
+                                    <span style={{ color: '#ef4444', fontWeight: 'bold' }}>🔴 Enable Red Runes</span>
+                                    <div style={{ fontSize: '11px', opacity: 0.7, marginTop: '2px' }}>Red Runes are a rare, separate currency (~2-3 per 1000m). Each player sees them at different spots.</div>
+                                  </div>
+                                </label>
+                              </div>
+
                               <button
                                 className="admin-primary-btn"
                                 style={{ width: '100%', marginTop: '10px' }}
@@ -10061,6 +10093,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                     <th>Prize</th>
                                     <th>Pool (Admin Only)</th>
                                     <th>Target</th>
+                                    <th>Red Runes</th>
                                     <th>Status</th>
                                     <th>Actions</th>
                                   </tr>
@@ -10093,6 +10126,9 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                           <div style={{ fontSize: '10px', marginTop: '4px' }}>{ev.currentPool} / {ev.targetPool} runs</div>
                                         </td>
                                         <td>{ev.targetAltitude}m</td>
+                                        <td style={{ textAlign: 'center' }}>
+                                          {ev.redRunesEnabled ? <span style={{ color: '#ef4444', fontWeight: 'bold' }}>🔴 ON</span> : <span style={{ opacity: 0.4 }}>OFF</span>}
+                                        </td>
                                         <td>
                                           <span className={`status-badge ${ev.status}`}>
                                             {ev.status === 'open' ? '🟢 Open' : '🔴 Closed'}
