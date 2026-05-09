@@ -6369,6 +6369,19 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     Items
                   </button>
                   <button
+                    className={`selector-btn ${['ygg_themes', 'ygg_theme_form'].includes(shopSubTab) ? 'active' : ''}`}
+                    onClick={() => {
+                      setShopSubTab('ygg_themes');
+                      setEditingCosmetic(null);
+                      setCosmeticForm({
+                        name: '', type: 'ygg_theme', rarity: 'common', price: 10, currency: 'runes',
+                        description: '', assets: {}
+                      });
+                    }}
+                  >
+                    Yggdrasil
+                  </button>
+                  <button
                     className={`selector-btn ${shopSubTab === 'tickets' ? 'active' : ''}`}
                     onClick={() => setShopSubTab('tickets')}
                   >
@@ -6591,7 +6604,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         </thead>
                         <tbody>
                           {shopCosmetics
-                            .filter(item => isSuperAdminUser || !isMerchantUser || item.createdBy === user.uid)
+                            .filter(item => (isSuperAdminUser || !isMerchantUser || item.createdBy === user.uid) && item.type !== 'ygg_theme')
                             .map(item => (
                             <tr key={item.id}>
                               <td>
@@ -6860,6 +6873,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       />
                     </div>
 
+
                     {cosmeticForm.type === 'aura' && (
                       <>
                         {/* ── Live Aura Preview ── */}
@@ -7079,6 +7093,221 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   <div style={{ fontSize: '48px', marginBottom: '20px' }}>📦</div>
                   <h3>Items Management</h3>
                   <p style={{ color: '#94a3b8' }}>This section is coming soon. You will be able to manage shop items and power-ups here.</p>
+                </div>
+              )}
+
+              {shopSubTab === 'ygg_themes' && (
+                <div className="inventory-mgmt-container">
+                  <div className="admin-table-container card" style={{ padding: '15px' }}>
+                    <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                      <div>
+                        <h3 style={{ margin: 0 }}>Yggdrasil Themes</h3>
+                        <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>{shopCosmetics.filter(item => item.type === 'ygg_theme').length} Themes found.</p>
+                      </div>
+                    </div>
+
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Preview</th>
+                          <th>Name</th>
+                          <th>Rarity</th>
+                          <th>Price</th>
+                          <th>Sales</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {shopCosmetics
+                          .filter(item => item.type === 'ygg_theme')
+                          .map(item => (
+                          <tr key={item.id}>
+                            <td>
+                              <div style={{ 
+                                width: '60px', height: '36px', 
+                                backgroundImage: `url(${item.assets?.background || '/icons/minigames/yggdrasil/background.png'})`,
+                                backgroundSize: 'cover', backgroundPosition: 'center', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)'
+                              }} />
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: '600' }}>{item.name}</div>
+                            </td>
+                            <td>
+                              <span className="rarity-badge" style={{ background: RARITY_CONFIG[item.rarity]?.color || '#ccc', fontSize: '10px', padding: '2px 6px' }}>
+                                {item.rarity.toUpperCase()}
+                              </span>
+                            </td>
+                            <td>{item.price.toLocaleString()} {item.currency || 'Valcoins'}</td>
+                            <td>{item.saleCount || 0}</td>
+                            <td className="admin-actions">
+                              <button className="edit-btn" onClick={() => {
+                                setEditingCosmetic(item);
+                                setCosmeticForm({ ...item, discountDays: 0, discountHours: 0 });
+                                setShopSubTab('ygg_theme_form');
+                              }}>📝 Edit</button>
+                              <button className="delete-btn" onClick={() => handleDeleteCosmetic(item.id)}>🗑️</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    <button
+                      className="selector-btn active"
+                      style={{ marginTop: '15px', width: '100%', padding: '10px' }}
+                      onClick={() => {
+                        setEditingCosmetic(null);
+                        setCosmeticForm({
+                          name: '', type: 'ygg_theme', rarity: 'common', price: 10, currency: 'runes',
+                          description: '', assets: {}
+                        });
+                        setShopSubTab('ygg_theme_form');
+                      }}
+                    >
+                      + Add New Theme
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {shopSubTab === 'ygg_theme_form' && (
+                <div className="cosmetic-form-container card" style={{ padding: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3>{editingCosmetic ? '📝 Edit Yggdrasil Theme' : '✨ Create New Theme'}</h3>
+                    <button className="back-btn" onClick={() => setShopSubTab('ygg_themes')}>  Back to List</button>
+                  </div>
+
+                  <form onSubmit={handleSaveCosmetic}>
+                    <div className="form-row">
+                      <div className="form-group flex-2">
+                        <label>Theme Name</label>
+                        <input
+                          type="text"
+                          value={cosmeticForm.name}
+                          onChange={(e) => setCosmeticForm(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder="e.g., Cyberpunk Yggdrasil"
+                          required
+                        />
+                      </div>
+                      <div className="form-group flex-1">
+                        <label>Rarity</label>
+                        <select
+                          value={cosmeticForm.rarity}
+                          onChange={(e) => setCosmeticForm(prev => ({ ...prev, rarity: e.target.value }))}
+                        >
+                          {RARITY_ORDER.map(r => <option key={r} value={r}>{r.toUpperCase()}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group flex-1">
+                        <label>Currency</label>
+                        <select
+                          value={cosmeticForm.currency || 'valcoins'}
+                          onChange={(e) => setCosmeticForm(prev => ({ ...prev, currency: e.target.value }))}
+                        >
+                          <option value="valcoins">Valcoins (Points)</option>
+                          <option value="aury">AURY (Wallet)</option>
+                          <option value="usdc">USDC (Wallet)</option>
+                        </select>
+                      </div>
+                      <div className="form-group flex-1">
+                        <label>Price</label>
+                        <input
+                          type="number"
+                          value={cosmeticForm.price}
+                          onChange={(e) => setCosmeticForm(prev => ({ ...prev, price: parseInt(e.target.value) || 0 }))}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Description</label>
+                      <textarea
+                        value={cosmeticForm.description}
+                        onChange={(e) => setCosmeticForm(prev => ({ ...prev, description: e.target.value }))}
+                        placeholder="Describe the theme..."
+                        style={{ minHeight: '60px' }}
+                      />
+                    </div>
+
+                    <div className="ygg-theme-config" style={{ background: 'rgba(0,0,0,0.2)', padding: '20px', borderRadius: '12px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <h4 style={{ marginBottom: '15px', color: 'var(--accent-gold)' }}>🎭 Yggdrasil Asset URLs</h4>
+                      <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '20px' }}>Leave empty to use default assets.</p>
+                      
+                      <div className="form-row">
+                        <div className="form-group flex-1">
+                          <label>Character Stand</label>
+                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.hero_stand || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), hero_stand: e.target.value } }))} />
+                        </div>
+                        <div className="form-group flex-1">
+                          <label>Character Jump</label>
+                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.hero_jump || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), hero_jump: e.target.value } }))} />
+                        </div>
+                        <div className="form-group flex-1">
+                          <label>Character Turbo</label>
+                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.hero_turbo || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), hero_turbo: e.target.value } }))} />
+                        </div>
+                      </div>
+
+                      <div className="form-row">
+                        <div className="form-group flex-1">
+                          <label>Platform 1 (Solid)</label>
+                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.platform_1 || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), platform_1: e.target.value } }))} />
+                        </div>
+                        <div className="form-group flex-1">
+                          <label>Platform 2 (Fragile)</label>
+                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.platform_2 || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), platform_2: e.target.value } }))} />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label>Background Image</label>
+                        <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.background || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), background: e.target.value } }))} />
+                      </div>
+
+                      <div className="form-row">
+                        <div className="form-group flex-1">
+                          <label>Rune (Normal)</label>
+                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.rune || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), rune: e.target.value } }))} />
+                        </div>
+                        <div className="form-group flex-1">
+                          <label>Red Rune</label>
+                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.red_rune || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), red_rune: e.target.value } }))} />
+                        </div>
+                        <div className="form-group flex-1">
+                          <label>Ratatoskr</label>
+                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.ratatoskr || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), ratatoskr: e.target.value } }))} />
+                        </div>
+                      </div>
+
+                      <div className="form-row">
+                        <div className="form-group flex-1">
+                          <label>Magnet</label>
+                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.magnet || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), magnet: e.target.value } }))} />
+                        </div>
+                        <div className="form-group flex-1">
+                          <label>Idunn's Apple</label>
+                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.apple || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), apple: e.target.value } }))} />
+                        </div>
+                        <div className="form-group flex-1">
+                          <label>Death Spirit</label>
+                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.spirit || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), spirit: e.target.value } }))} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="approve-btn"
+                      disabled={processingId === 'save_cosmetic' || !cosmeticForm.name}
+                      style={{ width: '100%', marginTop: '10px' }}
+                    >
+                      {processingId === 'save_cosmetic' ? 'Processing...' : (editingCosmetic ? '💾 Update Theme' : '✨ Publish Theme')}
+                    </button>
+                  </form>
                 </div>
               )}
 

@@ -215,26 +215,76 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
 
         <div className="ygg-shop-scroll custom-scrollbar">
           <div className="ygg-shop-main">
+            {config?.customShopItems?.length > 0 && (
+              <>
+                <div className="ygg-shop-section-title">✨ Special Attractions</div>
+                <div className="ygg-shop-items" style={{ marginBottom: '32px' }}>
+                  {config.customShopItems.map(item => {
+                    const cost = item.price;
+                    const currency = getItemCurrency(item);
+                    const isRedRune = currency === 'redRunes';
+                    const balance = isRedRune ? redRuneBalance : runeBalance;
+                    const status = item.stock > 0 ? `Stock: ${item.stock}` : 'SOLD OUT';
+                    const disabled = item.stock <= 0 || balance < cost;
+
+                    return (
+                      <div key={item.id} className={`ygg-shop-item custom-item ${disabled ? 'disabled' : ''}`}>
+                        <div className="ygg-shop-item-top">
+                          <div className="ygg-shop-item-icon">
+                            {item.image ? (
+                              <img src={item.image} alt={item.name} className="ygg-custom-shop-img" />
+                            ) : (
+                              <div className="ygg-shop-item-img-placeholder">🎁</div>
+                            )}
+                          </div>
+                          <div className="ygg-shop-item-info">
+                            <div className="ygg-shop-item-name">{item.name}</div>
+                            <div className="ygg-shop-item-desc">{item.description}</div>
+                          </div>
+                        </div>
+                        
+                        <div className="ygg-shop-item-footer">
+                          <div className="ygg-shop-item-status" style={{ color: item.stock <= 0 ? '#ef4444' : '' }}>
+                            {status}
+                          </div>
+                          <button
+                            className="ygg-shop-buy-btn"
+                            disabled={disabled || purchasing === item.id}
+                            onClick={() => handlePurchase(item.id)}
+                          >
+                            {purchasing === item.id ? '...' : item.stock <= 0 ? 'EMPTY' : (
+                              <div className="ygg-buy-btn-content">
+                                <img 
+                                  src={isRedRune ? "/icons/minigames/yggdrasil/red_rune.png" : "/icons/minigames/yggdrasil/rune.png"} 
+                                  alt="rune" 
+                                  className="ygg-buy-rune-img" 
+                                />
+                                {cost}
+                              </div>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
             <div className="ygg-shop-section-title">⚡ Upgrades & Consumables</div>
             <div className="ygg-shop-items">
-              {[...(config?.customShopItems || []), ...SHOP_ITEMS].map(item => {
-                const isCustom = item.id.startsWith('custom_');
-                const cost = isCustom ? item.price : getItemCost(item);
+              {SHOP_ITEMS.map(item => {
+                const cost = getItemCost(item);
                 const currency = getItemCurrency(item);
                 const isRedRune = currency === 'redRunes';
-                const balance = isRedRune ? redRuneBalance : runeBalance;
-                const status = isCustom ? (item.stock > 0 ? `Stock: ${item.stock}` : 'SOLD OUT') : getItemStatus(item);
-                const disabled = isCustom ? (item.stock <= 0 || balance < cost) : isDisabled(item);
+                const status = getItemStatus(item);
+                const disabled = isDisabled(item);
 
                 return (
-                  <div key={item.id} className={`ygg-shop-item ${isCustom ? 'custom-item' : ''} ${disabled ? 'disabled' : ''}`}>
+                  <div key={item.id} className={`ygg-shop-item ${disabled ? 'disabled' : ''}`}>
                     <div className="ygg-shop-item-top">
                       <div className="ygg-shop-item-icon">
-                        {isCustom && item.image ? (
-                          <img src={item.image} alt={item.name} className="ygg-custom-shop-img" />
-                        ) : (
-                          <img src={item.icon} alt={item.name} className="ygg-shop-item-img" />
-                        )}
+                        <img src={item.icon} alt={item.name} className="ygg-shop-item-img" />
                       </div>
                       <div className="ygg-shop-item-info">
                         <div className="ygg-shop-item-name">{item.name}</div>
@@ -243,7 +293,7 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
                     </div>
                     
                     <div className="ygg-shop-item-footer">
-                      <div className="ygg-shop-item-status" style={{ color: isCustom && item.stock <= 0 ? '#ef4444' : '' }}>
+                      <div className="ygg-shop-item-status">
                         {status}
                       </div>
                       <button
@@ -251,7 +301,7 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
                         disabled={disabled || purchasing === item.id}
                         onClick={() => handlePurchase(item.id)}
                       >
-                        {purchasing === item.id ? '...' : (isCustom && item.stock <= 0) ? 'EMPTY' : cost !== null ? (
+                        {purchasing === item.id ? '...' : cost !== null ? (
                           <div className="ygg-buy-btn-content">
                             <img 
                               src={isRedRune ? "/icons/minigames/yggdrasil/red_rune.png" : "/icons/minigames/yggdrasil/rune.png"} 
@@ -270,6 +320,38 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
           </div>
 
           <div className="ygg-shop-sidebar">
+            <div className="ygg-shop-history-section">
+              <div className="ygg-shop-section-title">📜 Recent Purchases</div>
+              <div className="ygg-shop-history-list custom-scrollbar">
+                {history.length > 0 ? (
+                  history.map((entry) => (
+                    <div key={entry.id} className="ygg-history-item">
+                      <div className="ygg-history-item-main">
+                        <span className="ygg-history-item-name">{entry.itemName}</span>
+                        <div className="ygg-history-item-cost">
+                          <img 
+                            src={entry.currency === 'redRunes' ? "/icons/minigames/yggdrasil/red_rune.png" : "/icons/minigames/yggdrasil/rune.png"} 
+                            alt="rune" 
+                            className="ygg-history-rune-img" 
+                          />
+                          {entry.cost}
+                        </div>
+                      </div>
+                      <div className="ygg-history-item-date">
+                        {entry.timestamp?.seconds 
+                          ? new Date(entry.timestamp.seconds * 1000).toLocaleDateString() 
+                          : 'Just now'}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="ygg-history-empty">
+                    No recent purchases yet.
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="ygg-shop-section-title">💱 Rune Exchange</div>
             <div className="ygg-shop-exchange">
               <div className="ygg-exchange-header">Convert Runes</div>
@@ -302,34 +384,6 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
                 {exchangeLoading ? 'Exchanging...' : 'Confirm Exchange'}
               </button>
             </div>
-
-            {history.length > 0 && (
-              <div className="ygg-shop-history-section">
-                <div className="ygg-shop-section-title">📜 Recent Purchases</div>
-                <div className="ygg-shop-history-list custom-scrollbar">
-                  {history.map((entry) => (
-                    <div key={entry.id} className="ygg-history-item">
-                      <div className="ygg-history-item-main">
-                        <span className="ygg-history-item-name">{entry.itemName}</span>
-                        <div className="ygg-history-item-cost">
-                          <img 
-                            src={entry.currency === 'redRunes' ? "/icons/minigames/yggdrasil/red_rune.png" : "/icons/minigames/yggdrasil/rune.png"} 
-                            alt="rune" 
-                            className="ygg-history-rune-img" 
-                          />
-                          {entry.cost}
-                        </div>
-                      </div>
-                      <div className="ygg-history-item-date">
-                        {entry.timestamp?.seconds 
-                          ? new Date(entry.timestamp.seconds * 1000).toLocaleDateString() 
-                          : 'Just now'}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 

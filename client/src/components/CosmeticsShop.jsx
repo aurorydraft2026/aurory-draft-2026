@@ -149,6 +149,7 @@ const CosmeticsShop = ({ user }) => {
             {activeCategory === 'amiko' && 'Form bonds with mythical creatures to accompany you in your journey'}
             {activeCategory === 'item' && 'Equip powerful artifacts and consumable items for your adventures'}
             {activeCategory === 'ticket' && 'Acquire special access passes and raffle tickets for legendary events'}
+            {activeCategory === 'ygg_theme' && 'Transform the World Tree with legendary themes and custom game skins'}
             {newItemsCount > 0 && (
               <span className="new-items-highlight">
                 ⚡ {newItemsCount} NEW ARRIVAL{newItemsCount > 1 ? 'S' : ''} IN THE VAULT
@@ -214,6 +215,15 @@ const CosmeticsShop = ({ user }) => {
                 <span className="tab-count">{ticketStats.count}</span>
                 {ticketStats.hasNew && <span className="tab-new-indicator">NEW</span>}
               </button>
+              <button 
+                className={`category-tab ${activeCategory === 'ygg_theme' ? 'active' : ''} ${getCategoryStats('ygg_theme').hasNew ? 'has-new' : ''}`}
+                onClick={() => { setActiveCategory('ygg_theme'); setSelectedRarity('all'); }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/><path d="m12 19 7-7-7-7"/></svg>
+                <span>Game Themes</span>
+                <span className="tab-count">{getCategoryStats('ygg_theme').count}</span>
+                {getCategoryStats('ygg_theme').hasNew && <span className="tab-new-indicator">NEW</span>}
+              </button>
             </>
           );
         })()}
@@ -248,15 +258,17 @@ const CosmeticsShop = ({ user }) => {
           <div className="preview-user-details">
             <span className="preview-username">{resolveDisplayName(user)}</span>
             <span className="preview-label">
-              {previewSlots.aura || previewSlots.banner
-                ? (cosmetics.find(c => c.id === (previewSlots.aura || previewSlots.banner))?.name || 'Previewing...')
+              {previewSlots.aura || previewSlots.banner || previewSlots.ygg_theme
+                ? (cosmetics.find(c => c.id === (previewSlots.aura || previewSlots.banner || previewSlots.ygg_theme))?.name || 'Previewing...')
                 : 'Current Setup'}
             </span>
           </div>
         </div>
           <div className="cosmetics-preview-info">
             {(() => {
-              const previewItem = previewSlots.aura ? cosmetics.find(c => c.id === previewSlots.aura) : (previewSlots.banner ? cosmetics.find(c => c.id === previewSlots.banner) : null);
+              const previewItem = previewSlots.aura ? cosmetics.find(c => c.id === previewSlots.aura) : 
+                                 (previewSlots.banner ? cosmetics.find(c => c.id === previewSlots.banner) : 
+                                 (previewSlots.ygg_theme ? cosmetics.find(c => c.id === previewSlots.ygg_theme) : null));
               const currency = previewItem?.currency || 'valcoins';
               
               let displayBalance = (user.points || 0).toLocaleString();
@@ -335,7 +347,7 @@ const CosmeticsShop = ({ user }) => {
           </div>
         ) : filteredCosmetics.map(cosmetic => {
           const isOwned = ownedCosmetics.includes(cosmetic.id);
-          const isEquipped = (cosmetic.type === 'aura' ? equippedAura : equippedBanner) === cosmetic.id;
+          const isEquipped = (cosmetic.type === 'aura' ? equippedAura : (cosmetic.type === 'banner' ? equippedBanner : (user?.equippedCosmetics?.ygg_theme === cosmetic.id))) === cosmetic.id;
           const isPurchasing = purchasing === cosmetic.id;
           const rarityConf = RARITY_CONFIG[cosmetic.rarity];
 
@@ -346,7 +358,8 @@ const CosmeticsShop = ({ user }) => {
               style={{ 
                 '--rarity-color': rarityConf?.color || '#ccc', 
                 '--rarity-glow': rarityConf?.glow || 'none',
-                ...(cosmetic.type === 'banner' ? (getBannerStyleFromCosmetic(cosmetic, hoveredCardId !== cosmetic.id) || {}) : {})
+                ...(cosmetic.type === 'banner' ? (getBannerStyleFromCosmetic(cosmetic, hoveredCardId !== cosmetic.id) || {}) : {}),
+                ...(cosmetic.type === 'ygg_theme' && cosmetic.assets?.background ? { backgroundImage: `url("${cosmetic.assets.background}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {})
               }}
               onMouseEnter={() => {
                 setPreviewSlots(prev => ({ ...prev, [cosmetic.type]: cosmetic.id }));

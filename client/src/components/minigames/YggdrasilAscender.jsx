@@ -247,6 +247,7 @@ const YggdrasilAscender = ({ user }) => {
   const turboMomentumRef = useRef(false);
   const [showApplePrompt, setShowApplePrompt] = useState(false);
   const [appleTimer, setAppleTimer] = useState(10);
+  const [yggTheme, setYggTheme] = useState(null);
   const appleTimerRef = useRef(null);
   const appleDeathReasonRef = useRef(null);
   const joystickTouchIdRef = useRef(null);
@@ -294,6 +295,24 @@ const YggdrasilAscender = ({ user }) => {
     fetchConfig();
   }, [fetchConfig]);
 
+  // Load equipped theme metadata
+  useEffect(() => {
+    const themeId = user?.equippedCosmetics?.ygg_theme;
+    if (themeId) {
+      import('../../services/cosmeticsService').then(({ fetchCosmeticById }) => {
+        fetchCosmeticById(themeId).then(theme => {
+          if (theme && theme.type === 'ygg_theme') {
+            setYggTheme(theme);
+          } else {
+            setYggTheme(null);
+          }
+        });
+      });
+    } else {
+      setYggTheme(null);
+    }
+  }, [user?.equippedCosmetics?.ygg_theme]);
+
   // Load and process assets (remove white background)
   useEffect(() => {
     const processImage = (src) => new Promise((res, rej) => {
@@ -326,21 +345,23 @@ const YggdrasilAscender = ({ user }) => {
       img.onerror = () => rej(new Error(`Failed to load ${src}`));
     });
 
+    const themeAssets = yggTheme?.assets || {};
+
     Promise.all([
-      processImage('/icons/minigames/yggdrasil/hero_stand.png'),
-      processImage('/icons/minigames/yggdrasil/hero_jump.png'),
-      processImage('/icons/minigames/yggdrasil/hero_turbo.png'),
-      processImage('/icons/minigames/yggdrasil/platform_1.png'),
-      processImage('/icons/minigames/yggdrasil/platform_2.png'),
-      processImage('/icons/minigames/yggdrasil/background.png'),
-      processImage('/icons/minigames/yggdrasil/magnet.png'),
-      processImage("/icons/minigames/yggdrasil/idunn's_apple.png"),
-      processImage('/icons/minigames/yggdrasil/death_spirit.png'),
-      processImage('/icons/minigames/yggdrasil/double_jump.png'),
-      processImage('/icons/minigames/yggdrasil/turbo.png'),
-      processImage('/icons/minigames/yggdrasil/rune.png'),
-      processImage('/icons/minigames/yggdrasil/red_rune.png'),
-      processImage('/icons/minigames/yggdrasil/ratatoskr.png')
+      processImage(themeAssets.hero_stand || '/icons/minigames/yggdrasil/hero_stand.png'),
+      processImage(themeAssets.hero_jump || '/icons/minigames/yggdrasil/hero_jump.png'),
+      processImage(themeAssets.hero_turbo || '/icons/minigames/yggdrasil/hero_turbo.png'),
+      processImage(themeAssets.platform_1 || '/icons/minigames/yggdrasil/platform_1.png'),
+      processImage(themeAssets.platform_2 || '/icons/minigames/yggdrasil/platform_2.png'),
+      processImage(themeAssets.background || '/icons/minigames/yggdrasil/background.png'),
+      processImage(themeAssets.magnet || '/icons/minigames/yggdrasil/magnet.png'),
+      processImage(themeAssets.apple || "/icons/minigames/yggdrasil/idunn's_apple.png"),
+      processImage(themeAssets.spirit || '/icons/minigames/yggdrasil/death_spirit.png'),
+      processImage(themeAssets.jump_icon || '/icons/minigames/yggdrasil/double_jump.png'),
+      processImage(themeAssets.turbo_icon || '/icons/minigames/yggdrasil/turbo.png'),
+      processImage(themeAssets.rune || '/icons/minigames/yggdrasil/rune.png'),
+      processImage(themeAssets.red_rune || '/icons/minigames/yggdrasil/red_rune.png'),
+      processImage(themeAssets.ratatoskr || '/icons/minigames/yggdrasil/ratatoskr.png')
     ]).then(([stand, jump, turbo, plat1, plat2, background, magnet, apple, spirit, jumpIcon, turboIcon, rune, redRune, ratatoskr]) => {
       assetsRef.current = { 
         stand, jump, turbo, plat1, plat2, background,
@@ -351,7 +372,7 @@ const YggdrasilAscender = ({ user }) => {
       console.error('Asset processing failed:', err);
       setAssetsLoaded(true);
     });
-  }, []);
+  }, [yggTheme]);
 
   // Load best score & Detect touch
   useEffect(() => {

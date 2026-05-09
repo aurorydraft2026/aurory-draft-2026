@@ -626,3 +626,15 @@
   color: #64748b;
   text-align: right;
 }
+
+.ygg-history-empty {
+  padding: 20px;
+  text-align: center;
+  color: #64748b;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+}
