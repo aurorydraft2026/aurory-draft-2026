@@ -52,6 +52,9 @@ const ArmoryModal = ({ isOpen, onClose, user }) => {
     }, [user?.ownedCosmetics, allCosmetics, prizes]);
 
     const activeItems = useMemo(() => {
+        if (activeTab === 'yggdrasil') {
+            return ownedCosmetics.filter(c => c.type && c.type.startsWith('ygg_'));
+        }
         return ownedCosmetics.filter(c => c.type === activeTab);
     }, [ownedCosmetics, activeTab]);
 
@@ -166,6 +169,15 @@ const ArmoryModal = ({ isOpen, onClose, user }) => {
                         </span>
                         Prizes ({ownedCosmetics.filter(c => c.type === 'prize').length})
                     </button>
+                    <button
+                        className={`armory-tab ${activeTab === 'yggdrasil' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('yggdrasil')}
+                    >
+                        <span className="tab-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                        </span>
+                        Yggdrasil ({ownedCosmetics.filter(c => c.type && c.type.startsWith('ygg_')).length})
+                    </button>
                 </div>
 
                 <div className="modal-body custom-scrollbar">
@@ -187,6 +199,12 @@ const ArmoryModal = ({ isOpen, onClose, user }) => {
                                                 </div>
                                             ) : item.type === 'banner' ? (
                                                 <div className="banner-preview-item" style={getBannerStyleFromCosmetic(item) || {}}></div>
+                                            ) : item.type === 'ygg_theme' || item.type === 'ygg_background' ? (
+                                                <div className="ygg-preview-item" style={{ backgroundImage: `url("${item.assets?.background || item.pngUrl || item.image}")`, backgroundSize: 'cover', backgroundPosition: 'center', height: '100%', width: '100%', borderRadius: '4px' }}></div>
+                                            ) : item.type === 'ygg_character' ? (
+                                                <div className="ygg-preview-item" style={{ backgroundImage: `url("${item.assets?.hero_stand || item.pngUrl || item.image}")`, backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center', height: '100%', width: '100%' }}></div>
+                                            ) : item.type === 'ygg_platforms' ? (
+                                                <div className="ygg-preview-item" style={{ backgroundImage: `url("${item.assets?.platform_1 || item.pngUrl || item.image}")`, backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center', height: '100%', width: '100%' }}></div>
                                             ) : (
                                                 <div className="prize-preview-item">
                                                     <img src={item.pngUrl || item.image} alt={item.name} />

@@ -238,7 +238,21 @@ const RuneShop = ({ user, config, onClose, onUpdate }) => {
                             )}
                           </div>
                           <div className="ygg-shop-item-info">
-                            <div className="ygg-shop-item-name">{item.name}</div>
+                            <div className="ygg-shop-item-name">
+                            {item.name}
+                            {item.rewardType && item.rewardType !== 'prize' && (
+                              <span className="reward-badge" style={{ 
+                                fontSize: '10px', 
+                                background: item.rewardType === 'aury' ? 'linear-gradient(135deg, #3b82f6, #2563eb)' : 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                marginLeft: '8px',
+                                color: 'white'
+                              }}>
+                                +{item.rewardAmount} {item.rewardType.toUpperCase()}
+                              </span>
+                            )}
+                          </div>
                             <div className="ygg-shop-item-desc">{item.description}</div>
                           </div>
                         </div>

@@ -7,7 +7,7 @@ service firebase.storage {
       return request.auth != null && (
         request.auth.uid == 'wgPwCyYGuYUAokSklV1LNsjCrGA3' ||
         request.auth.token.email == 'asgardduels@gmail.com' ||
-        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'superadmin']
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'superadmin', 'senior_admin', 'games_manager', 'merchant']
       );
     }
 
@@ -17,6 +17,12 @@ service firebase.storage {
       allow read: if true;
       
       // Only admins can upload/delete
+      allow write: if isAdmin();
+    }
+
+    // Match any file in the 'minigames' folder
+    match /minigames/{allPaths=**} {
+      allow read: if true;
       allow write: if isAdmin();
     }
 

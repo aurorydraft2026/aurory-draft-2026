@@ -299,10 +299,100 @@ function AdminPanel() {
     price: 10,
     currency: 'runes',
     stock: 50,
-    rarity: 'common'
+    rarity: 'common',
+    rewardType: 'prize', // prize, aury, valcoins
+    rewardAmount: 0
   });
   const [isCreatingRuneShopItem, setIsCreatingRuneShopItem] = useState(false);
   const [editingRuneShopItemId, setEditingRuneShopItemId] = useState(null);
+  const [uploadingField, setUploadingField] = useState(null);
+
+  // --- Image Upload & Compression ---
+  const handleStorageUpload = async (file, fieldPath, isBackground = false) => {
+    if (!file) return;
+    
+    setUploadingField(fieldPath);
+    try {
+      let blob = file;
+      
+      // Client-side compression & resizing
+      const img = new Image();
+      const reader = new FileReader();
+      
+      const compressedBlob = await new Promise((resolve) => {
+        reader.onload = (e) => {
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            
+            // Resize backgrounds to 1920x1080 if they are larger
+            if (isBackground && (width > 1920 || height > 1080)) {
+              const ratio = Math.min(1920 / width, 1080 / height);
+              width *= ratio;
+              height *= ratio;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Initial quality
+            let quality = 0.85;
+            const type = 'image/jpeg';
+            
+            const attemptExport = (q) => {
+              canvas.toBlob((b) => {
+                // If background and > 500kb, try lower quality
+                if (isBackground && b.size > 500 * 1024 && q > 0.1) {
+                  attemptExport(q - 0.1);
+                } else {
+                  resolve(b);
+                }
+              }, type, q);
+            };
+            
+            attemptExport(quality);
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+      
+      blob = compressedBlob;
+      
+      const fileExt = file.name.split('.').pop();
+      const fileName = `ygg_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const storageRef = ref(storage, `minigames/yggdrasil/${fileName}`);
+      
+      await uploadBytes(storageRef, blob);
+      const url = await getDownloadURL(storageRef);
+      
+      // Update state based on fieldPath
+      if (fieldPath.startsWith('runeShop.')) {
+        const subField = fieldPath.split('.')[1];
+        setNewRuneShopItem(prev => ({ ...prev, [subField]: url }));
+      } else if (fieldPath.startsWith('cosmeticAssets.')) {
+        const subField = fieldPath.split('.')[1];
+        setCosmeticForm(prev => ({
+          ...prev,
+          assets: { ...(prev.assets || {}), [subField]: url }
+        }));
+      } else if (fieldPath === 'runeShopItemIcon') {
+         setNewRuneShopItem(prev => ({ ...prev, icon: url }));
+      } else if (fieldPath === 'runeShopItemImage') {
+         setNewRuneShopItem(prev => ({ ...prev, image: url }));
+      }
+      
+      console.log(`Uploaded ${fieldPath}:`, url);
+    } catch (error) {
+      console.error('Upload failed:', error);
+      alert('Upload failed: ' + error.message);
+    } finally {
+      setUploadingField(null);
+    }
+  };
 
   // PvP Rewards state
   const [pvpRewardsConfig, setPvpRewardsConfig] = useState(null);
@@ -528,6 +618,17 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       }
     }
   }, [isGamesManagerUser, isGeneralAdmin, activeTab]);
+
+  // Force Merchant to Shop tab
+  useEffect(() => {
+    if (isMerchantUser && !isGeneralAdmin) {
+      if (activeTab !== 'shop_mgmt') {
+        setActiveTab('shop_mgmt');
+        setExpandedCategory('website');
+        setShopSubTab('cosmetics');
+      }
+    }
+  }, [isMerchantUser, isGeneralAdmin, activeTab]);
 
 
   // Fetch pending withdrawals
@@ -929,7 +1030,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
   // Fetch shop purchase history
   useEffect(() => {
-    if (!isAdminUser || activeTab !== 'shop_mgmt' || shopSubTab !== 'settings') return;
+    if (!isAdminUser || activeTab !== 'shop_mgmt' || (shopSubTab !== 'settings' && shopSubTab !== 'cosmetics')) return;
 
     const fetchHistory = async () => {
       setShopHistoryLoading(true);
@@ -1178,6 +1279,24 @@ All decisions made by tournament organizers may change throughout the tourney.`)
       delete cosmeticData.discountDays;
       delete cosmeticData.discountHours;
 
+      // Final Sanitization to prevent 'undefined' errors in Firestore
+      if (cosmeticData.gifUrl === undefined) cosmeticData.gifUrl = '';
+      if (cosmeticData.pngUrl === undefined) cosmeticData.pngUrl = '';
+      if (cosmeticData.description === undefined) cosmeticData.description = '';
+      if (cosmeticData.placement === undefined) cosmeticData.placement = 'behind';
+      if (cosmeticData.cssClass === undefined) cosmeticData.cssClass = '';
+      if (cosmeticData.style === undefined) cosmeticData.style = {};
+      if (cosmeticData.assets === undefined) cosmeticData.assets = {};
+      
+      // Deep sanitize assets if it exists
+      if (cosmeticData.assets) {
+        Object.keys(cosmeticData.assets).forEach(key => {
+          if (cosmeticData.assets[key] === undefined) {
+            cosmeticData.assets[key] = '';
+          }
+        });
+      }
+
       if (!editingCosmetic) {
         // 🆕 DUPLICATE CHECK: Prevent adding items with the exact same name
         const isDuplicate = shopCosmetics.some(c => c.name.toLowerCase().trim() === cosmeticForm.name.toLowerCase().trim());
@@ -1196,6 +1315,13 @@ All decisions made by tournament organizers may change throughout the tourney.`)
         await addDoc(collection(db, 'cosmetics'), cosmeticData);
         alert('New cosmetic added successfully!');
       } else {
+        // Ownership check: only super admins can edit anyone's cosmetics
+        if (!isSuperAdminUser && editingCosmetic.createdBy !== user.uid) {
+          alert('You do not have permission to edit this cosmetic.');
+          setProcessingId(null);
+          return;
+        }
+
         // Update existing
         const docRef = doc(db, 'cosmetics', editingCosmetic.id);
 
@@ -1227,6 +1353,15 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   };
 
   const handleDeleteCosmetic = async (id) => {
+    // Ownership check: only super admins can delete anyone's cosmetics
+    if (!isSuperAdminUser) {
+      const cosmetic = shopCosmetics.find(c => c.id === id);
+      if (cosmetic && cosmetic.createdBy !== user.uid) {
+        alert('You do not have permission to delete this cosmetic.');
+        return;
+      }
+    }
+
     if (!window.confirm('⚔️ Are you sure you want to PERMANENTLY delete this item? This will NOT remove it from users who already bought it, but new users cannot buy it.')) return;
 
     try {
@@ -5033,8 +5168,8 @@ All decisions made by tournament organizers may change throughout the tourney.`)
             </div>
           )}
 
-          {/* Games Category (All Admins & Games Manager) */}
-          {isAdminUser && (
+          {/* Games Category (General Admins & Games Manager only) */}
+          {(isGeneralAdmin || isGamesManagerUser) && (
             <div className={`admin-category ${expandedCategory === 'games' ? 'expanded' : ''}`}>
               <div
                 className="category-title"
@@ -6307,42 +6442,85 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 <p>🛍️ Manage the Valhalla Vault inventory. Add new cosmetics, update prices, and manage animated auras.</p>
               </div>
 
-              {isMerchantUser && (
-                <div className="merchant-commission-card card" style={{ marginBottom: '20px', padding: '20px', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                  <h3 style={{ margin: '0 0 15px 0', color: '#10b981', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    💰 Merchant Dashboard
-                  </h3>
-                  <div className="merchant-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' }}>
-                    <div className="stat-item">
-                      <span style={{ fontSize: '12px', opacity: 0.7, display: 'block', marginBottom: '5px' }}>Your Items</span>
-                      <span style={{ fontSize: '20px', fontWeight: 'bold' }}>{shopCosmetics.filter(c => c.createdBy === user.uid).length}</span>
-                    </div>
-                    <div className="stat-item">
-                      <span style={{ fontSize: '12px', opacity: 0.7, display: 'block', marginBottom: '5px' }}>Total Sales</span>
-                      <span style={{ fontSize: '20px', fontWeight: 'bold' }}>{shopCosmetics.filter(c => c.createdBy === user.uid).reduce((acc, c) => acc + (c.saleCount || 0), 0)}</span>
-                    </div>
-                    <div className="stat-item">
-                      <span style={{ fontSize: '12px', opacity: 0.7, display: 'block', marginBottom: '5px' }}>Total Commission (60%)</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>
-                          {shopHistory.filter(s => s.creatorId === user.uid).reduce((acc, s) => acc + (s.commission || 0), 0).toLocaleString()}
-                        </span>
-                        <img src="/valcoin-icon.jpg" alt="" style={{ width: '16px', height: '16px', borderRadius: '50%' }} />
+              {(() => {
+                const isCreatorView = !isSuperAdminUser;
+
+                // Determine which cosmetics are relevant to the current sub-tab
+                const isYggTab = ['ygg_themes', 'ygg_theme_form'].includes(shopSubTab);
+                const tabFilter = (c) => {
+                  const isYggType = (c.type || '').startsWith('ygg_');
+                  return isYggTab ? isYggType : !isYggType;
+                };
+
+                const relevantCosmetics = (isCreatorView
+                  ? shopCosmetics.filter(c => c.createdBy === user.uid)
+                  : shopCosmetics
+                ).filter(tabFilter);
+
+                const relevantSales = isCreatorView
+                  ? shopHistory.filter(s => s.creatorId === user.uid)
+                  : shopHistory;
+                const totalItems = relevantCosmetics.length;
+                const totalSales = relevantCosmetics.reduce((acc, c) => acc + (c.saleCount || 0), 0);
+
+                const valcoinCommission = relevantSales
+                  .filter(s => (s.currency || 'valcoins').toLowerCase() === 'valcoins')
+                  .reduce((acc, s) => acc + (s.commission || (s.price || 0) * 0.6), 0);
+                const auryCommission = relevantSales
+                  .filter(s => (s.currency || 'valcoins').toLowerCase() === 'aury')
+                  .reduce((acc, s) => acc + (s.commission || (s.price || 0) * 0.6), 0);
+
+                const tabLabel = isYggTab ? 'Yggdrasil' : 'Cosmetics';
+
+                return (
+                  <div className="merchant-commission-card card" style={{ marginBottom: '20px', padding: '20px', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                    <h3 style={{ margin: '0 0 15px 0', color: '#10b981', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      💰 {isCreatorView ? 'Merchant Dashboard' : 'Shop Dashboard'}
+                      <span style={{ fontSize: '12px', fontWeight: '500', color: '#94a3b8', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '4px' }}>{tabLabel}</span>
+                    </h3>
+                    <div className="merchant-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '15px' }}>
+                      <div className="stat-item">
+                        <span style={{ fontSize: '12px', opacity: 0.7, display: 'block', marginBottom: '5px' }}>{isCreatorView ? 'Your Items' : 'Total Items'}</span>
+                        <span style={{ fontSize: '20px', fontWeight: 'bold' }}>{totalItems}</span>
+                      </div>
+                      <div className="stat-item">
+                        <span style={{ fontSize: '12px', opacity: 0.7, display: 'block', marginBottom: '5px' }}>Total Sales</span>
+                        <span style={{ fontSize: '20px', fontWeight: 'bold' }}>{totalSales}</span>
+                      </div>
+                      <div className="stat-item">
+                        <span style={{ fontSize: '12px', opacity: 0.7, display: 'block', marginBottom: '5px' }}>Commission (60%) — Valcoins</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>
+                            {Math.round(valcoinCommission).toLocaleString()}
+                          </span>
+                          <img src="/valcoin-icon.jpg" alt="" style={{ width: '16px', height: '16px', borderRadius: '50%' }} />
+                        </div>
+                      </div>
+                      <div className="stat-item">
+                        <span style={{ fontSize: '12px', opacity: 0.7, display: 'block', marginBottom: '5px' }}>Commission (60%) — AURY</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>
+                            {Math.round(auryCommission).toLocaleString()}
+                          </span>
+                          <img src="/aury-icon.png" alt="" style={{ width: '16px', height: '16px' }} />
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Sub-tab Pill Selector */}
               <div className="config-card" style={{ marginBottom: '20px', padding: '15px', background: 'rgba(10, 10, 15, 0.4)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
                 <div className="game-type-selector">
-                  <button
-                    className={`selector-btn ${shopSubTab === 'settings' ? 'active' : ''}`}
-                    onClick={() => setShopSubTab('settings')}
-                  >
-                    Shop Settings
-                  </button>
+                  {isGeneralAdmin && (
+                    <button
+                      className={`selector-btn ${shopSubTab === 'settings' ? 'active' : ''}`}
+                      onClick={() => setShopSubTab('settings')}
+                    >
+                      Shop Settings
+                    </button>
+                  )}
                   <button
                     className={`selector-btn ${shopSubTab === 'cosmetics' ? 'active' : ''}`}
                     onClick={() => {
@@ -6356,41 +6534,49 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   >
                     Cosmetics
                   </button>
-                  <button
-                    className={`selector-btn ${shopSubTab === 'amikos' ? 'active' : ''}`}
-                    onClick={() => setShopSubTab('amikos')}
-                  >
-                    Amikos
-                  </button>
-                  <button
-                    className={`selector-btn ${shopSubTab === 'items' ? 'active' : ''}`}
-                    onClick={() => setShopSubTab('items')}
-                  >
-                    Items
-                  </button>
-                  <button
-                    className={`selector-btn ${['ygg_themes', 'ygg_theme_form'].includes(shopSubTab) ? 'active' : ''}`}
-                    onClick={() => {
-                      setShopSubTab('ygg_themes');
-                      setEditingCosmetic(null);
-                      setCosmeticForm({
-                        name: '', type: 'ygg_theme', rarity: 'common', price: 10, currency: 'runes',
-                        description: '', assets: {}
-                      });
-                    }}
-                  >
-                    Yggdrasil
-                  </button>
-                  <button
-                    className={`selector-btn ${shopSubTab === 'tickets' ? 'active' : ''}`}
-                    onClick={() => setShopSubTab('tickets')}
-                  >
-                    Tickets
-                  </button>
+                  {isGeneralAdmin && (
+                    <button
+                      className={`selector-btn ${shopSubTab === 'amikos' ? 'active' : ''}`}
+                      onClick={() => setShopSubTab('amikos')}
+                    >
+                      Amikos
+                    </button>
+                  )}
+                  {isGeneralAdmin && (
+                    <button
+                      className={`selector-btn ${shopSubTab === 'items' ? 'active' : ''}`}
+                      onClick={() => setShopSubTab('items')}
+                    >
+                      Items
+                    </button>
+                  )}
+                  {isGeneralAdmin && (
+                    <button
+                      className={`selector-btn ${['ygg_themes', 'ygg_theme_form'].includes(shopSubTab) ? 'active' : ''}`}
+                      onClick={() => {
+                        setShopSubTab('ygg_themes');
+                        setEditingCosmetic(null);
+                        setCosmeticForm({
+                          name: '', type: 'ygg_theme', rarity: 'common', price: 10, currency: 'runes',
+                          description: '', assets: {}
+                        });
+                      }}
+                    >
+                      Yggdrasil
+                    </button>
+                  )}
+                  {isGeneralAdmin && (
+                    <button
+                      className={`selector-btn ${shopSubTab === 'tickets' ? 'active' : ''}`}
+                      onClick={() => setShopSubTab('tickets')}
+                    >
+                      Tickets
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {shopSubTab === 'settings' && (
+              {shopSubTab === 'settings' && isGeneralAdmin && (
                 <>
                   <div className="credit-form" style={{ maxWidth: '500px', margin: '0 auto' }}>
                     <div className="form-group">
@@ -6511,8 +6697,23 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                       <div>
                         <h3 style={{ margin: 0 }}>Current Cosmetics</h3>
-                        <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>{shopCosmetics.filter(item => isSuperAdminUser || !isMerchantUser || item.createdBy === user.uid).length} Items found in the vault.</p>
+                        <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>{shopCosmetics.filter(item => isSuperAdminUser || item.createdBy === user.uid).length} Items found in the vault.</p>
                       </div>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <button
+                          className="selector-btn active"
+                          style={{ padding: '8px 16px', fontSize: '12px' }}
+                          onClick={() => {
+                            setEditingCosmetic(null);
+                            setCosmeticForm({
+                              name: '', type: 'aura', rarity: 'common', price: 1000,
+                              description: '', placement: 'behind', gifUrl: '', pngUrl: '', cssClass: '', style: {}
+                            });
+                            setShopSubTab('cosmetics_form');
+                          }}
+                        >
+                          + Add New Cosmetic
+                        </button>
                       {isSuperAdminUser && (
                         <button
                           className="admin-badge-btn"
@@ -6585,6 +6786,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           {processingId === 'recount_sales' ? '⏳ Scanning...' : '🔄 Recount Sales'}
                         </button>
                       )}
+                      </div>
                     </div>
 
                     {cosmeticsLoading ? (
@@ -6604,7 +6806,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         </thead>
                         <tbody>
                           {shopCosmetics
-                            .filter(item => (isSuperAdminUser || !isMerchantUser || item.createdBy === user.uid) && item.type !== 'ygg_theme')
+                            .filter(item => (isSuperAdminUser || item.createdBy === user.uid) && !(item.type || '').startsWith('ygg_'))
                             .map(item => (
                             <tr key={item.id}>
                               <td>
@@ -6675,20 +6877,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       </table>
                     )}
 
-                    <button
-                      className="selector-btn active"
-                      style={{ marginTop: '15px', width: '100%', padding: '10px' }}
-                      onClick={() => {
-                        setEditingCosmetic(null);
-                        setCosmeticForm({
-                          name: '', type: 'aura', rarity: 'common', price: 1000,
-                          description: '', placement: 'behind', gifUrl: '', pngUrl: '', cssClass: '', style: {}
-                        });
-                        setShopSubTab('cosmetics_form');
-                      }}
-                    >
-                      + Add New Cosmetic
-                    </button>
+
                   </div>
                 </div>
               )}
@@ -6720,6 +6909,10 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                         >
                           <option value="aura">Aura (Avatar Overlay)</option>
                           <option value="banner">Banner (Profile Background)</option>
+                          <option value="ygg_theme">Ygg Theme (Full Skin)</option>
+                          <option value="ygg_background">Ygg Background (Scenery)</option>
+                          <option value="ygg_character">Ygg Character (Hero)</option>
+                          <option value="ygg_platforms">Ygg Platforms</option>
                         </select>
                       </div>
                     </div>
@@ -7101,9 +7294,23 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   <div className="admin-table-container card" style={{ padding: '15px' }}>
                     <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                       <div>
-                        <h3 style={{ margin: 0 }}>Yggdrasil Themes</h3>
-                        <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>{shopCosmetics.filter(item => item.type === 'ygg_theme').length} Themes found.</p>
+                        <h3 style={{ margin: 0 }}>Yggdrasil Themes & Backgrounds</h3>
+                        <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>{shopCosmetics.filter(item => (isSuperAdminUser || item.createdBy === user?.uid) && (item.type || '').startsWith('ygg_')).length} Items found.</p>
                       </div>
+                      <button
+                        className="selector-btn active"
+                        style={{ padding: '8px 16px', fontSize: '12px' }}
+                        onClick={() => {
+                          setEditingCosmetic(null);
+                          setCosmeticForm({
+                            name: '', type: 'ygg_theme', rarity: 'common', price: 10, currency: 'runes',
+                            description: '', assets: {}
+                          });
+                          setShopSubTab('ygg_theme_form');
+                        }}
+                      >
+                        + Add New Theme
+                      </button>
                     </div>
 
                     <table className="admin-table">
@@ -7119,7 +7326,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                       </thead>
                       <tbody>
                         {shopCosmetics
-                          .filter(item => item.type === 'ygg_theme')
+                          .filter(item => (isSuperAdminUser || item.createdBy === user?.uid) && (item.type || '').startsWith('ygg_'))
                           .map(item => (
                           <tr key={item.id}>
                             <td>
@@ -7131,6 +7338,12 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             </td>
                             <td>
                               <div style={{ fontWeight: '600' }}>{item.name}</div>
+                              <div style={{ fontSize: '10px', opacity: 0.7 }}>
+                                {item.type === 'ygg_theme' && '🎭 THEME'}
+                                {item.type === 'ygg_background' && '🌄 BACKGROUND'}
+                                {item.type === 'ygg_character' && '🏃 CHARACTER'}
+                                {item.type === 'ygg_platforms' && '🧱 PLATFORMS'}
+                              </div>
                             </td>
                             <td>
                               <span className="rarity-badge" style={{ background: RARITY_CONFIG[item.rarity]?.color || '#ccc', fontSize: '10px', padding: '2px 6px' }}>
@@ -7140,32 +7353,25 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                             <td>{item.price.toLocaleString()} {item.currency || 'Valcoins'}</td>
                             <td>{item.saleCount || 0}</td>
                             <td className="admin-actions">
-                              <button className="edit-btn" onClick={() => {
-                                setEditingCosmetic(item);
-                                setCosmeticForm({ ...item, discountDays: 0, discountHours: 0 });
-                                setShopSubTab('ygg_theme_form');
-                              }}>📝 Edit</button>
-                              <button className="delete-btn" onClick={() => handleDeleteCosmetic(item.id)}>🗑️</button>
+                              {(isSuperAdminUser || item.createdBy === user?.uid) ? (
+                                <>
+                                  <button className="edit-btn" onClick={() => {
+                                    setEditingCosmetic(item);
+                                    setCosmeticForm({ ...item, discountDays: 0, discountHours: 0 });
+                                    setShopSubTab('ygg_theme_form');
+                                  }}>📝 Edit</button>
+                                  <button className="delete-btn" onClick={() => handleDeleteCosmetic(item.id)}>🗑️</button>
+                                </>
+                              ) : (
+                                <span style={{ fontSize: '11px', color: '#64748b' }}>No Permission</span>
+                              )}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
 
-                    <button
-                      className="selector-btn active"
-                      style={{ marginTop: '15px', width: '100%', padding: '10px' }}
-                      onClick={() => {
-                        setEditingCosmetic(null);
-                        setCosmeticForm({
-                          name: '', type: 'ygg_theme', rarity: 'common', price: 10, currency: 'runes',
-                          description: '', assets: {}
-                        });
-                        setShopSubTab('ygg_theme_form');
-                      }}
-                    >
-                      + Add New Theme
-                    </button>
+
                   </div>
                 </div>
               )}
@@ -7173,7 +7379,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
               {shopSubTab === 'ygg_theme_form' && (
                 <div className="cosmetic-form-container card" style={{ padding: '20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h3>{editingCosmetic ? '📝 Edit Yggdrasil Theme' : '✨ Create New Theme'}</h3>
+                    <h3>{editingCosmetic ? `📝 Edit ${cosmeticForm.type === 'ygg_theme' ? 'Theme' : 'Background'}` : `✨ Create ${cosmeticForm.type === 'ygg_theme' ? 'Theme' : 'Background'}`}</h3>
                     <button className="back-btn" onClick={() => setShopSubTab('ygg_themes')}>  Back to List</button>
                   </div>
 
@@ -7188,6 +7394,18 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           placeholder="e.g., Cyberpunk Yggdrasil"
                           required
                         />
+                      </div>
+                      <div className="form-group flex-1">
+                        <label>Category</label>
+                        <select
+                          value={cosmeticForm.type}
+                          onChange={(e) => setCosmeticForm(prev => ({ ...prev, type: e.target.value }))}
+                        >
+                          <option value="ygg_theme">Game Theme (Full Skin)</option>
+                          <option value="ygg_background">Game Background (Scenery Only)</option>
+                          <option value="ygg_character">Character Only (Hero Skins)</option>
+                          <option value="ygg_platforms">Platforms Only (Obstacle Skins)</option>
+                        </select>
                       </div>
                       <div className="form-group flex-1">
                         <label>Rarity</label>
@@ -7234,79 +7452,139 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                     </div>
 
                     <div className="ygg-theme-config" style={{ background: 'rgba(0,0,0,0.2)', padding: '20px', borderRadius: '12px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                      <h4 style={{ marginBottom: '15px', color: 'var(--accent-gold)' }}>🎭 Yggdrasil Asset URLs</h4>
-                      <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '20px' }}>Leave empty to use default assets.</p>
-                      
+                    <h4 style={{ marginBottom: '15px', color: 'var(--accent-gold)' }}>🎭 Asset Configuration</h4>
+                    <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '20px' }}>Recommended dimensions are listed for each asset type.</p>
+                    
+                    {(cosmeticForm.type === 'ygg_theme' || cosmeticForm.type === 'ygg_character') && (
+                      <>
+                        <div className="form-row">
+                          <div className="form-group flex-1">
+                            <label>Character Stand (64x64)</label>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.hero_stand || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), hero_stand: e.target.value } }))} style={{ flex: 1 }} />
+                              <button type="button" className="action-btn" style={{ flexShrink: 0, width: "40px", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => document.getElementById('up-char-stand').click()}>{uploadingField === 'cosmeticAssets.hero_stand' ? '...' : '📁'}</button>
+                              <input id="up-char-stand" type="file" hidden accept="image/*" onChange={(e) => handleStorageUpload(e.target.files[0], 'cosmeticAssets.hero_stand')} />
+                            </div>
+                          </div>
+                          <div className="form-group flex-1">
+                            <label>Character Jump (64x64)</label>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.hero_jump || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), hero_jump: e.target.value } }))} style={{ flex: 1 }} />
+                              <button type="button" className="action-btn" style={{ flexShrink: 0, width: "40px", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => document.getElementById('up-char-jump').click()}>{uploadingField === 'cosmeticAssets.hero_jump' ? '...' : '📁'}</button>
+                              <input id="up-char-jump" type="file" hidden accept="image/*" onChange={(e) => handleStorageUpload(e.target.files[0], 'cosmeticAssets.hero_jump')} />
+                            </div>
+                          </div>
+                          <div className="form-group flex-1">
+                            <label>Character Turbo (64x64)</label>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.hero_turbo || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), hero_turbo: e.target.value } }))} style={{ flex: 1 }} />
+                              <button type="button" className="action-btn" style={{ flexShrink: 0, width: "40px", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => document.getElementById('up-char-turbo').click()}>{uploadingField === 'cosmeticAssets.hero_turbo' ? '...' : '📁'}</button>
+                              <input id="up-char-turbo" type="file" hidden accept="image/*" onChange={(e) => handleStorageUpload(e.target.files[0], 'cosmeticAssets.hero_turbo')} />
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {(cosmeticForm.type === 'ygg_theme' || cosmeticForm.type === 'ygg_platforms') && (
                       <div className="form-row">
                         <div className="form-group flex-1">
-                          <label>Character Stand</label>
-                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.hero_stand || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), hero_stand: e.target.value } }))} />
+                          <label>Platform 1 (128x32)</label>
+                          <div style={{ display: 'flex', gap: '5px' }}>
+                            <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.platform_1 || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), platform_1: e.target.value } }))} style={{ flex: 1 }} />
+                            <button type="button" className="action-btn" style={{ flexShrink: 0, width: "40px", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => document.getElementById('up-plat-1').click()}>{uploadingField === 'cosmeticAssets.platform_1' ? '...' : '📁'}</button>
+                            <input id="up-plat-1" type="file" hidden accept="image/*" onChange={(e) => handleStorageUpload(e.target.files[0], 'cosmeticAssets.platform_1')} />
+                          </div>
                         </div>
                         <div className="form-group flex-1">
-                          <label>Character Jump</label>
-                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.hero_jump || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), hero_jump: e.target.value } }))} />
-                        </div>
-                        <div className="form-group flex-1">
-                          <label>Character Turbo</label>
-                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.hero_turbo || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), hero_turbo: e.target.value } }))} />
+                          <label>Platform 2 (128x32)</label>
+                          <div style={{ display: 'flex', gap: '5px' }}>
+                            <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.platform_2 || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), platform_2: e.target.value } }))} style={{ flex: 1 }} />
+                            <button type="button" className="action-btn" style={{ flexShrink: 0, width: "40px", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => document.getElementById('up-plat-2').click()}>{uploadingField === 'cosmeticAssets.platform_2' ? '...' : '📁'}</button>
+                            <input id="up-plat-2" type="file" hidden accept="image/*" onChange={(e) => handleStorageUpload(e.target.files[0], 'cosmeticAssets.platform_2')} />
+                          </div>
                         </div>
                       </div>
+                    )}
 
-                      <div className="form-row">
-                        <div className="form-group flex-1">
-                          <label>Platform 1 (Solid)</label>
-                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.platform_1 || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), platform_1: e.target.value } }))} />
-                        </div>
-                        <div className="form-group flex-1">
-                          <label>Platform 2 (Fragile)</label>
-                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.platform_2 || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), platform_2: e.target.value } }))} />
-                        </div>
-                      </div>
-
+                    {(cosmeticForm.type === 'ygg_theme' || cosmeticForm.type === 'ygg_background') && (
                       <div className="form-group">
-                        <label>Background Image</label>
-                        <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.background || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), background: e.target.value } }))} />
-                      </div>
-
-                      <div className="form-row">
-                        <div className="form-group flex-1">
-                          <label>Rune (Normal)</label>
-                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.rune || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), rune: e.target.value } }))} />
-                        </div>
-                        <div className="form-group flex-1">
-                          <label>Red Rune</label>
-                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.red_rune || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), red_rune: e.target.value } }))} />
-                        </div>
-                        <div className="form-group flex-1">
-                          <label>Ratatoskr</label>
-                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.ratatoskr || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), ratatoskr: e.target.value } }))} />
+                        <label>Background Image (1920x1080) [Max 500KB]</label>
+                        <div style={{ display: 'flex', gap: '5px' }}>
+                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.background || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), background: e.target.value } }))} style={{ flex: 1 }} />
+                          <button type="button" className="action-btn" style={{ flexShrink: 0, width: "40px", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => document.getElementById('up-bg').click()}>{uploadingField === 'cosmeticAssets.background' ? '...' : '📁'}</button>
+                          <input id="up-bg" type="file" hidden accept="image/*" onChange={(e) => handleStorageUpload(e.target.files[0], 'cosmeticAssets.background', true)} />
                         </div>
                       </div>
+                    )}
 
-                      <div className="form-row">
-                        <div className="form-group flex-1">
-                          <label>Magnet</label>
-                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.magnet || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), magnet: e.target.value } }))} />
+                    {cosmeticForm.type === 'ygg_theme' && (
+                      <>
+                        <div className="form-row">
+                          <div className="form-group flex-1">
+                            <label>Rune (32x32)</label>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.rune || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), rune: e.target.value } }))} style={{ flex: 1 }} />
+                              <button type="button" className="action-btn" style={{ flexShrink: 0, width: "40px", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => document.getElementById('up-rune').click()}>{uploadingField === 'cosmeticAssets.rune' ? '...' : '📁'}</button>
+                              <input id="up-rune" type="file" hidden accept="image/*" onChange={(e) => handleStorageUpload(e.target.files[0], 'cosmeticAssets.rune')} />
+                            </div>
+                          </div>
+                          <div className="form-group flex-1">
+                            <label>Red Rune (32x32)</label>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.red_rune || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), red_rune: e.target.value } }))} style={{ flex: 1 }} />
+                              <button type="button" className="action-btn" style={{ flexShrink: 0, width: "40px", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => document.getElementById('up-red-rune').click()}>{uploadingField === 'cosmeticAssets.red_rune' ? '...' : '📁'}</button>
+                              <input id="up-red-rune" type="file" hidden accept="image/*" onChange={(e) => handleStorageUpload(e.target.files[0], 'cosmeticAssets.red_rune')} />
+                            </div>
+                          </div>
+                          <div className="form-group flex-1">
+                            <label>Ratatoskr (64x64)</label>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.ratatoskr || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), ratatoskr: e.target.value } }))} style={{ flex: 1 }} />
+                              <button type="button" className="action-btn" style={{ flexShrink: 0, width: "40px", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => document.getElementById('up-rat').click()}>{uploadingField === 'cosmeticAssets.ratatoskr' ? '...' : '📁'}</button>
+                              <input id="up-rat" type="file" hidden accept="image/*" onChange={(e) => handleStorageUpload(e.target.files[0], 'cosmeticAssets.ratatoskr')} />
+                            </div>
+                          </div>
                         </div>
-                        <div className="form-group flex-1">
-                          <label>Idunn's Apple</label>
-                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.apple || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), apple: e.target.value } }))} />
-                        </div>
-                        <div className="form-group flex-1">
-                          <label>Death Spirit</label>
-                          <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.spirit || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), spirit: e.target.value } }))} />
-                        </div>
-                      </div>
-                    </div>
 
-                    <button
-                      type="submit"
-                      className="approve-btn"
-                      disabled={processingId === 'save_cosmetic' || !cosmeticForm.name}
-                      style={{ width: '100%', marginTop: '10px' }}
-                    >
-                      {processingId === 'save_cosmetic' ? 'Processing...' : (editingCosmetic ? '💾 Update Theme' : '✨ Publish Theme')}
-                    </button>
+                        <div className="form-row">
+                          <div className="form-group flex-1">
+                            <label>Magnet (32x32)</label>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.magnet || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), magnet: e.target.value } }))} style={{ flex: 1 }} />
+                              <button type="button" className="action-btn" style={{ flexShrink: 0, width: "40px", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => document.getElementById('up-mag').click()}>{uploadingField === 'cosmeticAssets.magnet' ? '...' : '📁'}</button>
+                              <input id="up-mag" type="file" hidden accept="image/*" onChange={(e) => handleStorageUpload(e.target.files[0], 'cosmeticAssets.magnet')} />
+                            </div>
+                          </div>
+                          <div className="form-group flex-1">
+                            <label>Idunn's Apple (32x32)</label>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.apple || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), apple: e.target.value } }))} style={{ flex: 1 }} />
+                              <button type="button" className="action-btn" style={{ flexShrink: 0, width: "40px", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => document.getElementById('up-apple').click()}>{uploadingField === 'cosmeticAssets.apple' ? '...' : '📁'}</button>
+                              <input id="up-apple" type="file" hidden accept="image/*" onChange={(e) => handleStorageUpload(e.target.files[0], 'cosmeticAssets.apple')} />
+                            </div>
+                          </div>
+                          <div className="form-group flex-1">
+                            <label>Death Spirit (32x32)</label>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <input type="text" placeholder="/icons/..." value={cosmeticForm.assets?.spirit || ''} onChange={(e) => setCosmeticForm(prev => ({ ...prev, assets: { ...(prev.assets || {}), spirit: e.target.value } }))} style={{ flex: 1 }} />
+                              <button type="button" className="action-btn" style={{ flexShrink: 0, width: "40px", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => document.getElementById('up-spirit').click()}>{uploadingField === 'cosmeticAssets.spirit' ? '...' : '📁'}</button>
+                              <input id="up-spirit" type="file" hidden accept="image/*" onChange={(e) => handleStorageUpload(e.target.files[0], 'cosmeticAssets.spirit')} />
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="approve-btn"
+                    disabled={processingId === 'save_cosmetic' || !cosmeticForm.name}
+                    style={{ width: '100%', marginTop: '10px' }}
+                  >
+                    {processingId === 'save_cosmetic' ? 'Processing...' : (editingCosmetic ? `💾 Update ${cosmeticForm.type.replace('ygg_', '').charAt(0).toUpperCase() + cosmeticForm.type.replace('ygg_', '').slice(1)}` : `✨ Publish ${cosmeticForm.type.replace('ygg_', '').charAt(0).toUpperCase() + cosmeticForm.type.replace('ygg_', '').slice(1)}`)}
+                  </button>
                   </form>
                 </div>
               )}
@@ -10135,6 +10413,49 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                   />
                                 </div>
                               </div>
+
+                              <div className="form-row">
+                                <div className="form-group flex-1">
+                                  <label>Reward Type</label>
+                                  <select
+                                    value={newRuneShopItem.rewardType || 'prize'}
+                                    onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, rewardType: e.target.value })}
+                                  >
+                                    <option value="prize">🎁 Armory Prize (Collection)</option>
+                                    <option value="aury">🪙 AURY Tokens (Wallet)</option>
+                                    <option value="valcoins">📀 Valcoins (Balance)</option>
+                                  </select>
+                                </div>
+                                <div className="form-group flex-1">
+                                  <label>Reward Amount (for Aury/Valcoins)</label>
+                                  <input
+                                    type="number"
+                                    value={newRuneShopItem.rewardAmount || 0}
+                                    onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, rewardAmount: parseFloat(e.target.value) || 0 })}
+                                    placeholder="0"
+                                  />
+                                </div>
+                              </div>
+                              <div className="form-group">
+                                <label>🖼 Image URL (for Armory display) [Max 500KB]</label>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <input
+                                    type="text"
+                                    placeholder="https://..."
+                                    value={newRuneShopItem.image}
+                                    onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, image: e.target.value })}
+                                    style={{ flex: 1 }}
+                                  />
+                                  <button 
+                                    type="button" 
+                                    className="action-btn" style={{ flexShrink: 0, width: "40px", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }} 
+                                    onClick={() => document.getElementById('up-rune-img').click()}
+                                  >
+                                    {uploadingField === 'runeShopItemImage' ? '...' : '📁'}
+                                  </button>
+                                  <input id="up-rune-img" type="file" hidden accept="image/*" onChange={(e) => handleStorageUpload(e.target.files[0], 'runeShopItemImage', true)} />
+                                </div>
+                              </div>
                               <div className="form-group">
                                 <label>Description</label>
                                 <input
@@ -10142,15 +10463,6 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                   placeholder="What does this item give?"
                                   value={newRuneShopItem.description}
                                   onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, description: e.target.value })}
-                                />
-                              </div>
-                              <div className="form-group">
-                                <label>🖼 Image URL (for Armory display)</label>
-                                <input
-                                  type="text"
-                                  placeholder="https://..."
-                                  value={newRuneShopItem.image}
-                                  onChange={(e) => setNewRuneShopItem({ ...newRuneShopItem, image: e.target.value })}
                                 />
                               </div>
                               <div className="form-row">
@@ -10211,7 +10523,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                                   handleUpdateMiniGameConfig('yggdrasilAscender', { customShopItems: updatedItems });
                                   setIsCreatingRuneShopItem(false);
                                   setEditingRuneShopItemId(null);
-                                  setNewRuneShopItem({ name: '', description: '', icon: '🎁', image: '', price: 10, currency: 'runes', stock: 50, rarity: 'common' });
+                                  setNewRuneShopItem({ name: '', description: '', icon: '🎁', image: '', price: 10, currency: 'runes', stock: 50, rarity: 'common', rewardType: 'prize', rewardAmount: 0 });
                                 }}
                               >
                                 {editingRuneShopItemId ? '💾 Save Changes' : '✅ Add to Shop'}
@@ -10220,36 +10532,40 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                           )}
 
                           <div className="shop-items-list" style={{ display: 'grid', gap: '10px' }}>
-                            {(miniGamesConfig.yggdrasilAscender?.customShopItems || []).length === 0 ? (
-                              <p style={{ opacity: 0.5, textAlign: 'center', padding: '20px' }}>No custom items in shop.</p>
-                            ) : (
-                              miniGamesConfig.yggdrasilAscender.customShopItems.map(item => (
-                                <div key={item.id} className="admin-prize-item" style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                    <div style={{ fontSize: '24px' }}>{item.icon}</div>
-                                    <div>
-                                      <div style={{ fontWeight: 'bold' }}>{item.name} <span style={{ fontSize: '11px', opacity: 0.7, textTransform: 'uppercase' }}>({item.rarity})</span></div>
-                                      <div style={{ fontSize: '12px', opacity: 0.7 }}>
-                                        Price: {item.price} {item.currency === 'redRunes' ? 'Red Runes' : 'Runes'} | Stock: {item.stock}
+                                  {(miniGamesConfig.yggdrasilAscender?.customShopItems || []).length === 0 ? (
+                                    <p style={{ opacity: 0.5, textAlign: 'center', padding: '20px' }}>No custom items in shop.</p>
+                                  ) : (
+                                    miniGamesConfig.yggdrasilAscender.customShopItems.map(item => (
+                                      <div key={item.id} className="admin-prize-item" style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                          <div style={{ fontSize: '24px' }}>{item.icon}</div>
+                                          <div>
+                                            <div style={{ fontWeight: 'bold' }}>{item.name} <span style={{ fontSize: '11px', opacity: 0.7, textTransform: 'uppercase' }}>({item.rarity})</span></div>
+                                            <div style={{ fontSize: '12px', opacity: 0.7 }}>
+                                              Price: {item.price} {item.currency === 'redRunes' ? 'Red Runes' : 'Runes'} | Reward: {item.rewardType} {item.rewardAmount > 0 ? `(${item.rewardAmount})` : ''} | Stock: {item.stock}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                          <button className="admin-edit-btn" onClick={() => {
+                                            setNewRuneShopItem({
+                                              ...item,
+                                              rewardType: item.rewardType || 'prize',
+                                              rewardAmount: item.rewardAmount || 0
+                                            });
+                                            setEditingRuneShopItemId(item.id);
+                                            setIsCreatingRuneShopItem(true);
+                                          }}>Edit</button>
+                                          <button className="admin-delete-btn" onClick={() => {
+                                            if (window.confirm('Remove this item from shop?')) {
+                                              const updated = miniGamesConfig.yggdrasilAscender.customShopItems.filter(i => i.id !== item.id);
+                                              handleUpdateMiniGameConfig('yggdrasilAscender', { customShopItems: updated });
+                                            }
+                                          }}>Remove</button>
+                                        </div>
                                       </div>
-                                    </div>
-                                  </div>
-                                  <div style={{ display: 'flex', gap: '8px' }}>
-                                    <button className="admin-edit-btn" onClick={() => {
-                                      setNewRuneShopItem(item);
-                                      setEditingRuneShopItemId(item.id);
-                                      setIsCreatingRuneShopItem(true);
-                                    }}>Edit</button>
-                                    <button className="admin-delete-btn" onClick={() => {
-                                      if (window.confirm('Remove this item from shop?')) {
-                                        const updated = miniGamesConfig.yggdrasilAscender.customShopItems.filter(i => i.id !== item.id);
-                                        handleUpdateMiniGameConfig('yggdrasilAscender', { customShopItems: updated });
-                                      }
-                                    }}>Remove</button>
-                                  </div>
-                                </div>
-                              ))
-                            )}
+                                    ))
+                                  )}
                           </div>
                         </div>
                       </div>

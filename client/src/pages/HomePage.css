@@ -3674,6 +3674,13 @@
   box-shadow: 0 0 15px rgba(249, 115, 22, 0.4);
 }
 
+.modal-admin-badge.merchant-badge {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+}
+
 .view-tournament-btn {
 
   width: 100%;
@@ -5351,6 +5358,10 @@
 
 .profile-names .admin-badge.senior-admin-badge {
   color: #fb923c;
+}
+
+.profile-names .admin-badge.merchant {
+  color: #10b981;
 }
 
 .aurorian-tag {

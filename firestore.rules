@@ -747,8 +747,10 @@ service cloud.firestore {
       // Only admins can read the sales history
       // Merchants can read their own sales
       allow read: if isAdmin() || (isMerchant() && resource.data.creatorId == request.auth.uid);
-      // Only admins can manage sales history
-      allow create, update, delete: if isAdmin();
+      // Only admins can manage sales history (update/delete)
+      // Anyone authenticated can create a sale record during purchase
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
     }
     
     // =============================================

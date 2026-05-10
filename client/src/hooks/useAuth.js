@@ -122,8 +122,14 @@ export const useAuth = (navigate) => {
                             // Proactively fetch metadata for equipped cosmetics to populate global cache
                             if (userData.equippedCosmetics) {
                                 import('../services/cosmeticsService').then(({ fetchCosmeticById }) => {
-                                    if (userData.equippedCosmetics.aura) fetchCosmeticById(userData.equippedCosmetics.aura);
-                                    if (userData.equippedCosmetics.banner) fetchCosmeticById(userData.equippedCosmetics.banner);
+                                    const ec = userData.equippedCosmetics;
+                                    if (ec.aura) fetchCosmeticById(ec.aura);
+                                    if (ec.banner) fetchCosmeticById(ec.banner);
+                                    // Yggdrasil assets
+                                    if (ec.ygg_theme) fetchCosmeticById(ec.ygg_theme);
+                                    if (ec.ygg_background) fetchCosmeticById(ec.ygg_background);
+                                    if (ec.ygg_character) fetchCosmeticById(ec.ygg_character);
+                                    if (ec.ygg_platforms) fetchCosmeticById(ec.ygg_platforms);
                                 });
                             }
 
@@ -199,6 +205,7 @@ export const useAuth = (navigate) => {
     const isSuperAdminUser = user && isSuperAdmin(getUserEmail(user));
     const isSeniorAdminUser = user && (isSuperAdminUser || user.role === 'senior_admin');
     const isGamesManagerUser = user && user.role === 'games_manager';
+    const isMerchantUser = user && user.role === 'merchant';
     const isGeneralAdmin = user && (isSeniorAdminUser || user.role === 'admin');
     const isAdminUser = user && (isGeneralAdmin || isGamesManagerUser);
 
@@ -653,6 +660,11 @@ export const useAuth = (navigate) => {
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 12h.01" /><path d="M9 12h.01" /><path d="M15 12h.01" /><path d="M18 12h.01" /></svg>
                                             <span className="badge-text">Games Manager</span>
                                         </span>
+                                    ) : isMerchantUser ? (
+                                        <span className="modal-admin-badge merchant-badge">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 0 1-8 0" /></svg>
+                                            <span className="badge-text">Merchant</span>
+                                        </span>
                                     ) : null}
                                     {user.isAurorian && <span className="aurorian-tag"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg><span className="badge-text">Aurorian Holder</span></span>}
                                 </div>
@@ -858,7 +870,7 @@ export const useAuth = (navigate) => {
                                 </div>
                             </button>
 
-                            {isAdminUser && (
+                            {(isAdminUser || isMerchantUser) && (
                                 <button
                                     className="modal-action-btn admin"
                                     onClick={() => {
@@ -1084,6 +1096,7 @@ export const useAuth = (navigate) => {
         getUserEmail,
         isSuperAdminUser,
         isAdminUser,
+        isMerchantUser,
         isGamesManagerUser,
         isGeneralAdmin,
         renderUserProfileContent,

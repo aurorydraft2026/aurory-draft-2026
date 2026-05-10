@@ -1591,19 +1591,36 @@ export const purchaseRuneShopItem = onCall(
                             cost = customItem.price || 0;
                             currency = customItem.currency || 'runes';
                             
-                            // 1. Create prize record in user's armory
-                            const prizeRef = userRef.collection('prizes').doc();
-                            transaction.set(prizeRef, {
-                                name: customItem.name,
-                                description: customItem.description || '',
-                                icon: customItem.icon || '🎁',
-                                pngUrl: customItem.image || '', // Using pngUrl to match ArmoryModal's image display
-                                rarity: customItem.rarity || 'common',
-                                status: 'unclaimed',
-                                type: 'prize',
-                                source: 'Rune Shop',
-                                createdAt: admin.firestore.FieldValue.serverTimestamp()
-                            });
+                            // --- Reward Delivery Logic ---
+                            const rewardType = customItem.rewardType || 'prize';
+                            const rewardAmount = customItem.rewardAmount || 0;
+
+                            if (rewardType === 'aury' && rewardAmount > 0) {
+                                // Add AURY to wallet (stored as smallest units)
+                                const walletRef = db.collection('wallets').doc(uid);
+                                const amountSmallest = Math.floor(rewardAmount * 1e9);
+                                transaction.set(walletRef, {
+                                    balance: admin.firestore.FieldValue.increment(amountSmallest),
+                                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                                }, { merge: true });
+                            } else if (rewardType === 'valcoins' && rewardAmount > 0) {
+                                // Add Valcoins to user balance
+                                updateUser.points = admin.firestore.FieldValue.increment(rewardAmount);
+                            } else {
+                                // Default: Create prize record in user's armory
+                                const prizeRef = userRef.collection('prizes').doc();
+                                transaction.set(prizeRef, {
+                                    name: customItem.name,
+                                    description: customItem.description || '',
+                                    icon: customItem.icon || '🎁',
+                                    pngUrl: customItem.image || '',
+                                    rarity: customItem.rarity || 'common',
+                                    status: 'unclaimed',
+                                    type: 'prize',
+                                    source: 'Rune Shop',
+                                    createdAt: admin.firestore.FieldValue.serverTimestamp()
+                                });
+                            }
                             
                             // 2. Decrement stock in the config
                             const updatedItems = customItems.map((i: any) => {

@@ -86,6 +86,7 @@ function HomePage() {
     fetchRegisteredUsers,
     isSuperAdminUser,
     isAdminUser,
+    isMerchantUser,
     isGamesManagerUser,
     isGeneralAdmin,
     renderUserProfileContent,
@@ -887,6 +888,11 @@ function HomePage() {
                         <span className="admin-badge games-manager">
                           <svg className="badge-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 12h4M14 12h.01M18 12h.01" /></svg>
                           <span className="badge-text">Games Manager</span>
+                        </span>
+                      ) : isMerchantUser ? (
+                        <span className="admin-badge merchant">
+                          <svg className="badge-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 0 1-8 0" /></svg>
+                          <span className="badge-text">Merchant</span>
                         </span>
                       ) : null}
                     </div>

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getAllCosmetics, purchaseCosmetic, equipCosmetic, getEquippedBannerStyle, getBannerStyleFromCosmetic } from '../services/cosmeticsService';
+import { purchaseCosmetic, equipCosmetic, getEquippedBannerStyle, getBannerStyleFromCosmetic, updateCosmeticsCache } from '../services/cosmeticsService';
+import { db } from '../firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { RARITY_CONFIG } from '../data/cosmetics';
 import { resolveDisplayName } from '../utils/userUtils';
 import { useWallet } from '../hooks/useWallet';
@@ -27,19 +29,25 @@ const CosmeticsShop = ({ user }) => {
   const equippedAura = user?.equippedCosmetics?.aura || null;
   const equippedBanner = user?.equippedCosmetics?.banner || null;
 
-  // Load cosmetics from database
+  // Load cosmetics from database (Real-time)
   useEffect(() => {
-    let isMounted = true;
-    const loadInventory = async () => {
-      setLoading(true);
-      const data = await getAllCosmetics();
-      if (isMounted) {
-        setCosmetics(data);
-        setLoading(false);
-      }
-    };
-    loadInventory();
-    return () => { isMounted = false; };
+    const cosmeticsRef = collection(db, 'cosmetics');
+    const unsubscribe = onSnapshot(cosmeticsRef, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setCosmetics(data);
+      setLoading(false);
+      
+      // Update global cache for sync helpers
+      updateCosmeticsCache(data);
+    }, (error) => {
+      console.error('Error fetching cosmetics:', error);
+      setLoading(false);
+    });
+    
+    return () => unsubscribe();
   }, []);
 
   const isNewItem = (createdAt) => {
@@ -150,6 +158,9 @@ const CosmeticsShop = ({ user }) => {
             {activeCategory === 'item' && 'Equip powerful artifacts and consumable items for your adventures'}
             {activeCategory === 'ticket' && 'Acquire special access passes and raffle tickets for legendary events'}
             {activeCategory === 'ygg_theme' && 'Transform the World Tree with legendary themes and custom game skins'}
+            {activeCategory === 'ygg_background' && 'Customize your ascent with breathtaking backgrounds and mystic sceneries'}
+            {activeCategory === 'ygg_character' && 'Equip legendary hero skins and customize your champion\'s appearance'}
+            {activeCategory === 'ygg_platforms' && 'Personalize the World Tree with custom platforms and mystical paths'}
             {newItemsCount > 0 && (
               <span className="new-items-highlight">
                 ⚡ {newItemsCount} NEW ARRIVAL{newItemsCount > 1 ? 'S' : ''} IN THE VAULT
@@ -160,74 +171,118 @@ const CosmeticsShop = ({ user }) => {
       </div>
 
       {/* Category Tabs */}
-      <div className="cosmetics-category-tabs">
-        {(() => {
-          const auraStats = getCategoryStats('aura');
-          const bannerStats = getCategoryStats('banner');
-          const amikoStats = getCategoryStats('amiko');
-          const itemStats = getCategoryStats('item');
-          const ticketStats = getCategoryStats('ticket');
-          
-          return (
-            <>
-              <button 
-                className={`category-tab ${activeCategory === 'aura' ? 'active' : ''} ${auraStats.hasNew ? 'has-new' : ''}`}
-                onClick={() => { setActiveCategory('aura'); setSelectedRarity('all'); }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
-                <span>Auras</span>
-                <span className="tab-count">{auraStats.count}</span>
-                {auraStats.hasNew && <span className="tab-new-indicator">NEW</span>}
-              </button>
-              <button 
-                className={`category-tab ${activeCategory === 'banner' ? 'active' : ''} ${bannerStats.hasNew ? 'has-new' : ''}`}
-                onClick={() => { setActiveCategory('banner'); setSelectedRarity('all'); }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>
-                <span>Banners</span>
-                <span className="tab-count">{bannerStats.count}</span>
-                {bannerStats.hasNew && <span className="tab-new-indicator">NEW</span>}
-              </button>
-              <button 
-                className={`category-tab ${activeCategory === 'amiko' ? 'active' : ''} ${amikoStats.hasNew ? 'has-new' : ''}`}
-                onClick={() => { setActiveCategory('amiko'); setSelectedRarity('all'); }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 18.144 6 15a5 5 0 0 1 3-5Z"/></svg>
-                <span>Amikos</span>
-                <span className="tab-count">{amikoStats.count}</span>
-                {amikoStats.hasNew && <span className="tab-new-indicator">NEW</span>}
-              </button>
-              <button 
-                className={`category-tab ${activeCategory === 'item' ? 'active' : ''} ${itemStats.hasNew ? 'has-new' : ''}`}
-                onClick={() => { setActiveCategory('item'); setSelectedRarity('all'); }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
-                <span>Items</span>
-                <span className="tab-count">{itemStats.count}</span>
-                {itemStats.hasNew && <span className="tab-new-indicator">NEW</span>}
-              </button>
-              <button 
-                className={`category-tab ${activeCategory === 'ticket' ? 'active' : ''} ${ticketStats.hasNew ? 'has-new' : ''}`}
-                onClick={() => { setActiveCategory('ticket'); setSelectedRarity('all'); }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>
-                <span>Tickets</span>
-                <span className="tab-count">{ticketStats.count}</span>
-                {ticketStats.hasNew && <span className="tab-new-indicator">NEW</span>}
-              </button>
-              <button 
-                className={`category-tab ${activeCategory === 'ygg_theme' ? 'active' : ''} ${getCategoryStats('ygg_theme').hasNew ? 'has-new' : ''}`}
-                onClick={() => { setActiveCategory('ygg_theme'); setSelectedRarity('all'); }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/><path d="m12 19 7-7-7-7"/></svg>
-                <span>Game Themes</span>
-                <span className="tab-count">{getCategoryStats('ygg_theme').count}</span>
-                {getCategoryStats('ygg_theme').hasNew && <span className="tab-new-indicator">NEW</span>}
-              </button>
-            </>
-          );
-        })()}
+      <div className="cosmetics-category-container">
+        <div className="cosmetics-category-tabs">
+          {(() => {
+            const auraStats = getCategoryStats('aura');
+            const bannerStats = getCategoryStats('banner');
+            const amikoStats = getCategoryStats('amiko');
+            const itemStats = getCategoryStats('item');
+            const ticketStats = getCategoryStats('ticket');
+            
+            return (
+              <>
+                <button 
+                  className={`category-tab ${activeCategory === 'aura' ? 'active' : ''} ${auraStats.hasNew ? 'has-new' : ''}`}
+                  onClick={() => { setActiveCategory('aura'); setSelectedRarity('all'); }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                  <span>Auras</span>
+                  <span className="tab-count">{auraStats.count}</span>
+                  {auraStats.hasNew && <span className="tab-new-indicator">NEW</span>}
+                </button>
+                <button 
+                  className={`category-tab ${activeCategory === 'banner' ? 'active' : ''} ${bannerStats.hasNew ? 'has-new' : ''}`}
+                  onClick={() => { setActiveCategory('banner'); setSelectedRarity('all'); }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>
+                  <span>Banners</span>
+                  <span className="tab-count">{bannerStats.count}</span>
+                  {bannerStats.hasNew && <span className="tab-new-indicator">NEW</span>}
+                </button>
+                <button 
+                  className={`category-tab ${activeCategory === 'amiko' ? 'active' : ''} ${amikoStats.hasNew ? 'has-new' : ''}`}
+                  onClick={() => { setActiveCategory('amiko'); setSelectedRarity('all'); }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 18.144 6 15a5 5 0 0 1 3-5Z"/></svg>
+                  <span>Amikos</span>
+                  <span className="tab-count">{amikoStats.count}</span>
+                  {amikoStats.hasNew && <span className="tab-new-indicator">NEW</span>}
+                </button>
+                <button 
+                  className={`category-tab ${activeCategory === 'item' ? 'active' : ''} ${itemStats.hasNew ? 'has-new' : ''}`}
+                  onClick={() => { setActiveCategory('item'); setSelectedRarity('all'); }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                  <span>Items</span>
+                  <span className="tab-count">{itemStats.count}</span>
+                  {itemStats.hasNew && <span className="tab-new-indicator">NEW</span>}
+                </button>
+                <button 
+                  className={`category-tab ${activeCategory === 'ticket' ? 'active' : ''} ${ticketStats.hasNew ? 'has-new' : ''}`}
+                  onClick={() => { setActiveCategory('ticket'); setSelectedRarity('all'); }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>
+                  <span>Tickets</span>
+                  <span className="tab-count">{ticketStats.count}</span>
+                  {ticketStats.hasNew && <span className="tab-new-indicator">NEW</span>}
+                </button>
+                <button 
+                  className={`category-tab ${activeCategory.startsWith('ygg_') ? 'active' : ''} ${(() => {
+                    const stats = ['ygg_theme', 'ygg_background', 'ygg_character', 'ygg_platforms'].map(getCategoryStats);
+                    return stats.some(s => s.hasNew);
+                  })() ? 'has-new' : ''}`}
+                  onClick={() => { setActiveCategory('ygg_theme'); setSelectedRarity('all'); }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                  <span>Yggdrasil</span>
+                  <span className="tab-count">
+                    {['ygg_theme', 'ygg_background', 'ygg_character', 'ygg_platforms'].reduce((acc, type) => acc + getCategoryStats(type).count, 0)}
+                  </span>
+                  {(() => {
+                    const stats = ['ygg_theme', 'ygg_background', 'ygg_character', 'ygg_platforms'].map(getCategoryStats);
+                    return stats.some(s => s.hasNew);
+                  })() && <span className="tab-new-indicator">NEW</span>}
+                </button>
+              </>
+            );
+          })()}
+        </div>
       </div>
+
+      {/* Yggdrasil Sub-Tabs */}
+      {activeCategory.startsWith('ygg_') && (
+        <div className="cosmetics-sub-tabs">
+          <button 
+            className={`sub-tab ${activeCategory === 'ygg_theme' ? 'active' : ''}`}
+            onClick={() => { setActiveCategory('ygg_theme'); setSelectedRarity('all'); }}
+          >
+            <span>Themes</span>
+            <span className="sub-tab-count">{getCategoryStats('ygg_theme').count}</span>
+          </button>
+          <button 
+            className={`sub-tab ${activeCategory === 'ygg_background' ? 'active' : ''}`}
+            onClick={() => { setActiveCategory('ygg_background'); setSelectedRarity('all'); }}
+          >
+            <span>Backgrounds</span>
+            <span className="sub-tab-count">{getCategoryStats('ygg_background').count}</span>
+          </button>
+          <button 
+            className={`sub-tab ${activeCategory === 'ygg_character' ? 'active' : ''}`}
+            onClick={() => { setActiveCategory('ygg_character'); setSelectedRarity('all'); }}
+          >
+            <span>Heroes</span>
+            <span className="sub-tab-count">{getCategoryStats('ygg_character').count}</span>
+          </button>
+          <button 
+            className={`sub-tab ${activeCategory === 'ygg_platforms' ? 'active' : ''}`}
+            onClick={() => { setActiveCategory('ygg_platforms'); setSelectedRarity('all'); }}
+          >
+            <span>Platforms</span>
+            <span className="sub-tab-count">{getCategoryStats('ygg_platforms').count}</span>
+          </button>
+        </div>
+      )}
 
       {/* Action Message */}
       {actionMessage && (
@@ -238,6 +293,24 @@ const CosmeticsShop = ({ user }) => {
 
       {/* Preview Section */}
       {(() => {
+        const isAuraTab = activeCategory === 'aura';
+        const isBannerTab = activeCategory === 'banner';
+        
+        // Hide visual preview entirely for other tabs to keep UI focused
+        if (!isAuraTab && !isBannerTab) {
+          return (
+            <div className="cosmetics-minimal-balance-bar profile-sample-card">
+               <div className="minimal-balance-content">
+                  <div className="preview-balance">
+                    <img src="/valcoin-icon.jpg" alt="valcoins" className="valcoin-shop-icon" style={{ borderRadius: '50%' }} />
+                    <span>{(user.points || 0).toLocaleString()}</span>
+                  </div>
+                  <span className="preview-owned">{ownedCosmetics.length} / {cosmetics.length} Owned</span>
+               </div>
+            </div>
+          );
+        }
+
         const previewBanner = previewSlots.banner ? cosmetics.find(c => c.id === previewSlots.banner) : null;
         const previewStyle = previewBanner ? (getBannerStyleFromCosmetic(previewBanner) || {}) : (getEquippedBannerStyle(user) || {});
         const hasBannerPreview = previewStyle && Object.keys(previewStyle).length > 0;
@@ -247,19 +320,21 @@ const CosmeticsShop = ({ user }) => {
             style={previewStyle}
           >
         <div className="cosmetics-preview-avatar">
-          <div className="preview-pic-wrapper">
-            <AvatarWithAura
-              user={user}
-              size={72}
-              auraData={previewSlots.aura ? cosmetics.find(c => c.id === previewSlots.aura) : null}
-              alwaysAnimate
-            />
-          </div>
+          {isAuraTab && (
+            <div className="preview-pic-wrapper">
+              <AvatarWithAura
+                user={user}
+                size={72}
+                auraData={previewSlots.aura ? cosmetics.find(c => c.id === previewSlots.aura) : null}
+                alwaysAnimate
+              />
+            </div>
+          )}
           <div className="preview-user-details">
             <span className="preview-username">{resolveDisplayName(user)}</span>
             <span className="preview-label">
-              {previewSlots.aura || previewSlots.banner || previewSlots.ygg_theme
-                ? (cosmetics.find(c => c.id === (previewSlots.aura || previewSlots.banner || previewSlots.ygg_theme))?.name || 'Previewing...')
+              {previewSlots.aura || previewSlots.banner
+                ? (cosmetics.find(c => c.id === (previewSlots.aura || previewSlots.banner))?.name || 'Previewing...')
                 : 'Current Setup'}
             </span>
           </div>
@@ -267,8 +342,7 @@ const CosmeticsShop = ({ user }) => {
           <div className="cosmetics-preview-info">
             {(() => {
               const previewItem = previewSlots.aura ? cosmetics.find(c => c.id === previewSlots.aura) : 
-                                 (previewSlots.banner ? cosmetics.find(c => c.id === previewSlots.banner) : 
-                                 (previewSlots.ygg_theme ? cosmetics.find(c => c.id === previewSlots.ygg_theme) : null));
+                                 (previewSlots.banner ? cosmetics.find(c => c.id === previewSlots.banner) : null);
               const currency = previewItem?.currency || 'valcoins';
               
               let displayBalance = (user.points || 0).toLocaleString();
@@ -340,14 +414,31 @@ const CosmeticsShop = ({ user }) => {
                <p>No {activeCategory}s available in Valhalla's Vault yet.</p>
              ) : (
                <div className="coming-soon-placeholder">
-                 <p style={{ fontSize: '1.2rem', marginBottom: '8px' }}>✨ Magic is brewing...</p>
-                 <p>New {activeCategory}s are being crafted by the gods. Check back soon!</p>
+                 <div className="empty-icon">✨</div>
+                 <h3>Magic is brewing...</h3>
+                 <p>
+                   New {activeCategory.replace('ygg_', 'Ygg ').replace('_', ' ')}s are being crafted by the gods.<br/>
+                   <span>Check other tabs or swipe right to see more categories!</span>
+                 </p>
+                 {activeCategory.startsWith('ygg_') && (
+                   <div className="empty-hint">
+                     💡 Tip: Switch between <strong>Themes</strong>, <strong>Backgrounds</strong>, etc. using the sub-menu above!
+                   </div>
+                 )}
                </div>
              )}
           </div>
         ) : filteredCosmetics.map(cosmetic => {
           const isOwned = ownedCosmetics.includes(cosmetic.id);
-          const isEquipped = (cosmetic.type === 'aura' ? equippedAura : (cosmetic.type === 'banner' ? equippedBanner : (user?.equippedCosmetics?.ygg_theme === cosmetic.id))) === cosmetic.id;
+          const isEquipped = (() => {
+            if (cosmetic.type === 'aura') return equippedAura === cosmetic.id;
+            if (cosmetic.type === 'banner') return equippedBanner === cosmetic.id;
+            if (cosmetic.type === 'ygg_theme') return user?.equippedCosmetics?.ygg_theme === cosmetic.id;
+            if (cosmetic.type === 'ygg_background') return user?.equippedCosmetics?.ygg_background === cosmetic.id;
+            if (cosmetic.type === 'ygg_character') return user?.equippedCosmetics?.ygg_character === cosmetic.id;
+            if (cosmetic.type === 'ygg_platforms') return user?.equippedCosmetics?.ygg_platforms === cosmetic.id;
+            return false;
+          })();
           const isPurchasing = purchasing === cosmetic.id;
           const rarityConf = RARITY_CONFIG[cosmetic.rarity];
 
@@ -359,7 +450,9 @@ const CosmeticsShop = ({ user }) => {
                 '--rarity-color': rarityConf?.color || '#ccc', 
                 '--rarity-glow': rarityConf?.glow || 'none',
                 ...(cosmetic.type === 'banner' ? (getBannerStyleFromCosmetic(cosmetic, hoveredCardId !== cosmetic.id) || {}) : {}),
-                ...(cosmetic.type === 'ygg_theme' && cosmetic.assets?.background ? { backgroundImage: `url("${cosmetic.assets.background}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {})
+                ...((cosmetic.type === 'ygg_theme' || cosmetic.type === 'ygg_background') && cosmetic.assets?.background ? { backgroundImage: `url("${cosmetic.assets.background}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
+                ...(cosmetic.type === 'ygg_character' && cosmetic.assets?.hero_stand ? { backgroundImage: `url("${cosmetic.assets.hero_stand}")`, backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center' } : {}),
+                ...(cosmetic.type === 'ygg_platforms' && cosmetic.assets?.platform_1 ? { backgroundImage: `url("${cosmetic.assets.platform_1}")`, backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center' } : {})
               }}
               onMouseEnter={() => {
                 setPreviewSlots(prev => ({ ...prev, [cosmetic.type]: cosmetic.id }));
@@ -401,20 +494,22 @@ const CosmeticsShop = ({ user }) => {
                 </div>
               )}
 
-              {/* Mini Avatar Preview */}
-              <div className="cosmetic-card-preview">
-                <AvatarWithAura
-                  user={user}
-                  size={56}
-                  auraData={cosmetic.type === 'aura' ? cosmetic : null}
-                  forceAnimate={hoveredCardId === cosmetic.id}
-                />
-                {(loadingCardId === cosmetic.id || purchasing === cosmetic.id || equipping === cosmetic.id) && (
-                  <div className="cosmetic-card-loading">
-                    <div className="cosmetic-card-spinner" />
-                  </div>
-                )}
-              </div>
+              {/* Mini Avatar Preview - Only for Auras */}
+              {cosmetic.type === 'aura' && (
+                <div className="cosmetic-card-preview">
+                  <AvatarWithAura
+                    user={user}
+                    size={56}
+                    auraData={cosmetic}
+                    forceAnimate={hoveredCardId === cosmetic.id}
+                  />
+                  {(loadingCardId === cosmetic.id || purchasing === cosmetic.id || equipping === cosmetic.id) && (
+                    <div className="cosmetic-card-loading">
+                      <div className="cosmetic-card-spinner" />
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Info */}
               <div className="cosmetic-card-info">

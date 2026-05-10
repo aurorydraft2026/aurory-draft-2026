@@ -248,6 +248,9 @@ const YggdrasilAscender = ({ user }) => {
   const [showApplePrompt, setShowApplePrompt] = useState(false);
   const [appleTimer, setAppleTimer] = useState(10);
   const [yggTheme, setYggTheme] = useState(null);
+  const [yggBackground, setYggBackground] = useState(null);
+  const [yggCharacter, setYggCharacter] = useState(null);
+  const [yggPlatforms, setYggPlatforms] = useState(null);
   const appleTimerRef = useRef(null);
   const appleDeathReasonRef = useRef(null);
   const joystickTouchIdRef = useRef(null);
@@ -313,11 +316,73 @@ const YggdrasilAscender = ({ user }) => {
     }
   }, [user?.equippedCosmetics?.ygg_theme]);
 
+  // Load equipped background metadata
+  useEffect(() => {
+    const bgId = user?.equippedCosmetics?.ygg_background;
+    if (bgId) {
+      import('../../services/cosmeticsService').then(({ fetchCosmeticById }) => {
+        fetchCosmeticById(bgId).then(bg => {
+          if (bg && bg.type === 'ygg_background') {
+            setYggBackground(bg);
+          } else {
+            setYggBackground(null);
+          }
+        });
+      });
+    } else {
+      setYggBackground(null);
+    }
+  }, [user?.equippedCosmetics?.ygg_background]);
+
+  // Load equipped character metadata
+  useEffect(() => {
+    const charId = user?.equippedCosmetics?.ygg_character;
+    if (charId) {
+      import('../../services/cosmeticsService').then(({ fetchCosmeticById }) => {
+        fetchCosmeticById(charId).then(char => {
+          if (char && char.type === 'ygg_character') {
+            setYggCharacter(char);
+          } else {
+            setYggCharacter(null);
+          }
+        });
+      });
+    } else {
+      setYggCharacter(null);
+    }
+  }, [user?.equippedCosmetics?.ygg_character]);
+
+  // Load equipped platforms metadata
+  useEffect(() => {
+    const platId = user?.equippedCosmetics?.ygg_platforms;
+    if (platId) {
+      import('../../services/cosmeticsService').then(({ fetchCosmeticById }) => {
+        fetchCosmeticById(platId).then(plat => {
+          if (plat && plat.type === 'ygg_platforms') {
+            setYggPlatforms(plat);
+          } else {
+            setYggPlatforms(null);
+          }
+        });
+      });
+    } else {
+      setYggPlatforms(null);
+    }
+  }, [user?.equippedCosmetics?.ygg_platforms]);
+
   // Load and process assets (remove white background)
   useEffect(() => {
+    const loadImage = (src) => new Promise((res, rej) => {
+      const img = new Image();
+      img.src = src;
+      img.onload = () => res(img);
+      img.onerror = () => rej(new Error(`Failed to load ${src}`));
+    });
+
     const processImage = (src) => new Promise((res, rej) => {
       const img = new Image();
       img.src = src;
+      img.crossOrigin = "anonymous"; // Try to avoid CORS issues if loading from external URLs
       img.onload = () => {
         const canvas = document.createElement('canvas');
         canvas.width = img.width;
@@ -326,34 +391,51 @@ const YggdrasilAscender = ({ user }) => {
         if (!ctx) return res(img);
 
         ctx.drawImage(img, 0, 0);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
+        try {
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imageData.data;
 
-        // Remove white background (chroma keying)
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i], g = data[i + 1], b = data[i + 2];
-          // If pixel is white or very near white
-          if (r > 240 && g > 240 && b > 240) {
-            data[i + 3] = 0;
+          // Remove white background (chroma keying) - only for small assets like characters/platforms
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i], g = data[i + 1], b = data[i + 2];
+            if (r > 240 && g > 240 && b > 240) {
+              data[i + 3] = 0;
+            }
           }
+          ctx.putImageData(imageData, 0, 0);
+          const newImg = new Image();
+          newImg.src = canvas.toDataURL();
+          newImg.onload = () => res(newImg);
+        } catch (e) {
+          console.warn("Could not process image (CORS or other issue), using raw image", src);
+          res(img);
         }
-        ctx.putImageData(imageData, 0, 0);
-        const newImg = new Image();
-        newImg.src = canvas.toDataURL();
-        newImg.onload = () => res(newImg);
       };
       img.onerror = () => rej(new Error(`Failed to load ${src}`));
     });
 
     const themeAssets = yggTheme?.assets || {};
+    const bgAssets = yggBackground?.assets || {};
+    const charAssets = yggCharacter?.assets || {};
+    const platAssets = yggPlatforms?.assets || {};
 
+    // Precedence: Standalone > Theme > Default
+    // Using robust fallbacks (assets.x || pngUrl || image) to match Armory preview logic
+    const finalBackground = bgAssets.background || yggBackground?.pngUrl || yggBackground?.image || themeAssets.background || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/background.png';
+    const finalHeroStand = charAssets.hero_stand || yggCharacter?.pngUrl || yggCharacter?.image || themeAssets.hero_stand || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/hero_stand.png';
+    const finalHeroJump = charAssets.hero_jump || yggCharacter?.pngUrl || yggCharacter?.image || themeAssets.hero_jump || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/hero_jump.png';
+    const finalHeroTurbo = charAssets.hero_turbo || yggCharacter?.pngUrl || yggCharacter?.image || themeAssets.hero_turbo || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/hero_turbo.png';
+    const finalPlat1 = platAssets.platform_1 || yggPlatforms?.pngUrl || yggPlatforms?.image || themeAssets.platform_1 || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/platform_1.png';
+    const finalPlat2 = platAssets.platform_2 || yggPlatforms?.pngUrl || yggPlatforms?.image || themeAssets.platform_2 || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/platform_2.png';
+
+    let isStale = false;
     Promise.all([
-      processImage(themeAssets.hero_stand || '/icons/minigames/yggdrasil/hero_stand.png'),
-      processImage(themeAssets.hero_jump || '/icons/minigames/yggdrasil/hero_jump.png'),
-      processImage(themeAssets.hero_turbo || '/icons/minigames/yggdrasil/hero_turbo.png'),
-      processImage(themeAssets.platform_1 || '/icons/minigames/yggdrasil/platform_1.png'),
-      processImage(themeAssets.platform_2 || '/icons/minigames/yggdrasil/platform_2.png'),
-      processImage(themeAssets.background || '/icons/minigames/yggdrasil/background.png'),
+      processImage(finalHeroStand),
+      processImage(finalHeroJump),
+      processImage(finalHeroTurbo),
+      processImage(finalPlat1),
+      processImage(finalPlat2),
+      loadImage(finalBackground), // Use loadImage instead of processImage for background
       processImage(themeAssets.magnet || '/icons/minigames/yggdrasil/magnet.png'),
       processImage(themeAssets.apple || "/icons/minigames/yggdrasil/idunn's_apple.png"),
       processImage(themeAssets.spirit || '/icons/minigames/yggdrasil/death_spirit.png'),
@@ -363,16 +445,20 @@ const YggdrasilAscender = ({ user }) => {
       processImage(themeAssets.red_rune || '/icons/minigames/yggdrasil/red_rune.png'),
       processImage(themeAssets.ratatoskr || '/icons/minigames/yggdrasil/ratatoskr.png')
     ]).then(([stand, jump, turbo, plat1, plat2, background, magnet, apple, spirit, jumpIcon, turboIcon, rune, redRune, ratatoskr]) => {
+      if (isStale) return;
       assetsRef.current = { 
         stand, jump, turbo, plat1, plat2, background,
         magnet, apple, spirit, jumpIcon, turboIcon, rune, redRune, ratatoskr
       };
       setAssetsLoaded(true);
     }).catch(err => {
+      if (isStale) return;
       console.error('Asset processing failed:', err);
       setAssetsLoaded(true);
     });
-  }, [yggTheme]);
+
+    return () => { isStale = true; };
+  }, [yggTheme, yggBackground, yggCharacter, yggPlatforms]);
 
   // Load best score & Detect touch
   useEffect(() => {

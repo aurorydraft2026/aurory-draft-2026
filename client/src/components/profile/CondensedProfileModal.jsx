@@ -321,6 +321,8 @@ const CondensedProfileModal = ({ isOpen, onClose, user, joinedAt }) => {
                 {mergedUser.role === 'superadmin' && <span className="condensed-badge super-admin">SUPER ADMIN</span>}
                 {mergedUser.role === 'senior_admin' && <span className="condensed-badge senior-admin">SENIOR ADMIN</span>}
                 {mergedUser.role === 'admin' && <span className="condensed-badge admin">ADMIN</span>}
+                {mergedUser.role === 'games_manager' && <span className="condensed-badge games-manager">GAMES MANAGER</span>}
+                {mergedUser.role === 'merchant' && <span className="condensed-badge merchant">MERCHANT</span>}
                 {mergedUser.isAurorian && <span className="condensed-badge aurorian">AURORIAN</span>}
               </div>
 
