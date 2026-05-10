@@ -372,6 +372,7 @@ const YggdrasilAscender = ({ user }) => {
 
   // Load and process assets (remove white background)
   useEffect(() => {
+    setAssetsLoaded(false); // Reset while loading new assets
     const loadImage = (src) => new Promise((res, rej) => {
       const img = new Image();
       img.src = src;
@@ -420,13 +421,13 @@ const YggdrasilAscender = ({ user }) => {
     const platAssets = yggPlatforms?.assets || {};
 
     // Precedence: Standalone > Theme > Default
-    // Using robust fallbacks (assets.x || pngUrl || image) to match Armory preview logic
-    const finalBackground = bgAssets.background || yggBackground?.pngUrl || yggBackground?.image || themeAssets.background || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/background.png';
-    const finalHeroStand = charAssets.hero_stand || yggCharacter?.pngUrl || yggCharacter?.image || themeAssets.hero_stand || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/hero_stand.png';
-    const finalHeroJump = charAssets.hero_jump || yggCharacter?.pngUrl || yggCharacter?.image || themeAssets.hero_jump || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/hero_jump.png';
-    const finalHeroTurbo = charAssets.hero_turbo || yggCharacter?.pngUrl || yggCharacter?.image || themeAssets.hero_turbo || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/hero_turbo.png';
-    const finalPlat1 = platAssets.platform_1 || yggPlatforms?.pngUrl || yggPlatforms?.image || themeAssets.platform_1 || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/platform_1.png';
-    const finalPlat2 = platAssets.platform_2 || yggPlatforms?.pngUrl || yggPlatforms?.image || themeAssets.platform_2 || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/platform_2.png';
+    // Using robust fallbacks (assets.x || avifUrl || gifUrl || webpUrl || pngUrl || image) to match Armory preview logic
+    const finalBackground = bgAssets.background || yggBackground?.avifUrl || yggBackground?.gifUrl || yggBackground?.webpUrl || yggBackground?.pngUrl || yggBackground?.image || themeAssets.background || yggTheme?.avifUrl || yggTheme?.gifUrl || yggTheme?.webpUrl || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/background.png';
+    const finalHeroStand = charAssets.hero_stand || yggCharacter?.avifUrl || yggCharacter?.gifUrl || yggCharacter?.webpUrl || yggCharacter?.pngUrl || yggCharacter?.image || themeAssets.hero_stand || yggTheme?.avifUrl || yggTheme?.gifUrl || yggTheme?.webpUrl || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/hero_stand.png';
+    const finalHeroJump = charAssets.hero_jump || yggCharacter?.avifUrl || yggCharacter?.gifUrl || yggCharacter?.webpUrl || yggCharacter?.pngUrl || yggCharacter?.image || themeAssets.hero_jump || yggTheme?.avifUrl || yggTheme?.gifUrl || yggTheme?.webpUrl || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/hero_jump.png';
+    const finalHeroTurbo = charAssets.hero_turbo || yggCharacter?.avifUrl || yggCharacter?.gifUrl || yggCharacter?.webpUrl || yggCharacter?.pngUrl || yggCharacter?.image || themeAssets.hero_turbo || yggTheme?.avifUrl || yggTheme?.gifUrl || yggTheme?.webpUrl || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/hero_turbo.png';
+    const finalPlat1 = platAssets.platform_1 || yggPlatforms?.avifUrl || yggPlatforms?.gifUrl || yggPlatforms?.webpUrl || yggPlatforms?.pngUrl || yggPlatforms?.image || themeAssets.platform_1 || yggTheme?.avifUrl || yggTheme?.gifUrl || yggTheme?.webpUrl || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/platform_1.png';
+    const finalPlat2 = platAssets.platform_2 || yggPlatforms?.avifUrl || yggPlatforms?.gifUrl || yggPlatforms?.webpUrl || yggPlatforms?.pngUrl || yggPlatforms?.image || themeAssets.platform_2 || yggTheme?.avifUrl || yggTheme?.gifUrl || yggTheme?.webpUrl || yggTheme?.pngUrl || yggTheme?.image || '/icons/minigames/yggdrasil/platform_2.png';
 
     let isStale = false;
     Promise.all([

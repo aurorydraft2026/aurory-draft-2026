@@ -6457,9 +6457,11 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   : shopCosmetics
                 ).filter(tabFilter);
 
-                const relevantSales = isCreatorView
+                const relevantCosmeticIds = new Set(relevantCosmetics.map(c => c.id));
+                const relevantSales = (isCreatorView
                   ? shopHistory.filter(s => s.creatorId === user.uid)
-                  : shopHistory;
+                  : shopHistory
+                ).filter(s => relevantCosmeticIds.has(s.cosmeticId));
                 const totalItems = relevantCosmetics.length;
                 const totalSales = relevantCosmetics.reduce((acc, c) => acc + (c.saleCount || 0), 0);
 

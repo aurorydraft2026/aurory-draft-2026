@@ -33,9 +33,9 @@ export const auth = getAuth(app);
 
 // Initialize Cloud Firestore and get a reference to the service
 export const db = initializeFirestore(app, {
-  // Use experimentalAutoDetectLongPolling to stabilize 'ID: ca9' assertion failures.
-  // This allows the SDK to intelligently fallback to long polling if streaming fails.
-  experimentalAutoDetectLongPolling: true
+  // Switch to experimentalForceLongPolling to resolve 'ID: ca9' assertion failures.
+  // This is more stable than auto-detect in environments with restrictive stream handling.
+  experimentalForceLongPolling: true
 });
 
 // Initialize Realtime Database (Explicitly specifying the asia-southeast1 URL)

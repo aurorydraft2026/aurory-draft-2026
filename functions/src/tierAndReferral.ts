@@ -300,110 +300,139 @@ async function checkAndAwardReferralBonus(
   db: admin.firestore.Firestore
 ): Promise<boolean> {
   const userRef = db.collection('users').doc(referredUid);
-  const userDoc = await userRef.get();
-  if (!userDoc.exists) return false;
 
-  const userData = userDoc.data()!;
+  try {
+    const result = await db.runTransaction(async (transaction) => {
+      const userDoc = await transaction.get(userRef);
+      if (!userDoc.exists) return { success: false, reason: 'User not found' };
+      
+      const userData = userDoc.data()!;
+      
+      // 1. Core Eligibility Checks (Atomic)
+      if (!userData.referredBy) return { success: false, reason: 'No referrer linked' };
+      if (userData.referralBonusClaimed) return { success: false, reason: 'Bonus already claimed' };
+      if (!userData.auroryPlayerId) return { success: false, reason: 'Aurory account not linked' };
+      if ((userData.tier || 1) < 2) return { success: false, reason: 'Tier requirement not met' };
 
-  // Check conditions
-  if (!userData.referredBy) return false;
-  if (userData.referralBonusClaimed) return false;
-  if (!userData.auroryPlayerId) return false;
-  if ((userData.tier || 1) < 2) return false;
+      const referrerUid = userData.referredBy;
+      const referrerRef = db.collection('users').doc(referrerUid);
+      const referrerDoc = await transaction.get(referrerRef);
+      if (!referrerDoc.exists) return { success: false, reason: 'Referrer not found' };
 
-  const referrerUid = userData.referredBy;
-  const referrerRef = db.collection('users').doc(referrerUid);
-  const referrerDoc = await referrerRef.get();
-  if (!referrerDoc.exists) return false;
+      const referrerData = referrerDoc.data()!;
 
-  const referrerData = referrerDoc.data()!;
+      // 2. Load Reward Config (Inside transaction)
+      let bonusAmountConfig = 20000;
+      const configRef = db.collection('settings').doc('valcoin_rewards');
+      const configSnap = await transaction.get(configRef);
+      if (configSnap.exists) {
+        bonusAmountConfig = Number(configSnap.data()?.referralBonus ?? 20000);
+      }
 
-  // Allow configurable bonus amount
-  let bonusAmountConfig = 20000;
-  const configRef = db.collection('settings').doc('valcoin_rewards');
-  const configSnap = await configRef.get();
-  if (configSnap.exists) {
-    bonusAmountConfig = configSnap.data()?.referralBonus ?? 20000;
-  }
+      // 3. Calculate Clamped Rewards
+      const referredTier = userData.tier || 1;
+      const referrerTier = referrerData.tier || 1;
+      
+      const referredPoints = Number(userData.points || 0);
+      const referrerPoints = Number(referrerData.points || 0);
 
-  // Calculate clamped bonus for each user
-  const referredTierMax = TIER_CONFIG[userData.tier || 1]?.max || 30000;
-  const referrerTierMax = TIER_CONFIG[referrerData.tier || 1]?.max || 30000;
+      const referredNewPointsRaw = referredPoints + bonusAmountConfig;
+      const referrerNewPointsRaw = referrerPoints + bonusAmountConfig;
 
-  const referredCurrentPoints = userData.points || 0;
-  const referrerCurrentPoints = referrerData.points || 0;
+      const referredClamped = clampPointsToTierMax(referredNewPointsRaw, referredTier, referredPoints);
+      const referrerClamped = clampPointsToTierMax(referrerNewPointsRaw, referrerTier, referrerPoints);
 
-  const referredBonus = Math.min(bonusAmountConfig, referredTierMax - referredCurrentPoints);
-  const referrerBonus = Math.min(bonusAmountConfig, referrerTierMax - referrerCurrentPoints);
+      const referredActualBonus = referredClamped - referredPoints;
+      const referrerActualBonus = referrerClamped - referrerPoints;
 
-  await db.runTransaction(async (transaction) => {
-    // Award bonus to referred user (clamped)
-    if (referredBonus > 0) {
+      // 4. Update Both Users
       transaction.update(userRef, {
-        points: admin.firestore.FieldValue.increment(referredBonus),
-        exp: admin.firestore.FieldValue.increment(referredBonus),
+        points: referredClamped,
+        exp: admin.firestore.FieldValue.increment(bonusAmountConfig),
         referralBonusClaimed: true,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
+      transaction.update(referrerRef, {
+        points: referrerClamped,
+        exp: admin.firestore.FieldValue.increment(bonusAmountConfig),
+        validReferralCount: admin.firestore.FieldValue.increment(1),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // 5. Create History Entries
       const refHistoryRef = userRef.collection('pointsHistory').doc();
       transaction.set(refHistoryRef, {
-        amount: referredBonus,
+        amount: referredActualBonus > 0 ? referredActualBonus : bonusAmountConfig,
         type: 'referral_bonus',
         description: 'Referral bonus — welcome reward!',
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
       });
-    } else {
-      transaction.update(userRef, {
-        referralBonusClaimed: true,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-    }
-
-    // Award bonus to referrer (clamped)
-    if (referrerBonus > 0) {
-      transaction.update(referrerRef, {
-        points: admin.firestore.FieldValue.increment(referrerBonus),
-        exp: admin.firestore.FieldValue.increment(referrerBonus),
-        validReferralCount: admin.firestore.FieldValue.increment(1),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
 
       const referrerHistoryRef = referrerRef.collection('pointsHistory').doc();
       transaction.set(referrerHistoryRef, {
-        amount: referrerBonus,
+        amount: referrerActualBonus > 0 ? referrerActualBonus : bonusAmountConfig,
         type: 'referral_bonus',
-        description: `Referral bonus — ${userData.displayName || 'a user'} validated!`,
+        description: `Referral bonus — ${userData.displayName || userData.username || 'a user'} validated!`,
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
       });
-    } else {
-      transaction.update(referrerRef, {
-        validReferralCount: admin.firestore.FieldValue.increment(1),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+
+      return {
+        success: true,
+        referredBonus: referredActualBonus > 0 ? referredActualBonus : bonusAmountConfig,
+        referrerBonus: referrerActualBonus > 0 ? referrerActualBonus : bonusAmountConfig,
+        referrerUid,
+        referredName: userData.displayName || userData.username || 'User',
+        referrerName: referrerData.displayName || referrerData.username || 'Inviter',
+        referredPhoto: userData.auroryProfilePicture || userData.photoURL || '',
+        referrerPhoto: referrerData.auroryProfilePicture || referrerData.photoURL || ''
+      };
+    });
+
+    if (!result.success) {
+      console.log(`[Referral] Skipping bonus for ${referredUid}: ${result.reason}`);
+      return false;
     }
-  });
 
-  // Send notifications
-  const notificationsRef = db.collection('users').doc(referredUid).collection('notifications');
-  await notificationsRef.add({
-    title: '🎉 Referral Bonus!',
-    message: `You earned ${referredBonus > 0 ? referredBonus : 0} Valcoins as a referral bonus!`,
-    type: 'points',
-    read: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+    // ─── POST-TRANSACTION: Notifications & Leaderboards ───
+    const { 
+      referredBonus, referrerBonus, referrerUid, 
+      referredName, referrerName, referredPhoto, referrerPhoto 
+    } = result as any;
 
-  const referrerNotifRef = db.collection('users').doc(referrerUid).collection('notifications');
-  await referrerNotifRef.add({
-    title: '🎉 Referral Validated!',
-    message: `${userData.displayName || 'A user'} you referred has been validated! You earned ${referrerBonus > 0 ? referrerBonus : 0} Valcoins.`,
-    type: 'points',
-    read: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+    // Send notifications
+    await db.collection('users').doc(referredUid).collection('notifications').add({
+      title: '🎉 Referral Bonus!',
+      message: `You earned ${referredBonus.toLocaleString()} Valcoins as a referral bonus!`,
+      type: 'points',
+      read: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
-  return true;
+    await db.collection('users').doc(referrerUid).collection('notifications').add({
+      title: '🎉 Referral Validated!',
+      message: `${referredName} you referred has been validated! You earned ${referrerBonus.toLocaleString()} Valcoins.`,
+      type: 'points',
+      read: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Update Leaderboards (Visibility)
+    try {
+      const { updateLeaderboardStats } = require('./leaderboardUtils');
+      await updateLeaderboardStats(referredUid, referredName, referredPhoto, referredBonus, 'valcoins', 'referral');
+      await updateLeaderboardStats(referrerUid, referrerName, referrerPhoto, referrerBonus, 'valcoins', 'referral');
+    } catch (e) {
+      console.warn('[Referral] Leaderboard update failed, but points were awarded:', e);
+    }
+
+    console.log(`[Referral] ✅ Successfully awarded bonus to ${referredName} and inviter ${referrerName}`);
+    return true;
+
+  } catch (error) {
+    console.error(`[Referral] ❌ Transaction error for user ${referredUid}:`, error);
+    return false;
+  }
 }
 
 /**
@@ -418,4 +447,37 @@ export function clampPointsToTierMax(newPointsRaw: number, tier: number, oldPoin
   return Math.min(newPointsRaw, config.max);
 }
 
+
 export { TIER_CONFIG };
+
+/**
+ * ─── FIRESTORE TRIGGER: onUserUpdated ───
+ * Automatically checks for referral bonus eligibility whenever a user's
+ * profile is updated (e.g. linking Aurory account).
+ */
+import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
+
+export const onUserUpdatedReferralCheck = onDocumentUpdated('users/{userId}', async (event) => {
+  const newData = event.data?.after.data();
+  const oldData = event.data?.before.data();
+  
+  if (!newData) return;
+
+  const uid = event.params.userId;
+  const db = admin.firestore();
+
+  // 1. Check if Aurory account was just linked
+  const wasLinked = !oldData?.auroryPlayerId && !!newData.auroryPlayerId;
+  const changedLinking = oldData?.auroryPlayerId && newData.auroryPlayerId && oldData.auroryPlayerId !== newData.auroryPlayerId;
+
+  // 2. Check if user just reached Tier II (already handled in upgradeTier, but this is a safety net)
+  const reachedTierII = (oldData?.tier || 1) < 2 && (newData.tier || 1) >= 2;
+
+  // If any relevant condition changed, check for bonus
+  if (wasLinked || changedLinking || reachedTierII) {
+    if (newData.referredBy && !newData.referralBonusClaimed) {
+      console.log(`[Referral] Triggering check for user ${uid} (Linked: ${wasLinked}, Reached T2: ${reachedTierII})`);
+      await checkAndAwardReferralBonus(uid, db);
+    }
+  }
+});

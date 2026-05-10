@@ -139,8 +139,8 @@ import { discordInteraction } from './interactions';
 export { discordInteraction };
 
 // ─── 11. TIER & REFERRAL SYSTEM ───
-import { upgradeTier, applyReferralCode, ensureReferralCode } from './tierAndReferral';
-export { upgradeTier, applyReferralCode, ensureReferralCode };
+import { upgradeTier, applyReferralCode, ensureReferralCode, onUserUpdatedReferralCheck } from './tierAndReferral';
+export { upgradeTier, applyReferralCode, ensureReferralCode, onUserUpdatedReferralCheck };
 // ─── 12. RUNIE AI ───
 import { chatWithRunie } from './runieAI';
 export { chatWithRunie };
