@@ -97,6 +97,7 @@ const OdinsRiddle = ({ user, onClose, onBack }) => {
     setSelectedAnswer(null);
     setTimeLeft(config.timerLimit || 15);
     setError('');
+    setIsSubmitting(false); // Reset submitting state for new riddle
 
     // Check if player is locked or completed
     if (dailyProgress.phase === 'locked' || dailyProgress.phase === 'completed') {
@@ -130,14 +131,19 @@ const OdinsRiddle = ({ user, onClose, onBack }) => {
   }, [user?.uid, config, dailyProgress.phase, getCurrentSlot, isStarted]);
 
   useEffect(() => {
-    loadRiddle();
+    if (isStarted && !riddle && !loading) {
+      loadRiddle();
+    }
     return () => clearInterval(timerRef.current);
-  }, [loadRiddle]);
+  }, [isStarted, riddle, loading, loadRiddle]);
 
   // ── Timer countdown ──
   useEffect(() => {
-    if (!riddle || result || loading || dailyProgress.phase === 'locked' || dailyProgress.phase === 'completed') {
-      if (timerRef.current) clearInterval(timerRef.current);
+    if (!riddle || result || loading || isSubmitting || dailyProgress.phase === 'locked' || dailyProgress.phase === 'completed') {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
       return;
     }
 

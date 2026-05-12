@@ -347,40 +347,45 @@ async function checkAndAwardReferralBonus(
 
       // 4. Update Both Users
       transaction.update(userRef, {
-        points: referredClamped,
+        points: admin.firestore.FieldValue.increment(referredActualBonus),
         exp: admin.firestore.FieldValue.increment(bonusAmountConfig),
         referralBonusClaimed: true,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
       transaction.update(referrerRef, {
-        points: referrerClamped,
+        points: admin.firestore.FieldValue.increment(referrerActualBonus),
         exp: admin.firestore.FieldValue.increment(bonusAmountConfig),
         validReferralCount: admin.firestore.FieldValue.increment(1),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
       // 5. Create History Entries
-      const refHistoryRef = userRef.collection('pointsHistory').doc();
-      transaction.set(refHistoryRef, {
-        amount: referredActualBonus > 0 ? referredActualBonus : bonusAmountConfig,
-        type: 'referral_bonus',
-        description: 'Referral bonus — welcome reward!',
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      if (referredActualBonus > 0) {
+        const refHistoryRef = userRef.collection('pointsHistory').doc();
+        transaction.set(refHistoryRef, {
+          amount: referredActualBonus,
+          type: 'referral_bonus',
+          description: 'Referral bonus — welcome reward!',
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
 
-      const referrerHistoryRef = referrerRef.collection('pointsHistory').doc();
-      transaction.set(referrerHistoryRef, {
-        amount: referrerActualBonus > 0 ? referrerActualBonus : bonusAmountConfig,
-        type: 'referral_bonus',
-        description: `Referral bonus — ${userData.displayName || userData.username || 'a user'} validated!`,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      if (referrerActualBonus > 0) {
+        const referrerHistoryRef = referrerRef.collection('pointsHistory').doc();
+        transaction.set(referrerHistoryRef, {
+          amount: referrerActualBonus,
+          type: 'referral_bonus',
+          description: `Referral bonus — ${userData.displayName || userData.username || 'a user'} validated!`,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
 
       return {
         success: true,
-        referredBonus: referredActualBonus > 0 ? referredActualBonus : bonusAmountConfig,
-        referrerBonus: referrerActualBonus > 0 ? referrerActualBonus : bonusAmountConfig,
+        referredBonus: referredActualBonus,
+        referrerBonus: referrerActualBonus,
+        fullBonus: bonusAmountConfig,
         referrerUid,
         referredName: userData.displayName || userData.username || 'User',
         referrerName: referrerData.displayName || referrerData.username || 'Inviter',
@@ -396,14 +401,16 @@ async function checkAndAwardReferralBonus(
 
     // ─── POST-TRANSACTION: Notifications & Leaderboards ───
     const { 
-      referredBonus, referrerBonus, referrerUid, 
+      referredBonus, referrerBonus, fullBonus, referrerUid, 
       referredName, referrerName, referredPhoto, referrerPhoto 
     } = result as any;
 
     // Send notifications
     await db.collection('users').doc(referredUid).collection('notifications').add({
       title: '🎉 Referral Bonus!',
-      message: `You earned ${referredBonus.toLocaleString()} Valcoins as a referral bonus!`,
+      message: referredBonus >= fullBonus 
+        ? `You earned ${referredBonus.toLocaleString()} Valcoins as a referral bonus!`
+        : `You earned ${referredBonus.toLocaleString()} Valcoins (capped by Tier limit) as a referral bonus!`,
       type: 'points',
       read: false,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -411,7 +418,9 @@ async function checkAndAwardReferralBonus(
 
     await db.collection('users').doc(referrerUid).collection('notifications').add({
       title: '🎉 Referral Validated!',
-      message: `${referredName} you referred has been validated! You earned ${referrerBonus.toLocaleString()} Valcoins.`,
+      message: referrerBonus >= fullBonus
+        ? `${referredName} you referred has been validated! You earned ${referrerBonus.toLocaleString()} Valcoins.`
+        : `${referredName} you referred has been validated! You earned ${referrerBonus.toLocaleString()} Valcoins (capped by Tier limit).`,
       type: 'points',
       read: false,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),

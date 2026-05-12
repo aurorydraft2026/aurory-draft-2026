@@ -1,5 +1,5 @@
 import { db, database, functions } from '../firebase';
-import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs, query as fsQuery, where, orderBy, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, getDocs, query as fsQuery, where, orderBy, limit } from 'firebase/firestore';
 import { ref, onValue, off, query, orderByChild, limitToLast, set, onDisconnect, runTransaction } from 'firebase/database';
 import { httpsCallable } from 'firebase/functions';
 import { createNotification } from './notifications';
@@ -631,7 +631,7 @@ export async function fetchRandomRiddle(uid, requiredDifficulty = null) {
           // Track that we asked this riddle
           const userRef = doc(db, 'users', uid);
           const newAskedIds = Array.from(new Set([...askedRiddleIds, selected.id]));
-          await setDoc(userRef, { "dailyRiddle.askedRiddleIds": newAskedIds }, { merge: true });
+          await updateDoc(userRef, { "dailyRiddle.askedRiddleIds": newAskedIds });
           
           await setDoc(doc(db, 'users', uid, 'activeSessions', 'odinsRiddle'), {
             riddleId: selected.id, startTime: serverTimestamp(), status: 'active'
@@ -665,7 +665,7 @@ export async function fetchRandomRiddle(uid, requiredDifficulty = null) {
     if (uid) {
       const userRef = doc(db, 'users', uid);
       const newAskedIds = Array.from(new Set([...askedRiddleIds, selected.id]));
-      await setDoc(userRef, { "dailyRiddle.askedRiddleIds": newAskedIds }, { merge: true });
+      await updateDoc(userRef, { "dailyRiddle.askedRiddleIds": newAskedIds });
 
       const sessionRef = doc(db, 'users', uid, 'activeSessions', 'odinsRiddle');
       await setDoc(sessionRef, {
