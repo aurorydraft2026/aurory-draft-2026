@@ -83,6 +83,8 @@ const OdinsRiddle = ({ user, onClose, onBack }) => {
         }
       } catch (err) {
         console.error('Failed to load config/progress:', err);
+      } finally {
+        setLoading(false);
       }
     };
     init();
@@ -131,11 +133,11 @@ const OdinsRiddle = ({ user, onClose, onBack }) => {
   }, [user?.uid, config, dailyProgress.phase, getCurrentSlot, isStarted]);
 
   useEffect(() => {
-    if (isStarted && !riddle && !loading) {
+    if (isStarted && !riddle && !loading && !error) {
       loadRiddle();
     }
     return () => clearInterval(timerRef.current);
-  }, [isStarted, riddle, loading, loadRiddle]);
+  }, [isStarted, riddle, loading, loadRiddle, error]);
 
   // ── Timer countdown ──
   useEffect(() => {
@@ -461,7 +463,7 @@ const OdinsRiddle = ({ user, onClose, onBack }) => {
             <h2 className="feedback-status">
               {result.isTimeout ? "TIME'S UP" : result.correct ? 'EXCELLENT!' : 'WRONG ANSWER'}
             </h2>
-            
+
             <div className="feedback-details">
               {result.correct ? (
                 <div className="reward-info">
@@ -489,7 +491,7 @@ const OdinsRiddle = ({ user, onClose, onBack }) => {
               </div>
             </div>
 
-            <button 
+            <button
               className={`feedback-continue-btn ${result.correct ? 'correct' : 'wrong'}`}
               onClick={handleNext}
             >
@@ -506,7 +508,7 @@ const OdinsRiddle = ({ user, onClose, onBack }) => {
 const DailyProgressGauge = ({ progress, baseCount, totalRiddles, maxWrong }) => {
   const answered = progress.totalAnswered || 0;
   const wrong = progress.wrongAnswers || 0;
-  
+
   // Calculate stroke dash array for a 100px radius circle (Circumference ≈ 314)
   const R = 45;
   const C = 2 * Math.PI * R;
@@ -520,9 +522,9 @@ const DailyProgressGauge = ({ progress, baseCount, totalRiddles, maxWrong }) => 
           {/* Base Track */}
           <circle cx="50" cy="50" r={R} className="gauge-track" />
           {/* Progress Segment */}
-          <circle 
-            cx="50" cy="50" r={R} 
-            className="gauge-progress" 
+          <circle
+            cx="50" cy="50" r={R}
+            className="gauge-progress"
             strokeDasharray={C}
             strokeDashoffset={offset}
             transform="rotate(-90 50 50)"
