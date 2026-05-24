@@ -518,6 +518,7 @@ All decisions made by tournament organizers may change throughout the tourney.`)
   const [websiteSubTab, setWebsiteSubTab] = useState('maintenance');
   const [shopSubTab, setShopSubTab] = useState('settings');
   const [discordCommandsEnabled, setDiscordCommandsEnabled] = useState(true);
+  const [homepageSectionsEnabled, setHomepageSectionsEnabled] = useState(true);
   const [shopEnabled, setShopEnabled] = useState(true);
   const [shopHistory, setShopHistory] = useState([]);
   const [shopHistoryLoading, setShopHistoryLoading] = useState(false);
@@ -1009,6 +1010,23 @@ All decisions made by tournament organizers may change throughout the tourney.`)
 
     return () => unsub();
   }, [activeTab, isAdmin, isAdminUser]);
+
+  // Fetch Homepage Sections config
+  useEffect(() => {
+    if (!isAdmin || activeTab !== 'website_mgmt') return;
+
+    const unsub = onSnapshot(doc(db, 'settings', 'homepage_sections'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setHomepageSectionsEnabled(data.enabled !== false); // Default to true if not set
+      } else {
+        // Initialize if doesn't exist (Only Super Admin should initialize it if it doesn't exist, but since read is open and fallback is true we can set it when saving or just do it here)
+        setHomepageSectionsEnabled(true);
+      }
+    });
+
+    return () => unsub();
+  }, [activeTab, isAdmin]);
 
   // Fetch all shop cosmetics (Inventory Management)
   useEffect(() => {
@@ -2618,6 +2636,36 @@ All decisions made by tournament organizers may change throughout the tourney.`)
     } catch (error) {
       console.error('Error saving discord settings:', error);
       alert('Failed to save discord settings.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleSaveHomepageSections = async () => {
+    if (!isSuperAdminUser) {
+      alert('Only Super Admins can change these settings.');
+      return;
+    }
+    setProcessingId('save_homepage_sections');
+    try {
+      await setDoc(doc(db, 'settings', 'homepage_sections'), {
+        enabled: homepageSectionsEnabled,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.uid,
+        updatedByName: resolveDisplayName(user)
+      }, { merge: true });
+
+      alert('Homepage sections settings saved successfully!');
+
+      logActivity({
+        user,
+        type: 'ADMIN',
+        action: 'update_homepage_sections_settings',
+        metadata: { enabled: homepageSectionsEnabled }
+      });
+    } catch (error) {
+      console.error('Error saving homepage sections settings:', error);
+      alert('Failed to save settings: ' + error.message);
     } finally {
       setProcessingId(null);
     }
@@ -7622,6 +7670,14 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                   >
                     Discord
                   </button>
+                  {isSuperAdminUser && (
+                    <button
+                      className={`selector-btn ${websiteSubTab === 'homepage' ? 'active' : ''}`}
+                      onClick={() => setWebsiteSubTab('homepage')}
+                    >
+                      Homepage
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -7766,6 +7822,46 @@ All decisions made by tournament organizers may change throughout the tourney.`)
                 </div>
               )}
 
+              {websiteSubTab === 'homepage' && isSuperAdminUser && (
+                <div className="credit-form">
+                  <div className="section-header" style={{ marginBottom: '25px', paddingBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <h3 style={{ margin: 0, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '24px' }}>🏠</span> Homepage Sections
+                    </h3>
+                    <p style={{ margin: '8px 0 0 0', color: '#94a3b8', fontSize: '14px' }}>
+                      Toggle visibility of key homepage sections (Arena of Glory and Asgard Drafts).
+                    </p>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Homepage Sections Visibility</label>
+                    <div className="currency-toggle-group">
+                      <button
+                        className={`toggle-btn ${homepageSectionsEnabled ? 'active' : ''}`}
+                        onClick={() => setHomepageSectionsEnabled(true)}
+                      >ON</button>
+                      <button
+                        className={`toggle-btn ${!homepageSectionsEnabled ? 'active' : ''}`}
+                        onClick={() => setHomepageSectionsEnabled(false)}
+                      >OFF</button>
+                    </div>
+                    <p className="helper-text" style={{ marginTop: '10px', fontSize: '13px', color: homepageSectionsEnabled ? '#10b981' : '#ef4444', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '8px' }}>
+                      {homepageSectionsEnabled
+                        ? "✅ Arena of Glory (Tournaments) and Asgard Drafts (Drafts) sections are VISIBLE on the homepage."
+                        : "⚠️ Arena of Glory (Tournaments) and Asgard Drafts (Drafts) sections are HIDDEN on the homepage."}
+                    </p>
+                  </div>
+
+                  <button
+                    className="approve-btn"
+                    onClick={handleSaveHomepageSections}
+                    disabled={processingId === 'save_homepage_sections'}
+                    style={{ marginTop: '30px', width: '100%' }}
+                  >
+                    {processingId === 'save_homepage_sections' ? 'Saving...' : '💾 Save Homepage Settings'}
+                  </button>
+                </div>
+              )}
 
             </div>
           )}

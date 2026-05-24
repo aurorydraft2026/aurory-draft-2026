@@ -114,7 +114,7 @@ export const tournamentRewards = onMatchupCompleted;
 
 // ─── 7. DISCORD ANNOUNCEMENTS ───
 // Automatic notifications to Discord webhooks
-import { onRaffleCreated, onRaffleWinnerSet, onMatchupCreated, onMatchupWinner, onDraftCreated, scheduledRunieTips, onNewUserWelcome } from './discord';
+import { onRaffleCreated, onRaffleWinnerSet, onMatchupCreated, onMatchupWinner, onDraftCreated, scheduledRunieTips, onNewUserWelcome, scheduledDailyPvpRecap } from './discord';
 export const onRaffleCreatedAnnouncement = onRaffleCreated;
 export const onRaffleWinnerAnnouncement = onRaffleWinnerSet;
 // import { investigateRaffles } from './investigateRaffles';
@@ -124,6 +124,7 @@ export const onMatchupWinnerAnnouncement = onMatchupWinner;
 export const onDraftCreatedAnnouncement = onDraftCreated;
 export const runieTips = scheduledRunieTips;
 export const runieWelcome = onNewUserWelcome;
+export const dailyPvpRecap = scheduledDailyPvpRecap;
 
 // ─── 8. MINI-GAMES ───
 // Secure prize selection and payouts

@@ -592,8 +592,9 @@ service cloud.firestore {
       // Anyone can read settings
       allow read: if true;
       
-      // Only admins can manage settings, except mini_games which games_manager can also edit
-      allow write: if isAdmin() || (isGamesManager() && settingId == 'mini_games');
+      // Only admins can manage settings, except mini_games which games_manager can also edit.
+      // Restrict homepage_sections writes to super admins only.
+      allow write: if (settingId == 'homepage_sections') ? isSuperAdmin() : (isAdmin() || (isGamesManager() && settingId == 'mini_games'));
     }
     // MATCHUPS
     // =============================================

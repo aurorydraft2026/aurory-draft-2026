@@ -13,7 +13,7 @@ import {
   syncAuroryName
 } from '../services/auroryProfileService';
 import { AMIKOS } from '../data/amikos';
-import { isSuperAdmin } from '../config/admins';
+import { isSuperAdmin, isUserSuperAdmin } from '../config/admins';
 import LoadingScreen from '../components/LoadingScreen';
 import DraftRulesModal from '../components/DraftRulesModal';
 import { useTournamentCreation } from '../hooks/useTournamentCreation';
@@ -283,6 +283,9 @@ function HomePage() {
   // Shop visibility state
   const [shopEnabled, setShopEnabled] = useState(true);
 
+  // Homepage sections visibility state
+  const [homepageSectionsEnabled, setHomepageSectionsEnabled] = useState(true);
+
   // Hover state for leaderboard group animations
   const [hoveredRowId, setHoveredRowId] = useState(null);
 
@@ -491,6 +494,24 @@ function HomePage() {
     }, (err) => {
       if (err.code !== 'permission-denied' || isGeneralAdmin) {
         console.error("Error listening to shop settings:", err);
+      }
+    });
+
+    return () => unsub();
+  }, [isGeneralAdmin]);
+
+  // Fetch Homepage Sections config
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'homepage_sections'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setHomepageSectionsEnabled(data.enabled ?? true);
+      } else {
+        setHomepageSectionsEnabled(true);
+      }
+    }, (err) => {
+      if (err.code !== 'permission-denied' || isGeneralAdmin) {
+        console.error("Error listening to homepage sections settings:", err);
       }
     });
 
@@ -1342,24 +1363,36 @@ function HomePage() {
             </div>
             <RafflesSection user={user} isAdmin={isAdmin} />
 
-            {/* Arena of Glory (Tourneys) */}
-            <div className="viking-section-header">
-              <h2 className="viking-section-title">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>
-                Arena of Glory
-              </h2>
-              <div className="viking-title-line"></div>
-            </div>
-            <MatchupsSection user={user} isAdmin={isAdmin} />
+            {(homepageSectionsEnabled || isSuperAdminUser) && (
+              <>
+                {/* Arena of Glory (Tourneys) */}
+                <div className="viking-section-header">
+                  <h2 className="viking-section-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>
+                    Arena of Glory
+                    {!homepageSectionsEnabled && isSuperAdminUser && (
+                      <span style={{ fontSize: '0.45em', color: '#ef4444', marginLeft: '10px', verticalAlign: 'middle', border: '1px solid #ef4444', padding: '2px 8px', borderRadius: '4px', letterSpacing: '1px', fontWeight: '800' }}>
+                        HIDDEN (TESTING VIEW)
+                      </span>
+                    )}
+                  </h2>
+                  <div className="viking-title-line"></div>
+                </div>
+                <MatchupsSection user={user} isAdmin={isAdmin} />
 
-            {/* Asgard Drafts (Drafts) */}
-            <div className="viking-section-header">
-              <h2 className="viking-section-title">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12s-3-2-3-6 3-4 3-4 3 0 3 4-3 6-3 6Z" /><path d="M9 20h6" /><path d="M12 16v4" /><path d="M8 16c-1.5 0-3 1-3 2 0 .5.5 1 1.5 1h11c1 0 1.5-.5 1.5-1 0-1-1.5-2-3-2" /></svg>
-                Asgard Drafts
-              </h2>
-              <div className="viking-title-line"></div>
-            </div>
+                {/* Asgard Drafts (Drafts) */}
+                <div className="viking-section-header">
+                  <h2 className="viking-section-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12s-3-2-3-6 3-4 3-4 3 0 3 4-3 6-3 6Z" /><path d="M9 20h6" /><path d="M12 16v4" /><path d="M8 16c-1.5 0-3 1-3 2 0 .5.5 1 1.5 1h11c1 0 1.5-.5 1.5-1 0-1-1.5-2-3-2" /></svg>
+                    Asgard Drafts
+                    {!homepageSectionsEnabled && isSuperAdminUser && (
+                      <span style={{ fontSize: '0.45em', color: '#ef4444', marginLeft: '10px', verticalAlign: 'middle', border: '1px solid #ef4444', padding: '2px 8px', borderRadius: '4px', letterSpacing: '1px', fontWeight: '800' }}>
+                        HIDDEN (TESTING VIEW)
+                      </span>
+                    )}
+                  </h2>
+                  <div className="viking-title-line"></div>
+                </div>
             <div className="tournaments-section drafts-section dashboard-widget">
               <div className="section-header">
                 <div className="header-title-group">
@@ -1684,6 +1717,8 @@ function HomePage() {
                 </>
               )}
             </div>
+          </>
+        )}
 
             {/* Valhalla Vault (Cosmetics Shop) */}
             {(shopEnabled || isSuperAdminUser) && (
@@ -1852,6 +1887,7 @@ function HomePage() {
                 <div className="earners-timeframe-tabs">
                   {[
                     { key: 'daily', label: 'Daily' },
+                    { key: 'yesterday', label: 'Yesterday' },
                     { key: 'weekly', label: 'Weekly' },
                     { key: 'monthly', label: 'Monthly' },
                     { key: 'all_time', label: 'All-Time' },

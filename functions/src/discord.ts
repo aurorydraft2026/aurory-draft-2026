@@ -529,3 +529,149 @@ export const onNewUserWelcome = functions.firestore
             console.error(`❌ Runie welcome failed:`, error.message);
         }
     });
+
+// ═══════════════════════════════════════════════════════
+//  RUNIE — DAILY PVP LEADERBOARD RECAP
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Trigger: Runs daily at 00:01 UTC (1 minute after the daily reset)
+ * Goal: Post yesterday's final PVP wins leaderboard to Discord so players
+ *       can see the completed day's standings. Running after reset ensures
+ *       the data is 100% finalized with no last-second wins missed.
+ */
+export const scheduledDailyPvpRecap = functions.pubsub
+    .schedule('1 0 * * *')         // 00:01 UTC every day
+    .timeZone('UTC')
+    .onRun(async () => {
+        const admin = require('firebase-admin');
+        const rtdb = admin.database();
+
+        // Fetch YESTERDAY's data (the day that just ended)
+        const yesterday = new Date();
+        yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+        const dateKey = yesterday.toISOString().split('T')[0];
+        const medals = ['🥇', '🥈', '🥉'];
+
+        console.log(`📊 Daily PvP Recap triggered for yesterday: ${dateKey}`);
+
+        try {
+            // 1. Fetch PvP Win Counts for yesterday
+            const winsSnap = await rtdb
+                .ref(`leaderboards/earnings/wins/pvp/daily/${dateKey}`)
+                .orderByChild('score')
+                .limitToLast(100)
+                .once('value');
+
+            if (!winsSnap.exists()) {
+                console.log('No PvP wins recorded yesterday. Skipping recap.');
+                return;
+            }
+
+            // Parse and sort entries
+            const entries: { uid: string; name: string; wins: number; photoURL: string }[] = [];
+            winsSnap.forEach((child: any) => {
+                entries.push({
+                    uid: child.key,
+                    name: child.val().displayName || 'Unknown',
+                    wins: child.val().score || 0,
+                    photoURL: child.val().photoURL || ''
+                });
+            });
+            entries.sort((a, b) => b.wins - a.wins);
+
+            if (entries.length === 0) {
+                console.log('No entries after parsing. Skipping.');
+                return;
+            }
+
+            // 2. Fetch Valcoins earned from PvP yesterday (for the summary)
+            const valcoinsSnap = await rtdb
+                .ref(`leaderboards/earnings/valcoins/pvp_wins/daily/${dateKey}`)
+                .orderByChild('score')
+                .limitToLast(100)
+                .once('value');
+
+            let totalValcoinsEarned = 0;
+            if (valcoinsSnap.exists()) {
+                valcoinsSnap.forEach((child: any) => {
+                    totalValcoinsEarned += child.val().score || 0;
+                });
+            }
+
+            const totalWins = entries.reduce((sum, e) => sum + e.wins, 0);
+            const totalPlayers = entries.length;
+
+            // 3. Format the leaderboard text (paginated into embeds of 25)
+            const embeds: any[] = [];
+
+            // Format the date for display
+            const displayDate = new Date(dateKey + 'T00:00:00Z').toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric'
+            });
+
+            for (let i = 0; i < entries.length; i += 25) {
+                const chunk = entries.slice(i, i + 25);
+                const leaderboardText = chunk.map((e, idx) => {
+                    const rank = i + idx + 1;
+                    const prefix = rank <= 3 ? medals[rank - 1] : `\`${rank}.\``;
+                    return `${prefix} **${e.name}** — ${e.wins} Win${e.wins !== 1 ? 's' : ''}`;
+                }).join('\n');
+
+                embeds.push({
+                    ...(i === 0 ? {
+                        title: `⚔️ Daily PvP Recap — ${displayDate}`,
+                        description: `Here are yesterday's final PvP standings!\n\n${leaderboardText}`,
+                    } : {
+                        description: leaderboardText,
+                    }),
+                    color: 0xE67E22, // Orange
+                    ...(i + 25 >= entries.length ? {
+                        fields: [
+                            {
+                                name: '📊 Day Summary',
+                                value: `**${totalPlayers}** warriors fought **${totalWins}** total battles\n💰 **${totalValcoinsEarned.toLocaleString()}** Valcoins earned from PvP`,
+                                inline: false
+                            }
+                        ],
+                        footer: {
+                            text: 'Runie • Daily PvP Recap — Resets at 00:00 UTC',
+                            icon_url: RUNIE_IDENTITY.avatar_url
+                        },
+                        timestamp: new Date().toISOString()
+                    } : {})
+                });
+            }
+
+            // 4. Determine the champion's avatar for the thumbnail
+            const champion = entries[0];
+
+            // Add thumbnail of yesterday's champion to the first embed
+            if (champion.photoURL) {
+                embeds[0].thumbnail = { url: champion.photoURL };
+            }
+
+            // 5. Send to Discord
+            const response = await fetch(GENERAL_WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...RUNIE_IDENTITY,
+                    content: `📋 **Yesterday's PvP battles are in!** Here are the final standings:`,
+                    embeds: embeds.slice(0, 10) // Discord max 10 embeds per message
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Discord Webhook failed with status ${response.status}: ${errorText}`);
+            }
+
+            console.log(`✅ Daily PvP Recap posted: ${totalPlayers} warriors, ${totalWins} wins, ${totalValcoinsEarned} Valcoins`);
+        } catch (error: any) {
+            console.error(`❌ Daily PvP Recap failed:`, error.message);
+        }
+    });

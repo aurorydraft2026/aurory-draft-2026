@@ -359,15 +359,24 @@ export const useLeaderboard = (registeredUsers, currentUser = null) => {
         
         if (earnersTimeframe === 'daily') {
             timeframeKey = now.toISOString().split('T')[0];
+        } else if (earnersTimeframe === 'yesterday') {
+            const yesterday = new Date(now);
+            yesterday.setUTCDate(now.getUTCDate() - 1);
+            timeframeKey = yesterday.toISOString().split('T')[0];
         } else if (earnersTimeframe === 'monthly') {
             timeframeKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         } else if (earnersTimeframe === 'weekly') {
-            const sunday = new Date(now);
-            sunday.setDate(now.getDate() - now.getDay());
-            timeframeKey = sunday.toISOString().split('T')[0];
+            // Weekly reset is Tuesday 00:00 UTC (matching backend leaderboardUtils.ts)
+            const day = now.getUTCDay();
+            const diffToTuesday = day >= 2 ? day - 2 : day + 5;
+            const tuesday = new Date(now);
+            tuesday.setUTCDate(now.getUTCDate() - diffToTuesday);
+            timeframeKey = tuesday.toISOString().split('T')[0];
         }
 
-        const timeframePath = earnersTimeframe === 'all_time' ? 'all_time' : `${earnersTimeframe}/${timeframeKey}`;
+        // 'yesterday' reads from the daily/ path with yesterday's date key
+        const pathPrefix = earnersTimeframe === 'yesterday' ? 'daily' : earnersTimeframe;
+        const timeframePath = earnersTimeframe === 'all_time' ? 'all_time' : `${pathPrefix}/${timeframeKey}`;
         const path = `leaderboards/earnings/${earnersCurrency}/${earnersGameFilter}/${timeframePath}`;
         
         const leaderboardRef = rtdbQuery(ref(database, path), orderByChild('score'), limitToLast(10));
